@@ -10,7 +10,6 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": ".",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true

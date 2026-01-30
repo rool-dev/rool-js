@@ -42,7 +42,7 @@ export class EvalRunner {
 
     if (!this.client.isAuthenticated()) {
       console.log('Not authenticated. Opening browser for login...');
-      await this.client.login();
+      await this.client.login("Eval Agent");
     }
 
     const user = this.client.getAuthUser();
