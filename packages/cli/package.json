@@ -1,0 +1,53 @@
+{
+  "name": "@rool-dev/cli",
+  "version": "0.1.6",
+  "description": "Command-line interface for the Rool platform",
+  "packageManager": "pnpm@10.17.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "rool": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rool-dev/rool-js.git",
+    "directory": "packages/cli"
+  },
+  "keywords": [
+    "rool",
+    "cli",
+    "ai",
+    "agent"
+  ],
+  "author": {
+    "name": "Lightpost One",
+    "email": "info@lightpost.one",
+    "url": "https://lightpost.one"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@rool-dev/sdk": "workspace:*",
+    "archiver": "^7.0.1",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0"
+  },
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/marked-terminal": "^6.1.1",
+    "@types/node": "^25.0.2",
+    "typescript": "^5.9.3"
+  }
+}

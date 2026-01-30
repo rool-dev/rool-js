@@ -1,0 +1,65 @@
+{
+  "name": "@rool-dev/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the Rool platform",
+  "packageManager": "pnpm@10.17.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./node": {
+      "import": "./dist/auth-node.js",
+      "types": "./dist/auth-node.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "eval": "node --import tsx eval/main.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rool-dev/rool-js.git",
+    "directory": "packages/sdk"
+  },
+  "keywords": [
+    "rool",
+    "sdk",
+    "graph",
+    "hypergraph",
+    "api-client",
+    "real-time"
+  ],
+  "author": {
+    "name": "Lightpost One",
+    "email": "info@lightpost.one",
+    "url": "https://lightpost.one"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "graphql-sse": "^2.6.0",
+    "immutable-json-patch": "^6.0.2",
+    "open": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.3",
+    "@types/node": "^25.0.2",
+    "chai": "^6.2.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3"
+  }
+}

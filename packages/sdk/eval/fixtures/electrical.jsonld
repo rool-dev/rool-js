@@ -1,0 +1,68 @@
+{
+  "@context": {
+    "@vocab": "https://rool.dev/schema/",
+    "id": "@id"
+  },
+  "@graph": [
+    {
+      "id": "2TvtH2",
+      "text": "A sailboat equipped with common alternative power sources, featuring solar panels mounted on the deck/bimini and a wind generator installed on a mast or pole.",
+      "type": "image-search",
+      "headline": "A sailboat equipped with common alternative power sources, featuring solar panels mounted on the deck/bimini and a wind generator installed on a mast or pole.",
+      "imageUrl": "https://www.yachtingnews.com/wp-content/uploads/2024/04/solar-panels-wind-and-hydro-generators.webp"
+    },
+    {
+      "id": "752gMr",
+      "text": "An **Energy Audit** is the essential first step to properly sizing your battery bank and charging sources. The goal is to calculate your total daily power consumption, expressed in **Amp-Hours (Ah)**.\n\n### Performing the Audit:\n1.  **List all DC Devices:** Compile a comprehensive list of every electrical device on board (lights, fridge, navigation equipment, pumps, fans, etc.).\n2.  **Determine Current Draw:** Find the current draw (in Amps) for each item. Use manufacturer specifications, an inline ammeter, or a clamp meter for accurate measurement.\n3.  **Estimate Daily Usage:** Record or estimate the total number of hours each device will run per 24-hour period.\n\n### The Calculation:\nMultiply the device's **Amps** by the **Hours of Use** to get its daily **Amp-Hour** consumption. Sum the results from all devices to determine your total daily Ah consumption, which is the minimum capacity your battery bank must supply.",
+      "type": "markdown",
+      "headline": "Energy Audit: Calculate Power Consumption",
+      "expand": ["MuOAek"]
+    },
+    {
+      "id": "86Trm4",
+      "text": "A detailed schematic illustrating a marine electrical system's connection to shore power, showing how a galvanic isolator or isolation transformer prevents galvanic corrosion and stray current issues caused by the shore power ground connection.",
+      "type": "image-search",
+      "headline": "A detailed schematic illustrating a marine electrical system's connection to shore power, showing how a galvanic isolator or isolation transformer prevents galvanic corrosion and stray current issues caused by the shore power ground connection.",
+      "imageUrl": "https://www.dairyland.com/images/Marine_Schematic.png"
+    },
+    {
+      "id": "MZpMsZ",
+      "text": "Proper wiring and circuit protection are paramount for safety and reliability on a sailboat. \n\n*   **Marine-Grade Wiring** is necessary because it features tinned copper conductors, which resist corrosion and minimize resistance in the high-humidity, saltwater environment.\n*   **Proper Wire Sizing** (based on ABYC standards) ensures minimal voltage drop over long runs and prevents dangerous overheating and potential fire by matching the wire's capacity to the maximum expected load.\n*   **Fusing and Circuit Breakers** provide critical Overcurrent Protection (OCP). They act as a safety fuse, interrupting the flow of electricity instantly in case of a short circuit or overload, thereby protecting wiring, equipment, and the vessel from fire.",
+      "type": "markdown",
+      "headline": "Wiring and Circuit Protection"
+    },
+    {
+      "id": "MuOAek",
+      "type": "topic",
+      "emoji": "⚡️",
+      "bodyText": "Text on each standard electrical system in use on a sailboat",
+      "headline": "Text on each standard electrical system in use on a sailboat",
+      "expand": ["P7Of9G", "vpqh0x", "tHNaGg"]
+    },
+    {
+      "id": "P7Of9G",
+      "text": "The **Bonding System** connects all submerged metallic components (thru-hulls, shafts, struts, etc.) to a common point, often connected to a sacrificial anode. Its primary function is to equalize electrical potential between dissimilar underwater metals to manage and mitigate **galvanic corrosion**.\n\nThe **Grounding System** (specifically the AC Safety Ground) is a safety circuit for the boat's 120V/240V AC system. Its purpose is to provide a low-resistance path for AC fault currents to trip a circuit breaker, preventing electric shock hazards. While the bonding system can contribute to a boat's **lightning protection** by providing a large surface area path to the water, the grounding system can sometimes **cause** **galvanic corrosion** if the shore power connection introduces stray DC currents, necessitating isolation devices.",
+      "type": "markdown",
+      "headline": "Bonding and Grounding Systems"
+    },
+    {
+      "id": "lcLido",
+      "type": "topic",
+      "emoji": "⚡",
+      "headline": "Sailboat electrical systems",
+      "expand": ["86Trm4", "2TvtH2", "752gMr", "MZpMsZ"]
+    },
+    {
+      "id": "tHNaGg",
+      "text": "A sailboat's DC electrical system is typically split into two primary, isolated banks:\n\n*   **The House Bank:** A deep-cycle battery bank (usually 12V or 24V) designed to power all sustained onboard loads, including navigation electronics, refrigeration, lights, and pumps. It is built for deep discharges and long-term cycling.\n*   **The Engine/Starting Bank:** A high-cranking-amp battery dedicated exclusively to providing the necessary burst of power to crank the engine. It is kept separate and typically fully charged to guarantee reliable engine starting, regardless of the house bank's state of charge.\n\nThese banks are often managed by a **Battery Switch** and an **Automatic Charging Relay (ACR)** or **Battery Isolator**, which allows charging sources (like the alternator) to replenish both banks while ensuring they remain electrically separated during discharge.",
+      "type": "markdown",
+      "headline": "DC House and Engine Systems"
+    },
+    {
+      "id": "vpqh0x",
+      "text": "The **High-Output Marine Alternator** is a heavy-duty alternator driven by the engine, designed to generate significantly more amperage than a standard unit to rapidly replenish large 'House' battery banks. Its function is to convert mechanical engine power into electrical charging power. \n\nThis high output must be managed by a **Smart Regulator** (or external voltage regulator). The smart regulator's critical role is to employ multi-stage charging (Bulk, Absorption, Float) based on real-time battery voltage and temperature. This precise control maximizes charging efficiency and speed while protecting the batteries from overcharging and ensuring a full charge, which is vital for long battery life.",
+      "type": "markdown",
+      "headline": "DC Charging Sources"
+    }
+  ]
+}
