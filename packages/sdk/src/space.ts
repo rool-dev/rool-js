@@ -237,7 +237,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     this._name = newName;
 
     try {
-      await this.graphqlClient.renameSpace(this._id, newName, this._conversationId);
+      await this.graphqlClient.renameSpace(this._id, newName);
     } catch (error) {
       this._name = oldName;
       throw error;

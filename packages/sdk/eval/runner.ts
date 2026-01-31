@@ -13,7 +13,7 @@ interface QueuedTask {
 }
 
 /**
- * Minimal evaluation runner for rool-client test cases.
+ * Minimal evaluation runner for SDK test cases.
  */
 export class EvalRunner {
   private config: Required<RunnerConfig>;

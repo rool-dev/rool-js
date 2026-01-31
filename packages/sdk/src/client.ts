@@ -238,8 +238,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     const spaceId = generateEntityId();
     const spaceName = name ?? spaceId;
 
-    // Create on server with name (use a temporary conversationId for lifecycle ops)
-    await this.graphqlClient.createSpace(spaceId, spaceName, generateEntityId());
+    // Create on server with name
+    await this.graphqlClient.createSpace(spaceId, spaceName);
 
     // Fetch the created space to get userId (server assigns it)
     const { data, userId } = await this.graphqlClient.getSpace(spaceId);
@@ -269,8 +269,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Note: This does not affect any open Space instances - they become stale.
    */
   async deleteSpace(spaceId: string): Promise<void> {
-    // Use a temporary conversationId for lifecycle ops
-    await this.graphqlClient.deleteSpace(spaceId, generateEntityId());
+    await this.graphqlClient.deleteSpace(spaceId);
     // Client-level event will be emitted via SSE subscription
   }
 

@@ -88,44 +88,40 @@ export class GraphQLClient {
 
   // ===========================================================================
   // Space Lifecycle Operations (called from RoolClient)
-  // These use a placeholder conversationId since client events aren't filtered
   // ===========================================================================
 
-  async createSpace(spaceId: string, name: string, conversationId: string): Promise<void> {
+  async createSpace(spaceId: string, name: string): Promise<void> {
     const mutation = `
-      mutation CreateSpace($id: String!, $name: String!, $conversationId: String!) {
-        createSpace(id: $id, name: $name, conversationId: $conversationId)
+      mutation CreateSpace($id: String!, $name: String!) {
+        createSpace(id: $id, name: $name)
       }
     `;
     await this.request(mutation, {
       id: spaceId,
       name,
-      conversationId,
     });
   }
 
-  async deleteSpace(spaceId: string, conversationId: string): Promise<void> {
+  async deleteSpace(spaceId: string): Promise<void> {
     const mutation = `
-      mutation DeleteSpace($id: String!, $conversationId: String!) {
-        deleteSpace(id: $id, conversationId: $conversationId)
+      mutation DeleteSpace($id: String!) {
+        deleteSpace(id: $id)
       }
     `;
     await this.request(mutation, {
       id: spaceId,
-      conversationId,
     });
   }
 
-  async renameSpace(spaceId: string, name: string, conversationId: string): Promise<void> {
+  async renameSpace(spaceId: string, name: string): Promise<void> {
     const mutation = `
-      mutation RenameSpace($id: String!, $name: String!, $conversationId: String!) {
-        renameSpace(id: $id, name: $name, conversationId: $conversationId)
+      mutation RenameSpace($id: String!, $name: String!) {
+        renameSpace(id: $id, name: $name)
       }
     `;
     await this.request(mutation, {
       id: spaceId,
       name,
-      conversationId,
     });
   }
 

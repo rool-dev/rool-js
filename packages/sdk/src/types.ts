@@ -292,7 +292,7 @@ export interface SpaceEvent {
 
 /**
  * External auth provider interface for Electron or custom auth flows.
- * When provided, rool-client delegates all auth operations to this provider.
+ * When provided, the SDK delegates all auth operations to this provider.
  */
 export interface AuthProvider {
   /** Initialize the provider (e.g. check for callbacks, start timers) */
@@ -326,7 +326,7 @@ export interface RoolClientConfig {
   authUrl?: string;
   /**
    * External auth provider.
-   * When provided, rool-client uses this instead of built-in browser auth.
+   * When provided, the SDK uses this instead of built-in browser auth.
    */
   authProvider?: AuthProvider;
 }
