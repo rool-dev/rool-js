@@ -1,7 +1,7 @@
 {
   "name": "@rool-dev/sdk",
   "version": "0.1.1",
-  "description": "TypeScript SDK for the Rool platform",
+  "description": "TypeScript SDK for working with Rool Spaces",
   "packageManager": "pnpm@10.17.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -44,9 +44,9 @@
     "real-time"
   ],
   "author": {
-    "name": "Lightpost One",
-    "email": "info@lightpost.one",
-    "url": "https://lightpost.one"
+    "name": "Rool Limited",
+    "email": "info@rool.dev",
+    "url": "https://rool.dev"
   },
   "license": "MIT",
   "dependencies": {
@@ -57,9 +57,9 @@
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
-    "@types/node": "^25.0.2",
+    "@types/node": "^25.1.0",
     "chai": "^6.2.2",
-    "tsx": "^4.19.4",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
