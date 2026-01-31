@@ -1065,6 +1065,4 @@ Below are a few representative patterns.
 
 ## License
 
-This client is intended for use with the Rool platform and requires an account. Access is currently by invitation.
-
-Proprietary — © Lightpost One. All rights reserved.
+MIT - see [LICENSE](../../LICENSE) for details.

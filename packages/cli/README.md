@@ -83,4 +83,4 @@ On first use, the CLI opens your browser to authenticate. Credentials are stored
 
 ## License
 
-Proprietary - © Rool Limited. All rights reserved.
+MIT - see [LICENSE](../../LICENSE) for details.
