@@ -19,76 +19,28 @@ See [Patterns & Examples](#patterns--examples) for what you can build.
 npm install @rool-dev/sdk
 ```
 
-## Configuration
-
-```typescript
-import { RoolClient } from '@rool-dev/sdk';
-
-const client = new RoolClient({
-  baseUrl: 'https://api.dev.rool.dev',
-});
-```
-
-### RoolClientConfig
-
-```typescript
-interface RoolClientConfig {
-  baseUrl: string;           // Base URL (e.g., 'https://api.dev.rool.dev')
-  graphqlUrl?: string;       // Override GraphQL endpoint (default: {baseUrl}/graphql)
-  mediaUrl?: string;         // Override media endpoint (default: {baseUrl}/media)
-  authUrl?: string;          // Override auth endpoint (default: {baseUrl}/auth)
-  authProvider?: AuthProvider; // Optional, defaults to browser auth
-}
-```
-
-### Base URLs
-
-| Environment | URL |
-|-------------|-----|
-| Development | `https://api.dev.rool.dev` |
-| Production | `https://api.rool.dev` |
-
 ## Quick Start
 
 ```typescript
 import { RoolClient } from '@rool-dev/sdk';
 
-// Create and initialize client
-const client = new RoolClient({
-  baseUrl: 'https://api.dev.rool.dev',
-});
-
-// Process auth callbacks if we are returning from the login page
-client.initialize();
+const client = new RoolClient();
+client.initialize(); // Process auth callbacks if returning from login
 
 if (!await client.isAuthenticated()) {
   client.login('My App');  // Redirects to auth page, shows "Sign in to My App"
 }
 
-// Open an existing space
-const space = await client.openSpace('abc1234');
+// Create a new space (or open existing with client.openSpace('id'))
+const space = await client.createSpace('Solar System');
 
-// Create a new space
-const newSpace = await client.createSpace('My New Space');
-
-// Listen for changes (real-time updates are automatic)
-space.on('objectCreated', ({ objectId, object, source }) => {
-  console.log('New object:', objectId, object, 'from', source);
-});
-
-space.on('linked', ({ sourceId, relation, targetId, source }) => {
-  console.log('New link:', sourceId, '->', targetId, `[${relation}]`, 'from', source);
-});
-
-// Create objects with AI-generated content.
-// Field names are yours to define — only 'id' is reserved.
+// Create objects with AI-generated content using {{placeholders}}
 const { object: sun } = await space.createObject({
   data: {
     type: 'star',
     name: 'Sun',
     mass: '{{mass in solar masses}}',
-    radius: '{{radius in km}}',
-    temperature: '{{surface temperature}}'
+    temperature: '{{surface temperature in Kelvin}}'
   }
 });
 
@@ -102,16 +54,22 @@ const { object: earth } = await space.createObject({
   }
 });
 
-// Create an undo checkpoint
-await space.checkpoint('before linking');
-
-// Link them together
+// Link objects together
 await space.link(earth.id, 'orbits', sun.id);
 
-await space.undo(); // The link created above is now gone
-await space.redo(); // The link is back ...
+// Use the AI agent to work with your data
+const { message, objects } = await space.prompt(
+  'Add the other planets in our solar system and link them to the Sun'
+);
+console.log(message);  // AI explains what it did
+console.log(`Created ${objects.length} objects`);
 
-// Stop receiving events for this space and free resources
+// Query with natural language
+const { objects: innerPlanets } = await space.findObjects({
+  prompt: 'planets closer to the sun than Earth'
+});
+
+// Clean up
 space.close();
 ```
 
@@ -266,8 +224,8 @@ Use `RoolClient.generateId()` when you need an ID before calling `createObject` 
 No configuration needed. Uses localStorage for tokens, redirects to login page.
 
 ```typescript
-const client = new RoolClient({ baseUrl: 'https://api.rool.dev' });
-client.initialize(); // Process auth callbacks if this is a callback from the auth page
+const client = new RoolClient();
+client.initialize(); // Process auth callbacks if returning from login
 
 if (!await client.isAuthenticated()) {
   client.login('My App'); // Redirect to the auth page
@@ -281,13 +239,10 @@ For CLI tools and scripts. Stores credentials in `~/.config/rool/`, opens browse
 ```typescript
 import { NodeAuthProvider } from '@rool-dev/sdk/node';
 
-const client = new RoolClient({
-  baseUrl: 'https://api.rool.dev',
-  authProvider: new NodeAuthProvider()
-});
+const client = new RoolClient({ authProvider: new NodeAuthProvider() });
 
 if (!await client.isAuthenticated()) {
-  await client.login('My CLI Tool'); // Open auth page in system browser, await callback
+  await client.login('My CLI Tool'); // Opens browser, waits for callback
 }
 ```
 

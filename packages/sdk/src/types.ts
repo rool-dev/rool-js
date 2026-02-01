@@ -316,8 +316,8 @@ export interface AuthProvider {
 }
 
 export interface RoolClientConfig {
-  /** Base URL of the Rool deployment (e.g., 'https://api.dev.rool.dev') */
-  baseUrl: string;
+  /** Base URL of the Rool deployment (default: 'https://api.rool.dev') */
+  baseUrl?: string;
   /** Override GraphQL endpoint (default: {baseUrl}/graphql) */
   graphqlUrl?: string;
   /** Override media endpoint (default: {baseUrl}/media) */

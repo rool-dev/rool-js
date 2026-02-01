@@ -54,10 +54,10 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   // User storage cache (synced to localStorage)
   private _storageCache: Record<string, unknown> = {};
 
-  constructor(config: RoolClientConfig) {
+  constructor(config: RoolClientConfig = {}) {
     super();
 
-    const baseUrl = config.baseUrl.replace(/\/+$/, ''); // Remove trailing slashes
+    const baseUrl = (config.baseUrl ?? 'https://api.rool.dev').replace(/\/+$/, ''); // Remove trailing slashes
     this.urls = {
       graphql: config.graphqlUrl ?? `${baseUrl}/graphql`,
       media: config.mediaUrl ?? `${baseUrl}/media`,
