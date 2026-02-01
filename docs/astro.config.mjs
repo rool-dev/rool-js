@@ -6,6 +6,11 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Rool SDK',
+      logo: {
+        src: './src/assets/rool.svg',
+        replacesTitle: true,
+      },
+      customCss: ['./src/styles/custom.css'],
       social: {
         github: 'https://github.com/rool-dev/rool-js',
       },
