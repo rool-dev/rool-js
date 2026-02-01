@@ -30,6 +30,7 @@
   "publishConfig": {
     "access": "public"
   },
+  "homepage": "https://docs.rool.dev",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rool-dev/rool-js.git",
