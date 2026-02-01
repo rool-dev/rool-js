@@ -1,0 +1,67 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/sdk/README.md'
+      - 'packages/cli/README.md'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+# Sets permissions for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build docs from READMEs
+        run: |
+          mkdir -p docs
+
+          # Copy SDK README as main page
+          cp packages/sdk/README.md docs/index.md
+
+          # Copy CLI README
+          cp packages/cli/README.md docs/cli.md
+
+          # Fix LICENSE links (make them plain text)
+          sed -i 's/\[LICENSE\](\.\.\/\.\.\/LICENSE)/LICENSE/g' docs/*.md
+
+          # Add navigation header to each page
+          sed -i '1i\[SDK](/) · [CLI](/cli)\n' docs/index.md
+          sed -i '1i\[SDK](/) · [CLI](/cli)\n' docs/cli.md
+
+          # Create CNAME for custom domain
+          echo "docs.rool.dev" > docs/CNAME
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
