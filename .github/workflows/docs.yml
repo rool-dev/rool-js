@@ -6,16 +6,15 @@ on:
     paths:
       - 'packages/sdk/README.md'
       - 'packages/cli/README.md'
+      - 'docs/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
-# Sets permissions for GitHub Pages deployment
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -27,25 +26,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build docs from READMEs
-        run: |
-          mkdir -p docs
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+          run_install: false
 
-          # Copy SDK README as main page
-          cp packages/sdk/README.md docs/index.md
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
-          # Copy CLI README
-          cp packages/cli/README.md docs/cli.md
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-          # Fix LICENSE links (make them plain text)
-          sed -i 's/\[LICENSE\](\.\.\/\.\.\/LICENSE)/LICENSE/g' docs/*.md
+      - name: Build docs
+        run: pnpm docs:build
 
-          # Add navigation header to each page
-          sed -i '1i\[SDK](/) · [CLI](/cli)\n' docs/index.md
-          sed -i '1i\[SDK](/) · [CLI](/cli)\n' docs/cli.md
-
-          # Create CNAME for custom domain
-          echo "docs.rool.dev" > docs/CNAME
+      - name: Add CNAME for custom domain
+        run: echo "docs.rool.dev" > docs/dist/CNAME
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -53,7 +53,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: docs/dist
 
   deploy:
     environment:

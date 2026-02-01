@@ -1,0 +1,23 @@
+import { defineConfig } from 'astro/config';
+import starlight from '@astrojs/starlight';
+
+export default defineConfig({
+  site: 'https://docs.rool.dev',
+  integrations: [
+    starlight({
+      title: 'Rool SDK',
+      social: {
+        github: 'https://github.com/rool-dev/rool-js',
+      },
+      sidebar: [
+        {
+          label: 'Documentation',
+          items: [
+            { label: 'SDK', link: '/' },
+            { label: 'CLI', link: '/cli/' },
+          ],
+        },
+      ],
+    }),
+  ],
+});

@@ -27,5 +27,10 @@ pnpm-debug.log*
 # Test coverage
 coverage/
 
+# Astro
+docs/dist/
+docs/.astro/
+docs/src/content/docs/
+
 # Lockfile (regenerated)
 # Keep pnpm-lock.yaml in repo for reproducible builds

@@ -2,12 +2,22 @@
   "name": "rool-js",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "description": "Rool JavaScript SDK and CLI",
   "packageManager": "pnpm@10.17.1",
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "docs:prebuild": "node docs/build-docs.js",
+    "docs:dev": "node docs/build-docs.js && astro dev --root docs",
+    "docs:build": "node docs/build-docs.js && astro build --root docs",
+    "docs:preview": "astro preview --root docs"
+  },
+  "devDependencies": {
+    "astro": "^5.2.5",
+    "@astrojs/starlight": "^0.32.2",
+    "sharp": "^0.33.5"
   },
   "repository": {
     "type": "git",
