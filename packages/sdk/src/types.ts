@@ -88,6 +88,8 @@ export interface ConversationInfo {
  * conversations contains conversation data keyed by conversationId.
  */
 export interface RoolSpaceData {
+  /** Monotonically increasing version for sync consistency detection */
+  version: number;
   objects: Record<string, RoolObjectEntry>;
   meta: Record<string, unknown>;
   /** Conversations keyed by conversationId */

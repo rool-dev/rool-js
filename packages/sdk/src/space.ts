@@ -1221,12 +1221,39 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
   /**
    * Handle a patch event from another client.
+   * Checks for version gaps to detect missed patches.
    * @internal
    */
   private handleRemotePatch(patch: JSONPatchOp[], source: RoolEventSource): void {
+    // Extract the new version from the patch
+    const versionOp = patch.find(
+      op => op.path === '/version' && (op.op === 'add' || op.op === 'replace')
+    ) as { op: 'add' | 'replace'; path: string; value: number } | undefined;
+
+    if (versionOp) {
+      const incomingVersion = versionOp.value;
+      const currentVersion = this._data.version ?? 0;
+      const expectedVersion = currentVersion + 1;
+
+      // Check for version gap (missed patches)
+      if (incomingVersion > expectedVersion) {
+        console.warn(
+          `[Space] Version gap detected: expected ${expectedVersion}, got ${incomingVersion}. Resyncing.`
+        );
+        this.resyncFromServer(new Error(`Version gap: expected ${expectedVersion}, got ${incomingVersion}`))
+          .catch(() => { });
+        return;
+      }
+
+      // Skip stale patches (version <= current, already applied)
+      if (incomingVersion <= currentVersion) {
+        return;
+      }
+    }
+
     // Check if patch would change anything BEFORE applying
     const willChange = this.didPatchChangeAnything(patch);
-    
+
     try {
       this._data = immutableJSONPatch(this._data, patch) as RoolSpaceData;
     } catch (error) {
