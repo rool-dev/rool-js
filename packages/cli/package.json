@@ -1,6 +1,6 @@
 {
   "name": "@rool-dev/cli",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Command-line interface for working with Rool Spaces",
   "packageManager": "pnpm@10.17.1",
   "type": "module",
