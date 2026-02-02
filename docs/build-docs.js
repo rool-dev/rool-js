@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Copies READMEs to docs folder with necessary transformations.
+ * Copies package READMEs to docs folder with necessary transformations.
  * Run before astro build/dev.
+ *
+ * Static pages (index.md, console.md) are checked into git directly.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
@@ -35,9 +37,9 @@ title: ${title}
   return frontmatter + content;
 }
 
-// SDK README → index.md (will be at /)
+// SDK README → sdk.md (will be at /sdk/)
 const sdkReadme = readFileSync(`${root}/packages/sdk/README.md`, 'utf-8');
-writeFileSync(`${contentDir}/index.md`, transform(sdkReadme, 'Rool SDK'));
+writeFileSync(`${contentDir}/sdk.md`, transform(sdkReadme, 'Rool SDK'));
 
 // CLI README → cli.md (will be at /cli/)
 const cliReadme = readFileSync(`${root}/packages/cli/README.md`, 'utf-8');

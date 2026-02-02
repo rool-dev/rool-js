@@ -5,7 +5,7 @@ export default defineConfig({
   site: 'https://docs.rool.dev',
   integrations: [
     starlight({
-      title: 'Rool SDK',
+      title: 'Rool',
       logo: {
         src: './src/assets/rool.svg',
         replacesTitle: true,
@@ -15,14 +15,17 @@ export default defineConfig({
         github: 'https://github.com/rool-dev/rool-js',
       },
       sidebar: [
+        { label: 'Overview', link: '/' },
         {
-          label: 'Documentation',
+          label: 'Products',
           items: [
-            { label: 'SDK', link: '/' },
+            { label: 'Console', link: '/console/' },
+            { label: 'SDK', link: '/sdk/' },
             { label: 'CLI', link: '/cli/' },
           ],
         },
       ],
+      pagination: false,
     }),
   ],
 });

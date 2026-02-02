@@ -30,7 +30,8 @@ coverage/
 # Astro
 docs/dist/
 docs/.astro/
-docs/src/content/docs/
+docs/src/content/docs/sdk.md
+docs/src/content/docs/cli.md
 
 # Lockfile (regenerated)
 # Keep pnpm-lock.yaml in repo for reproducible builds
