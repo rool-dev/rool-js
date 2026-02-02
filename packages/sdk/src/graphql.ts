@@ -439,6 +439,7 @@ export class GraphQLClient {
           slug
           plan
           creditsBalance
+          totalCreditsUsed
           createdAt
           lastActivity
           processedAt

@@ -394,7 +394,7 @@ await space.addUser(user.id, 'editor');
 
 | Method | Description |
 |--------|-------------|
-| `getCurrentUser(): Promise<CurrentUser>` | Get current Rool user (id, email, name, plan, credits, createdAt, lastActivity, processedAt, storage) |
+| `getCurrentUser(): Promise<CurrentUser>` | Get current Rool user (id, email, name, slug, plan, creditsBalance, totalCreditsUsed, createdAt, lastActivity, processedAt, storage) |
 | `searchUser(email): Promise<UserResult \| null>` | Find user by exact email address (no partial matching) |
 
 ### Real-time Collaboration
@@ -947,7 +947,7 @@ type RoolUserRole = 'owner' | 'editor' | 'viewer';
 interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; }
 interface SpaceMember { id: string; email: string; role: RoolUserRole; }
 interface UserResult { id: string; email: string; name: string | null; }
-interface CurrentUser { id: string; email: string; name: string | null; plan: string; creditsBalance: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }
+interface CurrentUser { id: string; email: string; name: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }
 interface MediaInfo { uuid: string; url: string; contentType: string; size: number; createdAt: string; }
 interface MediaResponse { contentType: string; size: number | null; blob(): Promise<Blob>; }
 type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';

@@ -6,7 +6,7 @@ Rool Spaces is a persistent and collaborative environment for organizing objects
 
 ## Getting Started
 
-To use Rool, you first need a Rool account. Sign up via the [Console](https://explorer.rool.dev) and familiarize yourself with the environment. Create a few spaces, chat with them, add and remove objects.
+To use Rool, you first need a Rool account. Sign up via the [Console](https://console.rool.dev) and familiarize yourself with the environment. Create a few spaces, chat with them, add and remove objects.
 
 The Rool Console is a perfectly valid replacement for AI tools like ChatGPT or Google Gemini: a chat with a powerful memory. But the real power of Rool Spaces comes from building and using apps that leverage them.
 
@@ -20,7 +20,7 @@ When you're ready to build your first Rool app, read the [SDK docs](/sdk/) or po
 
 The web application for managing your spaces. Create, explore, and collaborate on spaces with a powerful visual interface.
 
-[Open Console](https://explorer.rool.dev)
+[Open Console](https://console.rool.dev)
 
 ### SDK
 

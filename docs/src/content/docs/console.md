@@ -11,6 +11,6 @@ The Rool Console is a web application for managing your spaces directly.
 - Create, delete, backup and restore spaces
 - Manage access for users, groups, and third-party apps
 
-[Open Console](https://explorer.rool.dev)
+[Open Console](https://console.rool.dev)
 
 *Full documentation coming soon.*

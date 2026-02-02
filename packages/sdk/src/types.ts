@@ -143,6 +143,7 @@ export interface CurrentUser {
   slug: string;
   plan: string;
   creditsBalance: number;
+  totalCreditsUsed: number;
   createdAt: string;
   lastActivity: string;
   processedAt: string;
