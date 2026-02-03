@@ -663,6 +663,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       this._data.conversations[conversationId] = {
         name,
         createdAt: Date.now(),
+        createdBy: this._userId,
         interactions: [],
       };
     } else {

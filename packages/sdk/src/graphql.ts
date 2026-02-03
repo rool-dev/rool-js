@@ -200,8 +200,8 @@ export class GraphQLClient {
 
   async renameConversation(spaceId: string, conversationId: string, name: string): Promise<void> {
     const mutation = `
-      mutation RenameConversation($spaceId: String!, $conversationId: String!, $name: String!) {
-        renameConversation(spaceId: $spaceId, conversationId: $conversationId, name: $name)
+      mutation UpdateConversation($spaceId: String!, $conversationId: String!, $name: String!) {
+        updateConversation(spaceId: $spaceId, conversationId: $conversationId, name: $name)
       }
     `;
     await this.request(mutation, {

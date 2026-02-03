@@ -68,7 +68,10 @@ export interface Interaction {
  */
 export interface Conversation {
   name?: string;
-  createdAt?: number;
+  createdAt: number;
+  createdBy: string;
+  createdByName?: string;
+  systemInstruction?: string;
   interactions: Interaction[];
 }
 

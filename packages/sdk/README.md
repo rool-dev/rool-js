@@ -380,7 +380,7 @@ await space.addUser(user.id, 'editor');
 |------|--------------|
 | `owner` | Full control, can delete space and manage users |
 | `editor` | Can create, modify, delete objects and links |
-| `viewer` | Read-only access |
+| `viewer` | Read-only access (can query with `prompt` and `findObjects`) |
 
 ### Space Collaboration Methods
 
@@ -886,7 +886,10 @@ interface RoolObjectStat {
 // Conversation container with metadata
 interface Conversation {
   name?: string;                // Conversation name (optional)
-  createdAt?: number;           // Timestamp when conversation was created
+  createdAt: number;            // Timestamp when conversation was created
+  createdBy: string;            // User ID who created the conversation
+  createdByName?: string;       // Display name at time of creation
+  systemInstruction?: string;   // Custom system instruction for AI
   interactions: Interaction[];  // Interaction history
 }
 
