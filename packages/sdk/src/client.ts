@@ -235,14 +235,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     // Ensure client subscription is active (for lifecycle events)
     void this.ensureSubscribed();
 
-    const spaceId = generateEntityId();
-    const spaceName = name ?? spaceId;
-
-    // Create on server with name
-    await this.graphqlClient.createSpace(spaceId, spaceName);
-
-    // Fetch the created space to get userId (server assigns it)
-    const { data, userId } = await this.graphqlClient.getSpace(spaceId);
+    // Server generates the ID and returns full space data
+    const { spaceId, data, name: spaceName, userId } = await this.graphqlClient.createSpace(name ?? 'Untitled');
 
     const space = new RoolSpace({
       id: spaceId,

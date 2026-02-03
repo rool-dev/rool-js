@@ -91,16 +91,28 @@ export class GraphQLClient {
   // Space Lifecycle Operations (called from RoolClient)
   // ===========================================================================
 
-  async createSpace(spaceId: string, name: string): Promise<void> {
+  async createSpace(name: string): Promise<{ spaceId: string; data: RoolSpaceData; name: string; role: string; userId: string }> {
     const mutation = `
-      mutation CreateSpace($id: String!, $name: String!) {
-        createSpace(id: $id, name: $name)
+      mutation CreateSpace($name: String!) {
+        createSpace(name: $name) {
+          spaceId
+          data
+          name
+          role
+          userId
+        }
       }
     `;
-    await this.request(mutation, {
-      id: spaceId,
+    const response = await this.request<{ createSpace: { spaceId: string; data: string; name: string; role: string; userId: string } }>(mutation, {
       name,
     });
+    return {
+      spaceId: response.createSpace.spaceId,
+      data: JSON.parse(response.createSpace.data),
+      name: response.createSpace.name,
+      role: response.createSpace.role,
+      userId: response.createSpace.userId,
+    };
   }
 
   async deleteSpace(spaceId: string): Promise<void> {
