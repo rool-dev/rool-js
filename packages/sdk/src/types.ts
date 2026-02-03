@@ -81,7 +81,9 @@ export interface Conversation {
 export interface ConversationInfo {
   id: string;
   name: string | null;
-  createdAt: number | null;
+  createdAt: number;
+  createdBy: string;
+  createdByName: string | null;
   interactionCount: number;
 }
 

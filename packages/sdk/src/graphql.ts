@@ -13,6 +13,7 @@ import type {
   CurrentUser,
   UserResult,
   RoolObject,
+  ConversationInfo,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 
@@ -224,18 +225,20 @@ export class GraphQLClient {
     });
   }
 
-  async listConversations(spaceId: string): Promise<{ id: string; name: string | null; createdAt: number | null; interactionCount: number }[]> {
+  async listConversations(spaceId: string): Promise<ConversationInfo[]> {
     const query = `
       query ListConversations($spaceId: String!) {
         listConversations(spaceId: $spaceId) {
           id
           name
           createdAt
+          createdBy
+          createdByName
           interactionCount
         }
       }
     `;
-    const result = await this.request<{ listConversations: { id: string; name: string | null; createdAt: number | null; interactionCount: number }[] }>(query, {
+    const result = await this.request<{ listConversations: ConversationInfo[] }>(query, {
       spaceId,
     });
     return result.listConversations;

@@ -812,8 +812,8 @@ await space.setSystemInstruction(
 
 // Now prompts are interpreted as SQL-like queries
 const { message } = await space.prompt('SELECT task, due_date FROM tasks ORDER BY due_date');
-// Returns a markdown table of tasks, even if no "tasks" objects exist yet -
-// the AI infers structure from the space content
+// Returns a markdown table of tasks, even if no "tasks" objects exist -
+// the AI infers actual tasks from the space content
 
 // Clear the instruction to return to default behavior
 await space.setSystemInstruction(null);
@@ -925,7 +925,9 @@ interface Conversation {
 interface ConversationInfo {
   id: string;
   name: string | null;
-  createdAt: number | null;
+  createdAt: number;
+  createdBy: string;
+  createdByName: string | null;
   interactionCount: number;
 }
 
