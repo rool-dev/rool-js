@@ -211,6 +211,19 @@ export class GraphQLClient {
     });
   }
 
+  async setSystemInstruction(spaceId: string, conversationId: string, instruction: string | null): Promise<void> {
+    const mutation = `
+      mutation UpdateConversation($spaceId: String!, $conversationId: String!, $systemInstruction: String) {
+        updateConversation(spaceId: $spaceId, conversationId: $conversationId, systemInstruction: $systemInstruction)
+      }
+    `;
+    await this.request(mutation, {
+      spaceId,
+      conversationId,
+      systemInstruction: instruction,
+    });
+  }
+
   async listConversations(spaceId: string): Promise<{ id: string; name: string | null; createdAt: number | null; interactionCount: number }[]> {
     const query = `
       query ListConversations($spaceId: String!) {

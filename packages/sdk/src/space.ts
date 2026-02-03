@@ -693,6 +693,52 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     return this.graphqlClient.listConversations(this.id);
   }
 
+  /**
+   * Get the system instruction for the current conversation.
+   * Returns undefined if no system instruction is set.
+   */
+  getSystemInstruction(): string | undefined {
+    return this._data.conversations?.[this._conversationId]?.systemInstruction;
+  }
+
+  /**
+   * Set the system instruction for the current conversation.
+   * Pass null to clear the instruction.
+   */
+  async setSystemInstruction(instruction: string | null): Promise<void> {
+    // Optimistic local update
+    if (!this._data.conversations) {
+      this._data.conversations = {};
+    }
+    if (!this._data.conversations[this._conversationId]) {
+      this._data.conversations[this._conversationId] = {
+        createdAt: Date.now(),
+        createdBy: this._userId,
+        interactions: [],
+      };
+    }
+    if (instruction === null) {
+      delete this._data.conversations[this._conversationId].systemInstruction;
+    } else {
+      this._data.conversations[this._conversationId].systemInstruction = instruction;
+    }
+
+    // Emit event
+    this.emit('conversationUpdated', {
+      conversationId: this._conversationId,
+      source: 'local_user',
+    });
+
+    // Call server
+    try {
+      await this.graphqlClient.setSystemInstruction(this.id, this._conversationId, instruction);
+    } catch (error) {
+      console.error('[Space] Failed to set system instruction:', error);
+      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+
   // ===========================================================================
   // Link Operations
   // ===========================================================================

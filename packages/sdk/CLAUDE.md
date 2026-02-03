@@ -24,3 +24,10 @@ TypeScript SDK for the Rool platform. Published as `@rool-dev/sdk`.
 Located in `eval/`. Uses chai assertions. Add test cases in `eval/cases/`.
 - `pnpm eval` - Run all cases
 - `pnpm eval --include <pattern>` - Run cases matching pattern (substring match)
+
+## Design
+In designing the SDK, we prioritize:
+- developer ergonomics
+- consistent patterns
+- discoverability
+- simplicity

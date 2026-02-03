@@ -796,6 +796,34 @@ const conversationIds = space.getConversationIds();
 | `deleteConversation(conversationId?): Promise<void>` | Delete a conversation and its history. Defaults to current conversation. |
 | `renameConversation(id, name): Promise<void>` | Rename a conversation. Creates it if it doesn't exist. |
 | `listConversations(): Promise<ConversationInfo[]>` | List all conversations with summary info. |
+| `getSystemInstruction(): string \| undefined` | Get system instruction for current conversation. |
+| `setSystemInstruction(instruction): Promise<void>` | Set system instruction for current conversation. Pass `null` to clear. |
+
+### System Instructions
+
+System instructions customize how the AI behaves within a conversation. The instruction persists across all prompts in that conversation.
+
+```typescript
+// Make the AI behave like an SQL interpreter
+await space.setSystemInstruction(
+  'Behave like an intelligent SQL interpreter. Respond with simple markdown tables. ' +
+  'Translate the objects in the space to the implied structure in your responses.'
+);
+
+// Now prompts are interpreted as SQL-like queries
+const { message } = await space.prompt('SELECT task, due_date FROM tasks ORDER BY due_date');
+// Returns a markdown table of tasks, even if no "tasks" objects exist yet -
+// the AI infers structure from the space content
+
+// Clear the instruction to return to default behavior
+await space.setSystemInstruction(null);
+```
+
+System instructions are useful for:
+- Defining response formats (tables, JSON, specific templates)
+- Setting a persona or expertise area
+- Constraining the AI to specific operations
+- Creating domain-specific interfaces over your space data
 
 ### Listening for Updates
 
