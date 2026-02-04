@@ -246,8 +246,6 @@ import type {
   SpaceHandle,
   SpaceInfo,
   AsyncValue,
-  CreateObjectOptions,
-  UpdateObjectOptions,
 } from '@rool-dev/svelte';
 
 // Re-exported from @rool-dev/sdk
@@ -260,6 +258,8 @@ import type {
   Interaction,
   FindObjectsOptions,
   PromptOptions,
+  CreateObjectOptions,
+  UpdateObjectOptions,
 } from '@rool-dev/svelte';
 ```
 

@@ -5,6 +5,8 @@ import type {
   Interaction,
   FindObjectsOptions,
   PromptOptions,
+  CreateObjectOptions,
+  UpdateObjectOptions,
   RoolUserRole,
 } from '@rool-dev/sdk';
 
@@ -16,18 +18,6 @@ export interface SpaceInfo {
   id: string;
   name: string;
   role: RoolUserRole;
-}
-
-export interface CreateObjectOptions {
-  data: Record<string, unknown>;
-  prompt?: string;
-  ephemeral?: boolean;
-}
-
-export interface UpdateObjectOptions {
-  data?: Record<string, unknown>;
-  prompt?: string;
-  ephemeral?: boolean;
 }
 
 // ===========================================================================
