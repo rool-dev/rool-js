@@ -21,6 +21,7 @@ export default defineConfig({
           items: [
             { label: 'Console', link: '/console/' },
             { label: 'SDK', link: '/sdk/' },
+            { label: 'Svelte', link: '/svelte/' },
             { label: 'CLI', link: '/cli/' },
           ],
         },

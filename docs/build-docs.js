@@ -45,4 +45,8 @@ writeFileSync(`${contentDir}/sdk.md`, transform(sdkReadme, 'Rool SDK'));
 const cliReadme = readFileSync(`${root}/packages/cli/README.md`, 'utf-8');
 writeFileSync(`${contentDir}/cli.md`, transform(cliReadme, 'Rool CLI'));
 
+// Svelte README → svelte.md (will be at /svelte/)
+const svelteReadme = readFileSync(`${root}/packages/svelte/README.md`, 'utf-8');
+writeFileSync(`${contentDir}/svelte.md`, transform(svelteReadme, 'Rool Svelte'));
+
 console.log('Docs built from READMEs');

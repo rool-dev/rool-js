@@ -6,6 +6,7 @@ on:
     paths:
       - 'packages/sdk/README.md'
       - 'packages/cli/README.md'
+      - 'packages/svelte/README.md'
       - 'docs/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:

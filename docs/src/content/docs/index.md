@@ -28,6 +28,12 @@ Build your own applications using Rool Spaces with the TypeScript SDK.
 
 [Read SDK Docs](/sdk/)
 
+### Svelte
+
+Reactive Svelte 5 bindings for the SDK using native runes.
+
+[Read Svelte Docs](/svelte/)
+
 ### CLI
 
 Manage and interact with spaces from the command line.
