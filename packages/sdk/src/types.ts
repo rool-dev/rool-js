@@ -439,6 +439,13 @@ export interface ConversationIdChangedEvent {
   newConversationId: string;
 }
 
+export interface ConversationsChangedEvent {
+  action: 'created' | 'deleted' | 'renamed';
+  conversationId: string;
+  name?: string;
+  source: ChangeSource;
+}
+
 /**
  * Space-level events (content changes within a specific space).
  *
@@ -447,6 +454,7 @@ export interface ConversationIdChangedEvent {
  * - `linked`, `unlinked`: Link changes
  * - `metadataUpdated`: Space metadata changes
  * - `conversationUpdated`: Conversation interaction history changed
+ * - `conversationsChanged`: Conversation list changed (created, deleted, renamed)
  * - `conversationIdChanged`: ConversationId was changed on the space
  * - `reset`: Full state replacement (undo/redo, resync)
  *
@@ -468,6 +476,8 @@ export interface SpaceEvents {
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Conversation interaction history was updated */
   conversationUpdated: (event: ConversationUpdatedEvent) => void;
+  /** Conversation list changed (created, deleted, or renamed) */
+  conversationsChanged: (event: ConversationsChangedEvent) => void;
   /** Full state replacement (undo/redo, resync) */
   reset: (event: SpaceResetEvent) => void;
   /** Emitted when conversationId is changed */

@@ -634,8 +634,13 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       delete this._data.conversations[targetConversationId];
     }
 
-    // Emit event
+    // Emit events
     this.emit('conversationUpdated', {
+      conversationId: targetConversationId,
+      source: 'local_user',
+    });
+    this.emit('conversationsChanged', {
+      action: 'deleted',
       conversationId: targetConversationId,
       source: 'local_user',
     });
@@ -659,7 +664,8 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     if (!this._data.conversations) {
       this._data.conversations = {};
     }
-    if (!this._data.conversations[conversationId]) {
+    const isNew = !this._data.conversations[conversationId];
+    if (isNew) {
       this._data.conversations[conversationId] = {
         name,
         createdAt: Date.now(),
@@ -670,9 +676,15 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       this._data.conversations[conversationId].name = name;
     }
 
-    // Emit event
+    // Emit events
     this.emit('conversationUpdated', {
       conversationId,
+      source: 'local_user',
+    });
+    this.emit('conversationsChanged', {
+      action: isNew ? 'created' : 'renamed',
+      conversationId,
+      name,
       source: 'local_user',
     });
 
@@ -1379,6 +1391,35 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
         const conversationId = parts[2];
         if (conversationId) {
           this.emit('conversationUpdated', { conversationId, source });
+
+          // Emit conversationsChanged for list-level changes
+          if (parts.length === 3) {
+            // /conversations/{conversationId} - full conversation add or remove
+            if (op.op === 'add') {
+              const conv = this._data.conversations?.[conversationId];
+              this.emit('conversationsChanged', {
+                action: 'created',
+                conversationId,
+                name: conv?.name,
+                source,
+              });
+            } else if (op.op === 'remove') {
+              this.emit('conversationsChanged', {
+                action: 'deleted',
+                conversationId,
+                source,
+              });
+            }
+          } else if (parts[3] === 'name') {
+            // /conversations/{conversationId}/name - rename
+            const conv = this._data.conversations?.[conversationId];
+            this.emit('conversationsChanged', {
+              action: 'renamed',
+              conversationId,
+              name: conv?.name,
+              source,
+            });
+          }
         }
       }
     }

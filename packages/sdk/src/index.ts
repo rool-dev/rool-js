@@ -63,6 +63,7 @@ export type {
   UnlinkedEvent,
   MetadataUpdatedEvent,
   ConversationUpdatedEvent,
+  ConversationsChangedEvent,
   SpaceResetEvent,
 
   // Conversation types

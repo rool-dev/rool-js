@@ -724,6 +724,9 @@ space.on('metadataUpdated', ({ metadata, source }) => void)
 // Conversation updated (fetch with getInteractions())
 space.on('conversationUpdated', ({ conversationId, source }) => void)
 
+// Conversation list changed (created, deleted, renamed)
+space.on('conversationsChanged', ({ action, conversationId, name, source }) => void)
+
 // Full state replacement (undo/redo, resync after error)
 space.on('reset', ({ source }) => void)
 
