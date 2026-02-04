@@ -7,8 +7,10 @@ Svelte 5 runes for Rool Spaces. Transforms the event-based SDK into reactive sta
 ## Installation
 
 ```bash
-npm install @rool-dev/svelte
+npm install @rool-dev/svelte @rool-dev/sdk
 ```
+
+Requires `@rool-dev/sdk` as a peer dependency.
 
 ## Quick Start
 
@@ -195,6 +197,15 @@ await space.renameConversation('convo-id', 'Research Thread');
 await space.deleteConversation('convo-id');
 ```
 
+### Utilities
+
+```typescript
+import { generateId } from '@rool-dev/svelte';
+
+// Generate a 6-character alphanumeric ID (same as RoolClient.generateId())
+const id = generateId();
+```
+
 ## Auto-Refresh Behavior
 
 | State | Auto-refreshes on |
@@ -227,6 +238,32 @@ class AsyncValue<T> {
 3. **Go through the API** — Never exposes raw space data, all access via SDK methods
 4. **Auto-refresh where safe** — Object/relation state auto-refreshes; queries are manual
 5. **Caching** — Factory functions return cached instances by arguments
+
+## Exported Types
+
+```typescript
+// Package types
+import type {
+  Rool,
+  SpaceHandle,
+  SpaceInfo,
+  AsyncValue,
+  CreateObjectOptions,
+  UpdateObjectOptions,
+} from '@rool-dev/svelte';
+
+// Re-exported from @rool-dev/sdk
+import type {
+  RoolSpaceInfo,
+  RoolObject,
+  RoolUserRole,
+  ConnectionState,
+  ConversationInfo,
+  Interaction,
+  FindObjectsOptions,
+  PromptOptions,
+} from '@rool-dev/svelte';
+```
 
 ## License
 
