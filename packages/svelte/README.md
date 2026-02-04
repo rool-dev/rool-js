@@ -7,10 +7,8 @@ Svelte 5 runes for Rool Spaces. Transforms the event-based SDK into reactive sta
 ## Installation
 
 ```bash
-npm install @rool-dev/svelte @rool-dev/sdk
+npm install @rool-dev/svelte
 ```
-
-Requires `@rool-dev/sdk` as a peer dependency.
 
 ## Quick Start
 
