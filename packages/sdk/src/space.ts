@@ -17,6 +17,8 @@ import type {
   SpaceMember,
   PromptOptions,
   FindObjectsOptions,
+  CreateObjectOptions,
+  UpdateObjectOptions,
   MediaInfo,
   MediaResponse,
   ChangeSource,
@@ -452,12 +454,8 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * @param options.ephemeral - If true, the operation won't be recorded in conversation history.
    * @returns The created object (with AI-filled content) and message
    */
-  async createObject(options: {
-    data: Record<string, unknown>;
-    prompt?: string;
-    ephemeral?: boolean;
-  }): Promise<{ object: RoolObject; message: string }> {
-    const { data, prompt, ephemeral } = options;
+  async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    const { data = {}, prompt, ephemeral } = options;
 
     // Use data.id if provided (string), otherwise generate
     const objectId = typeof data.id === 'string' ? data.id : generateEntityId();
@@ -509,11 +507,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    */
   async updateObject(
     objectId: string,
-    options: {
-      data?: Record<string, unknown>;
-      prompt?: string;
-      ephemeral?: boolean;
-    }
+    options: UpdateObjectOptions
   ): Promise<{ object: RoolObject; message: string }> {
     const entry = this._data.objects[objectId];
     if (!entry) {

@@ -50,6 +50,8 @@ export type {
   // AI types
   PromptOptions,
   FindObjectsOptions,
+  CreateObjectOptions,
+  UpdateObjectOptions,
 
   // Connection types
   ConnectionState,

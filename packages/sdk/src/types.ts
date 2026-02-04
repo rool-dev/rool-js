@@ -251,6 +251,24 @@ export interface FindObjectsOptions {
   ephemeral?: boolean;
 }
 
+export interface CreateObjectOptions {
+  /** Object data fields. Include `id` for custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
+  data?: Record<string, unknown>;
+  /** Natural language instruction for AI to generate content. */
+  prompt?: string;
+  /** If true, the operation won't be recorded in conversation history. */
+  ephemeral?: boolean;
+}
+
+export interface UpdateObjectOptions {
+  /** Fields to add or update. Pass null/undefined to delete a field. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
+  data?: Record<string, unknown>;
+  /** Natural language instruction for AI to modify content. */
+  prompt?: string;
+  /** If true, the operation won't be recorded in conversation history. */
+  ephemeral?: boolean;
+}
+
 // =============================================================================
 // Subscription / Connection Types
 // =============================================================================

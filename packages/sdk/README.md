@@ -521,7 +521,7 @@ Both methods accept an options object:
 
 | Option | Description |
 |--------|-------------|
-| `data` | Object data fields (any key-value pairs). Include `id` to use a custom ID (createObject only). Use `{{placeholder}}` for AI-generated content. Using `null`/`undefined` deletes a field. Fields prefixed with `_` are hidden from AI. Required for `createObject`, optional for `updateObject`. |
+| `data` | Object data fields (any key-value pairs). Include `id` to use a custom ID (createObject only). Use `{{placeholder}}` for AI-generated content. Using `null`/`undefined` deletes a field. Fields prefixed with `_` are hidden from AI. Optional for both methods. |
 | `prompt` | Natural language instruction for AI to generate or modify content. |
 | `ephemeral` | If true, the operation won't be recorded in conversation history. Useful for transient operations. |
 

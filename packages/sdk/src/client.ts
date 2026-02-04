@@ -95,12 +95,16 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   initialize(): boolean {
     const result = this.authManager.initialize();
 
-    // Auto-subscribe to real-time events if authenticated (fire-and-forget)
-    void this.authManager.isAuthenticated().then(authenticated => {
-      if (authenticated) {
-        void this.ensureSubscribed();
-      }
-    });
+    // If no callback was processed, check if already authenticated
+    // and emit the event (callback processing emits it automatically)
+    if (!result) {
+      void this.authManager.isAuthenticated().then(authenticated => {
+        if (authenticated) {
+          this.emit('authStateChanged', true);
+          void this.ensureSubscribed();
+        }
+      });
+    }
 
     return result;
   }
