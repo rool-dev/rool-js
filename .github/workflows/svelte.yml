@@ -86,7 +86,7 @@ jobs:
 
       - name: Publish to npm (dev tag)
         working-directory: packages/svelte
-        run: npm publish --tag dev --access public
+        run: pnpm publish --tag dev --access public --no-git-checks
 
   publish-release:
     name: Publish release
@@ -135,4 +135,4 @@ jobs:
 
       - name: Publish to npm (latest tag)
         working-directory: packages/svelte
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
