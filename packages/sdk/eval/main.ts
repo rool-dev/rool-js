@@ -10,7 +10,6 @@ import { testCase as exoplanets } from './cases/exoplanets.js';
 import { testCase as findVideo } from './cases/find-video.js';
 import { testCase as newsBrowsers } from './cases/news-browsers.js';
 import { testCase as poemNumber } from './cases/poem-number.js';
-import { testCase as importExport } from './cases/import-export.js';
 import { testCase as importExportArchive } from './cases/import-export-archive.js';
 import { testCase as electricalShorten } from './cases/electrical-shorten.js';
 import { testCase as topicEmoji } from './cases/topic-emoji.js';
@@ -29,7 +28,6 @@ const cases: Record<string, TestCase> = {
   'find-video': findVideo,
   'news-browsers': newsBrowsers,
   'poem-number': poemNumber,
-  'import-export': importExport,
   'import-export-archive': importExportArchive,
   'electrical-shorten': electricalShorten,
   'topic-emoji': topicEmoji,
@@ -49,14 +47,12 @@ function parseArgs() {
     workers: number;
     include: string[];
     targetUrl?: string;
-    clear: boolean;
-    clearOnly: boolean;
+    clear?: string;
+    clearOnly?: string;
   } = {
     runs: 1,
     workers: 25,
     include: [],
-    clear: false,
-    clearOnly: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -75,10 +71,10 @@ function parseArgs() {
         config.targetUrl = args[++i];
         break;
       case '--clear':
-        config.clear = true;
+        config.clear = args[++i];
         break;
       case '--clear-only':
-        config.clearOnly = true;
+        config.clearOnly = args[++i];
         break;
       case '--list':
         console.log('Available cases:');
@@ -86,19 +82,20 @@ function parseArgs() {
           console.log(`  ${name}: ${testCase.description}`);
         }
         process.exit(0);
+        break;
       case '--help':
         console.log(`
 Usage: eval [options]
 
 Options:
-  --runs <n>       Number of times to run each case (default: 1)
-  --workers <n>    Number of parallel workers (default: 25)
-  --include <pat>  Only run cases matching pattern (can be repeated)
-  --target <url>   Target server URL (default: ROOL_TARGET_URL or https://api.dev.rool.dev)
-  --clear          Clear matching EVAL spaces before running
-  --clear-only     Clear matching EVAL spaces without running
-  --list           List available cases and exit
-  --help           Show this help
+  --runs <n>         Number of times to run each case (default: 1)
+  --workers <n>      Number of parallel workers (default: 25)
+  --include <pat>    Only run cases matching pattern (can be repeated)
+  --target <url>     Target server URL (default: ROOL_TARGET_URL or http://localhost:1357)
+  --clear <prefix>   Clear spaces starting with prefix before running
+  --clear-only <prefix>  Clear spaces starting with prefix and exit
+  --list             List available cases and exit
+  --help             Show this help
 `);
         process.exit(0);
     }
@@ -136,10 +133,10 @@ async function main() {
     await runner.initialize();
 
     // Handle --clear and --clear-only
-    if (args.clear || args.clearOnly) {
-      const caseNames = Object.keys(selectedCases);
-      const cleared = await runner.clearSpaces(caseNames);
-      console.log(`Cleared ${cleared} EVAL space(s)`);
+    const clearPrefix = args.clearOnly ?? args.clear;
+    if (clearPrefix) {
+      const cleared = await runner.clearSpaces(clearPrefix);
+      console.log(`Cleared ${cleared} space(s) with prefix "${clearPrefix}"`);
 
       if (args.clearOnly) {
         process.exit(0);

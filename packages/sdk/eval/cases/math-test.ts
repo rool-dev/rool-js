@@ -9,30 +9,36 @@ const EXPECTED_VALUE = (Math.E + Math.PI) ** 4; // ≈ 1179.107099469
 export const testCase: TestCase = {
   description: 'Creates an object with the computed value of e^5',
 
-  async run(space) {
-    const { objects } = await space.prompt(`
-      Create a new object with:
-      - type: "calculation"
-      - value: the computed result of (e+pi)^4
-    `);
+  async run(client) {
+    const space = await client.createSpace('EVAL: math-test');
 
-    // Should create exactly 1 object
-    expect(objects).to.have.length(1);
+    try {
+      const { objects } = await space.prompt(`
+        Create a new object with:
+        - type: "calculation"
+        - value: the computed result of (e+pi)^4
+      `);
 
-    const calc = objects[0];
+      // Should create exactly 1 object
+      expect(objects).to.have.length(1);
 
-    // Check type
-    expect(calc.type).to.equal('calculation');
+      const calc = objects[0];
 
-    // Value should be a number
-    expect(calc.value).to.be.a('number');
+      // Check type
+      expect(calc.type).to.equal('calculation');
 
-    const value = calc.value as number;
+      // Value should be a number
+      expect(calc.value).to.be.a('number');
 
-    // Allow 0.01% tolerance for floating point
-    const tolerance = EXPECTED_VALUE * 0.00001;
-    expect(value).to.be.closeTo(EXPECTED_VALUE, tolerance);
+      const value = calc.value as number;
 
-    expectLinkCount(space, 0);
+      // Allow 0.01% tolerance for floating point
+      const tolerance = EXPECTED_VALUE * 0.00001;
+      expect(value).to.be.closeTo(EXPECTED_VALUE, tolerance);
+
+      expectLinkCount(space, 0);
+    } finally {
+      space.close();
+    }
   },
 };

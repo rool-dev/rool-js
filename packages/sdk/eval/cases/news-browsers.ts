@@ -9,29 +9,35 @@ import { expectLinkCount } from '../helpers.js';
 export const testCase: TestCase = {
   description: 'Creates browser nodes for BBC, CNN, and dr.dk',
 
-  async run(space) {
-    const { objects } = await space.prompt(`
-      Create browser objects for BBC, CNN, and dr.dk.
-      Each object should have:
-      - type: "browser"
-      - headline: string
-      - text: string
-      - url: string
-    `);
+  async run(client) {
+    const space = await client.createSpace('EVAL: news-browsers');
 
-    expect(objects).to.have.length(3);
+    try {
+      const { objects } = await space.prompt(`
+        Create browser objects for BBC, CNN, and dr.dk.
+        Each object should have:
+        - type: "browser"
+        - headline: string
+        - text: string
+        - url: string
+      `);
 
-    for (const obj of objects) {
-      expect(obj.type).to.equal('browser');
+      expect(objects).to.have.length(3);
+
+      for (const obj of objects) {
+        expect(obj.type).to.equal('browser');
+      }
+
+      const hasUrlMatching = (pattern: RegExp): boolean =>
+        objects.some(obj => typeof obj.url === 'string' && pattern.test(obj.url as string));
+
+      expect(hasUrlMatching(/bbc\.(com|co\.uk)/), 'Should have BBC URL').to.be.true;
+      expect(hasUrlMatching(/cnn\.com/), 'Should have CNN URL').to.be.true;
+      expect(hasUrlMatching(/dr\.dk/), 'Should have DR URL').to.be.true;
+
+      expectLinkCount(space, 0);
+    } finally {
+      space.close();
     }
-
-    const hasUrlMatching = (pattern: RegExp): boolean =>
-      objects.some(obj => typeof obj.url === 'string' && pattern.test(obj.url as string));
-
-    expect(hasUrlMatching(/bbc\.(com|co\.uk)/), 'Should have BBC URL').to.be.true;
-    expect(hasUrlMatching(/cnn\.com/), 'Should have CNN URL').to.be.true;
-    expect(hasUrlMatching(/dr\.dk/), 'Should have DR URL').to.be.true;
-
-    expectLinkCount(space, 0);
   },
 };

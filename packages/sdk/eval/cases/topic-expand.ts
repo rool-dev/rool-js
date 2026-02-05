@@ -15,47 +15,53 @@ Connect the created nodes to the topic node with outbound "expand" edges from th
 export const testCase: TestCase = {
   description: 'Expands a topic node with image and markdown children',
 
-  async run(space) {
-    // Create a single topic node
-    const { object: createdTopic } = await space.createObject({
-      data: {
-        id: 'Xr4tQw',
-        type: 'topic',
-        headline: 'Types of Sailboats',
-      },
-    });
-    const topicId = createdTopic.id;
+  async run(client) {
+    const space = await client.createSpace('EVAL: topic-expand');
 
-    // Capture initial topic data
-    const initialTopicJson = JSON.stringify(createdTopic);
+    try {
+      // Create a single topic node
+      const { object: createdTopic } = await space.createObject({
+        data: {
+          id: 'Xr4tQw',
+          type: 'topic',
+          headline: 'Types of Sailboats',
+        },
+      });
+      const topicId = createdTopic.id;
 
-    // Run the prompt with the topic node selected
-    const { objects } = await space.prompt(prompt, { objectIds: [topicId] });
+      // Capture initial topic data
+      const initialTopicJson = JSON.stringify(createdTopic);
 
-    // Verify new objects were created (at least 3: 2 image + 1 markdown)
-    expect(objects.length).to.be.at.least(3);
+      // Run the prompt with the topic node selected
+      const { objects } = await space.prompt(prompt, { objectIds: [topicId] });
 
-    // Count by type
-    const imageCount = objects.filter(o => o.type === 'image').length;
-    const markdownCount = objects.filter(o => o.type === 'markdown').length;
+      // Verify new objects were created (at least 3: 2 image + 1 markdown)
+      expect(objects.length).to.be.at.least(3);
 
-    expect(imageCount).to.be.equal(2, 'Should have 2 image nodes');
-    expect(markdownCount).to.equal(1, 'Should have exactly 1 markdown node');
+      // Count by type
+      const imageCount = objects.filter(o => o.type === 'image').length;
+      const markdownCount = objects.filter(o => o.type === 'markdown').length;
 
-    // Verify topic node is unchanged
-    const finalTopic = await space.getObject(topicId);
-    expect(JSON.stringify(finalTopic)).to.equal(initialTopicJson, 'Topic node data should be unchanged');
+      expect(imageCount).to.be.equal(2, 'Should have 2 image nodes');
+      expect(markdownCount).to.equal(1, 'Should have exactly 1 markdown node');
 
-    // Verify all new nodes are linked from the topic with 'expand' relation
-    const children = await space.getChildren(topicId, 'expand');
-    expect(children.length).to.be.equal(3, 'Topic should have 3 expand children');
+      // Verify topic node is unchanged
+      const finalTopic = await space.getObject(topicId);
+      expect(JSON.stringify(finalTopic)).to.equal(initialTopicJson, 'Topic node data should be unchanged');
 
-    // Verify all created objects are among the children
-    const childIds = new Set(children.map(c => c.id));
-    for (const obj of objects) {
-      if (obj.id !== topicId) {
-        expect(childIds.has(obj.id), `Object ${obj.id} should be linked from topic`).to.be.true;
+      // Verify all new nodes are linked from the topic with 'expand' relation
+      const children = await space.getChildren(topicId, 'expand');
+      expect(children.length).to.be.equal(3, 'Topic should have 3 expand children');
+
+      // Verify all created objects are among the children
+      const childIds = new Set(children.map(c => c.id));
+      for (const obj of objects) {
+        if (obj.id !== topicId) {
+          expect(childIds.has(obj.id), `Object ${obj.id} should be linked from topic`).to.be.true;
+        }
       }
+    } finally {
+      space.close();
     }
   },
 };

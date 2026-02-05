@@ -1,4 +1,4 @@
-import type { RoolSpace } from '../src/space.js';
+import type { RoolClient } from '../src/client.js';
 
 /**
  * A test case for evaluating rool-server AI behavior.
@@ -8,10 +8,11 @@ export interface TestCase {
   description: string;
 
   /**
-   * Run the test against a fresh space.
-   * Use vitest's expect() for assertions - thrown errors indicate failure.
+   * Run the test with access to an authenticated client.
+   * Tests are responsible for creating/importing their own spaces.
+   * Use chai's expect() for assertions - thrown errors indicate failure.
    */
-  run: (space: RoolSpace) => Promise<void>;
+  run: (client: RoolClient) => Promise<void>;
 }
 
 /**
@@ -43,7 +44,7 @@ export interface TestCaseResults {
  * Runner configuration.
  */
 export interface RunnerConfig {
-  /** Target server URL (default: https://api.dev.rool.dev) */
+  /** Target server URL (default: http://localhost:1357) */
   targetUrl?: string;
   /** Auth server URL (default: https://api.dev.rool.dev) */
   authUrl?: string;
@@ -51,8 +52,4 @@ export interface RunnerConfig {
   runs?: number;
   /** Number of parallel workers (default: 10) */
   workers?: number;
-  /** Delete spaces after successful runs (default: true) */
-  cleanupOnSuccess?: boolean;
-  /** Prefix for space names (default: 'EVAL:') */
-  spaceNamePrefix?: string;
 }

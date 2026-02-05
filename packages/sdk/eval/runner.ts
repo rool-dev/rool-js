@@ -1,6 +1,5 @@
 import { RoolClient } from '../src/client.js';
 import { NodeAuthProvider } from '../src/auth-node.js';
-import type { RoolSpace } from '../src/space.js';
 import type { TestCase, TestResult, TestCaseResults, RunnerConfig } from './types.js';
 
 const DEFAULT_AUTH_URL = 'https://api.dev.rool.dev/auth';
@@ -25,8 +24,6 @@ export class EvalRunner {
       authUrl: config.authUrl ?? DEFAULT_AUTH_URL,
       runs: config.runs ?? 1,
       workers: config.workers ?? 10,
-      cleanupOnSuccess: config.cleanupOnSuccess ?? false,
-      spaceNamePrefix: config.spaceNamePrefix ?? 'EVAL:',
     };
   }
 
@@ -51,85 +48,48 @@ export class EvalRunner {
   }
 
   /**
-   * Clear EVAL spaces for the given case names.
+   * Clear all spaces whose names start with the given prefix.
    */
-  async clearSpaces(caseNames: string[]): Promise<number> {
+  async clearSpaces(prefix: string): Promise<number> {
     if (!this.client) {
       throw new Error('Runner not initialized. Call initialize() first.');
     }
 
-    const caseNameSet = new Set(caseNames);
     const allSpaces = await this.client.listSpaces();
-    const prefix = this.config.spaceNamePrefix;
+    const matching = allSpaces.filter(s => s.name.startsWith(prefix));
 
-    // Match spaces like "EVAL: case-name: 1" or "EVAL: (f) case-name: 1"
-    const evalSpaces = allSpaces.filter(s => {
-      if (!s.name.startsWith(prefix)) return false;
-      // Extract case name from "EVAL: case-name: N" or "EVAL: (f) case-name: N"
-      const match = s.name.match(new RegExp(`^${prefix} (?:\\(f\\) )?([^:]+):`));
-      return match && caseNameSet.has(match[1]);
-    });
-
-    if (evalSpaces.length > 0) {
-      await Promise.all(evalSpaces.map(s => this.client!.deleteSpace(s.id)));
+    if (matching.length > 0) {
+      await Promise.all(matching.map(s => this.client!.deleteSpace(s.id)));
     }
 
-    return evalSpaces.length;
+    return matching.length;
   }
 
   /**
    * Run a single test case once.
    */
-  private async runOnce(caseName: string, testCase: TestCase, runIndex: number): Promise<TestResult> {
+  private async runOnce(caseName: string, testCase: TestCase, _runIndex: number): Promise<TestResult> {
     if (!this.client) {
       throw new Error('Runner not initialized. Call initialize() first.');
     }
 
-    // Naming: "EVAL: case-name: N" (matches old pattern for clear to work)
-    const spaceName = `${this.config.spaceNamePrefix} ${caseName}: ${runIndex + 1}`;
-    let space: RoolSpace | null = null;
     const startTime = Date.now();
 
     try {
-      // Create a fresh space
-      space = await this.client.createSpace(spaceName);
-
-      // Run the test
-      await testCase.run(space);
-
-      const durationMs = Date.now() - startTime;
-
-      // Cleanup on success if configured
-      if (this.config.cleanupOnSuccess) {
-        space.close();
-        await this.client.deleteSpace(space.id);
-      } else {
-        space.close();
-      }
+      // Run the test - it handles its own space creation/cleanup
+      await testCase.run(this.client);
 
       return {
         passed: true,
-        durationMs,
-        spaceId: space.id,
+        durationMs: Date.now() - startTime,
+        spaceId: 'n/a',
       };
     } catch (error) {
-      const durationMs = Date.now() - startTime;
-
-      // Rename space to indicate failure
-      if (space) {
-        try {
-          await space.rename(`${this.config.spaceNamePrefix} (f) ${caseName}: ${runIndex + 1}`);
-        } catch {
-          // Ignore rename errors
-        }
-        space.close();
-      }
-
       return {
         passed: false,
         error: error instanceof Error ? error : new Error(String(error)),
-        durationMs,
-        spaceId: space?.id ?? 'unknown',
+        durationMs: Date.now() - startTime,
+        spaceId: 'n/a',
       };
     }
   }
