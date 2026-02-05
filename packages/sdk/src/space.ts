@@ -1,11 +1,9 @@
 import { immutableJSONPatch } from 'immutable-json-patch';
-import { zipSync, unzipSync } from 'fflate';
 import { EventEmitter } from './event-emitter.js';
 import type { GraphQLClient } from './graphql.js';
 import type { MediaClient } from './media.js';
 import type { AuthManager } from './auth.js';
 import { SpaceSubscriptionManager } from './subscription.js';
-import { toJsonLd, fromJsonLd, findAllStrings, rewriteStrings, type JsonLdDocument } from './jsonld.js';
 import type {
   RoolSpaceData,
   RoolObject,
@@ -37,51 +35,6 @@ export function generateEntityId(): string {
     result += ID_CHARS[Math.floor(Math.random() * ID_CHARS.length)];
   }
   return result;
-}
-
-// Content type <-> file extension mapping for archive media files
-const MIME_TO_EXT: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/gif': '.gif',
-  'image/webp': '.webp',
-  'image/svg+xml': '.svg',
-  'audio/mpeg': '.mp3',
-  'audio/wav': '.wav',
-  'audio/ogg': '.ogg',
-  'video/mp4': '.mp4',
-  'video/webm': '.webm',
-  'application/pdf': '.pdf',
-  'text/plain': '.txt',
-  'application/json': '.json',
-};
-
-const EXT_TO_MIME: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-  '.mp3': 'audio/mpeg',
-  '.wav': 'audio/wav',
-  '.ogg': 'audio/ogg',
-  '.mp4': 'video/mp4',
-  '.webm': 'video/webm',
-  '.pdf': 'application/pdf',
-  '.txt': 'text/plain',
-  '.json': 'application/json',
-};
-
-function getExtensionFromContentType(contentType: string): string {
-  // Strip parameters like charset
-  const base = contentType.split(';')[0].trim();
-  return MIME_TO_EXT[base] ?? '.bin';
-}
-
-function getContentTypeFromFilename(filename: string): string {
-  const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
-  return EXT_TO_MIME[ext] ?? 'application/octet-stream';
 }
 
 export interface SpaceConfig {
@@ -1093,147 +1046,13 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   // ===========================================================================
 
   /**
-   * Export space data as JSON-LD.
-   * Returns a JSON-LD document with all objects and their relations.
-   * Space metadata and interaction history are not included.
-   */
-  export(): JsonLdDocument {
-    return toJsonLd(this._data);
-  }
-
-  /**
-   * Import JSON-LD data into the space.
-   * Creates objects and links from the JSON-LD graph.
-   * Space must be empty (throws if objects exist).
-   */
-  async import(data: unknown): Promise<void> {
-    if (Object.keys(this._data.objects).length > 0) {
-      throw new Error(
-        'Cannot import into non-empty space. Create a new space or delete existing objects first.'
-      );
-    }
-
-    const parsed = fromJsonLd(data);
-
-    // Create all objects first
-    for (const obj of parsed.objects) {
-      await this.createObject({ data: obj.data });
-    }
-
-    // Then create all links
-    for (const obj of parsed.objects) {
-      for (const rel of obj.relations) {
-        await this.link(obj.id, rel.relation, rel.targetId);
-      }
-    }
-  }
-
-  /**
    * Export space data and media as a zip archive.
-   * Media URLs are rewritten to relative paths within the archive.
+   * The archive contains a data.json file with objects, relations, metadata,
+   * and conversations, plus a media/ folder with all media files.
    * @returns A Blob containing the zip archive
    */
   async exportArchive(): Promise<Blob> {
-    // Get JSON-LD export
-    const jsonld = this.export();
-
-    // Get all media in this space
-    const mediaList = await this.listMedia();
-    const mediaUrls = new Set(mediaList.map(m => m.url));
-
-    // Find which media URLs are actually used in the export
-    const allStrings = findAllStrings(jsonld);
-    const usedMediaUrls = [...allStrings].filter(s => mediaUrls.has(s));
-
-    // Build URL mapping and fetch media files
-    const urlMapping = new Map<string, string>();
-    const files: Record<string, Uint8Array> = {};
-
-    for (const url of usedMediaUrls) {
-      const mediaInfo = mediaList.find(m => m.url === url);
-      if (!mediaInfo) continue;
-
-      try {
-        const response = await this.fetchMedia(url);
-        const blob = await response.blob();
-        const buffer = await blob.arrayBuffer();
-
-        // Determine filename: uuid + extension from content type
-        const ext = getExtensionFromContentType(response.contentType);
-        const filename = `${mediaInfo.uuid}${ext}`;
-        const relativePath = `media/${filename}`;
-
-        files[relativePath] = new Uint8Array(buffer);
-        urlMapping.set(url, relativePath);
-      } catch (error) {
-        // Skip media that fails to fetch (e.g., 404)
-        console.warn(`[Space] Failed to fetch media for archive: ${url}`, error);
-      }
-    }
-
-    // Rewrite URLs in JSON-LD
-    const rewrittenJsonld = rewriteStrings(jsonld, urlMapping);
-
-    // Add data.json to the archive
-    const encoder = new TextEncoder();
-    files['data.json'] = encoder.encode(JSON.stringify(rewrittenJsonld, null, 2));
-
-    // Create zip archive
-    const zipped = zipSync(files);
-    return new Blob([zipped as BlobPart], { type: 'application/zip' });
-  }
-
-  /**
-   * Import from a zip archive containing data.json and media files.
-   * Space must be empty (throws if objects exist).
-   */
-  async importArchive(archive: Blob): Promise<void> {
-    if (Object.keys(this._data.objects).length > 0) {
-      throw new Error(
-        'Cannot import into non-empty space. Create a new space or delete existing objects first.'
-      );
-    }
-
-    // Read and unzip the archive
-    const buffer = await archive.arrayBuffer();
-    const unzipped = unzipSync(new Uint8Array(buffer));
-
-    // Parse data.json
-    const dataJsonBytes = unzipped['data.json'];
-    if (!dataJsonBytes) {
-      throw new Error('Invalid archive: missing data.json');
-    }
-    const decoder = new TextDecoder();
-    const jsonld = JSON.parse(decoder.decode(dataJsonBytes)) as JsonLdDocument;
-
-    // Upload media files and build URL mapping
-    const urlMapping = new Map<string, string>();
-    for (const [path, data] of Object.entries(unzipped)) {
-      if (!path.startsWith('media/')) continue;
-
-      const contentType = getContentTypeFromFilename(path);
-      const blob = new Blob([data as BlobPart], { type: contentType });
-      const newUrl = await this.uploadMedia(blob);
-      urlMapping.set(path, newUrl);
-    }
-
-    // Rewrite URLs in JSON-LD
-    const rewrittenJsonld = rewriteStrings(jsonld, urlMapping);
-
-    // Import using existing logic
-    const parsed = fromJsonLd(rewrittenJsonld);
-
-    // Create all objects first
-    for (const obj of parsed.objects) {
-      await this.createObject({ data: obj.data });
-    }
-
-    // Then create all links
-    for (const obj of parsed.objects) {
-      for (const rel of obj.relations) {
-        await this.link(obj.id, rel.relation, rel.targetId);
-      }
-    }
+    return this.mediaClient.exportArchive(this._id);
   }
 
   // ===========================================================================

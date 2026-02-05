@@ -12,9 +12,6 @@ export { RoolSpace, generateEntityId } from './space.js';
 // Event emitter (for extending)
 export { EventEmitter } from './event-emitter.js';
 
-// JSON-LD types
-export type { JsonLdDocument, JsonLdNode } from './jsonld.js';
-
 // Types
 export type {
   // Core types

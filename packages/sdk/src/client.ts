@@ -277,6 +277,30 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     // Client-level event will be emitted via SSE subscription
   }
 
+  /**
+   * Import a space from a zip archive.
+   * Creates a new space with the given name and imports objects, relations, and media.
+   * Returns the opened RoolSpace instance.
+   *
+   * @param name - Name for the imported space
+   * @param archive - Zip archive blob (from exportArchive or file upload)
+   * @param options.conversationId - Optional conversation ID for AI context continuity
+   */
+  async importArchive(
+    name: string,
+    archive: Blob,
+    options?: { conversationId?: string }
+  ): Promise<RoolSpace> {
+    // Ensure client subscription is active (for lifecycle events)
+    void this.ensureSubscribed();
+
+    // Import via REST endpoint (creates the space)
+    const spaceId = await this.mediaClient.importArchive(name, archive);
+
+    // Open the newly created space
+    return this.openSpace(spaceId, options);
+  }
+
   // ===========================================================================
   // User Operations
   // ===========================================================================

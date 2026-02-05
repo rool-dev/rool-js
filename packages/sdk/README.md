@@ -660,43 +660,26 @@ if (response.contentType.startsWith('image/')) {
 
 ### Import/Export
 
-Export space data as JSON-LD for backup, portability, or migration:
+Export and import space data as zip archives for backup, portability, or migration:
 
 | Method | Description |
 |--------|-------------|
-| `export(): JsonLdDocument` | Export all objects and relations as JSON-LD |
-| `import(data): Promise<void>` | Import JSON-LD into empty space |
-| `exportArchive(): Promise<Blob>` | Export objects, relations, and media as a zip archive |
-| `importArchive(archive): Promise<void>` | Import from a zip archive into empty space |
+| `space.exportArchive(): Promise<Blob>` | Export objects, relations, metadata, conversations, and media as a zip archive |
+| `client.importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
 
-**Export (data only):**
-```typescript
-const jsonld = space.export();
-const json = JSON.stringify(jsonld, null, 2);
-```
-
-**Export (with media):**
+**Export:**
 ```typescript
 const archive = await space.exportArchive();
 // Save as .zip file
 const url = URL.createObjectURL(archive);
 ```
 
-**Import (data only):**
+**Import:**
 ```typescript
-// Space must be empty
-const newSpace = await client.createSpace('Imported Data');
-await newSpace.import(jsonld);
+const newSpace = await client.importArchive('Imported Data', archiveBlob);
 ```
 
-**Import (with media):**
-```typescript
-// Space must be empty
-const newSpace = await client.createSpace('Imported Data');
-await newSpace.importArchive(archiveBlob);
-```
-
-The JSON-LD format follows W3C standards. The archive format bundles `data.json` (JSON-LD with media URLs rewritten to relative paths) and a `media/` folder containing the actual files. Space metadata and interaction history are not included in either format.
+The archive format bundles `data.json` (with objects, relations, metadata, and conversations) and a `media/` folder containing all media files. Media URLs are rewritten to relative paths within the archive and restored on import.
 
 ### Space Events
 

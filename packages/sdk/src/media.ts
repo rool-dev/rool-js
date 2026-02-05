@@ -198,5 +198,57 @@ export class MediaClient {
       throw new Error(`Failed to delete media: ${response.status} ${response.statusText}`);
     }
   }
+
+  /**
+   * Export a space as a zip archive containing data and media.
+   * The archive includes data.json with objects, relations, metadata, and conversations,
+   * plus a media/ folder with all media files.
+   */
+  async exportArchive(spaceId: string): Promise<Blob> {
+    const token = await this.config.authManager.getToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const exportUrl = `${this.config.backendOrigin}/spaces/${encodeURIComponent(spaceId)}/export`;
+    const response = await fetch(exportUrl, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`Failed to export space: ${response.status} ${errorText}`);
+    }
+
+    return response.blob();
+  }
+
+  /**
+   * Import a space from a zip archive.
+   * Creates a new space with the given name and imports objects, relations, and media.
+   * Returns the new space ID.
+   */
+  async importArchive(name: string, archive: Blob): Promise<string> {
+    const token = await this.config.authManager.getToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('archive', archive, 'archive.zip');
+
+    const importUrl = `${this.config.backendOrigin}/spaces/import`;
+    const response = await fetch(importUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`Failed to import space: ${response.status} ${errorText}`);
+    }
+
+    const result = await response.json() as { spaceId: string; name: string };
+    return result.spaceId;
+  }
 }
 
