@@ -221,6 +221,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       onClose: (id) => this.unregisterSpace(id),
     });
 
+    // Wait for real-time subscription before returning
+    await space._waitForSubscription();
+
     // Register for cleanup
     this.registerSpace(spaceId, space);
 
@@ -255,6 +258,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       authManager: this.authManager,
       onClose: (id) => this.unregisterSpace(id),
     });
+
+    // Wait for real-time subscription before returning
+    await space._waitForSubscription();
 
     // Register for cleanup
     this.registerSpace(spaceId, space);

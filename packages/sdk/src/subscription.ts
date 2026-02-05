@@ -83,17 +83,20 @@ export class ClientSubscriptionManager {
           next: (result) => {
             this.reconnectDelay = INITIAL_RECONNECT_DELAY;
 
-            if (!this._isSubscribed) {
-              this._isSubscribed = true;
-              this.config.onConnectionStateChanged('connected');
-            }
-
             if (result.data?.clientEvents) {
               try {
                 const eventData = result.data.clientEvents as string;
                 const rawEvent = JSON.parse(eventData);
                 const event = this.parseClientEvent(rawEvent);
                 if (event) {
+                  // Handle connected event
+                  if (event.type === 'connected') {
+                    console.log(`[RoolClient] Connected, server version: ${event.serverVersion}`);
+                    if (!this._isSubscribed) {
+                      this._isSubscribed = true;
+                      this.config.onConnectionStateChanged('connected');
+                    }
+                  }
                   this.config.onEvent(event);
                 }
               } catch (e) {
@@ -172,6 +175,8 @@ export class ClientSubscriptionManager {
     if (!type) return null;
 
     switch (type) {
+      case 'connected':
+        return { type, timestamp, serverVersion: raw.serverVersion as string };
       case 'space_created':
       case 'space_renamed':
         return { type, spaceId: raw.spaceId as string, timestamp, name: raw.name as string };
@@ -213,6 +218,7 @@ export class SpaceSubscriptionManager {
   private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private isIntentionalClose = false;
   private _isSubscribed = false;
+  private _initialConnectPromise: { resolve: () => void; reject: (e: Error) => void } | null = null;
 
   constructor(config: SpaceSubscriptionConfig) {
     this.config = config;
@@ -222,11 +228,20 @@ export class SpaceSubscriptionManager {
     return this._isSubscribed;
   }
 
-  async subscribe(): Promise<void> {
-    if (this._isSubscribed) return;
+  /**
+   * Start the subscription. Returns a promise that resolves when connected.
+   * If the initial connection fails, the promise rejects.
+   * After initial connection, disconnects trigger auto-reconnect.
+   */
+  subscribe(): Promise<void> {
+    if (this._isSubscribed) return Promise.resolve();
 
     this.isIntentionalClose = false;
-    await this.connect();
+
+    return new Promise<void>((resolve, reject) => {
+      this._initialConnectPromise = { resolve, reject };
+      void this.connect();
+    });
   }
 
   unsubscribeFromEvents(): void {
@@ -238,7 +253,12 @@ export class SpaceSubscriptionManager {
   private async connect(): Promise<void> {
     const token = await this.config.authManager.getToken();
     if (!token) {
-      this.config.onError(new Error('Cannot subscribe: not authenticated'));
+      const error = new Error('Cannot subscribe: not authenticated');
+      this.config.onError(error);
+      if (this._initialConnectPromise) {
+        this._initialConnectPromise.reject(error);
+        this._initialConnectPromise = null;
+      }
       return;
     }
 
@@ -270,17 +290,24 @@ export class SpaceSubscriptionManager {
           next: (result) => {
             this.reconnectDelay = INITIAL_RECONNECT_DELAY;
 
-            if (!this._isSubscribed) {
-              this._isSubscribed = true;
-              this.config.onConnectionStateChanged('connected');
-            }
-
             if (result.data?.spaceEvents) {
               try {
                 const eventData = result.data.spaceEvents as string;
                 const rawEvent = JSON.parse(eventData);
                 const event = this.parseSpaceEvent(rawEvent);
                 if (event) {
+                  // Handle connected event - resolve initial promise
+                  if (event.type === 'connected') {
+                    console.log(`[RoolSpace] Connected to space ${event.spaceId}, server version: ${event.serverVersion}`);
+                    if (!this._isSubscribed) {
+                      this._isSubscribed = true;
+                      this.config.onConnectionStateChanged('connected');
+                      if (this._initialConnectPromise) {
+                        this._initialConnectPromise.resolve();
+                        this._initialConnectPromise = null;
+                      }
+                    }
+                  }
                   this.config.onEvent(event);
                 }
               } catch (e) {
@@ -293,7 +320,12 @@ export class SpaceSubscriptionManager {
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
 
-            if (!this.isIntentionalClose) {
+            if (this._initialConnectPromise) {
+              // Initial connection failed - reject and don't auto-reconnect
+              this._initialConnectPromise.reject(error instanceof Error ? error : new Error(String(error)));
+              this._initialConnectPromise = null;
+            } else if (!this.isIntentionalClose) {
+              // Established connection dropped - auto-reconnect
               this.scheduleReconnect();
             }
           },
@@ -301,7 +333,11 @@ export class SpaceSubscriptionManager {
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
 
-            if (!this.isIntentionalClose) {
+            if (this._initialConnectPromise) {
+              // Connection closed before establishing - reject
+              this._initialConnectPromise.reject(new Error('Connection closed before establishing'));
+              this._initialConnectPromise = null;
+            } else if (!this.isIntentionalClose) {
               this.scheduleReconnect();
             }
           },
@@ -312,7 +348,10 @@ export class SpaceSubscriptionManager {
       this._isSubscribed = false;
       this.config.onConnectionStateChanged('disconnected');
 
-      if (!this.isIntentionalClose) {
+      if (this._initialConnectPromise) {
+        this._initialConnectPromise.reject(error instanceof Error ? error : new Error(String(error)));
+        this._initialConnectPromise = null;
+      } else if (!this.isIntentionalClose) {
         this.scheduleReconnect();
       }
     }
@@ -358,10 +397,19 @@ export class SpaceSubscriptionManager {
     const timestamp = raw.timestamp as number;
     const source = raw.source as RoolEventSource;
 
-    if (!type || !spaceId || !source) return null;
+    if (!type || !spaceId) return null;
 
     switch (type) {
+      case 'connected':
+        return {
+          type,
+          spaceId,
+          timestamp,
+          source: source ?? 'user',  // connected event may not have source
+          serverVersion: raw.serverVersion as number,
+        };
       case 'space_patched':
+        if (!source) return null;
         return {
           type,
           spaceId,
@@ -370,6 +418,7 @@ export class SpaceSubscriptionManager {
           source,
         };
       case 'space_changed':
+        if (!source) return null;
         return { type, spaceId, timestamp, source };
       default:
         console.warn('[RoolSpace] Unknown space event type:', type);

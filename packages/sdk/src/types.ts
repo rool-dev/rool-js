@@ -281,7 +281,7 @@ export type RoolEventSource = 'user' | 'agent';
 // Client-level events (space lifecycle)
 // -----------------------------------------------------------------------------
 
-export type ClientEventType = 'space_created' | 'space_deleted' | 'space_renamed' | 'user_storage_changed';
+export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'user_storage_changed';
 
 export interface ClientEvent {
   type: ClientEventType;
@@ -295,13 +295,14 @@ export interface ClientEvent {
   role?: string;  // Present on space_created events
   key?: string;   // Present on user_storage_changed events
   value?: unknown; // Present on user_storage_changed events
+  serverVersion?: string;  // Present on connected events
 }
 
 // -----------------------------------------------------------------------------
 // Space-level events (content changes)
 // -----------------------------------------------------------------------------
 
-export type SpaceEventType = 'space_patched' | 'space_changed';
+export type SpaceEventType = 'connected' | 'space_patched' | 'space_changed';
 
 export interface SpaceEvent {
   type: SpaceEventType;
@@ -310,6 +311,7 @@ export interface SpaceEvent {
   patch?: JSONPatchOp[];  // Present on space_patched events
   source: RoolEventSource;
   conversationId?: string;  // Present on space events
+  serverVersion?: number;  // Present on connected events
 }
 
 // =============================================================================

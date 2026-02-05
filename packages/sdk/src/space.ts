@@ -121,6 +121,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   private mediaClient: MediaClient;
   private subscriptionManager: SpaceSubscriptionManager;
   private onCloseCallback: (spaceId: string) => void;
+  private _subscriptionReady: Promise<void>;
 
   constructor(config: SpaceConfig) {
     super();
@@ -149,8 +150,17 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       },
     });
 
-    // Start subscription
-    void this.subscriptionManager.subscribe();
+    // Start subscription - store promise for openSpace/createSpace to await
+    this._subscriptionReady = this.subscriptionManager.subscribe();
+  }
+
+  /**
+   * Wait for the real-time subscription to be established.
+   * Called internally by openSpace/createSpace before returning the space.
+   * @internal
+   */
+  _waitForSubscription(): Promise<void> {
+    return this._subscriptionReady;
   }
 
   // ===========================================================================
