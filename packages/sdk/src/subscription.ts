@@ -57,7 +57,11 @@ export class ClientSubscriptionManager {
   private async connect(): Promise<void> {
     const token = await this.config.authManager.getToken();
     if (!token) {
-      this.config.onError(new Error('Cannot subscribe: not authenticated'));
+      // Token not available - may be refreshing or network not ready after wake
+      // Schedule retry instead of giving up
+      if (!this.isIntentionalClose) {
+        this.scheduleReconnect();
+      }
       return;
     }
 
@@ -256,8 +260,12 @@ export class SpaceSubscriptionManager {
       const error = new Error('Cannot subscribe: not authenticated');
       this.config.onError(error);
       if (this._initialConnectPromise) {
+        // Initial connection - reject so caller knows it failed
         this._initialConnectPromise.reject(error);
         this._initialConnectPromise = null;
+      } else if (!this.isIntentionalClose) {
+        // Reconnect attempt - token may be refreshing, retry
+        this.scheduleReconnect();
       }
       return;
     }
