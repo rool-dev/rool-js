@@ -33,6 +33,13 @@ export function registerApp(program: Command): void {
     .option('-n, --name <name>', 'app display name (defaults to app-id)')
     .option('--no-spa', 'disable SPA routing (404s will not serve index.html)')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Publish a directory as an app
+  $ rool app publish my-app ./dist
+
+  # Publish with a custom name
+  $ rool app publish my-app ./dist -n "My App"`)
     .action(async (appId: string, dirPath: string, opts: { name?: string; spa: boolean; url: string }) => {
       // Validate directory exists
       const resolvedPath = path.resolve(dirPath);
@@ -79,6 +86,10 @@ export function registerApp(program: Command): void {
     .command('list')
     .description('List published apps')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # List published apps
+  $ rool app list`)
     .action(async (opts: { url: string }) => {
       const client = await getClient(opts.url);
       try {
@@ -109,6 +120,10 @@ export function registerApp(program: Command): void {
     .description('Unpublish an app')
     .argument('<app-id>', 'app to unpublish')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Unpublish an app
+  $ rool app unpublish my-app`)
     .action(async (appId: string, opts: { url: string }) => {
       const client = await getClient(opts.url);
       try {
@@ -130,6 +145,13 @@ export function registerApp(program: Command): void {
     .description('Show or set your user slug')
     .argument('[new-slug]', 'new slug to set')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Show your user slug
+  $ rool app slug
+
+  # Set your user slug
+  $ rool app slug my-slug`)
     .action(async (newSlug: string | undefined, opts: { url: string }) => {
       const client = await getClient(opts.url);
       try {

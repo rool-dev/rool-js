@@ -7,6 +7,10 @@ export function registerUser(program: Command): void {
     .command('user')
     .description('Show current user info')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Show user info
+  $ rool user`)
     .action(async (opts: { url: string }) => {
       const client = await getClient(opts.url, { autoLogin: false });
       try {

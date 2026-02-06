@@ -7,6 +7,10 @@ export function registerLogout(program: Command): void {
     .command('logout')
     .description('Log out')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Log out
+  $ rool logout`)
     .action(async (opts: { url: string }) => {
       const client = await getClient(opts.url, { autoLogin: false });
       try {

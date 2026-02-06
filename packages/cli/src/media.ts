@@ -26,6 +26,16 @@ export function registerMedia(program: Command): void {
     .option('-m, --message <text>', 'optional comment/description')
     .option('-s, --space <name>', 'space name', DEFAULT_SPACE_NAME)
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Upload a file
+  $ rool media upload photo.jpg
+
+  # Upload with a comment
+  $ rool media upload report.pdf -m "Q4 sales report"
+
+  # Upload to a specific space
+  $ rool media upload logo.png -s "My Project"`)
     .action(async (filePath: string, opts: { message?: string; space: string; url: string }) => {
       if (!fs.existsSync(filePath)) {
         console.error(`File not found: ${filePath}`);

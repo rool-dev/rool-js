@@ -15,6 +15,23 @@ interface CommandInfo {
   description: string;
   args: { name: string; required: boolean; description: string }[];
   options: { flags: string; description: string; defaultValue?: string }[];
+  examples: string;
+}
+
+/**
+ * Extract the 'after' help text from a Commander command by invoking its
+ * afterHelp event listeners with a fake context that captures the output.
+ */
+function getAfterHelpText(cmd: Command): string {
+  const listeners = (cmd as unknown as { listeners(event: string): ((...args: unknown[]) => void)[] }).listeners('afterHelp');
+  if (listeners.length === 0) return '';
+
+  let captured = '';
+  const context = { error: false, command: cmd, write: (s: string) => { captured += s; } };
+  for (const fn of listeners) {
+    fn(context);
+  }
+  return captured.trim();
 }
 
 function collectCommands(cmd: Command, prefix: string = ''): CommandInfo[] {
@@ -59,6 +76,7 @@ function collectCommands(cmd: Command, prefix: string = ''): CommandInfo[] {
         description: sub.description(),
         args,
         options,
+        examples: getAfterHelpText(sub),
       });
     }
   }
@@ -150,63 +168,41 @@ rool <command> [options]
     md += `| \`${flags}\` | ${opt.description} | ${defaultStr} | ${usedBy} |\n`;
   }
 
-  md += `
+  // Collect examples from addHelpText('after', ...) on each command.
+  // Each example is a pair of [comment, command] lines extracted from the help text.
+  const exampleBlocks: string[] = [];
+  for (const cmd of commands) {
+    if (!cmd.examples) continue;
+    // Parse comment/command pairs from the help text (skip the "Examples:" header)
+    const lines = cmd.examples
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith('#') || l.startsWith('$'));
+
+    let currentComment = '';
+    for (const line of lines) {
+      if (line.startsWith('#')) {
+        currentComment = line;
+      } else if (line.startsWith('$')) {
+        const command = line.replace(/^\$\s*/, '');
+        const block = currentComment ? `${currentComment}\n${command}` : command;
+        exampleBlocks.push(block);
+        currentComment = '';
+      }
+    }
+  }
+
+  if (exampleBlocks.length > 0) {
+    md += `
 ### Examples
 
 \`\`\`bash
-# Chat with the default space
-rool chat "What is the capital of France?"
-
-# Interactive chat mode
-rool chat
-
-# Use a specific space
-rool chat -s "My Project" "Summarize the current state"
-
-# List your spaces
-rool space list
-
-# Create a new space
-rool space create "My New Project"
-
-# Delete a space (with confirmation)
-rool space delete "Old Project"
-
-# Delete without confirmation
-rool space delete "Old Project" -y
-
-# Upload a file
-rool media upload photo.jpg
-
-# Upload with a comment
-rool media upload report.pdf -m "Q4 sales report"
-
-# Upload to a specific space
-rool media upload logo.png -s "My Project"
-
-# Publish a directory as an app
-rool app publish my-app ./dist
-
-# Publish with a custom name
-rool app publish my-app ./dist -n "My App"
-
-# List published apps
-rool app list
-
-# Unpublish an app
-rool app unpublish my-app
-
-# Show or set your user slug
-rool app slug
-rool app slug my-slug
-
-# Show user info
-rool user
-
-# Log out
-rool logout
+${exampleBlocks.join('\n\n')}
 \`\`\`
+`;
+  }
 
+  md += `
 ## Authentication
 
 On first use, the CLI opens your browser to authenticate. Credentials are stored in \`~/.config/rool/\`.

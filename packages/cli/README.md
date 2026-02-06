@@ -61,6 +61,15 @@ rool chat
 # Use a specific space
 rool chat -s "My Project" "Summarize the current state"
 
+# Upload a file
+rool media upload photo.jpg
+
+# Upload with a comment
+rool media upload report.pdf -m "Q4 sales report"
+
+# Upload to a specific space
+rool media upload logo.png -s "My Project"
+
 # List your spaces
 rool space list
 
@@ -72,15 +81,6 @@ rool space delete "Old Project"
 
 # Delete without confirmation
 rool space delete "Old Project" -y
-
-# Upload a file
-rool media upload photo.jpg
-
-# Upload with a comment
-rool media upload report.pdf -m "Q4 sales report"
-
-# Upload to a specific space
-rool media upload logo.png -s "My Project"
 
 # Publish a directory as an app
 rool app publish my-app ./dist
@@ -94,8 +94,10 @@ rool app list
 # Unpublish an app
 rool app unpublish my-app
 
-# Show or set your user slug
+# Show your user slug
 rool app slug
+
+# Set your user slug
 rool app slug my-slug
 
 # Show user info
@@ -111,7 +113,7 @@ On first use, the CLI opens your browser to authenticate. Credentials are stored
 
 ## Version
 
-Current version: `0.1.9`. Use `rool --version` to check your installed version.
+Current version: `0.1.10`. Use `rool --version` to check your installed version.
 
 ## License
 

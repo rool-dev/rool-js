@@ -13,6 +13,16 @@ export function registerChat(program: Command): void {
     .option('-s, --space <name>', 'space name', DEFAULT_SPACE_NAME)
     .option('-c, --conversation <id>', 'conversation ID', DEFAULT_CONVERSATION_ID)
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Chat with the default space
+  $ rool chat "What is the capital of France?"
+
+  # Interactive chat mode
+  $ rool chat
+
+  # Use a specific space
+  $ rool chat -s "My Project" "Summarize the current state"`)
     .action(async (promptWords: string[], opts: { space: string; conversation: string; url: string }) => {
       const prompt = promptWords.join(' ');
       const client = await getClient(opts.url);

@@ -35,6 +35,10 @@ export function registerSpace(program: Command): void {
     .command('list')
     .description('List all spaces')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # List your spaces
+  $ rool space list`)
     .action(async (opts: { url: string }) => {
       await listSpaces(opts.url);
     });
@@ -44,6 +48,10 @@ export function registerSpace(program: Command): void {
     .description('Create a new space')
     .argument('<name>', 'space name')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Create a new space
+  $ rool space create "My New Project"`)
     .action(async (name: string, opts: { url: string }) => {
       const client = await getClient(opts.url);
       try {
@@ -61,6 +69,13 @@ export function registerSpace(program: Command): void {
     .argument('<name>', 'space name')
     .option('-y, --yes', 'skip confirmation prompt')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .addHelpText('after', `
+Examples:
+  # Delete a space (with confirmation)
+  $ rool space delete "Old Project"
+
+  # Delete without confirmation
+  $ rool space delete "Old Project" -y`)
     .action(async (name: string, opts: { yes?: boolean; url: string }) => {
       const client = await getClient(opts.url);
       try {
