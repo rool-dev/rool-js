@@ -75,6 +75,9 @@ jobs:
       - name: Build
         run: pnpm --filter @rool-dev/cli... build
 
+      - name: Generate README
+        run: pnpm --filter @rool-dev/cli generate-readme
+
       - name: Set dev version
         working-directory: packages/cli
         run: |
@@ -121,6 +124,9 @@ jobs:
 
       - name: Build
         run: pnpm --filter @rool-dev/cli... build
+
+      - name: Generate README
+        run: pnpm --filter @rool-dev/cli generate-readme
 
       - name: Verify version matches tag
         working-directory: packages/cli
