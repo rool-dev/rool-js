@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import archiver from 'archiver';
-import { RoolClient } from '@rool-dev/sdk';
-import { NodeAuthProvider } from '@rool-dev/sdk/node';
 import { parseArgs } from './args.js';
+import { getClient } from './client.js';
+import { formatBytes } from './format.js';
 
 function printUsage(): void {
   console.error('Usage: rool publish <command> [options]');
@@ -26,18 +26,6 @@ function printUsage(): void {
   console.error('  rool publish unpublish my-app');
 }
 
-async function getClient(apiUrl: string): Promise<RoolClient> {
-  const authProvider = new NodeAuthProvider();
-  const client = new RoolClient({ baseUrl: apiUrl, authProvider });
-
-  if (!await client.isAuthenticated()) {
-    console.log('Opening browser to authenticate...');
-    await client.login("Rool CLI");
-  }
-
-  return client;
-}
-
 async function zipDirectory(dirPath: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const archive = archiver('zip', { zlib: { level: 9 } });
@@ -50,12 +38,6 @@ async function zipDirectory(dirPath: string): Promise<Buffer> {
     archive.directory(dirPath, false);
     archive.finalize();
   });
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 async function publishApp(
@@ -91,72 +73,77 @@ async function publishApp(
   console.log(`Bundle size: ${formatBytes(zipBuffer.length)}`);
 
   const client = await getClient(apiUrl);
+  try {
+    console.log(`Publishing ${appId}...`);
+    const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
+    const result = await client.publishApp(appId, { name, bundle: blob, spa });
 
-  console.log(`Publishing ${appId}...`);
-  const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
-  const result = await client.publishApp(appId, { name, bundle: blob, spa });
-
-  console.log('');
-  console.log(`Published: ${result.name}`);
-  console.log(`URL: ${result.url}`);
-  console.log(`Size: ${formatBytes(result.sizeBytes)}`);
-  console.log(`SPA routing: ${result.spa ? 'enabled' : 'disabled'}`);
-
-  client.destroy();
+    console.log('');
+    console.log(`Published: ${result.name}`);
+    console.log(`URL: ${result.url}`);
+    console.log(`Size: ${formatBytes(result.sizeBytes)}`);
+    console.log(`SPA routing: ${result.spa ? 'enabled' : 'disabled'}`);
+  } finally {
+    client.destroy();
+  }
 }
 
 async function listApps(apiUrl: string): Promise<void> {
   const client = await getClient(apiUrl);
-  const apps = await client.listApps();
+  try {
+    const apps = await client.listApps();
 
-  if (apps.length === 0) {
-    console.log('No published apps.');
-  } else {
-    console.log('Published apps:');
-    console.log('');
-    for (const app of apps) {
-      console.log(`  ${app.appId}`);
-      console.log(`    Name: ${app.name}`);
-      console.log(`    URL: ${app.url}`);
-      console.log(`    Size: ${formatBytes(app.sizeBytes)}`);
-      console.log(`    SPA: ${app.spa ? 'yes' : 'no'}`);
-      console.log(`    Updated: ${new Date(app.updatedAt).toLocaleString()}`);
+    if (apps.length === 0) {
+      console.log('No published apps.');
+    } else {
+      console.log('Published apps:');
       console.log('');
+      for (const app of apps) {
+        console.log(`  ${app.appId}`);
+        console.log(`    Name: ${app.name}`);
+        console.log(`    URL: ${app.url}`);
+        console.log(`    Size: ${formatBytes(app.sizeBytes)}`);
+        console.log(`    SPA: ${app.spa ? 'yes' : 'no'}`);
+        console.log(`    Updated: ${new Date(app.updatedAt).toLocaleString()}`);
+        console.log('');
+      }
     }
+  } finally {
+    client.destroy();
   }
-
-  client.destroy();
 }
 
 async function unpublishApp(apiUrl: string, appId: string): Promise<void> {
   const client = await getClient(apiUrl);
+  try {
+    // Check if app exists
+    const app = await client.getAppInfo(appId);
+    if (!app) {
+      console.error(`App not found: ${appId}`);
+      process.exit(1);
+    }
 
-  // Check if app exists
-  const app = await client.getAppInfo(appId);
-  if (!app) {
-    console.error(`App not found: ${appId}`);
+    await client.unpublishApp(appId);
+    console.log(`Unpublished: ${appId}`);
+  } finally {
     client.destroy();
-    process.exit(1);
   }
-
-  await client.unpublishApp(appId);
-  console.log(`Unpublished: ${appId}`);
-
-  client.destroy();
 }
 
 async function showOrSetSlug(apiUrl: string, newSlug?: string): Promise<void> {
   const client = await getClient(apiUrl);
-  const user = await client.getCurrentUser();
+  try {
+    const user = await client.getCurrentUser();
 
-  if (newSlug) {
-    await client.setSlug(newSlug);
-    console.log(`Slug updated to: ${newSlug}`);
-  } else {
-    console.log(`Your slug: ${user.slug}`);
+    if (newSlug) {
+      await client.setSlug(newSlug);
+      console.log(`Slug updated to: ${newSlug}`);
+    } else {
+      console.log(`Your slug: ${user.slug}`);
+    }
+  } finally {
+    client.destroy();
   }
-
-  client.destroy();
 }
 
 export async function publish(args: string[]): Promise<void> {

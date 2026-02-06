@@ -1,6 +1,5 @@
-import { RoolClient } from '@rool-dev/sdk';
-import { NodeAuthProvider } from '@rool-dev/sdk/node';
 import { parseArgs } from './args.js';
+import { getClient } from './client.js';
 
 export async function logout(args: string[]): Promise<void> {
   const { url: apiUrl, rest } = parseArgs(args);
@@ -13,15 +12,15 @@ export async function logout(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const authProvider = new NodeAuthProvider();
-  const client = new RoolClient({ baseUrl: apiUrl, authProvider });
-
-  if (!await client.isAuthenticated()) {
-    console.log('Not logged in.');
-  } else {
-    client.logout();
-    console.log('Logged out.');
+  const client = await getClient(apiUrl, { autoLogin: false });
+  try {
+    if (!await client.isAuthenticated()) {
+      console.log('Not logged in.');
+    } else {
+      client.logout();
+      console.log('Logged out.');
+    }
+  } finally {
+    client.destroy();
   }
-
-  client.destroy();
 }

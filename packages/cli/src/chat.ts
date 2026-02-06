@@ -1,21 +1,14 @@
 import * as readline from 'node:readline';
-import { RoolClient, type RoolSpace } from '@rool-dev/sdk';
-import { NodeAuthProvider } from '@rool-dev/sdk/node';
+import { type RoolClient, type RoolSpace } from '@rool-dev/sdk';
 import { parseArgs } from './args.js';
+import { getClient } from './client.js';
 import { formatMarkdown } from './format.js';
 
 export async function chat(args: string[]): Promise<void> {
   const { space: spaceName, conversation: conversationId, url: apiUrl, rest } = parseArgs(args);
   const prompt = rest.join(' ');
 
-  const authProvider = new NodeAuthProvider();
-  const client = new RoolClient({ baseUrl: apiUrl, authProvider });
-
-  // Login if needed (NodeAuthProvider opens browser and awaits callback)
-  if (!await client.isAuthenticated()) {
-    console.log('Opening browser to authenticate...');
-    await client.login("Rool CLI");
-  }
+  const client = await getClient(apiUrl);
 
   // Find or create space by name
   const spaces = await client.listSpaces();
@@ -30,9 +23,12 @@ export async function chat(args: string[]): Promise<void> {
 
   if (prompt) {
     // One-shot mode
-    await sendPrompt(space, prompt);
-    space.close();
-    client.destroy();
+    try {
+      await sendPrompt(space, prompt);
+    } finally {
+      space.close();
+      client.destroy();
+    }
   } else {
     // Interactive mode
     await interactiveMode(space, client);

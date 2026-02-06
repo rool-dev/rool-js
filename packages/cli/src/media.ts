@@ -1,9 +1,9 @@
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { RoolClient, type RoolSpace } from '@rool-dev/sdk';
-import { NodeAuthProvider } from '@rool-dev/sdk/node';
 import { parseArgs, printCommonOptions } from './args.js';
+import { getClient } from './client.js';
+import { formatBytes } from './format.js';
 
 function getContentType(filePath: string): string {
   try {
@@ -11,12 +11,6 @@ function getContentType(filePath: string): string {
   } catch {
     return 'application/octet-stream';
   }
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function printUsage(): void {
@@ -32,29 +26,6 @@ function printUsage(): void {
   console.error('  rool media upload photo.jpg');
   console.error('  rool media upload report.pdf -m "Q4 sales report"');
   console.error('  rool media upload logo.png -s "My Project"');
-}
-
-async function getClient(apiUrl: string): Promise<RoolClient> {
-  const authProvider = new NodeAuthProvider();
-  const client = new RoolClient({ baseUrl: apiUrl, authProvider });
-
-  if (!await client.isAuthenticated()) {
-    console.log('Opening browser to authenticate...');
-    await client.login('Rool CLI');
-  }
-
-  return client;
-}
-
-async function getSpace(client: RoolClient, spaceName: string): Promise<RoolSpace> {
-  const spaces = await client.listSpaces();
-  const spaceInfo = spaces.find(s => s.name === spaceName);
-
-  if (spaceInfo) {
-    return client.openSpace(spaceInfo.id);
-  } else {
-    return client.createSpace(spaceName);
-  }
 }
 
 async function uploadMedia(args: string[]): Promise<void> {
@@ -82,13 +53,19 @@ async function uploadMedia(args: string[]): Promise<void> {
   const size = stats.size;
 
   const client = await getClient(apiUrl);
-  const space = await getSpace(client, spaceName);
+
+  // Find or create space by name
+  const spaces = await client.listSpaces();
+  const spaceInfo = spaces.find(s => s.name === spaceName);
+  const space = spaceInfo
+    ? await client.openSpace(spaceInfo.id)
+    : await client.createSpace(spaceName);
 
   try {
     const fileBuffer = fs.readFileSync(filePath);
     const blob = new Blob([fileBuffer], { type: contentType });
 
-    console.log(`Uploading ${filename} (${formatSize(size)})...`);
+    console.log(`Uploading ${filename} (${formatBytes(size)})...`);
     const url = await space.uploadMedia(blob);
 
     const objectData: Record<string, unknown> = {
@@ -106,7 +83,7 @@ async function uploadMedia(args: string[]): Promise<void> {
 
     const { object } = await space.createObject({ data: objectData });
 
-    console.log(`Uploaded: ${filename} (${formatSize(size)})`);
+    console.log(`Uploaded: ${filename} (${formatBytes(size)})`);
     console.log(`Created object: ${object.id}`);
     console.log(`URL: ${url}`);
   } finally {
