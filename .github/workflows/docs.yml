@@ -5,7 +5,8 @@ on:
     branches: [main]
     paths:
       - 'packages/sdk/README.md'
-      - 'packages/cli/README.md'
+      - 'packages/cli/src/**'
+      - 'packages/cli/scripts/**'
       - 'packages/svelte/README.md'
       - 'docs/**'
       - '.github/workflows/docs.yml'
@@ -41,6 +42,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build SDK and CLI (needed for README generation)
+        run: pnpm --filter @rool-dev/cli... build
 
       - name: Build docs
         run: pnpm docs:build

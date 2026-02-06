@@ -1,26 +1,23 @@
-import { parseArgs } from './args.js';
+import { type Command } from 'commander';
 import { getClient } from './client.js';
+import { DEFAULT_API_URL } from './constants.js';
 
-export async function logout(args: string[]): Promise<void> {
-  const { url: apiUrl, rest } = parseArgs(args);
-
-  if (rest.length > 0) {
-    console.error('Usage: rool logout [options]');
-    console.error('');
-    console.error('Options:');
-    console.error('  -u, --url <url>    API URL (default: https://api.rool.dev)');
-    process.exit(1);
-  }
-
-  const client = await getClient(apiUrl, { autoLogin: false });
-  try {
-    if (!await client.isAuthenticated()) {
-      console.log('Not logged in.');
-    } else {
-      client.logout();
-      console.log('Logged out.');
-    }
-  } finally {
-    client.destroy();
-  }
+export function registerLogout(program: Command): void {
+  program
+    .command('logout')
+    .description('Log out')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (opts: { url: string }) => {
+      const client = await getClient(opts.url, { autoLogin: false });
+      try {
+        if (!await client.isAuthenticated()) {
+          console.log('Not logged in.');
+        } else {
+          client.logout();
+          console.log('Logged out.');
+        }
+      } finally {
+        client.destroy();
+      }
+    });
 }

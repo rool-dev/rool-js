@@ -9,9 +9,9 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r clean",
-    "docs:prebuild": "node docs/build-docs.js",
-    "docs:dev": "node docs/build-docs.js && astro dev --root docs",
-    "docs:build": "node docs/build-docs.js && astro build --root docs",
+    "docs:prebuild": "pnpm --filter @rool-dev/cli generate-readme && node docs/build-docs.js",
+    "docs:dev": "pnpm run docs:prebuild && astro dev --root docs",
+    "docs:build": "pnpm run docs:prebuild && astro build --root docs",
     "docs:preview": "astro preview --root docs"
   },
   "devDependencies": {

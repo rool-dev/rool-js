@@ -1,9 +1,10 @@
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { parseArgs, printCommonOptions } from './args.js';
+import { type Command } from 'commander';
 import { getClient } from './client.js';
 import { formatBytes } from './format.js';
+import { DEFAULT_API_URL, DEFAULT_SPACE_NAME } from './constants.js';
 
 function getContentType(filePath: string): string {
   try {
@@ -13,92 +14,71 @@ function getContentType(filePath: string): string {
   }
 }
 
-function printUsage(): void {
-  console.error('Usage: rool media upload <file> [options]');
-  console.error('');
-  console.error('Upload a file to a space and create an object with the media URL.');
-  console.error('');
-  console.error('Options:');
-  console.error('  -m, --message <text>   Optional comment/description');
-  printCommonOptions();
-  console.error('');
-  console.error('Examples:');
-  console.error('  rool media upload photo.jpg');
-  console.error('  rool media upload report.pdf -m "Q4 sales report"');
-  console.error('  rool media upload logo.png -s "My Project"');
-}
+export function registerMedia(program: Command): void {
+  const media = program
+    .command('media')
+    .description('Manage media files');
 
-async function uploadMedia(args: string[]): Promise<void> {
-  const { space: spaceName, url: apiUrl, message, rest } = parseArgs(args);
-  const filePath = rest[0];
+  media
+    .command('upload')
+    .description('Upload a file to a space and create an object with the media URL')
+    .argument('<file>', 'file to upload')
+    .option('-m, --message <text>', 'optional comment/description')
+    .option('-s, --space <name>', 'space name', DEFAULT_SPACE_NAME)
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (filePath: string, opts: { message?: string; space: string; url: string }) => {
+      if (!fs.existsSync(filePath)) {
+        console.error(`File not found: ${filePath}`);
+        process.exit(1);
+      }
 
-  if (!filePath) {
-    printUsage();
-    process.exit(1);
-  }
+      const stats = fs.statSync(filePath);
+      if (!stats.isFile()) {
+        console.error(`Not a file: ${filePath}`);
+        process.exit(1);
+      }
 
-  if (!fs.existsSync(filePath)) {
-    console.error(`File not found: ${filePath}`);
-    process.exit(1);
-  }
+      const filename = path.basename(filePath);
+      const contentType = getContentType(filePath);
+      const size = stats.size;
 
-  const stats = fs.statSync(filePath);
-  if (!stats.isFile()) {
-    console.error(`Not a file: ${filePath}`);
-    process.exit(1);
-  }
+      const client = await getClient(opts.url);
 
-  const filename = path.basename(filePath);
-  const contentType = getContentType(filePath);
-  const size = stats.size;
+      // Find or create space by name
+      const spaces = await client.listSpaces();
+      const spaceInfo = spaces.find(s => s.name === opts.space);
+      const space = spaceInfo
+        ? await client.openSpace(spaceInfo.id)
+        : await client.createSpace(opts.space);
 
-  const client = await getClient(apiUrl);
+      try {
+        const fileBuffer = fs.readFileSync(filePath);
+        const blob = new Blob([fileBuffer], { type: contentType });
 
-  // Find or create space by name
-  const spaces = await client.listSpaces();
-  const spaceInfo = spaces.find(s => s.name === spaceName);
-  const space = spaceInfo
-    ? await client.openSpace(spaceInfo.id)
-    : await client.createSpace(spaceName);
+        console.log(`Uploading ${filename} (${formatBytes(size)})...`);
+        const url = await space.uploadMedia(blob);
 
-  try {
-    const fileBuffer = fs.readFileSync(filePath);
-    const blob = new Blob([fileBuffer], { type: contentType });
+        const objectData: Record<string, unknown> = {
+          type: 'file',
+          url,
+          filename,
+          contentType,
+          size,
+          uploadedAt: new Date().toISOString(),
+        };
 
-    console.log(`Uploading ${filename} (${formatBytes(size)})...`);
-    const url = await space.uploadMedia(blob);
+        if (opts.message) {
+          objectData.comment = opts.message;
+        }
 
-    const objectData: Record<string, unknown> = {
-      type: 'file',
-      url,
-      filename,
-      contentType,
-      size,
-      uploadedAt: new Date().toISOString(),
-    };
+        const { object } = await space.createObject({ data: objectData });
 
-    if (message) {
-      objectData.comment = message;
-    }
-
-    const { object } = await space.createObject({ data: objectData });
-
-    console.log(`Uploaded: ${filename} (${formatBytes(size)})`);
-    console.log(`Created object: ${object.id}`);
-    console.log(`URL: ${url}`);
-  } finally {
-    space.close();
-    client.destroy();
-  }
-}
-
-export async function media(args: string[]): Promise<void> {
-  const [subcommand, ...subargs] = args;
-
-  if (subcommand === 'upload') {
-    await uploadMedia(subargs);
-  } else {
-    printUsage();
-    process.exit(1);
-  }
+        console.log(`Uploaded: ${filename} (${formatBytes(size)})`);
+        console.log(`Created object: ${object.id}`);
+        console.log(`URL: ${url}`);
+      } finally {
+        space.close();
+        client.destroy();
+      }
+    });
 }

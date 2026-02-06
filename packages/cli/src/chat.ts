@@ -1,43 +1,53 @@
 import * as readline from 'node:readline';
+import { type Command } from 'commander';
 import { type RoolClient, type RoolSpace } from '@rool-dev/sdk';
-import { parseArgs } from './args.js';
 import { getClient } from './client.js';
 import { formatMarkdown } from './format.js';
+import { DEFAULT_API_URL, DEFAULT_SPACE_NAME, DEFAULT_CONVERSATION_ID } from './constants.js';
 
-export async function chat(args: string[]): Promise<void> {
-  const { space: spaceName, conversation: conversationId, url: apiUrl, rest } = parseArgs(args);
-  const prompt = rest.join(' ');
+export function registerChat(program: Command): void {
+  program
+    .command('chat')
+    .description('Chat with a space (interactive if no prompt)')
+    .argument('[prompt...]', 'prompt to send')
+    .option('-s, --space <name>', 'space name', DEFAULT_SPACE_NAME)
+    .option('-c, --conversation <id>', 'conversation ID', DEFAULT_CONVERSATION_ID)
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (promptWords: string[], opts: { space: string; conversation: string; url: string }) => {
+      const prompt = promptWords.join(' ');
+      const client = await getClient(opts.url);
 
-  const client = await getClient(apiUrl);
+      // Find or create space by name
+      const spaces = await client.listSpaces();
+      const spaceInfo = spaces.find(s => s.name === opts.space);
 
-  // Find or create space by name
-  const spaces = await client.listSpaces();
-  const spaceInfo = spaces.find(s => s.name === spaceName);
+      let space: RoolSpace;
+      if (spaceInfo) {
+        space = await client.openSpace(spaceInfo.id, { conversationId: opts.conversation });
+      } else {
+        space = await client.createSpace(opts.space, { conversationId: opts.conversation });
+      }
 
-  let space: RoolSpace;
-  if (spaceInfo) {
-    space = await client.openSpace(spaceInfo.id, { conversationId });
-  } else {
-    space = await client.createSpace(spaceName, { conversationId });
-  }
-
-  if (prompt) {
-    // One-shot mode
-    try {
-      await sendPrompt(space, prompt);
-    } finally {
-      space.close();
-      client.destroy();
-    }
-  } else {
-    // Interactive mode
-    await interactiveMode(space, client);
-  }
+      if (prompt) {
+        // One-shot mode
+        try {
+          await sendPrompt(space, prompt);
+        } finally {
+          space.close();
+          client.destroy();
+        }
+      } else {
+        // Interactive mode
+        await interactiveMode(space, client);
+      }
+    });
 }
 
 function clearStatusLine(): void {
-  process.stdout.clearLine(0);
-  process.stdout.cursorTo(0);
+  if (process.stdout.isTTY) {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+  }
 }
 
 async function sendPrompt(space: RoolSpace, prompt: string): Promise<void> {

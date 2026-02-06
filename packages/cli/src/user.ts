@@ -1,31 +1,28 @@
-import { parseArgs } from './args.js';
+import { type Command } from 'commander';
 import { getClient } from './client.js';
+import { DEFAULT_API_URL } from './constants.js';
 
-export async function user(args: string[]): Promise<void> {
-  const { url: apiUrl, rest } = parseArgs(args);
+export function registerUser(program: Command): void {
+  program
+    .command('user')
+    .description('Show current user info')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (opts: { url: string }) => {
+      const client = await getClient(opts.url, { autoLogin: false });
+      try {
+        if (!await client.isAuthenticated()) {
+          console.log('Not logged in.');
+          process.exit(1);
+        }
 
-  if (rest.length > 0) {
-    console.error('Usage: rool user [options]');
-    console.error('');
-    console.error('Options:');
-    console.error('  -u, --url <url>    API URL (default: https://api.rool.dev)');
-    process.exit(1);
-  }
+        const currentUser = await client.getCurrentUser();
 
-  const client = await getClient(apiUrl, { autoLogin: false });
-  try {
-    if (!await client.isAuthenticated()) {
-      console.log('Not logged in.');
-      process.exit(1);
-    }
-
-    const currentUser = await client.getCurrentUser();
-
-    console.log(`Email:   ${currentUser.email}`);
-    console.log(`Name:    ${currentUser.name ?? '(not set)'}`);
-    console.log(`Plan:    ${currentUser.plan}`);
-    console.log(`Credits: ${currentUser.creditsBalance}`);
-  } finally {
-    client.destroy();
-  }
+        console.log(`Email:   ${currentUser.email}`);
+        console.log(`Name:    ${currentUser.name ?? '(not set)'}`);
+        console.log(`Plan:    ${currentUser.plan}`);
+        console.log(`Credits: ${currentUser.creditsBalance}`);
+      } finally {
+        client.destroy();
+      }
+    });
 }

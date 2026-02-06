@@ -1,6 +1,6 @@
 # Rool CLI
 
-Command-line interface for the [Rool](https://api.rool.dev) platform.
+Command-line interface for the [Rool](https://rool.dev) platform.
 
 ## Installation
 
@@ -18,24 +18,36 @@ rool <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `chat <prompt>` | Send a prompt to a space |
-| `chat` | Interactive chat mode |
-| `media upload <file>` | Upload a file and create an object with the media URL |
+| `chat [prompt]` | Chat with a space (interactive if no prompt) |
+| `media upload <file>` | Upload a file to a space and create an object with the media URL |
 | `space list` | List all spaces |
 | `space create <name>` | Create a new space |
 | `space delete <name>` | Delete a space |
+| `publish deploy <app-id> <path>` | Publish a directory as an app |
+| `publish list` | List published apps |
+| `publish unpublish <app-id>` | Unpublish an app |
+| `publish slug [new-slug]` | Show or set your user slug |
 | `user` | Show current user info |
 | `logout` | Log out |
 
-### Options
+### Global Options
 
 | Option | Description |
 |--------|-------------|
-| `-s, --space <name>` | Space name (default: "Rool CLI") |
-| `-c, --conversation <id>` | Conversation ID (default: "rool-dev") |
-| `-u, --url <url>` | API URL (default: https://api.rool.dev) |
-| `-m, --message <text>` | Comment/description (for media upload) |
-| `-y, --yes` | Skip confirmation prompts |
+| `-V, --version` | Show version number |
+| `-h, --help` | Show help for any command |
+
+### Command Options
+
+| Option | Description | Default | Used by |
+|--------|-------------|---------|---------|
+| `-s, --space <name>` | space name | `Rool CLI` | `chat`, `media upload` |
+| `-c, --conversation <id>` | conversation ID | `rool-dev` | `chat` |
+| `-u, --url <url>` | API URL | `https://api.rool.dev` | all |
+| `-m, --message <text>` | optional comment/description |  | `media upload` |
+| `-y, --yes` | skip confirmation prompt |  | `space delete` |
+| `-n, --name <name>` | app display name (defaults to app-id) |  | `publish deploy` |
+| `--no-spa` | disable SPA routing (404s will not serve index.html) |  | `publish deploy` |
 
 ### Examples
 
@@ -70,6 +82,22 @@ rool media upload report.pdf -m "Q4 sales report"
 # Upload to a specific space
 rool media upload logo.png -s "My Project"
 
+# Publish a directory as an app
+rool publish deploy my-app ./dist
+
+# Publish with a custom name
+rool publish deploy my-app ./dist -n "My App"
+
+# List published apps
+rool publish list
+
+# Unpublish an app
+rool publish unpublish my-app
+
+# Show or set your user slug
+rool publish slug
+rool publish slug my-slug
+
 # Show user info
 rool user
 
@@ -80,6 +108,10 @@ rool logout
 ## Authentication
 
 On first use, the CLI opens your browser to authenticate. Credentials are stored in `~/.config/rool/`.
+
+## Version
+
+Current version: `0.1.9`. Use `rool --version` to check your installed version.
 
 ## License
 

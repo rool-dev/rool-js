@@ -2,17 +2,15 @@
 title: Rool Svelte
 ---
 
-Svelte 5 runes for Rool Spaces. Transforms the event-based SDK into reactive state using `$state`.
+Svelte 5 bindings for Rool Spaces. Transforms the event-based SDK into reactive state using `$state` runes.
 
-**Requires Svelte 5.**
+**Requires Svelte 5.** For core concepts (objects, relations, AI placeholders, undo/redo), see the [SDK documentation](https://docs.rool.dev/sdk/).
 
 ## Installation
 
 ```bash
-npm install @rool-dev/svelte @rool-dev/sdk
+npm install @rool-dev/svelte
 ```
-
-Requires `@rool-dev/sdk` as a peer dependency.
 
 ## Quick Start
 
@@ -250,8 +248,6 @@ import type {
   SpaceHandle,
   SpaceInfo,
   AsyncValue,
-  CreateObjectOptions,
-  UpdateObjectOptions,
 } from '@rool-dev/svelte';
 
 // Re-exported from @rool-dev/sdk
@@ -264,8 +260,14 @@ import type {
   Interaction,
   FindObjectsOptions,
   PromptOptions,
+  CreateObjectOptions,
+  UpdateObjectOptions,
 } from '@rool-dev/svelte';
 ```
+
+## Examples
+
+See the [svelte-chat example](https://github.com/rool-dev/rool-js/tree/main/examples/svelte-chat) for a complete working app.
 
 ## License
 

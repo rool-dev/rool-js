@@ -1,21 +1,9 @@
 import * as readline from 'node:readline';
-import { parseArgs } from './args.js';
+import { type Command } from 'commander';
 import { getClient } from './client.js';
+import { DEFAULT_API_URL } from './constants.js';
 
-function printUsage(): void {
-  console.error('Usage: rool space <command> [options]');
-  console.error('');
-  console.error('Commands:');
-  console.error('  list                 List all spaces');
-  console.error('  create <name>        Create a new space');
-  console.error('  delete <name> [-y]   Delete a space');
-  console.error('');
-  console.error('Options:');
-  console.error('  -u, --url <url>      API URL (default: https://api.rool.dev)');
-  console.error('  -y, --yes            Skip confirmation prompt');
-}
-
-async function confirm(message: string): Promise<boolean> {
+function confirm(message: string): Promise<boolean> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -27,6 +15,82 @@ async function confirm(message: string): Promise<boolean> {
       resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
     });
   });
+}
+
+export function registerSpace(program: Command): void {
+  const space = program
+    .command('space')
+    .description('Manage spaces (list, create, delete)');
+
+  // "rool spaces" alias for "rool space list"
+  program
+    .command('spaces', { hidden: true })
+    .description('List all spaces (alias for "space list")')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (opts: { url: string }) => {
+      await listSpaces(opts.url);
+    });
+
+  space
+    .command('list')
+    .description('List all spaces')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (opts: { url: string }) => {
+      await listSpaces(opts.url);
+    });
+
+  space
+    .command('create')
+    .description('Create a new space')
+    .argument('<name>', 'space name')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (name: string, opts: { url: string }) => {
+      const client = await getClient(opts.url);
+      try {
+        const newSpace = await client.createSpace(name);
+        console.log(`Created space: ${newSpace.id}  ${newSpace.name}`);
+        newSpace.close();
+      } finally {
+        client.destroy();
+      }
+    });
+
+  space
+    .command('delete')
+    .description('Delete a space')
+    .argument('<name>', 'space name')
+    .option('-y, --yes', 'skip confirmation prompt')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (name: string, opts: { yes?: boolean; url: string }) => {
+      const client = await getClient(opts.url);
+      try {
+        const list = await client.listSpaces();
+        const spaceInfo = list.find(s => s.name === name);
+
+        if (!spaceInfo) {
+          console.error(`Space not found: "${name}"`);
+          process.exit(1);
+        }
+
+        if (spaceInfo.role !== 'owner') {
+          console.error(`Cannot delete space: you are not the owner (role: ${spaceInfo.role})`);
+          process.exit(1);
+        }
+
+        if (!opts.yes) {
+          const confirmed = await confirm(`Delete space "${name}" (${spaceInfo.id})? This cannot be undone.`);
+          if (!confirmed) {
+            console.log('Cancelled.');
+            return;
+          }
+        }
+
+        await client.deleteSpace(spaceInfo.id);
+        console.log(`Deleted space: ${name}`);
+      } finally {
+        client.destroy();
+      }
+    });
 }
 
 async function listSpaces(apiUrl: string): Promise<void> {
@@ -43,90 +107,5 @@ async function listSpaces(apiUrl: string): Promise<void> {
     }
   } finally {
     client.destroy();
-  }
-}
-
-async function createSpace(apiUrl: string, name: string): Promise<void> {
-  const client = await getClient(apiUrl);
-  try {
-    const newSpace = await client.createSpace(name);
-    console.log(`Created space: ${newSpace.id}  ${newSpace.name}`);
-    newSpace.close();
-  } finally {
-    client.destroy();
-  }
-}
-
-async function deleteSpace(apiUrl: string, name: string, skipConfirm: boolean): Promise<void> {
-  const client = await getClient(apiUrl);
-  try {
-    const list = await client.listSpaces();
-    const spaceInfo = list.find(s => s.name === name);
-
-    if (!spaceInfo) {
-      console.error(`Space not found: "${name}"`);
-      process.exit(1);
-    }
-
-    if (spaceInfo.role !== 'owner') {
-      console.error(`Cannot delete space: you are not the owner (role: ${spaceInfo.role})`);
-      process.exit(1);
-    }
-
-    if (!skipConfirm) {
-      const confirmed = await confirm(`Delete space "${name}" (${spaceInfo.id})? This cannot be undone.`);
-      if (!confirmed) {
-        console.log('Cancelled.');
-        return;
-      }
-    }
-
-    await client.deleteSpace(spaceInfo.id);
-    console.log(`Deleted space: ${name}`);
-  } finally {
-    client.destroy();
-  }
-}
-
-export async function space(args: string[]): Promise<void> {
-  const { url: apiUrl, rest } = parseArgs(args);
-  const [subcommand, ...subargs] = rest;
-
-  // Check for -y/--yes flag in remaining args
-  const yesIndex = subargs.findIndex(a => a === '-y' || a === '--yes');
-  const skipConfirm = yesIndex !== -1;
-  if (skipConfirm) {
-    subargs.splice(yesIndex, 1);
-  }
-
-  switch (subcommand) {
-    case 'list':
-    case undefined:
-      await listSpaces(apiUrl);
-      break;
-
-    case 'create': {
-      const name = subargs.join(' ');
-      if (!name) {
-        console.error('Usage: rool space create <name>');
-        process.exit(1);
-      }
-      await createSpace(apiUrl, name);
-      break;
-    }
-
-    case 'delete': {
-      const name = subargs.join(' ');
-      if (!name) {
-        console.error('Usage: rool space delete <name> [-y]');
-        process.exit(1);
-      }
-      await deleteSpace(apiUrl, name, skipConfirm);
-      break;
-    }
-
-    default:
-      printUsage();
-      process.exit(1);
   }
 }

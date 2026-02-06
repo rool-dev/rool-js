@@ -1,30 +1,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import archiver from 'archiver';
-import { parseArgs } from './args.js';
+import { type Command } from 'commander';
 import { getClient } from './client.js';
 import { formatBytes } from './format.js';
-
-function printUsage(): void {
-  console.error('Usage: rool publish <command> [options]');
-  console.error('');
-  console.error('Commands:');
-  console.error('  <app-id> <path>      Publish a directory as an app');
-  console.error('  list                 List published apps');
-  console.error('  unpublish <app-id>   Unpublish an app');
-  console.error('  slug [new-slug]      Show or set your user slug');
-  console.error('');
-  console.error('Options:');
-  console.error('  -n, --name <name>    App display name (defaults to app-id)');
-  console.error('  --no-spa             Disable SPA routing (404s won\'t serve index.html)');
-  console.error('  -u, --url <url>      API URL (default: https://api.rool.dev)');
-  console.error('');
-  console.error('Examples:');
-  console.error('  rool publish my-app ./dist');
-  console.error('  rool publish my-app ./dist -n "My App"');
-  console.error('  rool publish list');
-  console.error('  rool publish unpublish my-app');
-}
+import { DEFAULT_API_URL } from './constants.js';
 
 async function zipDirectory(dirPath: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -40,177 +20,129 @@ async function zipDirectory(dirPath: string): Promise<Buffer> {
   });
 }
 
-async function publishApp(
-  apiUrl: string,
-  appId: string,
-  dirPath: string,
-  name: string,
-  spa: boolean
-): Promise<void> {
-  // Validate directory exists
-  const resolvedPath = path.resolve(dirPath);
-  if (!fs.existsSync(resolvedPath)) {
-    console.error(`Directory not found: ${resolvedPath}`);
-    process.exit(1);
-  }
+export function registerPublish(program: Command): void {
+  const publish = program
+    .command('publish')
+    .description('Publish and manage apps');
 
-  const stat = fs.statSync(resolvedPath);
-  if (!stat.isDirectory()) {
-    console.error(`Not a directory: ${resolvedPath}`);
-    process.exit(1);
-  }
+  publish
+    .command('deploy')
+    .description('Publish a directory as an app')
+    .argument('<app-id>', 'unique app identifier')
+    .argument('<path>', 'directory to publish')
+    .option('-n, --name <name>', 'app display name (defaults to app-id)')
+    .option('--no-spa', 'disable SPA routing (404s will not serve index.html)')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (appId: string, dirPath: string, opts: { name?: string; spa: boolean; url: string }) => {
+      // Validate directory exists
+      const resolvedPath = path.resolve(dirPath);
+      if (!fs.existsSync(resolvedPath)) {
+        console.error(`Directory not found: ${resolvedPath}`);
+        process.exit(1);
+      }
 
-  // Check for index.html
-  const indexPath = path.join(resolvedPath, 'index.html');
-  if (!fs.existsSync(indexPath)) {
-    console.error(`No index.html found in ${resolvedPath}`);
-    console.error('The directory must contain an index.html file at the root.');
-    process.exit(1);
-  }
+      const stat = fs.statSync(resolvedPath);
+      if (!stat.isDirectory()) {
+        console.error(`Not a directory: ${resolvedPath}`);
+        process.exit(1);
+      }
 
-  console.log(`Packaging ${resolvedPath}...`);
-  const zipBuffer = await zipDirectory(resolvedPath);
-  console.log(`Bundle size: ${formatBytes(zipBuffer.length)}`);
+      // Check for index.html
+      const indexPath = path.join(resolvedPath, 'index.html');
+      if (!fs.existsSync(indexPath)) {
+        console.error(`No index.html found in ${resolvedPath}`);
+        console.error('The directory must contain an index.html file at the root.');
+        process.exit(1);
+      }
 
-  const client = await getClient(apiUrl);
-  try {
-    console.log(`Publishing ${appId}...`);
-    const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
-    const result = await client.publishApp(appId, { name, bundle: blob, spa });
+      console.log(`Packaging ${resolvedPath}...`);
+      const zipBuffer = await zipDirectory(resolvedPath);
+      console.log(`Bundle size: ${formatBytes(zipBuffer.length)}`);
 
-    console.log('');
-    console.log(`Published: ${result.name}`);
-    console.log(`URL: ${result.url}`);
-    console.log(`Size: ${formatBytes(result.sizeBytes)}`);
-    console.log(`SPA routing: ${result.spa ? 'enabled' : 'disabled'}`);
-  } finally {
-    client.destroy();
-  }
-}
+      const client = await getClient(opts.url);
+      try {
+        console.log(`Publishing ${appId}...`);
+        const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
+        const result = await client.publishApp(appId, { name: opts.name ?? appId, bundle: blob, spa: opts.spa });
 
-async function listApps(apiUrl: string): Promise<void> {
-  const client = await getClient(apiUrl);
-  try {
-    const apps = await client.listApps();
-
-    if (apps.length === 0) {
-      console.log('No published apps.');
-    } else {
-      console.log('Published apps:');
-      console.log('');
-      for (const app of apps) {
-        console.log(`  ${app.appId}`);
-        console.log(`    Name: ${app.name}`);
-        console.log(`    URL: ${app.url}`);
-        console.log(`    Size: ${formatBytes(app.sizeBytes)}`);
-        console.log(`    SPA: ${app.spa ? 'yes' : 'no'}`);
-        console.log(`    Updated: ${new Date(app.updatedAt).toLocaleString()}`);
         console.log('');
+        console.log(`Published: ${result.name}`);
+        console.log(`URL: ${result.url}`);
+        console.log(`Size: ${formatBytes(result.sizeBytes)}`);
+        console.log(`SPA routing: ${result.spa ? 'enabled' : 'disabled'}`);
+      } finally {
+        client.destroy();
       }
-    }
-  } finally {
-    client.destroy();
-  }
-}
+    });
 
-async function unpublishApp(apiUrl: string, appId: string): Promise<void> {
-  const client = await getClient(apiUrl);
-  try {
-    // Check if app exists
-    const app = await client.getAppInfo(appId);
-    if (!app) {
-      console.error(`App not found: ${appId}`);
-      process.exit(1);
-    }
+  publish
+    .command('list')
+    .description('List published apps')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (opts: { url: string }) => {
+      const client = await getClient(opts.url);
+      try {
+        const apps = await client.listApps();
 
-    await client.unpublishApp(appId);
-    console.log(`Unpublished: ${appId}`);
-  } finally {
-    client.destroy();
-  }
-}
-
-async function showOrSetSlug(apiUrl: string, newSlug?: string): Promise<void> {
-  const client = await getClient(apiUrl);
-  try {
-    const user = await client.getCurrentUser();
-
-    if (newSlug) {
-      await client.setSlug(newSlug);
-      console.log(`Slug updated to: ${newSlug}`);
-    } else {
-      console.log(`Your slug: ${user.slug}`);
-    }
-  } finally {
-    client.destroy();
-  }
-}
-
-export async function publish(args: string[]): Promise<void> {
-  const { url: apiUrl, rest } = parseArgs(args);
-  const [subcommand, ...subargs] = rest;
-
-  // Parse additional flags from subargs
-  let name: string | undefined;
-  let spa = true;
-  const positional: string[] = [];
-
-  for (let i = 0; i < subargs.length; i++) {
-    const arg = subargs[i];
-    if (arg === '-n' || arg === '--name') {
-      name = subargs[++i];
-      if (!name) {
-        console.error('Missing value for --name');
-        process.exit(1);
+        if (apps.length === 0) {
+          console.log('No published apps.');
+        } else {
+          console.log('Published apps:');
+          console.log('');
+          for (const app of apps) {
+            console.log(`  ${app.appId}`);
+            console.log(`    Name: ${app.name}`);
+            console.log(`    URL: ${app.url}`);
+            console.log(`    Size: ${formatBytes(app.sizeBytes)}`);
+            console.log(`    SPA: ${app.spa ? 'yes' : 'no'}`);
+            console.log(`    Updated: ${new Date(app.updatedAt).toLocaleString()}`);
+            console.log('');
+          }
+        }
+      } finally {
+        client.destroy();
       }
-    } else if (arg === '--no-spa') {
-      spa = false;
-    } else if (arg.startsWith('-')) {
-      console.error(`Unknown option: ${arg}`);
-      process.exit(1);
-    } else {
-      positional.push(arg);
-    }
-  }
+    });
 
-  switch (subcommand) {
-    case 'list':
-      await listApps(apiUrl);
-      break;
+  publish
+    .command('unpublish')
+    .description('Unpublish an app')
+    .argument('<app-id>', 'app to unpublish')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (appId: string, opts: { url: string }) => {
+      const client = await getClient(opts.url);
+      try {
+        const app = await client.getAppInfo(appId);
+        if (!app) {
+          console.error(`App not found: ${appId}`);
+          process.exit(1);
+        }
 
-    case 'unpublish': {
-      const appId = positional[0];
-      if (!appId) {
-        console.error('Usage: rool publish unpublish <app-id>');
-        process.exit(1);
+        await client.unpublishApp(appId);
+        console.log(`Unpublished: ${appId}`);
+      } finally {
+        client.destroy();
       }
-      await unpublishApp(apiUrl, appId);
-      break;
-    }
+    });
 
-    case 'slug': {
-      const newSlug = positional[0];
-      await showOrSetSlug(apiUrl, newSlug);
-      break;
-    }
+  publish
+    .command('slug')
+    .description('Show or set your user slug')
+    .argument('[new-slug]', 'new slug to set')
+    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
+    .action(async (newSlug: string | undefined, opts: { url: string }) => {
+      const client = await getClient(opts.url);
+      try {
+        const user = await client.getCurrentUser();
 
-    case undefined:
-      printUsage();
-      process.exit(1);
-      break;
-
-    default: {
-      // Treat as: rool publish <app-id> <path>
-      const appId = subcommand;
-      const dirPath = positional[0];
-
-      if (!dirPath) {
-        console.error('Usage: rool publish <app-id> <path>');
-        process.exit(1);
+        if (newSlug) {
+          await client.setSlug(newSlug);
+          console.log(`Slug updated to: ${newSlug}`);
+        } else {
+          console.log(`Your slug: ${user.slug}`);
+        }
+      } finally {
+        client.destroy();
       }
-
-      await publishApp(apiUrl, appId, dirPath, name ?? appId, spa);
-      break;
-    }
-  }
+    });
 }
