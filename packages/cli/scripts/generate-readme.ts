@@ -185,20 +185,20 @@ rool media upload report.pdf -m "Q4 sales report"
 rool media upload logo.png -s "My Project"
 
 # Publish a directory as an app
-rool publish deploy my-app ./dist
+rool app publish my-app ./dist
 
 # Publish with a custom name
-rool publish deploy my-app ./dist -n "My App"
+rool app publish my-app ./dist -n "My App"
 
 # List published apps
-rool publish list
+rool app list
 
 # Unpublish an app
-rool publish unpublish my-app
+rool app unpublish my-app
 
 # Show or set your user slug
-rool publish slug
-rool publish slug my-slug
+rool app slug
+rool app slug my-slug
 
 # Show user info
 rool user

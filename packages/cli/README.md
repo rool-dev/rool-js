@@ -23,10 +23,10 @@ rool <command> [options]
 | `space list` | List all spaces |
 | `space create <name>` | Create a new space |
 | `space delete <name>` | Delete a space |
-| `publish deploy <app-id> <path>` | Publish a directory as an app |
-| `publish list` | List published apps |
-| `publish unpublish <app-id>` | Unpublish an app |
-| `publish slug [new-slug]` | Show or set your user slug |
+| `app publish <app-id> <path>` | Publish a directory as an app |
+| `app list` | List published apps |
+| `app unpublish <app-id>` | Unpublish an app |
+| `app slug [new-slug]` | Show or set your user slug |
 | `user` | Show current user info |
 | `logout` | Log out |
 
@@ -46,8 +46,8 @@ rool <command> [options]
 | `-u, --url <url>` | API URL | `https://api.rool.dev` | all |
 | `-m, --message <text>` | optional comment/description |  | `media upload` |
 | `-y, --yes` | skip confirmation prompt |  | `space delete` |
-| `-n, --name <name>` | app display name (defaults to app-id) |  | `publish deploy` |
-| `--no-spa` | disable SPA routing (404s will not serve index.html) |  | `publish deploy` |
+| `-n, --name <name>` | app display name (defaults to app-id) |  | `app publish` |
+| `--no-spa` | disable SPA routing (404s will not serve index.html) |  | `app publish` |
 
 ### Examples
 
@@ -83,20 +83,20 @@ rool media upload report.pdf -m "Q4 sales report"
 rool media upload logo.png -s "My Project"
 
 # Publish a directory as an app
-rool publish deploy my-app ./dist
+rool app publish my-app ./dist
 
 # Publish with a custom name
-rool publish deploy my-app ./dist -n "My App"
+rool app publish my-app ./dist -n "My App"
 
 # List published apps
-rool publish list
+rool app list
 
 # Unpublish an app
-rool publish unpublish my-app
+rool app unpublish my-app
 
 # Show or set your user slug
-rool publish slug
-rool publish slug my-slug
+rool app slug
+rool app slug my-slug
 
 # Show user info
 rool user

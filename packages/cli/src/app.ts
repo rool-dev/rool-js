@@ -20,13 +20,13 @@ async function zipDirectory(dirPath: string): Promise<Buffer> {
   });
 }
 
-export function registerPublish(program: Command): void {
-  const publish = program
-    .command('publish')
+export function registerApp(program: Command): void {
+  const app = program
+    .command('app')
     .description('Publish and manage apps');
 
-  publish
-    .command('deploy')
+  app
+    .command('publish')
     .description('Publish a directory as an app')
     .argument('<app-id>', 'unique app identifier')
     .argument('<path>', 'directory to publish')
@@ -75,7 +75,7 @@ export function registerPublish(program: Command): void {
       }
     });
 
-  publish
+  app
     .command('list')
     .description('List published apps')
     .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
@@ -89,13 +89,13 @@ export function registerPublish(program: Command): void {
         } else {
           console.log('Published apps:');
           console.log('');
-          for (const app of apps) {
-            console.log(`  ${app.appId}`);
-            console.log(`    Name: ${app.name}`);
-            console.log(`    URL: ${app.url}`);
-            console.log(`    Size: ${formatBytes(app.sizeBytes)}`);
-            console.log(`    SPA: ${app.spa ? 'yes' : 'no'}`);
-            console.log(`    Updated: ${new Date(app.updatedAt).toLocaleString()}`);
+          for (const a of apps) {
+            console.log(`  ${a.appId}`);
+            console.log(`    Name: ${a.name}`);
+            console.log(`    URL: ${a.url}`);
+            console.log(`    Size: ${formatBytes(a.sizeBytes)}`);
+            console.log(`    SPA: ${a.spa ? 'yes' : 'no'}`);
+            console.log(`    Updated: ${new Date(a.updatedAt).toLocaleString()}`);
             console.log('');
           }
         }
@@ -104,7 +104,7 @@ export function registerPublish(program: Command): void {
       }
     });
 
-  publish
+  app
     .command('unpublish')
     .description('Unpublish an app')
     .argument('<app-id>', 'app to unpublish')
@@ -112,8 +112,8 @@ export function registerPublish(program: Command): void {
     .action(async (appId: string, opts: { url: string }) => {
       const client = await getClient(opts.url);
       try {
-        const app = await client.getAppInfo(appId);
-        if (!app) {
+        const a = await client.getAppInfo(appId);
+        if (!a) {
           console.error(`App not found: ${appId}`);
           process.exit(1);
         }
@@ -125,7 +125,7 @@ export function registerPublish(program: Command): void {
       }
     });
 
-  publish
+  app
     .command('slug')
     .description('Show or set your user slug')
     .argument('[new-slug]', 'new slug to set')

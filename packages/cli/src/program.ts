@@ -3,7 +3,7 @@ import { VERSION } from './constants.js';
 import { registerChat } from './chat.js';
 import { registerMedia } from './media.js';
 import { registerSpace } from './space.js';
-import { registerPublish } from './publish.js';
+import { registerApp } from './app.js';
 import { registerUser } from './user.js';
 import { registerLogout } from './logout.js';
 
@@ -18,7 +18,7 @@ export function createProgram(): Command {
   registerChat(program);
   registerMedia(program);
   registerSpace(program);
-  registerPublish(program);
+  registerApp(program);
   registerUser(program);
   registerLogout(program);
 
