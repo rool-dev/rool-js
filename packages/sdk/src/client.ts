@@ -90,23 +90,15 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Initialize the client - should be called on app startup.
    * Processes any auth callback in the URL, sets up auto-refresh,
    * and starts real-time event subscription if authenticated.
-   * @returns true if an auth callback was processed
+   * @returns true if authenticated, false otherwise
    */
-  initialize(): boolean {
-    const result = this.authManager.initialize();
-
-    // If no callback was processed, check if already authenticated
-    // and emit the event (callback processing emits it automatically)
-    if (!result) {
-      void this.authManager.isAuthenticated().then(authenticated => {
-        if (authenticated) {
-          this.emit('authStateChanged', true);
-          void this.ensureSubscribed();
-        }
-      });
+  async initialize(): Promise<boolean> {
+    this.authManager.initialize();
+    const authenticated = await this.isAuthenticated();
+    if (authenticated) {
+      await this.ensureSubscribed();
     }
-
-    return result;
+    return authenticated;
   }
 
   /**

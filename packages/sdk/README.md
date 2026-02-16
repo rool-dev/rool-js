@@ -25,9 +25,9 @@ npm install @rool-dev/sdk
 import { RoolClient } from '@rool-dev/sdk';
 
 const client = new RoolClient();
-client.initialize(); // Process auth callbacks if returning from login
+const authenticated = await client.initialize();
 
-if (!await client.isAuthenticated()) {
+if (!authenticated) {
   client.login('My App');  // Redirects to auth page, shows "Sign in to My App"
 }
 
@@ -225,9 +225,9 @@ No configuration needed. Uses localStorage for tokens, redirects to login page.
 
 ```typescript
 const client = new RoolClient();
-client.initialize(); // Process auth callbacks if returning from login
+const authenticated = await client.initialize();
 
-if (!await client.isAuthenticated()) {
+if (!authenticated) {
   client.login('My App'); // Redirect to the auth page
 }
 ```
@@ -240,8 +240,9 @@ For CLI tools and scripts. Stores credentials in `~/.config/rool/`, opens browse
 import { NodeAuthProvider } from '@rool-dev/sdk/node';
 
 const client = new RoolClient({ authProvider: new NodeAuthProvider() });
+const authenticated = await client.initialize();
 
-if (!await client.isAuthenticated()) {
+if (!authenticated) {
   await client.login('My CLI Tool'); // Opens browser, waits for callback
 }
 ```
@@ -250,7 +251,7 @@ if (!await client.isAuthenticated()) {
 
 | Method | Description |
 |--------|-------------|
-| `initialize(): boolean` | **Call on app startup if running in browser.** Processes auth callback from URL, sets up token refresh. |
+| `initialize(): Promise<boolean>` | **Call on app startup.** Processes auth callback from URL, sets up token refresh, returns auth state. |
 | `login(appName): void` | Redirect to login page. The app name is displayed on the auth page ("Sign in to {appName}"). |
 | `logout(): void` | Clear tokens and state |
 | `isAuthenticated(): Promise<boolean>` | Check auth status (validates token) |
