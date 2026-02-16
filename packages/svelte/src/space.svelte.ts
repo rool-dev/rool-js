@@ -101,7 +101,7 @@ class ReactiveSpaceImpl {
   // Advanced
   rename(...args: Parameters<RoolSpace['rename']>) { return this.#space.rename(...args); }
   getData() { return this.#space.getData(); }
-  isReadOnly() { return this.#space.isReadOnly(); }
+  get isReadOnly() { return this.#space.isReadOnly; }
   addUser(...args: Parameters<RoolSpace['addUser']>) { return this.#space.addUser(...args); }
   removeUser(...args: Parameters<RoolSpace['removeUser']>) { return this.#space.removeUser(...args); }
   listUsers() { return this.#space.listUsers(); }
