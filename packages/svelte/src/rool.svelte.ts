@@ -1,17 +1,21 @@
 import { RoolClient, type RoolSpaceInfo, type ConnectionState } from '@rool-dev/sdk';
-import { createSpaceHandle, type SpaceHandle } from './space.svelte.js';
+import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
 /**
- * Rool client with reactive state using Svelte 5 runes.
+ * Rool client with reactive state for Svelte 5.
+ *
+ * Provides:
+ * - Reactive auth state (`authenticated`)
+ * - Reactive spaces list (`spaces`)
+ * - Direct access to SDK spaces (no wrapper abstraction)
  */
 class RoolImpl {
   #client: RoolClient;
   #unsubscribers: (() => void)[] = [];
-  #openSpaces: Set<SpaceHandle> = new Set();
+  #openSpaces: Set<ReactiveSpace> = new Set();
 
   // Reactive state
-  // null = unknown (checking), false = not authenticated, true = authenticated
-  authenticated = $state<boolean | null>(null);
+  authenticated = $state<boolean | null>(null); // null = checking, false = not auth, true = auth
   spaces = $state<RoolSpaceInfo[] | undefined>(undefined);
   spacesLoading = $state(false);
   spacesError = $state<Error | null>(null);
@@ -65,10 +69,10 @@ class RoolImpl {
     }
   }
 
-  // ===========================================================================
-  // Lifecycle
-  // ===========================================================================
-
+  /**
+   * Initialize the client. Call on app startup.
+   * Returns true if authenticated, false otherwise.
+   */
   async init(): Promise<boolean> {
     this.authenticated = await this.#client.initialize();
     if (this.authenticated) {
@@ -77,10 +81,16 @@ class RoolImpl {
     return this.authenticated;
   }
 
+  /**
+   * Redirect to login page.
+   */
   login(appName: string): void {
     this.#client.login(appName);
   }
 
+  /**
+   * Log out and close all open spaces.
+   */
   logout(): void {
     for (const space of this.#openSpaces) {
       space.close();
@@ -89,52 +99,36 @@ class RoolImpl {
     this.#client.logout();
   }
 
-  // ===========================================================================
-  // Space Lifecycle
-  // ===========================================================================
-
-  async openSpace(id: string, options?: { conversationId?: string }): Promise<SpaceHandle> {
-    const sdkSpace = await this.#client.openSpace(id, options);
-    const handle = createSpaceHandle(sdkSpace);
-    this.#openSpaces.add(handle);
-
-    // Track when closed
-    const originalClose = handle.close.bind(handle);
-    handle.close = () => {
-      this.#openSpaces.delete(handle);
-      originalClose();
-    };
-
-    return handle;
+  /**
+   * Open an existing space. Returns a ReactiveSpace with reactive `interactions`.
+   */
+  async openSpace(id: string, options?: { conversationId?: string }): Promise<ReactiveSpace> {
+    const space = await this.#client.openSpace(id, options);
+    const reactiveSpace = wrapSpace(space);
+    this.#openSpaces.add(reactiveSpace);
+    return reactiveSpace;
   }
 
-  async createSpace(name?: string, options?: { conversationId?: string }): Promise<SpaceHandle> {
-    const sdkSpace = await this.#client.createSpace(name, options);
-    const handle = createSpaceHandle(sdkSpace);
-    this.#openSpaces.add(handle);
-
-    // Track when closed
-    const originalClose = handle.close.bind(handle);
-    handle.close = () => {
-      this.#openSpaces.delete(handle);
-      originalClose();
-    };
-
-    return handle;
+  /**
+   * Create a new space. Returns a ReactiveSpace with reactive `interactions`.
+   */
+  async createSpace(name?: string, options?: { conversationId?: string }): Promise<ReactiveSpace> {
+    const space = await this.#client.createSpace(name, options);
+    const reactiveSpace = wrapSpace(space);
+    this.#openSpaces.add(reactiveSpace);
+    return reactiveSpace;
   }
 
-  // ===========================================================================
-  // Spaces management
-  // ===========================================================================
-
+  /**
+   * Manually refresh the spaces list.
+   */
   refreshSpaces(): Promise<void> {
     return this.#refreshSpaces();
   }
 
-  // ===========================================================================
-  // Cleanup
-  // ===========================================================================
-
+  /**
+   * Clean up resources.
+   */
   destroy(): void {
     for (const space of this.#openSpaces) {
       space.close();
@@ -153,7 +147,7 @@ class RoolImpl {
 /**
  * Create a new Rool instance.
  */
-export function createRool(): RoolImpl {
+export function createRool(): Rool {
   return new RoolImpl();
 }
 

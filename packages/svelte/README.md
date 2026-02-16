@@ -1,8 +1,8 @@
 # Rool Svelte
 
-Svelte 5 bindings for Rool Spaces. Transforms the event-based SDK into reactive state using `$state` runes.
+Svelte 5 bindings for Rool Spaces. Adds reactive state to the SDK using `$state` runes.
 
-**Requires Svelte 5.** For core concepts (objects, relations, AI placeholders, undo/redo), see the [SDK documentation](https://docs.rool.dev/sdk/).
+**Requires Svelte 5.** For core concepts (objects, relations, AI placeholders, undo/redo), see the [SDK documentation](../sdk/README.md).
 
 ## Installation
 
@@ -18,6 +18,8 @@ npm install @rool-dev/svelte
 
   const rool = createRool();
   rool.init();
+
+  let currentSpace = $state(null);
 </script>
 
 {#if !rool.authenticated}
@@ -25,12 +27,31 @@ npm install @rool-dev/svelte
 {:else}
   <h1>My Spaces</h1>
   {#each rool.spaces ?? [] as space}
-    <button onclick={() => rool.openSpace(space.id)}>
+    <button onclick={async () => currentSpace = await rool.openSpace(space.id)}>
       {space.name}
     </button>
   {/each}
+
+  {#if currentSpace}
+    <p>Interactions: {currentSpace.interactions.length}</p>
+  {/if}
 {/if}
 ```
+
+## What It Provides
+
+The Svelte wrapper adds reactive state on top of the SDK:
+
+| Reactive Property | Description |
+|-------------------|-------------|
+| `rool.authenticated` | Auth state (`null` = checking, `true`/`false` = known) |
+| `rool.spaces` | List of available spaces |
+| `rool.spacesLoading` | Whether spaces are loading |
+| `rool.spacesError` | Error from loading spaces |
+| `rool.connectionState` | SSE connection state |
+| `space.interactions` | Conversation interactions (auto-updates) |
+
+Everything else passes through to the SDK directly. See the [SDK documentation](../sdk/README.md) for full API details.
 
 ## API
 
@@ -41,16 +62,16 @@ const rool = createRool();
 
 rool.init();              // Process auth callbacks (call on app startup)
 rool.login('My App');     // Redirect to login page
-rool.logout();            // Clear auth state
+rool.logout();            // Clear auth state and close all spaces
 rool.destroy();           // Clean up all resources
 ```
 
-### Client State (Always Available)
+### Client State
 
 ```svelte
 <script>
-  // Direct property access - automatically reactive
-  // rool.authenticated    → boolean
+  // All properties are reactive $state
+  // rool.authenticated    → boolean | null
   // rool.spaces           → RoolSpaceInfo[] | undefined
   // rool.spacesLoading    → boolean
   // rool.spacesError      → Error | null
@@ -68,9 +89,7 @@ rool.destroy();           // Clean up all resources
 {/if}
 ```
 
-### Space Lifecycle
-
-Opening a space returns a `SpaceHandle` with reactive state and methods:
+### Opening Spaces
 
 ```typescript
 const space = await rool.openSpace('space-id');
@@ -85,171 +104,90 @@ const spaceB = await rool.openSpace('space-b');
 space.close();
 ```
 
-### Space State
+### ReactiveSpace
+
+`openSpace` and `createSpace` return a `ReactiveSpace` — the SDK's `RoolSpace` with reactive `interactions`:
 
 ```svelte
 <script>
-  // space.info              → { id, name, role }
-  // space.conversationId    → string
-  // space.conversations     → ConversationInfo[] | undefined
-  // space.conversationsLoading → boolean
-  // space.interactions      → Interaction[]
-  // space.systemInstruction → string | undefined
+  let space = $state(null);
+
+  async function open(id) {
+    space = await rool.openSpace(id);
+  }
 </script>
 
-<h1>{space.info.name}</h1>
-<p>Role: {space.info.role}</p>
-
-<!-- Conversation picker -->
-<select onchange={(e) => space.setConversationId(e.target.value)}>
-  {#each space.conversations ?? [] as conv}
-    <option value={conv.id} selected={conv.id === space.conversationId}>
-      {conv.name ?? 'Untitled'}
-    </option>
+{#if space}
+  <!-- Reactive: updates as AI makes tool calls -->
+  {#each space.interactions as interaction}
+    <div>
+      <strong>{interaction.operation}</strong>: {interaction.output}
+    </div>
   {/each}
-</select>
 
-<!-- Chat messages -->
-{#each space.interactions as interaction}
-  <div class="message">
-    <strong>{interaction.operation}</strong>
-    <p>{interaction.output}</p>
-  </div>
-{/each}
-```
-
-### Object Factories
-
-Object state is created via factory functions and cached by arguments. Each returns an `AsyncValue` with reactive `value`, `loading`, and `error` properties.
-
-```svelte
-<script>
-  // Single object
-  const sun = space.object('sun-id');
-  // sun.value   → RoolObject | undefined
-  // sun.loading → boolean
-  // sun.error   → Error | null
-
-  // Children (objects this object links TO)
-  const planets = space.children('sun-id', 'hasPlanet');
-
-  // Parents (objects that link TO this object)
-  const stars = space.parents('earth-id', 'orbits');
-
-  // Query (manual refresh only)
-  const articles = space.query({ where: { type: 'article' } });
-</script>
-
-{#if sun.loading}
-  <p>Loading...</p>
-{:else if sun.error}
-  <p>Error: {sun.error.message}</p>
-{:else if sun.value}
-  <h1>{sun.value.name}</h1>
+  <!-- All SDK methods work directly -->
+  <button onclick={() => space.prompt('Hello')}>Send</button>
 {/if}
-
-<!-- Manual refresh -->
-<button onclick={() => articles.refresh()}>Refresh</button>
 ```
 
-### Mutations
+### Using the SDK
 
-All mutations are async and pass through to the underlying SDK.
+All `RoolSpace` methods and properties are available on `ReactiveSpace`:
 
 ```typescript
-// Create objects
-const { object, message } = await space.createObject({
-  data: { type: 'article', title: 'Hello World' }
-});
+// Properties
+space.id
+space.name
+space.role
+space.conversationId
 
-// Update objects
-await space.updateObject(object.id, {
-  data: { status: 'published' }
-});
+// Object operations
+await space.getObject(id)
+await space.createObject({ data: { type: 'note', text: 'Hello' } })
+await space.updateObject(id, { data: { text: 'Updated' } })
+await space.deleteObjects([id])
+await space.findObjects({ where: { type: 'note' } })
 
-// Delete objects
-await space.deleteObjects([object.id]);
+// Relations
+await space.link(sourceId, 'references', targetId)
+await space.unlink(sourceId, 'references', targetId)
+await space.getChildren(id, 'references')
+await space.getParents(id, 'references')
 
-// Links
-await space.link(sourceId, 'references', targetId);
-await space.unlink(sourceId, 'references', targetId);
-
-// AI prompt
-const { message, objects } = await space.prompt(
-  'Create a summary of all articles'
-);
+// AI
+await space.prompt('Summarize everything')
 
 // Undo/Redo
-await space.checkpoint('Before edit');
-await space.updateObject(id, { data: { title: 'New title' } });
-await space.undo();  // Reverts the update
-await space.redo();  // Reapplies the update
+await space.checkpoint('Before edit')
+await space.undo()
+await space.redo()
+
+// Conversations
+await space.setSystemInstruction('You are helpful')
+await space.renameConversation('id', 'Research')
+space.getInteractions()
 ```
 
-### Conversation Management
-
-```typescript
-space.setConversationId('new-convo-id');
-await space.setSystemInstruction('You are a helpful assistant');
-await space.renameConversation('convo-id', 'Research Thread');
-await space.deleteConversation('convo-id');
-```
+See the [SDK documentation](../sdk/README.md) for complete API details.
 
 ### Utilities
 
 ```typescript
 import { generateId } from '@rool-dev/svelte';
 
-// Generate a 6-character alphanumeric ID (same as RoolClient.generateId())
+// Generate a 6-character alphanumeric ID
 const id = generateId();
 ```
-
-## Auto-Refresh Behavior
-
-| State | Auto-refreshes on |
-|-------|-------------------|
-| `object(id)` | `objectUpdated`/`objectDeleted` for that ID |
-| `children(id, rel)` | `linked`/`unlinked` events + member object updates |
-| `parents(id, rel)` | `linked`/`unlinked` events + member object updates |
-| `query(options)` | Never (call `refresh()` manually) |
-| `rool.spaces` | `spaceCreated`/`spaceDeleted`/`spaceRenamed` |
-| `space.conversations` | `conversationsChanged` |
-| `space.interactions` | `conversationUpdated` + `conversationIdChanged` |
-
-## AsyncValue Interface
-
-Object factories return `AsyncValue` instances:
-
-```typescript
-class AsyncValue<T> {
-  value: T | undefined;      // The data (reactive)
-  loading: boolean;          // Loading state (reactive)
-  error: Error | null;       // Last error (reactive)
-  refresh(): Promise<void>;  // Manually refresh
-}
-```
-
-## Design Principles
-
-1. **Svelte 5 runes** — Uses `$state` for reactivity, no legacy stores
-2. **Direct property access** — No `$` prefix needed, just access properties
-3. **Go through the API** — Never exposes raw space data, all access via SDK methods
-4. **Auto-refresh where safe** — Object/relation state auto-refreshes; queries are manual
-5. **Caching** — Factory functions return cached instances by arguments
 
 ## Exported Types
 
 ```typescript
 // Package types
-import type {
-  Rool,
-  SpaceHandle,
-  SpaceInfo,
-  AsyncValue,
-} from '@rool-dev/svelte';
+import type { Rool, ReactiveSpace } from '@rool-dev/svelte';
 
 // Re-exported from @rool-dev/sdk
 import type {
+  RoolSpace,
   RoolSpaceInfo,
   RoolObject,
   RoolUserRole,
@@ -265,7 +203,8 @@ import type {
 
 ## Examples
 
-See the [svelte-chat example](https://github.com/rool-dev/rool-js/tree/main/examples/svelte-chat) for a complete working app.
+- [soft-sql](../../examples/soft-sql) — SQL-style natural language queries with live tool call progress
+- [flashcards](../../examples/flashcards) — Spaced repetition with AI-generated cards
 
 ## License
 

@@ -1,16 +1,16 @@
 // Main export
 export { createRool, generateId } from './rool.svelte.js';
 
+// Reactive space wrapper
+export { wrapSpace } from './space.svelte.js';
+
 // Types
+export type { Rool } from './rool.svelte.js';
+export type { ReactiveSpace } from './space.svelte.js';
+
+// Re-export SDK types for convenience
 export type {
-  // Our types
-  Rool,
-  SpaceHandle,
-  SpaceInfo,
-  AsyncValue,
-  CreateObjectOptions,
-  UpdateObjectOptions,
-  // Re-exported SDK types
+  RoolSpace,
   RoolSpaceInfo,
   RoolObject,
   RoolUserRole,
@@ -19,4 +19,6 @@ export type {
   Interaction,
   FindObjectsOptions,
   PromptOptions,
-} from './types.js';
+  CreateObjectOptions,
+  UpdateObjectOptions,
+} from '@rool-dev/sdk';
