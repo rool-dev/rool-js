@@ -24,14 +24,14 @@ export class MediaClient {
   }
 
   /**
-   * Extract UUID from a media URL.
-   * URL format: {baseUrl}/{spaceId}/{uuid}
+   * Extract filename from a media URL.
+   * URL format: {baseUrl}/{spaceId}/{filename}
    */
-  private extractUuid(url: string): string {
+  private extractFilename(url: string): string {
     const parts = new URL(url).pathname.split('/');
-    const uuid = parts[parts.length - 1];
-    if (!uuid) throw new Error('Invalid media URL: cannot extract UUID');
-    return uuid;
+    const filename = parts[parts.length - 1];
+    if (!filename) throw new Error('Invalid media URL: cannot extract filename');
+    return filename;
   }
 
   /**
@@ -188,8 +188,8 @@ export class MediaClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
-    const uuid = this.extractUuid(url);
-    const response = await fetch(`${this.baseUrl(spaceId)}/${encodeURIComponent(uuid)}`, {
+    const filename = this.extractFilename(url);
+    const response = await fetch(`${this.baseUrl(spaceId)}/${encodeURIComponent(filename)}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

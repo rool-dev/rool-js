@@ -160,7 +160,6 @@ export interface CurrentUser {
 // =============================================================================
 
 export interface MediaInfo {
-  uuid: string;
   url: string;
   contentType: string;
   size: number;

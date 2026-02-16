@@ -968,7 +968,7 @@ interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId:
 interface SpaceMember { id: string; email: string; role: RoolUserRole; }
 interface UserResult { id: string; email: string; name: string | null; }
 interface CurrentUser { id: string; email: string; name: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }
-interface MediaInfo { uuid: string; url: string; contentType: string; size: number; createdAt: string; }
+interface MediaInfo { url: string; contentType: string; size: number; createdAt: string; }
 interface MediaResponse { contentType: string; size: number | null; blob(): Promise<Blob>; }
 type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
 ```
