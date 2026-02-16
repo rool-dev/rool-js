@@ -27,6 +27,13 @@ class ReactiveSpaceImpl {
     };
     space.on('reset', onReset);
     this.#unsubscribers.push(() => space.off('reset', onReset));
+
+    // Update interactions when switching conversations
+    const onConversationIdChanged = () => {
+      this.interactions = space.getInteractions();
+    };
+    space.on('conversationIdChanged', onConversationIdChanged);
+    this.#unsubscribers.push(() => space.off('conversationIdChanged', onConversationIdChanged));
   }
 
   // Proxy read-only properties
