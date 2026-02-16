@@ -1,6 +1,8 @@
 <script>
   import { rool } from './rool.js';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
+  import Icon from '@iconify/svelte';
+  import Header from './Header.svelte';
 
   let currentSpace = $state(null);
   let query = $state('');
@@ -70,48 +72,14 @@
     </div>
   </div>
 {:else}
-  <div class="min-h-screen bg-slate-50 flex flex-col">
-    <!-- Header -->
-    <header class="bg-white border-b border-slate-200 px-6 py-4">
-      <div class="max-w-5xl mx-auto flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-lg flex items-center justify-center">
-              <span class="text-xs font-bold text-white font-mono">&gt;_</span>
-            </div>
-            <span class="font-semibold text-slate-800">Soft SQL</span>
-          </div>
-          <div class="h-6 w-px bg-slate-200"></div>
-          {#if rool.spacesLoading}
-            <span class="text-sm text-slate-400">Loading...</span>
-          {:else if rool.spacesError}
-            <span class="text-sm text-red-500">Failed to load spaces</span>
-          {:else}
-            <select
-              class="px-3 py-1.5 text-sm bg-slate-100 border-0 rounded-lg text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none min-w-[180px] cursor-pointer"
-              onchange={(e) => handleSpaceChange(e.target.value || null)}
-            >
-              <option value="">Select a space...</option>
-              {#each rool.spaces ?? [] as s}
-                <option value={s.id}>{s.name}</option>
-              {/each}
-            </select>
-          {/if}
-        </div>
-        <button
-          class="text-sm text-slate-500 hover:text-slate-700 transition-colors"
-          onclick={() => rool.logout()}
-        >
-          Sign out
-        </button>
-      </div>
-    </header>
+  <div class="h-screen bg-slate-50 flex flex-col overflow-hidden">
+    <Header {rool} {currentSpace} onSpaceChange={handleSpaceChange} />
 
     <!-- Main content -->
-    <main class="flex-1 flex flex-col max-w-5xl mx-auto w-full">
+    <main class="flex-1 flex flex-col max-w-6xl mx-auto w-full min-h-0">
       {#if currentSpace}
         <!-- Query input -->
-        <div class="p-6 pb-0">
+        <div class="p-2">
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <textarea
               class="w-full px-4 py-3 font-mono text-sm text-slate-800 placeholder:text-slate-400 resize-none focus:outline-none min-h-[80px]"
@@ -141,10 +109,7 @@
               >
                 {#if isLoading}
                   <span class="flex items-center gap-2">
-                    <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+                    <Icon icon="mdi:loading" class="w-4 h-4 animate-spin" />
                     Running
                   </span>
                 {:else}
@@ -156,46 +121,39 @@
         </div>
 
         <!-- Output -->
-        <div class="flex-1 p-6 overflow-auto">
+        <div class="flex-1 p-2 min-h-0 flex flex-col">
           {#if isLoading}
             {@const latestInteraction = currentSpace?.interactions?.at(-1)}
-            {#if latestInteraction?.toolCalls?.length > 0}
-              <div class="space-y-2">
-                {#each latestInteraction.toolCalls as toolCall}
-                  <div class="flex items-start gap-2 text-sm">
-                    <span class="text-emerald-500 mt-0.5">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                      </svg>
-                    </span>
-                    <div>
-                      <span class="font-mono text-slate-700">{toolCall.name}</span>
-                      {#if toolCall.result}
-                        <p class="text-slate-400 text-xs mt-1 font-mono truncate max-w-md">{toolCall.result}</p>
-                      {/if}
+            <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6">
+              {#if latestInteraction?.toolCalls?.length > 0}
+                <div class="space-y-2">
+                  {#each latestInteraction.toolCalls as toolCall}
+                    <div class="flex items-start gap-2 text-sm">
+                      <Icon icon="mdi:chevron-right" class="w-4 h-4 text-emerald-500 mt-0.5" />
+                      <div>
+                        <span class="font-mono text-slate-700">{toolCall.name}</span>
+                        {#if toolCall.result}
+                          <p class="text-slate-400 text-xs mt-1 font-mono truncate max-w-md">{toolCall.result}</p>
+                        {/if}
+                      </div>
                     </div>
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="flex items-center gap-2 text-slate-400">
-                <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span class="text-sm">Processing query...</span>
-              </div>
-            {/if}
+                  {/each}
+                </div>
+              {:else}
+                <div class="flex items-center gap-2 text-slate-400">
+                  <Icon icon="mdi:loading" class="w-4 h-4 animate-spin" />
+                  <span class="text-sm">Processing query...</span>
+                </div>
+              {/if}
+            </div>
           {:else if output}
-            <div class="markdown-output bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="markdown-output flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 overflow-auto min-h-0">
               <SvelteMarkdown source={output} />
             </div>
           {:else}
-            <div class="flex flex-col items-center justify-center h-full text-center py-16">
+            <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center p-4">
               <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-4">
-                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3zm0 4h16M9 4v3m6-3v3"></path>
-                </svg>
+                <Icon icon="mdi:table" class="w-6 h-6 text-slate-400" />
               </div>
               <p class="text-slate-500 text-sm">Results will appear here</p>
               <p class="text-slate-400 text-xs mt-1">Press Enter or click Run Query</p>
@@ -203,11 +161,9 @@
           {/if}
         </div>
       {:else}
-        <div class="flex-1 flex flex-col items-center justify-center text-center py-16">
+        <div class="flex-1 flex flex-col items-center justify-center text-center p-4 md:py-16">
           <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-6">
-            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
-            </svg>
+            <Icon icon="mdi:folder-open-outline" class="w-8 h-8 text-slate-400" />
           </div>
           <h2 class="text-lg font-semibold text-slate-700 mb-2">No space selected</h2>
           <p class="text-slate-500 text-sm">Choose a space from the dropdown to start querying</p>
@@ -222,12 +178,12 @@
 
   /* Markdown output styling */
   .markdown-output :global(table) {
-    @apply border-collapse w-full my-4 text-sm;
+    @apply border-collapse my-4 text-sm min-w-full;
   }
 
   .markdown-output :global(th),
   .markdown-output :global(td) {
-    @apply border border-slate-200 px-4 py-2.5 text-left;
+    @apply border border-slate-200 px-3 md:px-4 py-2 md:py-2.5 text-left;
   }
 
   .markdown-output :global(th) {

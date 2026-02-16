@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@humanspeak/svelte-markdown": "^0.8.14",
+    "@iconify/svelte": "^5.2.1",
     "@rool-dev/svelte": "workspace:*"
   },
   "devDependencies": {
