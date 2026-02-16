@@ -18,6 +18,43 @@ importers:
         specifier: ^0.33.5
         version: 0.33.5
 
+  examples/chat:
+    dependencies:
+      '@humanspeak/svelte-markdown':
+        specifier: ^0.8.14
+        version: 0.8.15(svelte@5.49.1)
+      '@iconify/svelte':
+        specifier: ^5.2.1
+        version: 5.2.1(svelte@5.49.1)
+      '@rool-dev/svelte':
+        specifier: workspace:*
+        version: link:../../packages/svelte
+    devDependencies:
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^5.0.0
+        version: 5.1.1(svelte@5.49.1)(vite@6.4.1(@types/node@25.1.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+      '@tailwindcss/vite':
+        specifier: ^4.0.0
+        version: 4.1.18(vite@6.4.1(@types/node@25.1.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+      '@typescript-eslint/types':
+        specifier: ^8.0.0
+        version: 8.56.0
+      svelte:
+        specifier: ^5.0.0
+        version: 5.49.1
+      svelte-check:
+        specifier: ^4.0.0
+        version: 4.3.6(picomatch@4.0.3)(svelte@5.49.1)(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.1.18
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.1(@types/node@25.1.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
+
   examples/flashcards:
     dependencies:
       '@iconify/svelte':
@@ -73,27 +110,14 @@ importers:
       svelte:
         specifier: ^5.0.0
         version: 5.49.1
+      svelte-check:
+        specifier: ^4.0.0
+        version: 4.3.6(picomatch@4.0.3)(svelte@5.49.1)(typescript@5.9.3)
       tailwindcss:
         specifier: ^4.0.0
         version: 4.1.18
-      vite:
-        specifier: ^6.0.0
-        version: 6.4.1(@types/node@25.1.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
-
-  examples/svelte-chat:
-    dependencies:
-      '@rool-dev/svelte':
-        specifier: workspace:*
-        version: link:../../packages/svelte
-    devDependencies:
-      '@sveltejs/vite-plugin-svelte':
-        specifier: ^5.0.0
-        version: 5.1.1(svelte@5.49.1)(vite@6.4.1(@types/node@25.1.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
-      svelte:
-        specifier: ^5.0.0
-        version: 5.49.1
       typescript:
-        specifier: ^5.6.0
+        specifier: ^5.0.0
         version: 5.9.3
       vite:
         specifier: ^6.0.0

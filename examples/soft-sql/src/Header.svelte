@@ -1,13 +1,14 @@
-<script>
+<script lang="ts">
+  import type { Rool, ReactiveSpace } from '@rool-dev/svelte';
   import Icon from '@iconify/svelte';
 
-  /**
-   * @typedef {import('@rool-dev/svelte').Rool} Rool
-   * @typedef {import('@rool-dev/svelte').ReactiveSpace} ReactiveSpace
-   */
+  interface Props {
+    rool: Rool;
+    currentSpace: ReactiveSpace | null;
+    onSpaceChange: (spaceId: string | null) => void;
+  }
 
-  /** @type {{ rool: Rool, currentSpace: ReactiveSpace | null, onSpaceChange: (spaceId: string | null) => void }} */
-  let { rool, currentSpace, onSpaceChange } = $props();
+  let { rool, currentSpace, onSpaceChange }: Props = $props();
 
   let showNewSpaceForm = $state(false);
   let newSpaceName = $state('');
@@ -16,8 +17,8 @@
   let isCreating = $state(false);
 
   // Close dropdowns on outside click
-  function handleWindowClick(e) {
-    const target = /** @type {HTMLElement} */ (e.target);
+  function handleWindowClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
     if (!target.closest('[data-dropdown]')) {
       showSpaceDropdown = false;
       showActionsMenu = false;

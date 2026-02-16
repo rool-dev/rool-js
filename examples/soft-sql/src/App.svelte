@@ -1,10 +1,13 @@
-<script>
-  import { rool } from './rool.js';
+<script lang="ts">
+  import { createRool, type ReactiveSpace } from '@rool-dev/svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';
 
-  let currentSpace = $state(null);
+  const rool = createRool();
+  rool.init();
+
+  let currentSpace = $state<ReactiveSpace | null>(null);
   let query = $state('');
   let output = $state('');
   let isLoading = $state(false);
@@ -21,7 +24,7 @@
     }
   });
 
-  async function handleSpaceChange(spaceId) {
+  async function handleSpaceChange(spaceId: string | null) {
     // Close previous space if any
     if (currentSpace) {
       currentSpace.close();
@@ -49,13 +52,13 @@
       const result = await currentSpace.prompt(query.trim(), { readOnly });
       output = result.message ?? '';
     } catch (err) {
-      output = `Error: ${err.message}`;
+      output = `Error: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
       isLoading = false;
     }
   }
 
-  function handleKeydown(event) {
+  function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       submitQuery();
