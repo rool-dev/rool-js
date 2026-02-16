@@ -12,6 +12,13 @@
   const CONVERSATION_NAME = 'Soft SQL';
   const SYSTEM_INSTRUCTION = `Behave like an intelligent SQL interpreter. Respond with simple markdown tables. Translate the objects in the space to the implied structure in your responses.`;
 
+  // Auto-redirect to login when not authenticated
+  $effect(() => {
+    if (rool.authenticated === false) {
+      rool.login('Soft SQL');
+    }
+  });
+
   async function handleSpaceChange(spaceId) {
     // Close previous space if any
     if (currentSpace) {
@@ -55,19 +62,11 @@
 </script>
 
 {#if !rool.authenticated}
-  <div class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-    <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20 text-center max-w-sm w-full">
-      <div class="w-16 h-16 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-xl mx-auto mb-6 flex items-center justify-center shadow-lg">
-        <span class="text-2xl font-bold text-white font-mono">&gt;_</span>
-      </div>
-      <h1 class="text-2xl font-bold text-white mb-2">Soft SQL</h1>
-      <p class="text-slate-400 text-sm mb-8">Query your spaces with natural language</p>
-      <button
-        class="w-full py-3 px-6 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-emerald-400 hover:to-cyan-400 transition-all duration-200 shadow-lg hover:shadow-emerald-500/25"
-        onclick={() => rool.login('Soft SQL')}
-      >
-        Sign in to continue
-      </button>
+  <!-- Checking auth state or redirecting to login -->
+  <div class="min-h-screen bg-slate-50 flex items-center justify-center">
+    <div class="text-center" role="status" aria-live="polite">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4" aria-hidden="true"></div>
+      <p class="text-slate-500">Loading...</p>
     </div>
   </div>
 {:else}
@@ -127,6 +126,7 @@
                   type="button"
                   role="switch"
                   aria-checked={readOnly}
+                  aria-label="Read-only mode"
                   onclick={() => readOnly = !readOnly}
                   class="relative w-9 h-5 rounded-full transition-colors duration-200 {readOnly ? 'bg-emerald-500' : 'bg-slate-300'}"
                 >

@@ -10,7 +10,8 @@ class RoolImpl {
   #openSpaces: Set<SpaceHandle> = new Set();
 
   // Reactive state
-  authenticated = $state(false);
+  // null = unknown (checking), false = not authenticated, true = authenticated
+  authenticated = $state<boolean | null>(null);
   spaces = $state<RoolSpaceInfo[] | undefined>(undefined);
   spacesLoading = $state(false);
   spacesError = $state<Error | null>(null);
@@ -68,8 +69,12 @@ class RoolImpl {
   // Lifecycle
   // ===========================================================================
 
-  init(): boolean {
-    return this.#client.initialize();
+  async init(): Promise<boolean> {
+    this.authenticated = await this.#client.initialize();
+    if (this.authenticated) {
+      await this.#refreshSpaces();
+    }
+    return this.authenticated;
   }
 
   login(appName: string): void {
