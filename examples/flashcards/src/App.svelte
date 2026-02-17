@@ -190,14 +190,14 @@ Use this exact structure for each card (with actual content, not placeholders):
 </script>
 
 {#if !rool.authenticated}
-  <div class="min-h-screen bg-slate-50 flex items-center justify-center">
+  <div class="min-h-dvh bg-slate-50 flex items-center justify-center">
     <div class="text-center">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-500 mx-auto mb-4"></div>
       <p class="text-slate-500">Loading...</p>
     </div>
   </div>
 {:else}
-  <div class="min-h-screen bg-slate-50 flex flex-col">
+  <div class="min-h-dvh bg-slate-50 flex flex-col">
     <Header {rool} {currentSpace} onSpaceChange={handleSpaceChange} />
 
     <!-- Main content -->

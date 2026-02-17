@@ -69,14 +69,14 @@
 
 {#if !rool.authenticated}
   <!-- Checking auth state or redirecting to login -->
-  <div class="min-h-screen bg-slate-50 flex items-center justify-center">
+  <div class="min-h-dvh bg-slate-50 flex items-center justify-center">
     <div class="text-center" role="status" aria-live="polite">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4" aria-hidden="true"></div>
       <p class="text-slate-500">Loading...</p>
     </div>
   </div>
 {:else}
-  <div class="h-screen bg-slate-50 flex flex-col overflow-hidden">
+  <div class="h-dvh bg-slate-50 flex flex-col overflow-hidden">
     <Header {rool} {currentSpace} onSpaceChange={handleSpaceChange} />
 
     <!-- Main content -->
