@@ -16,6 +16,42 @@
   let showActionsMenu = $state(false);
   let isCreating = $state(false);
 
+  // URL query param sync
+  function getSpaceIdFromUrl(): string | null {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('space');
+  }
+
+  function updateUrlSpaceId(spaceId: string | null) {
+    const url = new URL(window.location.href);
+    if (spaceId) {
+      url.searchParams.set('space', spaceId);
+    } else {
+      url.searchParams.delete('space');
+    }
+    history.replaceState(null, '', url.toString());
+  }
+
+  let initialSpaceId = getSpaceIdFromUrl();
+
+  // Auto-open space from URL param once spaces are loaded
+  $effect(() => {
+    if (initialSpaceId && rool.spaces && !currentSpace) {
+      const exists = rool.spaces.some(s => s.id === initialSpaceId);
+      if (exists) {
+        selectSpace(initialSpaceId);
+      } else {
+        updateUrlSpaceId(null);
+      }
+      initialSpaceId = null;
+    }
+  });
+
+  function selectSpace(spaceId: string) {
+    updateUrlSpaceId(spaceId);
+    onSpaceChange(spaceId);
+  }
+
   // Close dropdowns on outside click
   function handleWindowClick(e: MouseEvent) {
     const target = e.target as HTMLElement;
@@ -32,7 +68,7 @@
       const space = await rool.createSpace(newSpaceName.trim());
       newSpaceName = '';
       showNewSpaceForm = false;
-      onSpaceChange(space.id);
+      selectSpace(space.id);
     } finally {
       isCreating = false;
     }
@@ -99,7 +135,7 @@
             {#each rool.spaces ?? [] as s}
               <button
                 class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 {s.id === currentSpace?.id ? 'bg-violet-50 text-violet-700' : 'text-slate-700'}"
-                onclick={() => { onSpaceChange(s.id); showSpaceDropdown = false; }}
+                onclick={() => { selectSpace(s.id); showSpaceDropdown = false; }}
               >
                 <span class="truncate flex-1">{s.name}</span>
                 {#if s.id === currentSpace?.id}
