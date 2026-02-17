@@ -9,6 +9,7 @@ import { ClientSubscriptionManager } from './subscription.js';
 import { MediaClient } from './media.js';
 import { AppsClient } from './apps.js';
 import { RoolSpace, generateEntityId } from './space.js';
+import { defaultLogger, type Logger } from './logger.js';
 import type {
   RoolClientConfig,
   RoolClientEvents,
@@ -47,6 +48,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   private authManager: AuthManager;
   private graphqlClient: GraphQLClient;
   private subscriptionManager: ClientSubscriptionManager | null = null;
+  private logger: Logger;
 
   // Registry of open spaces (for cleanup on logout/destroy)
   private openSpaces = new Map<string, RoolSpace>();
@@ -56,6 +58,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   constructor(config: RoolClientConfig = {}) {
     super();
+
+    this.logger = config.logger ?? defaultLogger;
+    this._emitterLogger = this.logger;
 
     const baseUrl = (config.baseUrl ?? 'https://api.rool.dev').replace(/\/+$/, ''); // Remove trailing slashes
     this.urls = {
@@ -68,6 +73,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.authManager = new AuthManager({
       authUrl: this.urls.auth,
       authProvider: config.authProvider,
+      logger: this.logger,
       onAuthStateChanged: (authenticated) => {
         this.emit('authStateChanged', authenticated);
       },
@@ -210,6 +216,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       mediaClient: this.mediaClient,
       graphqlUrl: this.urls.graphql,
       authManager: this.authManager,
+      logger: this.logger,
       onClose: (id) => this.unregisterSpace(id),
     });
 
@@ -248,6 +255,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       mediaClient: this.mediaClient,
       graphqlUrl: this.urls.graphql,
       authManager: this.authManager,
+      logger: this.logger,
       onClose: (id) => this.unregisterSpace(id),
     });
 
@@ -393,7 +401,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
     // Fire-and-forget server sync
     this.graphqlClient.setUserStorage(key, value).catch((error) => {
-      console.error('[RoolClient] Failed to sync user storage:', error);
+      this.logger.error('[RoolClient] Failed to sync user storage:', error);
       this.emit('error', error instanceof Error ? error : new Error(String(error)), 'userStorage');
     });
   }
@@ -444,6 +452,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.subscriptionManager = new ClientSubscriptionManager({
       graphqlUrl: this.urls.graphql,
       authManager: this.authManager,
+      logger: this.logger,
       onEvent: (event) => this.handleClientEvent(event),
       onConnectionStateChanged: (state: ConnectionState) => {
         this.emit('connectionStateChanged', state);

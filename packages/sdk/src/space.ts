@@ -4,6 +4,7 @@ import type { GraphQLClient } from './graphql.js';
 import type { MediaClient } from './media.js';
 import type { AuthManager } from './auth.js';
 import { SpaceSubscriptionManager } from './subscription.js';
+import type { Logger } from './logger.js';
 import type {
   RoolSpaceData,
   RoolObject,
@@ -50,6 +51,7 @@ export interface SpaceConfig {
   mediaClient: MediaClient;
   graphqlUrl: string;
   authManager: AuthManager;
+  logger: Logger;
   onClose: (spaceId: string) => void;
 }
 
@@ -75,6 +77,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   private subscriptionManager: SpaceSubscriptionManager;
   private onCloseCallback: (spaceId: string) => void;
   private _subscriptionReady: Promise<void>;
+  private logger: Logger;
 
   constructor(config: SpaceConfig) {
     super();
@@ -82,16 +85,19 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     this._name = config.name;
     this._role = config.role;
     this._userId = config.userId;
+    this._emitterLogger = config.logger;
     this._conversationId = config.conversationId ?? generateEntityId();
     this._data = config.initialData;
     this.graphqlClient = config.graphqlClient;
     this.mediaClient = config.mediaClient;
+    this.logger = config.logger;
     this.onCloseCallback = config.onClose;
 
     // Create space-level subscription
     this.subscriptionManager = new SpaceSubscriptionManager({
       graphqlUrl: config.graphqlUrl,
       authManager: config.authManager,
+      logger: this.logger,
       spaceId: this._id,
       conversationId: this._conversationId,
       onEvent: (event) => this.handleSpaceEvent(event),
@@ -99,7 +105,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
         // Space-level connection state (could emit events if needed)
       },
       onError: (error) => {
-        console.error(`[RoolSpace ${this._id}] Subscription error:`, error);
+        this.logger.error(`[RoolSpace ${this._id}] Subscription error:`, error);
       },
     });
 
@@ -454,7 +460,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       // Return current state (may have been updated by AI patches)
       return { object: this._data.objects[objectId].data, message };
     } catch (error) {
-      console.error('[Space] Failed to create object:', error);
+      this.logger.error('[RoolSpace] Failed to create object:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -519,7 +525,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       // Return current state (may have been updated by AI patches)
       return { object: this._data.objects[objectId].data, message };
     } catch (error) {
-      console.error('[Space] Failed to update object:', error);
+      this.logger.error('[RoolSpace] Failed to update object:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -569,7 +575,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     try {
       await this.graphqlClient.deleteObjects(this.id, objectIds, this._conversationId);
     } catch (error) {
-      console.error('[Space] Failed to delete objects:', error);
+      this.logger.error('[RoolSpace] Failed to delete objects:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -606,7 +612,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     try {
       await this.graphqlClient.deleteConversation(this.id, targetConversationId);
     } catch (error) {
-      console.error('[Space] Failed to delete conversation:', error);
+      this.logger.error('[RoolSpace] Failed to delete conversation:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -649,7 +655,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     try {
       await this.graphqlClient.renameConversation(this.id, conversationId, name);
     } catch (error) {
-      console.error('[Space] Failed to rename conversation:', error);
+      this.logger.error('[RoolSpace] Failed to rename conversation:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -702,7 +708,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     try {
       await this.graphqlClient.setSystemInstruction(this.id, this._conversationId, instruction);
     } catch (error) {
-      console.error('[Space] Failed to set system instruction:', error);
+      this.logger.error('[RoolSpace] Failed to set system instruction:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -740,7 +746,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     try {
       await this.graphqlClient.link(this.id, sourceId, relation, targetId, this._conversationId);
     } catch (error) {
-      console.error('[Space] Failed to create link:', error);
+      this.logger.error('[RoolSpace] Failed to create link:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -800,7 +806,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     try {
       await this.graphqlClient.unlink(this.id, sourceId, relation, targetId, this._conversationId);
     } catch (error) {
-      console.error('[Space] Failed to remove link:', error);
+      this.logger.error('[RoolSpace] Failed to remove link:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -928,7 +934,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     // Fire-and-forget server call - errors trigger resync
     this.graphqlClient.setSpaceMeta(this.id, this._data.meta, this._conversationId)
       .catch((error) => {
-        console.error('[Space] Failed to set meta:', error);
+        this.logger.error('[RoolSpace] Failed to set meta:', error);
         this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       });
   }
@@ -1119,8 +1125,8 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
       // Check for version gap (missed patches)
       if (incomingVersion > expectedVersion) {
-        console.warn(
-          `[Space] Version gap detected: expected ${expectedVersion}, got ${incomingVersion}. Resyncing.`
+        this.logger.warn(
+          `[RoolSpace] Version gap detected: expected ${expectedVersion}, got ${incomingVersion}. Resyncing.`
         );
         this.resyncFromServer(new Error(`Version gap: expected ${expectedVersion}, got ${incomingVersion}`))
           .catch(() => { });
@@ -1139,7 +1145,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     try {
       this._data = immutableJSONPatch(this._data, patch) as RoolSpaceData;
     } catch (error) {
-      console.error('[Space] Failed to apply remote patch:', error);
+      this.logger.error('[RoolSpace] Failed to apply remote patch:', error);
       // Force resync on patch error
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error))).catch(() => { });
       return;
@@ -1253,19 +1259,19 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   // ===========================================================================
 
   private async resyncFromServer(originalError?: Error): Promise<void> {
-    console.warn('[Space] Resyncing from server after sync failure');
+    this.logger.warn('[RoolSpace] Resyncing from server after sync failure');
     try {
       const { data } = await this.graphqlClient.getSpace(this._id);
       this._data = data;
       // Clear history is now async but we don't need to wait for it during resync
       // (it's a server-side cleanup that can happen in background)
       this.clearHistory().catch((err) => {
-        console.warn('[Space] Failed to clear history during resync:', err);
+        this.logger.warn('[RoolSpace] Failed to clear history during resync:', err);
       });
       this.emit('syncError', originalError ?? new Error('Sync failed'));
       this.emit('reset', { source: 'system' });
     } catch (error) {
-      console.error('[Space] Failed to resync from server:', error);
+      this.logger.error('[RoolSpace] Failed to resync from server:', error);
       // Still emit syncError with the original error
       this.emit('syncError', originalError ?? new Error('Sync failed'));
     }

@@ -356,6 +356,12 @@ export interface RoolClientConfig {
    * When provided, the SDK uses this instead of built-in browser auth.
    */
   authProvider?: AuthProvider;
+  /**
+   * Logger for SDK diagnostic messages.
+   * By default only errors are logged. Pass `console` for full output,
+   * or any object with `{ debug, info, warn, error }` methods.
+   */
+  logger?: import('./logger.js').Logger;
 }
 
 // =============================================================================

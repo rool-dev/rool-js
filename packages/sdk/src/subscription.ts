@@ -6,6 +6,7 @@
 import { createClient, type Client } from 'graphql-sse';
 import type { ConnectionState, ClientEvent, SpaceEvent, JSONPatchOp, RoolEventSource } from './types.js';
 import type { AuthManager } from './auth.js';
+import type { Logger } from './logger.js';
 
 const INITIAL_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
@@ -19,6 +20,7 @@ const RECONNECT_MULTIPLIER = 2;
 export interface ClientSubscriptionConfig {
   graphqlUrl: string;
   authManager: AuthManager;
+  logger: Logger;
   onEvent: (event: ClientEvent) => void;
   onConnectionStateChanged: (state: ConnectionState) => void;
   onError: (error: Error) => void;
@@ -32,9 +34,11 @@ export class ClientSubscriptionManager {
   private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private isIntentionalClose = false;
   private _isSubscribed = false;
+  private logger: Logger;
 
   constructor(config: ClientSubscriptionConfig) {
     this.config = config;
+    this.logger = config.logger;
   }
 
   get isSubscribed(): boolean {
@@ -95,7 +99,7 @@ export class ClientSubscriptionManager {
                 if (event) {
                   // Handle connected event
                   if (event.type === 'connected') {
-                    console.log(`[RoolClient] Connected, server version: ${event.serverVersion}`);
+                    this.logger.info(`[RoolClient] Connected, server version: ${event.serverVersion}`);
                     if (!this._isSubscribed) {
                       this._isSubscribed = true;
                       this.config.onConnectionStateChanged('connected');
@@ -104,12 +108,12 @@ export class ClientSubscriptionManager {
                   this.config.onEvent(event);
                 }
               } catch (e) {
-                console.error('[RoolClient] Failed to parse client event:', e);
+                this.logger.error('[RoolClient] Failed to parse client event:', e);
               }
             }
           },
           error: (error) => {
-            console.error('[RoolClient] Client subscription error:', error);
+            this.logger.error('[RoolClient] Client subscription error:', error);
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
 
@@ -128,7 +132,7 @@ export class ClientSubscriptionManager {
         }
       );
     } catch (error) {
-      console.error('[RoolClient] Failed to establish client subscription:', error);
+      this.logger.error('[RoolClient] Failed to establish client subscription:', error);
       this._isSubscribed = false;
       this.config.onConnectionStateChanged('disconnected');
 
@@ -151,7 +155,7 @@ export class ClientSubscriptionManager {
   private scheduleReconnect(): void {
     this.cancelReconnect();
 
-    console.log(`[RoolClient] Client reconnecting in ${this.reconnectDelay}ms...`);
+    this.logger.info(`[RoolClient] Client reconnecting in ${this.reconnectDelay}ms...`);
     this.config.onConnectionStateChanged('reconnecting');
 
     this.reconnectTimeoutId = setTimeout(() => {
@@ -189,7 +193,7 @@ export class ClientSubscriptionManager {
       case 'user_storage_changed':
         return { type, timestamp, key: raw.key as string, value: raw.value };
       default:
-        console.warn('[RoolClient] Unknown client event type:', type);
+        this.logger.warn('[RoolClient] Unknown client event type:', type);
         return null;
     }
   }
@@ -207,6 +211,7 @@ export class ClientSubscriptionManager {
 export interface SpaceSubscriptionConfig {
   graphqlUrl: string;
   authManager: AuthManager;
+  logger: Logger;
   spaceId: string;
   conversationId: string;
   onEvent: (event: SpaceEvent) => void;
@@ -223,9 +228,11 @@ export class SpaceSubscriptionManager {
   private isIntentionalClose = false;
   private _isSubscribed = false;
   private _initialConnectPromise: { resolve: () => void; reject: (e: Error) => void } | null = null;
+  private logger: Logger;
 
   constructor(config: SpaceSubscriptionConfig) {
     this.config = config;
+    this.logger = config.logger;
   }
 
   get isSubscribed(): boolean {
@@ -306,7 +313,7 @@ export class SpaceSubscriptionManager {
                 if (event) {
                   // Handle connected event - resolve initial promise
                   if (event.type === 'connected') {
-                    console.log(`[RoolSpace] Connected to space ${event.spaceId}, server version: ${event.serverVersion}`);
+                    this.logger.info(`[RoolSpace] Connected to space ${event.spaceId}, server version: ${event.serverVersion}`);
                     if (!this._isSubscribed) {
                       this._isSubscribed = true;
                       this.config.onConnectionStateChanged('connected');
@@ -319,12 +326,12 @@ export class SpaceSubscriptionManager {
                   this.config.onEvent(event);
                 }
               } catch (e) {
-                console.error('[RoolSpace] Failed to parse space event:', e);
+                this.logger.error('[RoolSpace] Failed to parse space event:', e);
               }
             }
           },
           error: (error) => {
-            console.error('[RoolSpace] Space subscription error:', error);
+            this.logger.error('[RoolSpace] Space subscription error:', error);
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
 
@@ -352,7 +359,7 @@ export class SpaceSubscriptionManager {
         }
       );
     } catch (error) {
-      console.error('[RoolSpace] Failed to establish space subscription:', error);
+      this.logger.error('[RoolSpace] Failed to establish space subscription:', error);
       this._isSubscribed = false;
       this.config.onConnectionStateChanged('disconnected');
 
@@ -378,7 +385,7 @@ export class SpaceSubscriptionManager {
   private scheduleReconnect(): void {
     this.cancelReconnect();
 
-    console.log(`[RoolSpace] Space ${this.config.spaceId} reconnecting in ${this.reconnectDelay}ms...`);
+    this.logger.info(`[RoolSpace] Space ${this.config.spaceId} reconnecting in ${this.reconnectDelay}ms...`);
     this.config.onConnectionStateChanged('reconnecting');
 
     this.reconnectTimeoutId = setTimeout(() => {
@@ -429,7 +436,7 @@ export class SpaceSubscriptionManager {
         if (!source) return null;
         return { type, spaceId, timestamp, source };
       default:
-        console.warn('[RoolSpace] Unknown space event type:', type);
+        this.logger.warn('[RoolSpace] Unknown space event type:', type);
         return null;
     }
   }

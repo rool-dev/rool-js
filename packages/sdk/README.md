@@ -415,6 +415,23 @@ See [Real-time Sync](#real-time-sync) for more on event sources.
 
 ## RoolClient API
 
+### Logging
+
+By default the SDK logs errors to the console. Pass a `logger` to see more or customize output:
+
+```typescript
+// Default — errors only
+const client = new RoolClient();
+
+// Log everything to console
+const client = new RoolClient({ logger: console });
+
+// Bring your own logger (pino, winston, etc.)
+const client = new RoolClient({
+  logger: myLogger // any object with { debug, info, warn, error }
+});
+```
+
 ### Space Lifecycle
 
 | Method | Description |

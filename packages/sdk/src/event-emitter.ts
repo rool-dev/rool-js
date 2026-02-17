@@ -3,6 +3,8 @@
 // Framework-agnostic event emitter that works in browser and Node.js
 // =============================================================================
 
+import type { Logger } from './logger.js';
+
 /**
  * Generic event map type - keys are event names, values are listener signatures
  */
@@ -15,6 +17,13 @@ export type EventMap = Record<string, (...args: any[]) => void>;
  */
 export class EventEmitter<Events extends EventMap> {
   private listeners = new Map<keyof Events, Set<Events[keyof Events]>>();
+
+  /**
+   * Logger for reporting errors in event listeners.
+   * Subclasses should set this to their logger instance.
+   * @internal
+   */
+  protected _emitterLogger?: Logger;
 
   /**
    * Register an event listener.
@@ -69,7 +78,7 @@ export class EventEmitter<Events extends EventMap> {
         try {
           (listener as (...args: Parameters<Events[K]>) => void)(...args);
         } catch (error) {
-          console.error(`Error in event listener for "${String(event)}":`, error);
+          (this._emitterLogger ?? console).error(`Error in event listener for "${String(event)}":`, error);
         }
       }
     }

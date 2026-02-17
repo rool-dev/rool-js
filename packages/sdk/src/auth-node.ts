@@ -6,6 +6,7 @@ import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import open from 'open';
 import type { AuthProvider, AuthUser } from './types.js';
+import { defaultLogger, type Logger } from './logger.js';
 
 const GCIP_REFRESH_ENDPOINT = 'https://securetoken.googleapis.com/v1/token';
 
@@ -27,6 +28,7 @@ export class NodeAuthProvider implements AuthProvider {
     private config: NodeAuthConfig;
     private apiKey: string | null = null;
     private _authUrl: string | null = null;
+    private logger: Logger = defaultLogger;
 
     constructor(config: NodeAuthConfig = {}) {
         this.config = config;
@@ -35,6 +37,11 @@ export class NodeAuthProvider implements AuthProvider {
     /** Called by AuthManager to inject the auth URL */
     setAuthUrl(url: string): void {
         this._authUrl = url;
+    }
+
+    /** Called by AuthManager to inject the logger */
+    setLogger(logger: Logger): void {
+        this.logger = logger;
     }
 
     /**
@@ -119,7 +126,7 @@ export class NodeAuthProvider implements AuthProvider {
         loginUrl.searchParams.set('app_name', appName);
         loginUrl.searchParams.set('state', state);
 
-        console.log(`Opening browser to login to ${appName}:`, loginUrl.toString());
+        this.logger.info(`Opening browser to login to ${appName}:`, loginUrl.toString());
         await open(loginUrl.toString());
 
         const timeoutMs = this.config.loginTimeoutMs ?? 5 * 60 * 1000; // 5 minutes default
@@ -189,7 +196,7 @@ export class NodeAuthProvider implements AuthProvider {
             fs.mkdirSync(dir, { recursive: true });
             fs.writeFileSync(filePath, JSON.stringify(data, null, 2), { mode: 0o600 });
         } catch (error) {
-            console.error('[RoolClient] Failed to save storage:', error);
+            this.logger.error('[RoolClient] Failed to save storage:', error);
         }
     }
 
@@ -216,7 +223,7 @@ export class NodeAuthProvider implements AuthProvider {
             fs.mkdirSync(dir, { recursive: true });
             fs.writeFileSync(filePath, JSON.stringify(creds, null, 2), { mode: 0o600 });
         } catch (error) {
-            console.error('[RoolClient] Failed to save credentials:', error);
+            this.logger.error('[RoolClient] Failed to save credentials:', error);
         }
     }
 
@@ -239,7 +246,7 @@ export class NodeAuthProvider implements AuthProvider {
 
         const apiKey = await this.getApiKey();
         if (!apiKey) {
-            console.warn('[RoolClient] Cannot refresh: API key not found');
+            this.logger.warn('[RoolClient] Cannot refresh: API key not found');
             return undefined;
         }
 
@@ -262,10 +269,10 @@ export class NodeAuthProvider implements AuthProvider {
             if (!response.ok) {
                 // 400 typically means invalid/expired refresh token - clear credentials
                 if (response.status === 400) {
-                    console.warn('[RoolClient] Refresh token expired or invalid. Please login again.');
+                    this.logger.warn('[RoolClient] Refresh token expired or invalid. Please login again.');
                     this.logout();
                 } else {
-                    console.warn(`[RoolClient] Refresh failed: ${response.status}`);
+                    this.logger.warn(`[RoolClient] Refresh failed: ${response.status}`);
                 }
                 return undefined;
             }
@@ -281,7 +288,7 @@ export class NodeAuthProvider implements AuthProvider {
             this.writeCredentials(newCreds);
             return newCreds.access_token;
         } catch (error) {
-            console.error('[RoolClient] Refresh failed:', error);
+            this.logger.error('[RoolClient] Refresh failed:', error);
             return undefined;
         }
     }

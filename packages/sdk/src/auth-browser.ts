@@ -1,5 +1,6 @@
 
 import type { AuthProvider, AuthUser } from './types.js';
+import type { Logger } from './logger.js';
 
 const GCIP_REFRESH_ENDPOINT = 'https://securetoken.googleapis.com/v1/token';
 const REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before expiry
@@ -9,12 +10,14 @@ const DEFAULT_STORAGE_PREFIX = 'rool_';
 export interface BrowserAuthConfig {
     /** Auth service URL (e.g. https://api.dev.rool.dev/auth) */
     authUrl: string;
+    logger: Logger;
     storagePrefix?: string;
     onAuthStateChanged: (authenticated: boolean) => void;
 }
 
 export class BrowserAuthProvider implements AuthProvider {
     private config: BrowserAuthConfig;
+    private logger: Logger;
     private apiKey: string | null = null;
     private apiKeyFetchPromise: Promise<string | null> | null = null;
     private refreshPromise: Promise<boolean> | null = null;
@@ -37,6 +40,7 @@ export class BrowserAuthProvider implements AuthProvider {
 
     constructor(config: BrowserAuthConfig) {
         this.config = config;
+        this.logger = config.logger;
     }
 
     /**
@@ -135,12 +139,12 @@ export class BrowserAuthProvider implements AuthProvider {
 
         // Validate state - if we stored one, require it back
         if (storedState && incomingState !== storedState) {
-            console.error('[RoolClient] Auth state mismatch. Token fragment ignored.');
+            this.logger.error('[RoolClient] Auth state mismatch. Token fragment ignored.');
             return false;
         }
 
         if (!Number.isFinite(expiresAt)) {
-            console.error('[RoolClient] Auth response missing expires_in. Token ignored.');
+            this.logger.error('[RoolClient] Auth response missing expires_in. Token ignored.');
             return false;
         }
 
@@ -209,7 +213,7 @@ export class BrowserAuthProvider implements AuthProvider {
         this.apiKeyFetchPromise = fetch(`${this.authBaseUrl}/config.json`)
             .then(async (response) => {
                 if (!response.ok) {
-                    console.warn('[RoolClient] Failed to fetch API key from server');
+                    this.logger.warn('[RoolClient] Failed to fetch API key from server');
                     return null;
                 }
                 const data = await response.json();
@@ -220,7 +224,7 @@ export class BrowserAuthProvider implements AuthProvider {
                 return null;
             })
             .catch((error) => {
-                console.warn('[RoolClient] Failed to fetch API key:', error);
+                this.logger.warn('[RoolClient] Failed to fetch API key:', error);
                 return null;
             })
             .finally(() => {
@@ -242,7 +246,7 @@ export class BrowserAuthProvider implements AuthProvider {
         // Get API key (from config or server)
         const apiKey = await this.getApiKey();
         if (!apiKey) {
-            console.warn('[RoolClient] Cannot refresh token: no API key available');
+            this.logger.warn('[RoolClient] Cannot refresh token: no API key available');
             return false;
         }
 
@@ -262,13 +266,13 @@ export class BrowserAuthProvider implements AuthProvider {
                 });
             } catch (error) {
                 // Network error - don't clear tokens, might work next time
-                console.warn('[RoolClient] Token refresh network error:', error);
+                this.logger.warn('[RoolClient] Token refresh network error:', error);
                 return false;
             }
 
             // 400/401 = refresh token is invalid, clear everything
             if (response.status === 400 || response.status === 401) {
-                console.warn('[RoolClient] Refresh token invalid, clearing credentials');
+                this.logger.warn('[RoolClient] Refresh token invalid, clearing credentials');
                 this.clearTokens();
                 this.config.onAuthStateChanged(false);
                 return false;
@@ -276,7 +280,7 @@ export class BrowserAuthProvider implements AuthProvider {
 
             // Other HTTP errors - don't clear tokens, might be transient
             if (!response.ok) {
-                console.warn(`[RoolClient] Token refresh failed: ${response.status} ${response.statusText}`);
+                this.logger.warn(`[RoolClient] Token refresh failed: ${response.status} ${response.statusText}`);
                 return false;
             }
 
@@ -288,7 +292,7 @@ export class BrowserAuthProvider implements AuthProvider {
                 const expiresAt = data.expires_in ? Date.now() + data.expires_in * 1000 : NaN;
 
                 if (!accessToken || !Number.isFinite(expiresAt)) {
-                    console.error('[RoolClient] Refresh response missing access token or expires_in');
+                    this.logger.error('[RoolClient] Refresh response missing access token or expires_in');
                     return false;
                 }
 
@@ -296,7 +300,7 @@ export class BrowserAuthProvider implements AuthProvider {
                 this.scheduleTokenRefresh();
                 return true;
             } catch (error) {
-                console.error('[RoolClient] Failed to parse refresh response:', error);
+                this.logger.error('[RoolClient] Failed to parse refresh response:', error);
                 return false;
             }
         })().finally(() => {
@@ -413,7 +417,7 @@ export class BrowserAuthProvider implements AuthProvider {
                 name: payload.name || null,
             };
         } catch (error) {
-            console.error('[RoolClient] Failed to decode token:', error);
+            this.logger.error('[RoolClient] Failed to decode token:', error);
             return { email: null, name: null };
         }
     }

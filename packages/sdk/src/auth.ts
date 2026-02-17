@@ -5,9 +5,11 @@
 
 import type { AuthUser, AuthProvider } from './types.js';
 import { BrowserAuthProvider } from './auth-browser.js';
+import type { Logger } from './logger.js';
 
 export interface AuthManagerConfig {
   authUrl: string;
+  logger: Logger;
   onAuthStateChanged?: (authenticated: boolean) => void;
   /** External auth provider - when set, delegates all auth to this provider */
   authProvider?: AuthProvider;
@@ -23,11 +25,16 @@ export class AuthManager {
       if ('setAuthUrl' in this.provider && typeof (this.provider as any).setAuthUrl === 'function') {
         (this.provider as any).setAuthUrl(config.authUrl);
       }
+      // Inject logger if the provider supports it
+      if ('setLogger' in this.provider && typeof (this.provider as any).setLogger === 'function') {
+        (this.provider as any).setLogger(config.logger);
+      }
     } else {
       // Default to BrowserAuthProvider if no external provider specified
       // This preserves existing behavior for browser usage
       this.provider = new BrowserAuthProvider({
         authUrl: config.authUrl,
+        logger: config.logger,
         onAuthStateChanged: (authenticated) => {
           config.onAuthStateChanged?.(authenticated);
         },

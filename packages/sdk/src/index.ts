@@ -12,6 +12,9 @@ export { RoolSpace, generateEntityId } from './space.js';
 // Event emitter (for extending)
 export { EventEmitter } from './event-emitter.js';
 
+// Logger
+export type { Logger } from './logger.js';
+
 // Types
 export type {
   // Core types
