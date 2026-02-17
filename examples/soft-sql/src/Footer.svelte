@@ -3,19 +3,19 @@
 </script>
 
 <footer class="bg-white border-t border-slate-200 px-4 py-2">
-  <div class="max-w-5xl mx-auto flex items-center justify-center gap-1 text-sm text-slate-500">
+  <div class="max-w-6xl mx-auto flex items-center justify-center gap-1 text-sm text-slate-500">
     <span>Built with</span>
     <a
       href="https://rool.dev"
       target="_blank"
       rel="noopener noreferrer"
-      class="font-medium text-indigo-600 hover:text-indigo-500"
+      class="font-medium text-emerald-600 hover:text-emerald-500"
     >
       Rool
     </a>
     <span class="mx-1">·</span>
     <a
-      href="https://github.com/rool-dev/rool-js/tree/main/examples/chat"
+      href="https://github.com/rool-dev/rool-js/tree/main/examples/soft-sql"
       target="_blank"
       rel="noopener noreferrer"
       class="inline-flex items-center gap-1 text-slate-600 hover:text-slate-800"

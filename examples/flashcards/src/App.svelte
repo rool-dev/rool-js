@@ -5,6 +5,7 @@
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';
   import FlashcardDisplay from './FlashcardDisplay.svelte';
+  import Footer from './Footer.svelte';
 
   const rool = createRool();
   rool.init();
@@ -405,6 +406,8 @@ Use this exact structure for each card (with actual content, not placeholders):
         </div>
       {/if}
     </main>
+
+    <Footer />
   </div>
 {/if}
 

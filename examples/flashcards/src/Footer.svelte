@@ -9,13 +9,13 @@
       href="https://rool.dev"
       target="_blank"
       rel="noopener noreferrer"
-      class="font-medium text-indigo-600 hover:text-indigo-500"
+      class="font-medium text-violet-600 hover:text-violet-500"
     >
       Rool
     </a>
     <span class="mx-1">·</span>
     <a
-      href="https://github.com/rool-dev/rool-js/tree/main/examples/chat"
+      href="https://github.com/rool-dev/rool-js/tree/main/examples/flashcards"
       target="_blank"
       rel="noopener noreferrer"
       class="inline-flex items-center gap-1 text-slate-600 hover:text-slate-800"

@@ -3,6 +3,7 @@
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';
+  import Footer from './Footer.svelte';
 
   const rool = createRool();
   rool.init();
@@ -128,9 +129,9 @@
           {#if isLoading}
             {@const latestInteraction = currentSpace?.interactions?.at(-1)}
             <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6">
-              {#if latestInteraction?.toolCalls?.length > 0}
+              {#if (latestInteraction?.toolCalls?.length ?? 0) > 0}
                 <div class="space-y-2">
-                  {#each latestInteraction.toolCalls as toolCall}
+                  {#each latestInteraction?.toolCalls ?? [] as toolCall}
                     <div class="flex items-start gap-2 text-sm">
                       <Icon icon="mdi:chevron-right" class="w-4 h-4 text-emerald-500 mt-0.5" />
                       <div>
@@ -173,6 +174,8 @@
         </div>
       {/if}
     </main>
+
+    <Footer />
   </div>
 {/if}
 
