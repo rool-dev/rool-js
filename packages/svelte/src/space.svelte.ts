@@ -112,6 +112,8 @@ class ReactiveSpaceImpl {
   addUser(...args: Parameters<RoolSpace['addUser']>) { return this.#space.addUser(...args); }
   removeUser(...args: Parameters<RoolSpace['removeUser']>) { return this.#space.removeUser(...args); }
   listUsers() { return this.#space.listUsers(); }
+  setLinkAccess(...args: Parameters<RoolSpace['setLinkAccess']>) { return this.#space.setLinkAccess(...args); }
+  get linkAccess() { return this.#space.linkAccess; }
 }
 
 export function wrapSpace(space: RoolSpace): ReactiveSpace {

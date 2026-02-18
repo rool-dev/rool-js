@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpaceInfo, type ConnectionState } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig } from '@rool-dev/sdk';
 import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
 /**
@@ -21,8 +21,8 @@ class RoolImpl {
   spacesError = $state<Error | null>(null);
   connectionState = $state<ConnectionState>('disconnected');
 
-  constructor() {
-    this.#client = new RoolClient();
+  constructor(config?: RoolClientConfig) {
+    this.#client = new RoolClient(config);
     this.#setupEventListeners();
   }
 
@@ -127,6 +127,13 @@ class RoolImpl {
   }
 
   /**
+   * Get auth user info from JWT token.
+   */
+  get authUser() {
+    return this.#client.getAuthUser();
+  }
+
+  /**
    * Clean up resources.
    */
   destroy(): void {
@@ -147,8 +154,8 @@ class RoolImpl {
 /**
  * Create a new Rool instance.
  */
-export function createRool(): Rool {
-  return new RoolImpl();
+export function createRool(config?: RoolClientConfig): Rool {
+  return new RoolImpl(config);
 }
 
 /**

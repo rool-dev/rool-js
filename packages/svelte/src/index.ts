@@ -10,6 +10,7 @@ export type { ReactiveSpace } from './space.svelte.js';
 
 // Re-export SDK types for convenience
 export type {
+  RoolClientConfig,
   RoolSpace,
   RoolSpaceInfo,
   RoolObject,
