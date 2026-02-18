@@ -34,18 +34,23 @@
 
   let initialSpaceId = getSpaceIdFromUrl();
 
-  // Auto-open space from URL param once spaces are loaded
+  // Auto-open space from URL param once authenticated
   $effect(() => {
-    if (initialSpaceId && rool.spaces && !currentSpace) {
-      const exists = rool.spaces.some(s => s.id === initialSpaceId);
-      if (exists) {
-        selectSpace(initialSpaceId);
-      } else {
-        updateUrlSpaceId(null);
-      }
+    if (initialSpaceId && rool.authenticated && !currentSpace) {
+      const spaceId = initialSpaceId;
       initialSpaceId = null;
+      openSpace(spaceId);
     }
   });
+
+  async function openSpace(spaceId: string) {
+    try {
+      await onSpaceChange(spaceId);
+      updateUrlSpaceId(spaceId);
+    } catch {
+      updateUrlSpaceId(null);
+    }
+  }
 
   function selectSpace(spaceId: string) {
     updateUrlSpaceId(spaceId);
