@@ -14,6 +14,7 @@ import type {
   UserResult,
   RoolObject,
   ConversationInfo,
+  LinkAccess,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 
@@ -60,6 +61,7 @@ export class GraphQLClient {
           size
           createdAt
           updatedAt
+          linkAccess
         }
       }
     `;
@@ -67,7 +69,7 @@ export class GraphQLClient {
     return response.listSpaces;
   }
 
-  async getSpace(spaceId: string): Promise<{ data: RoolSpaceData; name: string; role: string; userId: string }> {
+  async getSpace(spaceId: string): Promise<{ data: RoolSpaceData; name: string; role: string; userId: string; linkAccess: LinkAccess }> {
     const query = `
       query GetSpace($id: String!) {
         getSpace(id: $id) {
@@ -75,15 +77,17 @@ export class GraphQLClient {
           name
           role
           userId
+          linkAccess
         }
       }
     `;
-    const response = await this.request<{ getSpace: { data: string; name: string; role: string; userId: string } }>(query, { id: spaceId });
+    const response = await this.request<{ getSpace: { data: string; name: string; role: string; userId: string; linkAccess: LinkAccess } }>(query, { id: spaceId });
     return {
       data: JSON.parse(response.getSpace.data),
       name: response.getSpace.name,
       role: response.getSpace.role,
       userId: response.getSpace.userId,
+      linkAccess: response.getSpace.linkAccess,
     };
   }
 
@@ -545,6 +549,15 @@ export class GraphQLClient {
       }
     `;
     await this.request(mutation, { spaceId, userId });
+  }
+
+  async setLinkAccess(spaceId: string, linkAccess: LinkAccess): Promise<void> {
+    const mutation = `
+      mutation SetLinkAccess($spaceId: String!, $linkAccess: String!) {
+        setLinkAccess(spaceId: $spaceId, linkAccess: $linkAccess)
+      }
+    `;
+    await this.request(mutation, { spaceId, linkAccess });
   }
 
   // ===========================================================================

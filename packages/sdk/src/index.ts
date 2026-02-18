@@ -35,6 +35,7 @@ export type {
   // User types
   SpaceMember,
   RoolUserRole,
+  LinkAccess,
   UserResult,
   CurrentUser,
   AuthUser,

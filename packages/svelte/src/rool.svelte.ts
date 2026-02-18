@@ -44,13 +44,13 @@ class RoolImpl {
     this.#client.on('connectionStateChanged', onConnectionStateChanged);
     this.#unsubscribers.push(() => this.#client.off('connectionStateChanged', onConnectionStateChanged));
 
-    const onSpaceCreated = () => this.#refreshSpaces();
-    this.#client.on('spaceCreated', onSpaceCreated);
-    this.#unsubscribers.push(() => this.#client.off('spaceCreated', onSpaceCreated));
+    const onSpaceAdded = () => this.#refreshSpaces();
+    this.#client.on('spaceAdded', onSpaceAdded);
+    this.#unsubscribers.push(() => this.#client.off('spaceAdded', onSpaceAdded));
 
-    const onSpaceDeleted = () => this.#refreshSpaces();
-    this.#client.on('spaceDeleted', onSpaceDeleted);
-    this.#unsubscribers.push(() => this.#client.off('spaceDeleted', onSpaceDeleted));
+    const onSpaceRemoved = () => this.#refreshSpaces();
+    this.#client.on('spaceRemoved', onSpaceRemoved);
+    this.#unsubscribers.push(() => this.#client.off('spaceRemoved', onSpaceRemoved));
 
     const onSpaceRenamed = () => this.#refreshSpaces();
     this.#client.on('spaceRenamed', onSpaceRenamed);

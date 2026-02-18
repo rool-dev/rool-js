@@ -379,7 +379,8 @@ await space.addUser(user.id, 'editor');
 
 | Role | Capabilities |
 |------|--------------|
-| `owner` | Full control, can delete space and manage users |
+| `owner` | Full control, can delete space and manage all users |
+| `admin` | All editor capabilities, plus can manage users (except other admins/owners) |
 | `editor` | Can create, modify, delete objects and links |
 | `viewer` | Read-only access (can query with `prompt` and `findObjects`) |
 
@@ -388,8 +389,29 @@ await space.addUser(user.id, 'editor');
 | Method | Description |
 |--------|-------------|
 | `listUsers(): Promise<SpaceMember[]>` | List users with access |
-| `addUser(userId, role): Promise<void>` | Add user to space |
-| `removeUser(userId): Promise<void>` | Remove user from space |
+| `addUser(userId, role): Promise<void>` | Add user to space (requires owner or admin role) |
+| `removeUser(userId): Promise<void>` | Remove user from space (requires owner or admin role) |
+| `setLinkAccess(linkAccess): Promise<void>` | Set link sharing level (requires owner or admin role) |
+
+### Link Sharing
+
+Enable public link access to allow anyone with the link to access your space:
+
+```typescript
+// Allow anyone with the link to view
+await space.setLinkAccess('viewer');
+
+// Allow anyone with the link to edit
+await space.setLinkAccess('editor');
+
+// Disable link access (default)
+await space.setLinkAccess('none');
+
+// Check current setting
+console.log(space.linkAccess); // 'none' | 'viewer' | 'editor'
+```
+
+When a user accesses a space via link, they're granted the corresponding role (`viewer` or `editor`) based on the space's `linkAccess` setting.
 
 ### Client User Methods
 
@@ -489,12 +511,24 @@ client.on('userStorageChanged', ({ key, value, source }) => {
 
 ```typescript
 client.on('authStateChanged', (authenticated: boolean) => void)
-client.on('spaceCreated', (space: RoolSpaceInfo) => void)
-client.on('spaceDeleted', (spaceId: string) => void)
+client.on('spaceAdded', (space: RoolSpaceInfo) => void)      // Space created or access granted
+client.on('spaceRemoved', (spaceId: string) => void)         // Space deleted or access revoked
 client.on('spaceRenamed', (spaceId: string, newName: string) => void)
 client.on('userStorageChanged', ({ key, value, source }: UserStorageChangedEvent) => void)
 client.on('connectionStateChanged', (state: 'connected' | 'disconnected' | 'reconnecting') => void)
 client.on('error', (error: Error, context?: string) => void)
+```
+
+**Space list management pattern:**
+```typescript
+const spaces = new Map<string, RoolSpaceInfo>();
+
+client.on('spaceAdded', (space) => spaces.set(space.id, space));
+client.on('spaceRemoved', (id) => spaces.delete(id));
+client.on('spaceRenamed', (id, name) => {
+  const space = spaces.get(id);
+  if (space) spaces.set(id, { ...space, name });
+});
 ```
 
 ## RoolSpace API
@@ -507,7 +541,8 @@ Spaces are first-class objects with built-in undo/redo, event emission, and real
 |----------|-------------|
 | `id: string` | Space ID |
 | `name: string` | Space name |
-| `role: RoolUserRole` | User's role (`'owner' \| 'editor' \| 'viewer'`) |
+| `role: RoolUserRole` | User's role (`'owner' \| 'admin' \| 'editor' \| 'viewer'`) |
+| `linkAccess: LinkAccess` | Link sharing level (`'none' \| 'viewer' \| 'editor'`) |
 | `userId: string` | Current user's ID |
 | `conversationId: string` | ID for interaction history (tracks AI context). Writable — set to switch conversations. |
 | `isReadOnly(): boolean` | True if viewer role |
@@ -979,9 +1014,10 @@ interface Interaction {
 ### Info Types
 
 ```typescript
-type RoolUserRole = 'owner' | 'editor' | 'viewer';
+type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
+type LinkAccess = 'none' | 'viewer' | 'editor';
 
-interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; }
+interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; linkAccess: LinkAccess; }
 interface SpaceMember { id: string; email: string; role: RoolUserRole; }
 interface UserResult { id: string; email: string; name: string | null; }
 interface CurrentUser { id: string; email: string; name: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }

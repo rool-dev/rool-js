@@ -15,6 +15,7 @@ import type {
   RoolClientEvents,
   RoolSpaceInfo,
   RoolUserRole,
+  LinkAccess,
   ClientEvent,
   CurrentUser,
   UserResult,
@@ -203,12 +204,13 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     // Ensure client subscription is active (for lifecycle events)
     void this.ensureSubscribed();
 
-    const { data, name, role, userId } = await this.graphqlClient.getSpace(spaceId);
+    const { data, name, role, userId, linkAccess } = await this.graphqlClient.getSpace(spaceId);
 
     const space = new RoolSpace({
       id: spaceId,
       name,
       role: role as RoolUserRole,
+      linkAccess,
       userId,
       initialData: data,
       conversationId: options?.conversationId,
@@ -248,6 +250,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       id: spaceId,
       name: spaceName,
       role: 'owner',
+      linkAccess: 'none', // New spaces default to no link access
       userId,
       initialData: data,
       conversationId: options?.conversationId,
@@ -529,23 +532,43 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   private handleClientEvent(event: ClientEvent): void {
     switch (event.type) {
       case 'space_created':
-        this.emit('spaceCreated', {
+        this.emit('spaceAdded', {
           id: event.spaceId!,
           name: event.name ?? event.spaceId!,
-          role: (event.role as 'owner' | 'editor' | 'viewer') ?? 'owner',
+          role: (event.role as RoolUserRole) ?? 'owner',
           ownerId: event.ownerId ?? '',
           size: event.size ?? 0,
           createdAt: event.createdAt ?? new Date().toISOString(),
           updatedAt: event.updatedAt ?? new Date().toISOString(),
+          linkAccess: 'none', // New spaces default to no link access
         });
         break;
 
       case 'space_deleted':
-        this.emit('spaceDeleted', event.spaceId!);
+        this.emit('spaceRemoved', event.spaceId!);
         break;
 
       case 'space_renamed':
         this.emit('spaceRenamed', event.spaceId!, event.name ?? event.spaceId!);
+        break;
+
+      case 'space_access_changed':
+        if (event.role === 'none') {
+          // Access revoked - remove from list
+          this.emit('spaceRemoved', event.spaceId!);
+        } else {
+          // Access granted or changed - add/update in list
+          this.emit('spaceAdded', {
+            id: event.spaceId!,
+            name: event.name!,
+            role: event.role as RoolUserRole,
+            ownerId: event.ownerId!,
+            size: event.size!,
+            createdAt: event.createdAt!,
+            updatedAt: event.updatedAt!,
+            linkAccess: (event.linkAccess as LinkAccess) ?? 'none',
+          });
+        }
         break;
 
       case 'user_storage_changed':

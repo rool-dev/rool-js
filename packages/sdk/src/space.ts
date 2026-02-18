@@ -13,6 +13,7 @@ import type {
   JSONPatchOp,
   SpaceEvents,
   RoolUserRole,
+  LinkAccess,
   SpaceMember,
   PromptOptions,
   FindObjectsOptions,
@@ -42,6 +43,7 @@ export interface SpaceConfig {
   id: string;
   name: string;
   role: RoolUserRole;
+  linkAccess: LinkAccess;
   /** Current user's ID (for identifying own interactions) */
   userId: string;
   initialData: RoolSpaceData;
@@ -69,6 +71,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   private _id: string;
   private _name: string;
   private _role: RoolUserRole;
+  private _linkAccess: LinkAccess;
   private _userId: string;
   private _conversationId: string;
   private _data: RoolSpaceData;
@@ -84,6 +87,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     this._id = config.id;
     this._name = config.name;
     this._role = config.role;
+    this._linkAccess = config.linkAccess;
     this._userId = config.userId;
     this._emitterLogger = config.logger;
     this._conversationId = config.conversationId ?? generateEntityId();
@@ -136,6 +140,10 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
   get role(): RoolUserRole {
     return this._role;
+  }
+
+  get linkAccess(): LinkAccess {
+    return this._linkAccess;
   }
 
   /** Current user's ID (for identifying own interactions) */
@@ -998,6 +1006,22 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    */
   async removeUser(userId: string): Promise<void> {
     return this.graphqlClient.removeSpaceUser(this._id, userId);
+  }
+
+  /**
+   * Set the link sharing level for this space.
+   * Requires owner or admin role.
+   * @param linkAccess - 'none' (no link access), 'viewer' (read-only), or 'editor' (full edit)
+   */
+  async setLinkAccess(linkAccess: LinkAccess): Promise<void> {
+    const previous = this._linkAccess;
+    this._linkAccess = linkAccess;
+    try {
+      await this.graphqlClient.setLinkAccess(this._id, linkAccess);
+    } catch (error) {
+      this._linkAccess = previous;
+      throw error;
+    }
   }
 
   // ===========================================================================

@@ -117,7 +117,9 @@ export type JSONPatchOp =
 // Space Info & User Types
 // =============================================================================
 
-export type RoolUserRole = 'owner' | 'editor' | 'viewer';
+export type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
+
+export type LinkAccess = 'none' | 'viewer' | 'editor';
 
 export interface RoolSpaceInfo {
   id: string;
@@ -127,6 +129,7 @@ export interface RoolSpaceInfo {
   size: number;
   createdAt: string;
   updatedAt: string;
+  linkAccess: LinkAccess;
 }
 
 export interface UserResult {
@@ -280,18 +283,19 @@ export type RoolEventSource = 'user' | 'agent';
 // Client-level events (space lifecycle)
 // -----------------------------------------------------------------------------
 
-export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'user_storage_changed';
+export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'space_access_changed' | 'user_storage_changed';
 
 export interface ClientEvent {
   type: ClientEventType;
   spaceId?: string;  // Present on space events
   timestamp: number;
-  name?: string;  // Present on space_created and space_renamed events
-  ownerId?: string;  // Present on space_created events
-  size?: number;  // Present on space_created events
-  createdAt?: string;  // Present on space_created events
-  updatedAt?: string;  // Present on space_created events
-  role?: string;  // Present on space_created events
+  name?: string;  // Present on space_created, space_renamed, space_access_changed events
+  ownerId?: string;  // Present on space_created, space_access_changed events
+  size?: number;  // Present on space_created, space_access_changed events
+  createdAt?: string;  // Present on space_created, space_access_changed events
+  updatedAt?: string;  // Present on space_created, space_access_changed events
+  role?: string;  // Present on space_created, space_access_changed events ('none' = access revoked)
+  linkAccess?: string;  // Present on space_access_changed events
   key?: string;   // Present on user_storage_changed events
   value?: unknown; // Present on user_storage_changed events
   serverVersion?: string;  // Present on connected events
@@ -384,10 +388,10 @@ export interface UserStorageChangedEvent {
 export interface RoolClientEvents {
   /** Emitted when authentication state changes */
   authStateChanged: (authenticated: boolean) => void;
-  /** Emitted when a new space is created (by any client) */
-  spaceCreated: (space: RoolSpaceInfo) => void;
-  /** Emitted when a space is deleted (by any client) */
-  spaceDeleted: (spaceId: string) => void;
+  /** Emitted when a space is added to the user's list (created or access granted) */
+  spaceAdded: (space: RoolSpaceInfo) => void;
+  /** Emitted when a space is removed from the user's list (deleted or access revoked) */
+  spaceRemoved: (spaceId: string) => void;
   /** Emitted when a space is renamed (by any client) */
   spaceRenamed: (spaceId: string, newName: string) => void;
   /** Emitted when user storage changes (local or remote) */
