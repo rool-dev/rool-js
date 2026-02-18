@@ -580,11 +580,11 @@ Both methods accept an options object:
 
 #### findObjects Options
 
-Find objects using structured filters, semantic matching, and natural language. All queries are executed server-side.
+Find objects using structured filters and natural language. All queries are executed server-side.
 
 | Option | Description |
 |--------|-------------|
-| `where` | Structured field requirements. Static values = exact match. `{{placeholder}}` values = semantic match by AI. |
+| `where` | Structured field requirements (exact match). |
 | `prompt` | Natural language query for additional filtering. |
 | `limit` | Maximum number of results to return. |
 | `objectIds` | Scope search to specific objects (like `prompt()`). |
@@ -604,21 +604,10 @@ const { objects, message } = await space.findObjects({
   prompt: 'articles about space exploration published this year'
 });
 
-// Semantic field matching with {{...}} placeholders
+// Combined: structured filter + natural language
 const { objects } = await space.findObjects({
-  where: {
-    type: 'product',
-    category: '{{something edible}}'  // AI interprets this
-  }
-});
-
-// Combined: structured + semantic + natural language
-const { objects } = await space.findObjects({
-  where: {
-    type: 'article',
-    topic: '{{related to climate}}'
-  },
-  prompt: 'that discuss solutions positively',
+  where: { type: 'article' },
+  prompt: 'that discuss climate solutions positively',
   limit: 10
 });
 ```

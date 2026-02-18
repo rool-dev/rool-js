@@ -1,6 +1,6 @@
 {
   "name": "@rool-dev/sdk",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "TypeScript SDK for working with Rool Spaces",
   "packageManager": "pnpm@10.17.1",
   "type": "module",

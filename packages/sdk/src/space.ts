@@ -325,26 +325,26 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
   /**
    * Find objects using structured filters and natural language.
-   * @param options.where - Structured field requirements (exact match). Use {{placeholder}} for semantic matching.
+   * @param options.where - Structured field requirements (exact match)
    * @param options.prompt - Natural language query/refinement
    * @param options.limit - Maximum number of results to return
    * @param options.objectIds - Scope search to specific objects
    * @returns The matching objects and a message from the AI
-   * 
+   *
    * @example
    * // Exact match
    * const { objects } = await space.findObjects({ where: { type: 'article' } });
-   * 
+   *
    * @example
    * // Natural language
-   * const { objects, message } = await space.findObjects({ 
-   *   prompt: 'articles about space exploration' 
+   * const { objects, message } = await space.findObjects({
+   *   prompt: 'articles about space exploration'
    * });
-   * 
+   *
    * @example
-   * // Combined - structured + semantic
-   * const { objects } = await space.findObjects({ 
-   *   where: { type: 'article', category: '{{something about food}}' },
+   * // Combined - structured + natural language
+   * const { objects } = await space.findObjects({
+   *   where: { type: 'article' },
    *   prompt: 'published in the last month',
    *   limit: 10
    * });
@@ -352,10 +352,8 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
     const order = options.order ?? 'desc';
 
-    // Check if we need AI (prompt or placeholders in where)
-    const needsAI =
-      options.prompt ||
-      (options.where && JSON.stringify(options.where).includes('{{'));
+    // Check if we need AI (only when prompt is provided)
+    const needsAI = !!options.prompt;
 
     // If no AI needed, filter locally (avoids server round trip)
     if (!needsAI) {
