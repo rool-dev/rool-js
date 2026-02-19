@@ -127,6 +127,57 @@ class RoolImpl {
   }
 
   /**
+   * Delete a space.
+   */
+  deleteSpace(spaceId: string): Promise<void> {
+    return this.#client.deleteSpace(spaceId);
+  }
+
+  /**
+   * Get a value from user storage (sync read from local cache).
+   */
+  getUserStorage<T = unknown>(key: string): T | undefined {
+    return this.#client.getUserStorage<T>(key);
+  }
+
+  /**
+   * Set a value in user storage.
+   * Updates local cache immediately, then syncs to server.
+   */
+  setUserStorage(key: string, value: unknown): void {
+    this.#client.setUserStorage(key, value);
+  }
+
+  /**
+   * Get all user storage data (sync read from local cache).
+   */
+  getAllUserStorage(): Record<string, unknown> {
+    return this.#client.getAllUserStorage();
+  }
+
+  /**
+   * Search for a user by email.
+   */
+  searchUser(email: string) {
+    return this.#client.searchUser(email);
+  }
+
+  /**
+   * Import a space from a zip archive.
+   * Returns a ReactiveSpace with reactive `interactions`.
+   */
+  async importArchive(
+    name: string,
+    archive: Blob,
+    options?: { conversationId?: string }
+  ): Promise<ReactiveSpace> {
+    const space = await this.#client.importArchive(name, archive, options);
+    const reactiveSpace = wrapSpace(space);
+    this.#openSpaces.add(reactiveSpace);
+    return reactiveSpace;
+  }
+
+  /**
    * Get auth user info from JWT token.
    */
   get authUser() {
