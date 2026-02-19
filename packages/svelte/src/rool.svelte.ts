@@ -134,6 +134,13 @@ class RoolImpl {
   }
 
   /**
+   * Get current user profile from server.
+   */
+  getCurrentUser() {
+    return this.#client.getCurrentUser();
+  }
+
+  /**
    * Clean up resources.
    */
   destroy(): void {

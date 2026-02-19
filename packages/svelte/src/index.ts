@@ -17,6 +17,7 @@ export type {
   RoolUserRole,
   ConnectionState,
   ConversationInfo,
+  CurrentUser,
   Interaction,
   FindObjectsOptions,
   PromptOptions,
