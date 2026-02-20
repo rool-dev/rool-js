@@ -196,6 +196,9 @@ importers:
 
   packages/cli/templates/svelte:
     dependencies:
+      '@rool-dev/sdk':
+        specifier: workspace:*
+        version: link:../../../sdk
       '@rool-dev/svelte':
         specifier: workspace:*
         version: link:../../../svelte

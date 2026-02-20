@@ -4,7 +4,7 @@ title: Rool Svelte
 
 Svelte 5 bindings for Rool Spaces. Adds reactive state to the SDK using `$state` runes.
 
-**Requires Svelte 5.** For core concepts (objects, relations, AI placeholders, undo/redo), see the [SDK documentation](/sdk/).
+**Requires Svelte 5.** For core concepts (objects, relations, AI placeholders, undo/redo), see the [SDK documentation](../sdk/README.md).
 
 ## Installation
 
@@ -52,8 +52,10 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.spacesError` | Error from loading spaces |
 | `rool.connectionState` | SSE connection state |
 | `space.interactions` | Conversation interactions (auto-updates) |
+| `collection.objects` | Objects matching a filter (auto-updates) |
+| `collection.loading` | Whether collection is loading |
 
-Everything else passes through to the SDK directly. See the [SDK documentation](/sdk/) for full API details.
+Everything else passes through to the SDK directly. See the [SDK documentation](../sdk/README.md) for full API details.
 
 ## API
 
@@ -132,6 +134,52 @@ space.close();
 {/if}
 ```
 
+### Reactive Collections
+
+Create auto-updating collections of objects filtered by field values:
+
+```svelte
+<script>
+  let space = $state(null);
+  let articles = $state(null);
+
+  async function open(id) {
+    space = await rool.openSpace(id);
+    // Create a reactive collection of all objects where type === 'article'
+    articles = space.collection({ where: { type: 'article' } });
+  }
+</script>
+
+{#if articles}
+  {#if articles.loading}
+    <p>Loading...</p>
+  {:else}
+    {#each articles.objects as article}
+      <div>{article.title}</div>
+    {/each}
+  {/if}
+{/if}
+```
+
+Collections automatically re-fetch when objects matching the filter are created, updated, or deleted. Since the SDK caches objects locally, re-fetches are typically instant (no network round-trip).
+
+```typescript
+// Collection options (same as findObjects, but no AI prompt)
+const articles = space.collection({
+  where: { type: 'article', status: 'published' },
+  order: 'desc',  // by modifiedAt (default)
+  limit: 20,
+});
+
+// Reactive state
+articles.objects   // $state<RoolObject[]>
+articles.loading   // $state<boolean>
+
+// Methods
+articles.refresh() // Manual re-fetch
+articles.close()   // Stop listening for updates
+```
+
 ### Using the SDK
 
 All `RoolSpace` methods and properties are available on `ReactiveSpace`:
@@ -170,7 +218,7 @@ await space.renameConversation('id', 'Research')
 space.getInteractions()
 ```
 
-See the [SDK documentation](/sdk/) for complete API details.
+See the [SDK documentation](../sdk/README.md) for complete API details.
 
 ### Utilities
 
@@ -185,7 +233,7 @@ const id = generateId();
 
 ```typescript
 // Package types
-import type { Rool, ReactiveSpace } from '@rool-dev/svelte';
+import type { Rool, ReactiveSpace, ReactiveCollection, CollectionOptions } from '@rool-dev/svelte';
 
 // Re-exported from @rool-dev/sdk
 import type {
@@ -205,9 +253,8 @@ import type {
 
 ## Examples
 
-- [chat](https://github.com/rool-dev/rool-js/tree/main/examples/chat) — AI chat with persistent conversation history and markdown rendering
-- [flashcards](https://github.com/rool-dev/rool-js/tree/main/examples/flashcards) — Spaced repetition with AI-generated cards
-- [soft-sql](https://github.com/rool-dev/rool-js/tree/main/examples/soft-sql) — SQL-style natural language queries with live tool call progress
+- [soft-sql](../../examples/soft-sql) — SQL-style natural language queries with live tool call progress
+- [flashcards](../../examples/flashcards) — Spaced repetition with AI-generated cards
 
 ## License
 

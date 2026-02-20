@@ -12,7 +12,15 @@ The Rool Console is a perfectly valid replacement for AI tools like ChatGPT or G
 
 Many Rool apps can access the same space. You can create spaces shared between friends, family, your team, or your company.
 
-When you're ready to build your first Rool app, read the [SDK docs](/sdk/) or point your coding agent at them, and you'll have your first app in minutes.
+When you're ready to build your first Rool app, scaffold a new project with the CLI:
+
+```bash
+npm install -g @rool-dev/cli
+rool create --svelte my-app
+cd my-app && npm install && npm run dev
+```
+
+For detailed API documentation, read the [SDK docs](/sdk/) or point your coding agent at them.
 
 ## Demo Apps
 
@@ -47,6 +55,6 @@ Reactive Svelte 5 bindings for the SDK using native runes.
 
 ### CLI
 
-Manage and interact with spaces from the command line.
+Manage and interact with Rool Spaces and Rool Apps from the command line.
 
 [Read CLI Docs](/cli/)
