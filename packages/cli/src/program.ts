@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { VERSION } from './constants.js';
 import { registerChat } from './chat.js';
+import { registerCreate } from './create.js';
 import { registerMedia } from './media.js';
 import { registerSpace } from './space.js';
 import { registerApp } from './app.js';
@@ -16,6 +17,7 @@ export function createProgram(): Command {
     .description('Command-line interface for the Rool platform');
 
   registerChat(program);
+  registerCreate(program);
   registerMedia(program);
   registerSpace(program);
   registerApp(program);
