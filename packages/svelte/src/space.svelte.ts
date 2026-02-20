@@ -1,4 +1,116 @@
-import type { RoolSpace, Interaction } from '@rool-dev/sdk';
+import type { RoolSpace, Interaction, RoolObject, FindObjectsOptions } from '@rool-dev/sdk';
+
+/**
+ * Options for creating a reactive collection.
+ * Same as FindObjectsOptions but without `prompt` (AI queries are too slow for reactive updates).
+ */
+export interface CollectionOptions {
+  /** Field requirements for exact matching */
+  where?: Record<string, unknown>;
+  /** Maximum number of objects */
+  limit?: number;
+  /** Sort order by modifiedAt: 'asc' or 'desc' (default: 'desc') */
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * A reactive collection of objects that auto-updates when matching objects change.
+ */
+class ReactiveCollectionImpl {
+  #space: RoolSpace;
+  #options: CollectionOptions;
+  #unsubscribers: (() => void)[] = [];
+  #currentIds = new Set<string>();
+
+  // Reactive state
+  objects = $state<RoolObject[]>([]);
+  loading = $state(true);
+
+  constructor(space: RoolSpace, options: CollectionOptions) {
+    this.#space = space;
+    this.#options = options;
+    this.#setup();
+  }
+
+  #setup() {
+    // Initial fetch
+    this.refresh();
+
+    // Subscribe to object events
+    const onObjectCreated = ({ object }: { object: RoolObject }) => {
+      if (this.#matches(object)) {
+        this.refresh();
+      }
+    };
+    this.#space.on('objectCreated', onObjectCreated);
+    this.#unsubscribers.push(() => this.#space.off('objectCreated', onObjectCreated));
+
+    const onObjectUpdated = ({ objectId, object }: { objectId: string; object: RoolObject }) => {
+      // Re-fetch if object was in collection OR now matches the filter
+      if (this.#currentIds.has(objectId) || this.#matches(object)) {
+        this.refresh();
+      }
+    };
+    this.#space.on('objectUpdated', onObjectUpdated);
+    this.#unsubscribers.push(() => this.#space.off('objectUpdated', onObjectUpdated));
+
+    const onObjectDeleted = ({ objectId }: { objectId: string }) => {
+      if (this.#currentIds.has(objectId)) {
+        this.refresh();
+      }
+    };
+    this.#space.on('objectDeleted', onObjectDeleted);
+    this.#unsubscribers.push(() => this.#space.off('objectDeleted', onObjectDeleted));
+
+    // Handle full resets
+    const onReset = () => this.refresh();
+    this.#space.on('reset', onReset);
+    this.#unsubscribers.push(() => this.#space.off('reset', onReset));
+  }
+
+  /**
+   * Check if an object matches the `where` filter.
+   */
+  #matches(object: RoolObject): boolean {
+    const where = this.#options.where;
+    if (!where) return true;
+
+    for (const [key, value] of Object.entries(where)) {
+      if (object[key] !== value) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Re-fetch the collection from the space.
+   */
+  async refresh(): Promise<void> {
+    this.loading = true;
+    try {
+      const findOptions: FindObjectsOptions = {
+        where: this.#options.where,
+        limit: this.#options.limit,
+        order: this.#options.order,
+        ephemeral: true, // Don't pollute conversation history
+      };
+      const { objects } = await this.#space.findObjects(findOptions);
+      this.objects = objects;
+      this.#currentIds = new Set(objects.map((o) => o.id));
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  /**
+   * Stop listening for updates and clean up.
+   */
+  close(): void {
+    for (const unsub of this.#unsubscribers) unsub();
+    this.#unsubscribers.length = 0;
+  }
+}
+
+export type ReactiveCollection = ReactiveCollectionImpl;
 
 /**
  * Minimal wrapper that adds reactive `interactions` to RoolSpace.
@@ -104,6 +216,21 @@ class ReactiveSpaceImpl {
   // Events
   on(...args: Parameters<RoolSpace['on']>) { return this.#space.on(...args); }
   off(...args: Parameters<RoolSpace['off']>) { return this.#space.off(...args); }
+
+  // Reactive collections
+  /**
+   * Create a reactive collection that auto-updates when matching objects change.
+   *
+   * @example
+   * const articles = space.collection({ where: { type: 'article' } });
+   * // articles.objects is reactive
+   * // articles.loading indicates fetch status
+   * // articles.refresh() to manually re-fetch
+   * // articles.close() to stop listening
+   */
+  collection(options: CollectionOptions): ReactiveCollection {
+    return new ReactiveCollectionImpl(this.#space, options);
+  }
 
   // Advanced
   rename(...args: Parameters<RoolSpace['rename']>) { return this.#space.rename(...args); }

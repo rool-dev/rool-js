@@ -50,6 +50,8 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.spacesError` | Error from loading spaces |
 | `rool.connectionState` | SSE connection state |
 | `space.interactions` | Conversation interactions (auto-updates) |
+| `collection.objects` | Objects matching a filter (auto-updates) |
+| `collection.loading` | Whether collection is loading |
 
 Everything else passes through to the SDK directly. See the [SDK documentation](../sdk/README.md) for full API details.
 
@@ -130,6 +132,52 @@ space.close();
 {/if}
 ```
 
+### Reactive Collections
+
+Create auto-updating collections of objects filtered by field values:
+
+```svelte
+<script>
+  let space = $state(null);
+  let articles = $state(null);
+
+  async function open(id) {
+    space = await rool.openSpace(id);
+    // Create a reactive collection of all objects where type === 'article'
+    articles = space.collection({ where: { type: 'article' } });
+  }
+</script>
+
+{#if articles}
+  {#if articles.loading}
+    <p>Loading...</p>
+  {:else}
+    {#each articles.objects as article}
+      <div>{article.title}</div>
+    {/each}
+  {/if}
+{/if}
+```
+
+Collections automatically re-fetch when objects matching the filter are created, updated, or deleted. Since the SDK caches objects locally, re-fetches are typically instant (no network round-trip).
+
+```typescript
+// Collection options (same as findObjects, but no AI prompt)
+const articles = space.collection({
+  where: { type: 'article', status: 'published' },
+  order: 'desc',  // by modifiedAt (default)
+  limit: 20,
+});
+
+// Reactive state
+articles.objects   // $state<RoolObject[]>
+articles.loading   // $state<boolean>
+
+// Methods
+articles.refresh() // Manual re-fetch
+articles.close()   // Stop listening for updates
+```
+
 ### Using the SDK
 
 All `RoolSpace` methods and properties are available on `ReactiveSpace`:
@@ -183,7 +231,7 @@ const id = generateId();
 
 ```typescript
 // Package types
-import type { Rool, ReactiveSpace } from '@rool-dev/svelte';
+import type { Rool, ReactiveSpace, ReactiveCollection, CollectionOptions } from '@rool-dev/svelte';
 
 // Re-exported from @rool-dev/sdk
 import type {
