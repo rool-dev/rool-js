@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, type ReactiveSpace, type RoolObject } from '@rool-dev/svelte';
+  import { createRool, type ReactiveSpace, type ReactiveCollection, type RoolObject } from '@rool-dev/svelte';
   import { fly } from 'svelte/transition';
   import { calculateNextReview } from './sm2.js';
   import Icon from '@iconify/svelte';
@@ -10,11 +10,8 @@
   const rool = createRool();
   rool.init();
 
-  interface Topic extends RoolObject {
-    name: string;
-  }
-
   interface Card extends RoolObject {
+    topic: string;
     front: string;
     back: string;
     dueAt?: number;
@@ -25,107 +22,81 @@
 
   // State
   let currentSpace = $state<ReactiveSpace | null>(null);
-  let topics = $state<Topic[]>([]);
-  let cards = $state<Card[]>([]);
-  let selectedTopicId = $state<string | null>(null);
+  let topicsCollection = $state<ReactiveCollection | null>(null);
+  let cardsCollection = $state<ReactiveCollection | null>(null);
+  let selectedTopicName = $state<string | null>(null);
   let isLoading = $state(false);
   let isGenerating = $state(false);
   let newTopicName = $state('');
   let showNewTopicForm = $state(false);
 
-  const SYSTEM_INSTRUCTION = `You are a flashcard generator for spaced repetition learning.
-
-When creating flashcards:
-- front: A clear, specific question that tests understanding (not just recall)
-- back: A focused, accurate answer (1 sentence typically)
-- Create cards that test comprehension, not just memorization
-- Vary question types: definitions, applications, "why" questions, comparisons
-
-When asked to generate cards for a topic, create diverse cards covering different aspects.
-Use this exact structure for each card (with actual content, not placeholders):
-{ type: 'card', front: '...', back: '...', dueAt: 0, interval: 0, easeFactor: 2.5, reviewCount: 0 }`;
-
-  $effect(() => {
-    if (rool.authenticated === false) rool.login('Flashcards');
-  });
-
+  // Derived state
+  let topics = $derived(topicsCollection?.objects ?? []);
+  let cards = $derived((cardsCollection?.objects ?? []) as Card[]);
   let dueCards = $derived.by(() => {
     const now = Date.now();
     return cards
       .filter((c) => !c.dueAt || c.dueAt <= now)
       .sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
   });
-  let currentCard = $derived<Card | undefined>(dueCards[0]);
-  let selectedTopic = $derived(topics.find((t) => t.id === selectedTopicId));
+  let currentCard = $derived(dueCards[0]);
 
-  async function loadTopics() {
-    if (!currentSpace) return;
-    const { objects } = await currentSpace.findObjects({ where: { type: 'topic' } });
-    topics = objects as Topic[];
-  }
+  const SYSTEM_INSTRUCTION = `You are a flashcard generator. Create cards with:
+- front: A clear question testing understanding
+- back: A focused answer (1-2 sentences)
 
-  async function loadCards() {
-    if (!currentSpace || !selectedTopicId) return;
-    const children = await currentSpace.getChildren(selectedTopicId, 'hasCard');
-    cards = children as Card[];
-  }
+Card structure: { type: 'card', topic: '<topic>', front: '...', back: '...', dueAt: 0, interval: 0, easeFactor: 2.5, reviewCount: 0 }`;
 
-  async function setupSpace(space: ReactiveSpace) {
-    await space.renameConversation('flashcards', 'Flashcards');
-    await space.setSystemInstruction(SYSTEM_INSTRUCTION);
-  }
-
-  async function linkCardsToTopic(topicId: string, objects: RoolObject[]) {
-    if (!currentSpace) return;
-    for (const obj of objects.filter((o) => o.type === 'card')) {
-      await currentSpace.link(topicId, 'hasCard', obj.id);
-    }
-  }
-
-  function resetState() {
-    topics = [];
-    cards = [];
-    selectedTopicId = null;
-  }
+  $effect(() => {
+    if (rool.authenticated === false) rool.login('Flashcards');
+  });
 
   async function handleSpaceChange(spaceId: string | null) {
-    if (currentSpace) {
-      currentSpace.close();
+    // Cleanup previous space
+    topicsCollection?.close();
+    cardsCollection?.close();
+    currentSpace?.close();
+    topicsCollection = null;
+    cardsCollection = null;
+    selectedTopicName = null;
+
+    if (!spaceId) {
       currentSpace = null;
-      resetState();
+      return;
     }
-    if (!spaceId) return;
 
     currentSpace = await rool.openSpace(spaceId, { conversationId: 'flashcards' });
-    await setupSpace(currentSpace);
-    await loadTopics();
+    await currentSpace.renameConversation('flashcards', 'Flashcards');
+    await currentSpace.setSystemInstruction(SYSTEM_INSTRUCTION);
+    topicsCollection = currentSpace.collection({ where: { type: 'topic' } });
   }
 
-  async function selectTopic(topicId: string) {
-    selectedTopicId = topicId;
-    cards = [];
-    await loadCards();
+  function selectTopic(topicName: string) {
+    cardsCollection?.close();
+    selectedTopicName = topicName;
+    if (currentSpace) {
+      cardsCollection = currentSpace.collection({ where: { type: 'card', topic: topicName } });
+    }
+  }
+
+  function deselectTopic() {
+    cardsCollection?.close();
+    cardsCollection = null;
+    selectedTopicName = null;
   }
 
   async function createTopic() {
     if (!currentSpace || !newTopicName.trim() || isGenerating) return;
 
+    const topicName = newTopicName.trim();
     isGenerating = true;
     try {
       await currentSpace.checkpoint('Create topic');
-      const { object: topic } = await currentSpace.createObject({
-        data: { type: 'topic', name: newTopicName.trim() }
-      });
-
-      const { objects } = await currentSpace.prompt(
-        `Generate 5 flashcards for learning about "${topic.name}". Create diverse cards covering different aspects of the topic.`,
-        { objectIds: [topic.id] }
+      await currentSpace.createObject({ data: { type: 'topic', name: topicName } });
+      await currentSpace.prompt(
+        `Generate 5 flashcards for "${topicName}". Cover different aspects of the topic.`
       );
-      await linkCardsToTopic(topic.id, objects);
-
-      await loadTopics();
-      selectedTopicId = topic.id;
-      await loadCards();
+      selectTopic(topicName);
       newTopicName = '';
       showNewTopicForm = false;
     } catch (err) {
@@ -136,16 +107,13 @@ Use this exact structure for each card (with actual content, not placeholders):
   }
 
   async function generateMoreCards() {
-    if (!currentSpace || !selectedTopicId || isGenerating) return;
+    if (!currentSpace || !selectedTopicName || isGenerating) return;
 
     isGenerating = true;
     try {
-      const { objects } = await currentSpace.prompt(
-        `Generate 3 more flashcards for "${selectedTopic?.name}". Make them different from any existing cards.`,
-        { objectIds: [selectedTopicId] }
+      await currentSpace.prompt(
+        `Generate 3 more flashcards for "${selectedTopicName}". Make them different from existing cards.`
       );
-      await linkCardsToTopic(selectedTopicId, objects);
-      await loadCards();
     } catch (err) {
       console.error('Failed to generate cards:', err);
     } finally {
@@ -165,7 +133,6 @@ Use this exact structure for each card (with actual content, not placeholders):
       await currentSpace.updateObject(card.id, {
         data: { ...updated, reviewCount: (card.reviewCount ?? 0) + 1 }
       });
-      await loadCards();
     } catch (err) {
       console.error('Failed to update card:', err);
     } finally {
@@ -180,7 +147,6 @@ Use this exact structure for each card (with actual content, not placeholders):
     try {
       await currentSpace.checkpoint('Dismiss card');
       await currentSpace.deleteObjects([currentCard.id]);
-      await loadCards();
     } catch (err) {
       console.error('Failed to dismiss card:', err);
     } finally {
@@ -189,6 +155,67 @@ Use this exact structure for each card (with actual content, not placeholders):
   }
 </script>
 
+<!-- Reusable UI snippets -->
+{#snippet topicList(showSelected: boolean)}
+  {#if topics.length === 0}
+    <p class="text-sm text-slate-400 px-3 py-2">No topics yet</p>
+  {:else}
+    {#each topics as topic}
+      <button
+        class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors
+          {showSelected && selectedTopicName === topic.name
+            ? 'bg-violet-100 text-violet-700 font-medium'
+            : 'text-slate-600 hover:bg-slate-100'}"
+        onclick={() => selectTopic(topic.name as string)}
+      >
+        {topic.name}
+      </button>
+    {/each}
+  {/if}
+{/snippet}
+
+{#snippet newTopicForm(bgClass: string)}
+  {#if isGenerating && showNewTopicForm}
+    <div class="mt-4 p-4 text-center">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-500 mx-auto"></div>
+      <p class="text-sm text-slate-500 mt-2">Creating topic...</p>
+    </div>
+  {:else if showNewTopicForm}
+    <div class="mt-4 p-3 {bgClass} rounded-lg">
+      <input
+        type="text"
+        class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 focus:outline-none"
+        placeholder="Topic name..."
+        bind:value={newTopicName}
+        onkeydown={(e) => e.key === 'Enter' && createTopic()}
+      />
+      <div class="flex gap-2 mt-2">
+        <button
+          class="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-500 rounded-lg hover:bg-violet-600 disabled:opacity-50"
+          onclick={createTopic}
+          disabled={!newTopicName.trim()}
+        >
+          Create
+        </button>
+        <button
+          class="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-lg"
+          onclick={() => { showNewTopicForm = false; newTopicName = ''; }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  {:else}
+    <button
+      class="mt-4 w-full px-3 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
+      onclick={() => showNewTopicForm = true}
+    >
+      + New Topic
+    </button>
+  {/if}
+{/snippet}
+
+<!-- Main UI -->
 {#if !rool.authenticated}
   <div class="min-h-dvh bg-slate-50 flex items-center justify-center">
     <div class="text-center">
@@ -200,90 +227,36 @@ Use this exact structure for each card (with actual content, not placeholders):
   <div class="min-h-dvh bg-slate-50 flex flex-col">
     <Header {rool} {currentSpace} onSpaceChange={handleSpaceChange} />
 
-    <!-- Main content -->
     <main class="flex-1 flex max-w-5xl mx-auto w-full">
       {#if currentSpace}
-        <!-- Sidebar (hidden on mobile) -->
+        <!-- Desktop sidebar -->
         <aside class="hidden md:flex md:w-64 bg-white border-r border-slate-200 p-4 flex-col">
           <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Topics</h2>
           <div class="flex-1 space-y-1 overflow-y-auto">
-            {#if topics.length === 0}
-              <p class="text-sm text-slate-400 px-3 py-2">No topics yet</p>
-            {:else}
-              {#each topics as topic}
-                <button
-                  class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors {selectedTopicId === topic.id ? 'bg-violet-100 text-violet-700 font-medium' : 'text-slate-600 hover:bg-slate-100'}"
-                  onclick={() => selectTopic(topic.id)}
-                >
-                  {topic.name}
-                </button>
-              {/each}
-            {/if}
+            {@render topicList(true)}
           </div>
-
-          <!-- New topic form / generating state -->
-          {#if isGenerating && showNewTopicForm}
-            <div class="mt-4 p-4 text-center">
-              <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-500 mx-auto"></div>
-              <p class="text-sm text-slate-500 mt-2">Creating topic...</p>
-            </div>
-          {:else if showNewTopicForm}
-            <div class="mt-4 p-3 bg-slate-50 rounded-lg">
-              <input
-                type="text"
-                class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 focus:outline-none"
-                placeholder="Topic name..."
-                bind:value={newTopicName}
-                onkeydown={(e) => e.key === 'Enter' && createTopic()}
-              />
-              <div class="flex gap-2 mt-2">
-                <button
-                  class="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-500 rounded-lg hover:bg-violet-600 disabled:opacity-50"
-                  onclick={createTopic}
-                  disabled={!newTopicName.trim()}
-                >
-                  Create
-                </button>
-                <button
-                  class="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-lg"
-                  onclick={() => { showNewTopicForm = false; newTopicName = ''; }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          {:else}
-            <button
-              class="mt-4 w-full px-3 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
-              onclick={() => showNewTopicForm = true}
-            >
-              + New Topic
-            </button>
-          {/if}
+          {@render newTopicForm('bg-slate-50')}
         </aside>
 
-        <!-- Card review area -->
+        <!-- Main content area -->
         <div class="flex-1 p-4 md:p-6 flex flex-col">
-          {#if selectedTopicId}
+          {#if selectedTopicName}
+            <!-- Topic header -->
             <div class="mb-4 flex items-center justify-between gap-2">
               <div class="flex items-center gap-2 min-w-0">
-                <!-- Back button (mobile only) -->
                 <button
                   class="md:hidden p-1.5 -ml-1.5 text-slate-500 hover:text-slate-700"
-                  onclick={() => { selectedTopicId = null; cards = []; }}
+                  onclick={deselectTopic}
                   aria-label="Back to topics"
                 >
                   <Icon icon="mdi:chevron-left" class="w-5 h-5" />
                 </button>
-                <h2 class="text-lg font-semibold text-slate-800 truncate">
-                  {selectedTopic?.name ?? 'Unknown'}
-                </h2>
+                <h2 class="text-lg font-semibold text-slate-800 truncate">{selectedTopicName}</h2>
               </div>
-              <span class="text-sm text-slate-500 shrink-0">
-                {dueCards.length} due
-              </span>
+              <span class="text-sm text-slate-500 shrink-0">{dueCards.length} due</span>
             </div>
 
+            <!-- Card review -->
             {#if isGenerating}
               <div class="flex-1 flex items-center justify-center">
                 <div class="text-center">
@@ -292,21 +265,14 @@ Use this exact structure for each card (with actual content, not placeholders):
                 </div>
               </div>
             {:else if currentCard}
-              <!-- Card display -->
               <div class="flex-1 flex flex-col items-center justify-center">
                 {#key currentCard.id}
                   <div in:fly={{ x: 50, duration: 200 }}>
-                    <FlashcardDisplay
-                      card={currentCard}
-                      {isLoading}
-                      onReview={submitReview}
-                      onDismiss={dismissCard}
-                    />
+                    <FlashcardDisplay card={currentCard} {isLoading} onReview={submitReview} onDismiss={dismissCard} />
                   </div>
                 {/key}
               </div>
             {:else}
-              <!-- No cards due -->
               <div class="flex-1 flex flex-col items-center justify-center text-center">
                 <div class="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mb-6">
                   <Icon icon="mdi:check-circle-outline" class="w-8 h-8 text-violet-500" />
@@ -318,73 +284,23 @@ Use this exact structure for each card (with actual content, not placeholders):
                   onclick={generateMoreCards}
                   disabled={isGenerating}
                 >
-                  {isGenerating ? 'Generating...' : 'Generate more cards'}
+                  Generate more cards
                 </button>
               </div>
             {/if}
           {:else}
-            <!-- No topic selected - show topic list on mobile, placeholder on desktop -->
+            <!-- No topic selected -->
             <div class="flex-1 flex flex-col">
-              <!-- Mobile: Topic list -->
+              <!-- Mobile: topic list -->
               <div class="md:hidden flex-1 flex flex-col">
                 <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Topics</h2>
                 <div class="flex-1 space-y-1 overflow-y-auto">
-                  {#if topics.length === 0}
-                    <p class="text-sm text-slate-400 py-2">No topics yet</p>
-                  {:else}
-                    {#each topics as topic}
-                      <button
-                        class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors text-slate-600 hover:bg-slate-100"
-                        onclick={() => selectTopic(topic.id)}
-                      >
-                        {topic.name}
-                      </button>
-                    {/each}
-                  {/if}
+                  {@render topicList(false)}
                 </div>
-
-                <!-- New topic form (mobile) -->
-                {#if isGenerating && showNewTopicForm}
-                  <div class="mt-4 p-4 text-center">
-                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-500 mx-auto"></div>
-                    <p class="text-sm text-slate-500 mt-2">Creating topic...</p>
-                  </div>
-                {:else if showNewTopicForm}
-                  <div class="mt-4 p-3 bg-slate-100 rounded-lg">
-                    <input
-                      type="text"
-                      class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 focus:outline-none"
-                      placeholder="Topic name..."
-                      bind:value={newTopicName}
-                      onkeydown={(e) => e.key === 'Enter' && createTopic()}
-                    />
-                    <div class="flex gap-2 mt-2">
-                      <button
-                        class="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-500 rounded-lg hover:bg-violet-600 disabled:opacity-50"
-                        onclick={createTopic}
-                        disabled={!newTopicName.trim()}
-                      >
-                        Create
-                      </button>
-                      <button
-                        class="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-lg"
-                        onclick={() => { showNewTopicForm = false; newTopicName = ''; }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                {:else}
-                  <button
-                    class="mt-4 w-full px-3 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
-                    onclick={() => showNewTopicForm = true}
-                  >
-                    + New Topic
-                  </button>
-                {/if}
+                {@render newTopicForm('bg-slate-100')}
               </div>
 
-              <!-- Desktop: Placeholder -->
+              <!-- Desktop: placeholder -->
               <div class="hidden md:flex flex-1 flex-col items-center justify-center text-center">
                 <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-6">
                   <Icon icon="mdi:cards-outline" class="w-8 h-8 text-slate-400" />
@@ -410,4 +326,3 @@ Use this exact structure for each card (with actual content, not placeholders):
     <Footer />
   </div>
 {/if}
-
