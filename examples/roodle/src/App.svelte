@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, type ReactiveSpace, type RoolObject } from '@rool-dev/svelte';
+  import { createRool, type ReactiveSpace, type ReactiveCollection, type RoolObject } from '@rool-dev/svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import { flip } from 'svelte/animate';
@@ -29,12 +29,13 @@
 
   // State
   let currentSpace = $state<ReactiveSpace | null>(null);
-  let event = $state<Event | null>(null);
-  let slots = $state<Slot[]>([]);
+  let eventCollection = $state<ReactiveCollection | null>(null);
+  let slotsCollection = $state<ReactiveCollection | null>(null);
   let messageInput = $state('');
   let isSending = $state(false);
   let isCreatingPlan = $state(false);
   let messagesContainer: HTMLElement | null = $state(null);
+  let showDescription = $state(false);
 
   // Create form state
   let formTitle = $state('');
@@ -43,6 +44,8 @@
   let formDatePrefs = $state('');
 
   // Derived
+  let event = $derived((eventCollection?.objects[0] ?? null) as Event | null);
+  let slots = $derived((slotsCollection?.objects ?? []) as Slot[]);
   let isOrganizer = $derived(currentSpace?.role === 'owner');
   let currentInteractions = $derived(currentSpace?.interactions ?? []);
   let sortedSlots = $derived([...slots].sort((a, b) => a.datetime.localeCompare(b.datetime)));
@@ -83,36 +86,11 @@
     }
   });
 
-  // Real-time sync for slots
+  // Set system instruction when event is available
   $effect(() => {
-    if (!currentSpace) return;
-
-    const unsubCreate = currentSpace.on('objectCreated', ({ object }) => {
-      if ((object as RoolObject).type === 'slot') {
-        slots = [...slots, object as Slot];
-      } else if ((object as RoolObject).type === 'event') {
-        event = object as Event;
-      }
-    });
-
-    const unsubUpdate = currentSpace.on('objectUpdated', ({ objectId, object }) => {
-      if ((object as RoolObject).type === 'slot') {
-        slots = slots.map(s => s.id === objectId ? object as Slot : s);
-      } else if ((object as RoolObject).type === 'event') {
-        event = object as Event;
-      }
-    });
-
-    const unsubDelete = currentSpace.on('objectDeleted', ({ objectId }) => {
-      slots = slots.filter(s => s.id !== objectId);
-      if (event?.id === objectId) event = null;
-    });
-
-    return () => {
-      unsubCreate();
-      unsubUpdate();
-      unsubDelete();
-    };
+    if (currentSpace && event) {
+      currentSpace.setSystemInstruction(buildSystemInstruction(event.title, event.description, event.duration));
+    }
   });
 
   function buildSystemInstruction(title: string, description: string | undefined, duration: string): string {
@@ -143,32 +121,23 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
   }
 
   async function openSpace(spaceId: string) {
+    // Clean up previous collections
+    eventCollection?.close();
+    slotsCollection?.close();
+
     try {
       currentSpace = await rool.openSpace(spaceId, { conversationId: CONVERSATION_ID });
-      await loadEventAndSlots();
+      eventCollection = currentSpace.collection({ where: { type: 'event' }, limit: 1 });
+      slotsCollection = currentSpace.collection({ where: { type: 'slot' } });
     } catch (err) {
       console.error('Failed to open space:', err);
+      currentSpace = null;
+      eventCollection = null;
+      slotsCollection = null;
       // Clear URL if space doesn't exist
       const url = new URL(window.location.href);
       url.searchParams.delete('space');
       history.replaceState(null, '', url.toString());
-    }
-  }
-
-  async function loadEventAndSlots() {
-    if (!currentSpace) return;
-
-    // Load event
-    const { objects: events } = await currentSpace.findObjects({ where: { type: 'event' } });
-    event = (events[0] as Event) ?? null;
-
-    // Load slots
-    const { objects: slotObjects } = await currentSpace.findObjects({ where: { type: 'slot' } });
-    slots = slotObjects as Slot[];
-
-    // Set system instruction if we have an event
-    if (event) {
-      await currentSpace.setSystemInstruction(buildSystemInstruction(event.title, event.description, event.duration));
     }
   }
 
@@ -180,6 +149,10 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
       // Create space
       const space = await rool.createSpace(formTitle.trim(), { conversationId: CONVERSATION_ID });
       currentSpace = space;
+
+      // Set up reactive collections
+      eventCollection = space.collection({ where: { type: 'event' }, limit: 1 });
+      slotsCollection = space.collection({ where: { type: 'slot' } });
 
       // Enable link sharing
       await space.setLinkAccess('editor');
@@ -206,9 +179,6 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
 
       // Update URL
       setSpaceIdInUrl(space.id);
-
-      // Load the created objects
-      await loadEventAndSlots();
     } catch (err) {
       console.error('Failed to create plan:', err);
     } finally {
@@ -419,31 +389,54 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
       {:else}
         <!-- Event info -->
         {#if event}
-          <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
-            <h2 class="text-lg font-semibold text-slate-800">{event.title}</h2>
-            {#if event.description}
-              <p class="text-sm text-slate-500 mt-1">{event.description}</p>
-            {/if}
-            <div class="flex items-center gap-4 mt-2 text-sm text-slate-500">
-              <span class="flex items-center gap-1">
-                <Icon icon="mdi:clock-outline" class="w-4 h-4" />
-                {event.duration}
-              </span>
-              {#if isOrganizer}
-                <span class="flex items-center gap-1 text-amber-600">
-                  <Icon icon="mdi:crown" class="w-4 h-4" />
-                  Organizer
+          <div class="bg-white rounded-xl border border-slate-200 p-2 sm:p-4 mb-2 sm:mb-4 relative">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-sm sm:text-lg font-semibold text-slate-800 truncate">{event.title}</h2>
+              <div class="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-500 shrink-0">
+                {#if event.description}
+                  <button
+                    class="sm:hidden p-1 -m-1 text-slate-400 hover:text-slate-600"
+                    onclick={() => showDescription = !showDescription}
+                    aria-label="Show event details"
+                  >
+                    <Icon icon="mdi:information-outline" class="w-4 h-4" />
+                  </button>
+                {/if}
+                <span class="flex items-center gap-1">
+                  <Icon icon="mdi:clock-outline" class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span class="hidden sm:inline">{event.duration}</span>
+                  <span class="sm:hidden">{event.duration.replace(' hour', 'h').replace(' minutes', 'm')}</span>
                 </span>
-              {/if}
+                {#if isOrganizer}
+                  <span class="flex items-center gap-1 text-amber-600">
+                    <Icon icon="mdi:crown" class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span class="hidden sm:inline">Organizer</span>
+                  </span>
+                {/if}
+              </div>
             </div>
+            {#if event.description}
+              <p class="hidden sm:block text-sm text-slate-500 mt-1">{event.description}</p>
+            {/if}
+            <!-- Mobile tooltip -->
+            {#if showDescription && event.description}
+              <button
+                class="sm:hidden fixed inset-0 z-40"
+                onclick={() => showDescription = false}
+                aria-label="Close tooltip"
+              ></button>
+              <div class="sm:hidden absolute right-2 top-full mt-1 z-50 bg-slate-800 text-white text-xs rounded-lg px-3 py-2 max-w-64 shadow-lg">
+                {event.description}
+              </div>
+            {/if}
           </div>
         {/if}
 
         <!-- Slots -->
         {#if sortedSlots.length > 0}
-          <div class="mb-4">
-            <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Available Times</h3>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="mb-3 sm:mb-4">
+            <h3 class="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2 sm:mb-3">Available Times</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
               {#each sortedSlots as slot (slot.id)}
                 <div
                   in:fly={{ x: 50, duration: 200 }}
@@ -531,18 +524,18 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
           </div>
 
           <!-- Input -->
-          <div class="p-4 border-t border-slate-100">
-            <div class="flex items-end gap-2">
+          <div class="p-2 sm:p-4 border-t border-slate-100">
+            <div class="relative flex items-center">
               <textarea
-                class="flex-1 px-4 py-2 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none min-h-[44px] max-h-32"
-                placeholder="Share your availability or constraints..."
+                class="w-full pl-3 sm:pl-4 pr-10 py-2 text-sm border border-slate-200 rounded-full resize-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none min-h-[40px] max-h-24"
+                placeholder="Your availability..."
                 rows="1"
                 bind:value={messageInput}
                 onkeydown={handleKeydown}
                 disabled={isSending}
               ></textarea>
               <button
-                class="px-4 py-2 h-11 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl hover:from-amber-400 hover:to-orange-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                class="absolute right-3 p-1 text-amber-500 hover:text-amber-600 disabled:text-slate-300 disabled:cursor-not-allowed transition-colors"
                 onclick={sendMessage}
                 disabled={isSending || !messageInput.trim()}
                 aria-label="Send message"
