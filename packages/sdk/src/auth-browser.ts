@@ -2,7 +2,6 @@
 import type { AuthProvider, AuthUser } from './types.js';
 import type { Logger } from './logger.js';
 
-const GCIP_REFRESH_ENDPOINT = 'https://securetoken.googleapis.com/v1/token';
 const REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before expiry
 
 const DEFAULT_STORAGE_PREFIX = 'rool_';
@@ -18,8 +17,6 @@ export interface BrowserAuthConfig {
 export class BrowserAuthProvider implements AuthProvider {
     private config: BrowserAuthConfig;
     private logger: Logger;
-    private apiKey: string | null = null;
-    private apiKeyFetchPromise: Promise<string | null> | null = null;
     private refreshPromise: Promise<boolean> | null = null;
     private refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -199,41 +196,6 @@ export class BrowserAuthProvider implements AuthProvider {
     // Private methods
     // ===========================================================================
 
-    /**
-     * Get the API key, fetching from server if not provided in config.
-     */
-    private async getApiKey(): Promise<string | null> {
-        // Already have it
-        if (this.apiKey) return this.apiKey;
-
-        // Already fetching
-        if (this.apiKeyFetchPromise) return this.apiKeyFetchPromise;
-
-        // Fetch from server
-        this.apiKeyFetchPromise = fetch(`${this.authBaseUrl}/config.json`)
-            .then(async (response) => {
-                if (!response.ok) {
-                    this.logger.warn('[RoolClient] Failed to fetch API key from server');
-                    return null;
-                }
-                const data = await response.json();
-                if (data.apiKey && typeof data.apiKey === 'string') {
-                    this.apiKey = data.apiKey;
-                    return this.apiKey;
-                }
-                return null;
-            })
-            .catch((error) => {
-                this.logger.warn('[RoolClient] Failed to fetch API key:', error);
-                return null;
-            })
-            .finally(() => {
-                this.apiKeyFetchPromise = null;
-            });
-
-        return this.apiKeyFetchPromise;
-    }
-
     private async tryRefreshToken(): Promise<boolean> {
         // Deduplicate concurrent refresh attempts
         if (this.refreshPromise) {
@@ -243,26 +205,13 @@ export class BrowserAuthProvider implements AuthProvider {
         const refreshToken = localStorage.getItem(this.storageKeys.refresh);
         if (!refreshToken) return false;
 
-        // Get API key (from config or server)
-        const apiKey = await this.getApiKey();
-        if (!apiKey) {
-            this.logger.warn('[RoolClient] Cannot refresh token: no API key available');
-            return false;
-        }
-
-        const refreshUrl = new URL(GCIP_REFRESH_ENDPOINT);
-        refreshUrl.searchParams.set('key', apiKey);
-
         this.refreshPromise = (async () => {
             let response: Response;
             try {
-                response = await fetch(refreshUrl.toString(), {
+                response = await fetch(`${this.authBaseUrl}/refresh`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        grant_type: 'refresh_token',
-                        refresh_token: refreshToken,
-                    }),
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: refreshToken }),
                 });
             } catch (error) {
                 // Network error - don't clear tokens, might work next time
@@ -287,12 +236,12 @@ export class BrowserAuthProvider implements AuthProvider {
             // Success - parse and store new tokens
             try {
                 const data = await response.json();
-                const accessToken: string | null = data.id_token ?? data.access_token ?? null;
+                const accessToken: string | null = data.id_token ?? null;
                 const nextRefreshToken: string | null = data.refresh_token ?? refreshToken;
                 const expiresAt = data.expires_in ? Date.now() + data.expires_in * 1000 : NaN;
 
                 if (!accessToken || !Number.isFinite(expiresAt)) {
-                    this.logger.error('[RoolClient] Refresh response missing access token or expires_in');
+                    this.logger.error('[RoolClient] Refresh response missing id_token or expires_in');
                     return false;
                 }
 

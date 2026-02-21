@@ -110,7 +110,7 @@ Examples:
       copyDir(templateDir, targetDir, [
         ['rool-app', packageName],
         ['Rool App', title],
-        ['"@rool-dev/sdk": "workspace:*"', '"@rool-dev/sdk": "^0.1.15"'],
+        ['"@rool-dev/sdk": "workspace:*"', '"@rool-dev/sdk": "^0.1.16"'],
         ['"@rool-dev/svelte": "workspace:*"', '"@rool-dev/svelte": "^0.1.12"'],
       ]);
 

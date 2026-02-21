@@ -8,8 +8,6 @@ import open from 'open';
 import type { AuthProvider, AuthUser } from './types.js';
 import { defaultLogger, type Logger } from './logger.js';
 
-const GCIP_REFRESH_ENDPOINT = 'https://securetoken.googleapis.com/v1/token';
-
 export interface NodeAuthConfig {
     /** Path to store credentials (default: ~/.config/rool/credentials.json) */
     credentialsPath?: string;
@@ -26,7 +24,6 @@ interface StoredCredentials {
 
 export class NodeAuthProvider implements AuthProvider {
     private config: NodeAuthConfig;
-    private apiKey: string | null = null;
     private _authUrl: string | null = null;
     private logger: Logger = defaultLogger;
 
@@ -227,48 +224,19 @@ export class NodeAuthProvider implements AuthProvider {
         }
     }
 
-    private async getApiKey(): Promise<string | null> {
-        if (this.apiKey) return this.apiKey;
-
-        try {
-            const response = await fetch(`${this.authEndpoint}/config.json`);
-            if (!response.ok) return null;
-            const data = await response.json();
-            this.apiKey = data.apiKey;
-            return this.apiKey;
-        } catch {
-            return null;
-        }
-    }
-
     private async refreshToken(creds: StoredCredentials): Promise<string | undefined> {
         if (!creds.refresh_token) return undefined;
 
-        const apiKey = await this.getApiKey();
-        if (!apiKey) {
-            this.logger.warn('[RoolClient] Cannot refresh: API key not found');
-            return undefined;
-        }
-
         try {
-            // Derive referer from auth URL (required for API key restrictions)
-            const referer = new URL(this.authEndpoint).origin;
-            
-            const response = await fetch(`${GCIP_REFRESH_ENDPOINT}?key=${apiKey}`, {
+            const response = await fetch(`${this.authEndpoint}/refresh`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': referer,
-                },
-                body: new URLSearchParams({
-                    grant_type: 'refresh_token',
-                    refresh_token: creds.refresh_token,
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: creds.refresh_token }),
             });
 
             if (!response.ok) {
-                // 400 typically means invalid/expired refresh token - clear credentials
-                if (response.status === 400) {
+                // 400/401 typically means invalid/expired refresh token - clear credentials
+                if (response.status === 400 || response.status === 401) {
                     this.logger.warn('[RoolClient] Refresh token expired or invalid. Please login again.');
                     this.logout();
                 } else {
@@ -280,7 +248,7 @@ export class NodeAuthProvider implements AuthProvider {
             const data = await response.json();
 
             const newCreds: StoredCredentials = {
-                access_token: data.id_token || data.access_token,
+                access_token: data.id_token,
                 refresh_token: data.refresh_token || creds.refresh_token,
                 expires_at: Date.now() + (Number(data.expires_in) * 1000),
             };
