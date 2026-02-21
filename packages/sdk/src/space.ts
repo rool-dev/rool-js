@@ -75,6 +75,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   private _userId: string;
   private _conversationId: string;
   private _data: RoolSpaceData;
+  private _closed: boolean = false;
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
   private subscriptionManager: SpaceSubscriptionManager;
@@ -228,6 +229,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * Stops real-time subscription and unregisters from client.
    */
   close(): void {
+    this._closed = true;
     this.subscriptionManager.destroy();
     this.onCloseCallback(this._id);
     this.removeAllListeners();
@@ -1092,6 +1094,9 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * @internal
    */
   private handleSpaceEvent(event: SpaceEvent): void {
+    // Ignore events after close - the space is being torn down
+    if (this._closed) return;
+
     switch (event.type) {
       case 'space_patched':
         if (event.patch) {
@@ -1284,6 +1289,8 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     this.logger.warn('[RoolSpace] Resyncing from server after sync failure');
     try {
       const { data } = await this.graphqlClient.getSpace(this._id);
+      // Check again after await - space might have been closed during fetch
+      if (this._closed) return;
       this._data = data;
       // Clear history is now async but we don't need to wait for it during resync
       // (it's a server-side cleanup that can happen in background)
@@ -1293,6 +1300,8 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       this.emit('syncError', originalError ?? new Error('Sync failed'));
       this.emit('reset', { source: 'system' });
     } catch (error) {
+      // If space was closed during fetch, don't log error - expected during teardown
+      if (this._closed) return;
       this.logger.error('[RoolSpace] Failed to resync from server:', error);
       // Still emit syncError with the original error
       this.emit('syncError', originalError ?? new Error('Sync failed'));

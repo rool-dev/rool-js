@@ -50,7 +50,7 @@
 
     isLoading = true;
     try {
-      const result = await currentSpace.prompt(query.trim(), { readOnly });
+      const result = await currentSpace.prompt(query.trim(), { readOnly, ephemeral: true });
       output = result.message ?? '';
     } catch (err) {
       output = `Error: ${err instanceof Error ? err.message : String(err)}`;
