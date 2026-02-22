@@ -10,7 +10,6 @@ export interface BrowserAuthConfig {
     /** Auth service URL (e.g. https://api.dev.rool.dev/auth) */
     authUrl: string;
     logger: Logger;
-    storagePrefix?: string;
     onAuthStateChanged: (authenticated: boolean) => void;
 }
 
@@ -20,8 +19,28 @@ export class BrowserAuthProvider implements AuthProvider {
     private refreshPromise: Promise<boolean> | null = null;
     private refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+    /**
+     * Get a short hash of the auth URL for scoping storage by endpoint.
+     */
+    private get endpointHash(): string {
+        const url = this.authBaseUrl;
+        // Simple djb2 hash
+        let hash = 5381;
+        for (let i = 0; i < url.length; i++) {
+            hash = ((hash << 5) + hash) ^ url.charCodeAt(i);
+        }
+        return (hash >>> 0).toString(16).padStart(8, '0');
+    }
+
+    /**
+     * Get the storage prefix, incorporating endpoint hash.
+     */
+    private get storagePrefix(): string {
+        return `${DEFAULT_STORAGE_PREFIX}${this.endpointHash}_`;
+    }
+
     private get storageKeys() {
-        const prefix = this.config.storagePrefix ?? DEFAULT_STORAGE_PREFIX;
+        const prefix = this.storagePrefix;
         return {
             access: `${prefix}access_token`,
             refresh: `${prefix}refresh_token`,
@@ -172,7 +191,7 @@ export class BrowserAuthProvider implements AuthProvider {
      */
     getStorage(): Record<string, unknown> | null {
         try {
-            const key = `${this.config.storagePrefix ?? DEFAULT_STORAGE_PREFIX}user_storage`;
+            const key = `${this.storagePrefix}user_storage`;
             const data = localStorage.getItem(key);
             return data ? JSON.parse(data) : null;
         } catch {
@@ -185,7 +204,7 @@ export class BrowserAuthProvider implements AuthProvider {
      */
     setStorage(data: Record<string, unknown>): void {
         try {
-            const key = `${this.config.storagePrefix ?? DEFAULT_STORAGE_PREFIX}user_storage`;
+            const key = `${this.storagePrefix}user_storage`;
             localStorage.setItem(key, JSON.stringify(data));
         } catch {
             // Ignore localStorage errors
