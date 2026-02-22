@@ -103,6 +103,15 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.authManager.initialize();
     const authenticated = await this.isAuthenticated();
     if (authenticated) {
+      // Sync storage from server (replaces potentially stale localStorage cache)
+      try {
+        const user = await this.getCurrentUser();
+        this._storageCache = user.storage ?? {};
+        this.saveStorageCache();
+      } catch (error) {
+        // Non-fatal: proceed with cached storage, SSE will sync changes
+        this.logger.warn('[RoolClient] Failed to sync user storage:', error);
+      }
       await this.ensureSubscribed();
     }
     return authenticated;

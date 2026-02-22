@@ -468,19 +468,23 @@ const client = new RoolClient({
 Server-side key-value storage for user preferences, UI state, and other persistent data. Replaces browser localStorage with cross-device, server-synced storage.
 
 **Features:**
-- Sync reads from local cache (available immediately, even before auth)
+- Fresh data fetched from server on `initialize()` — cache is authoritative after init
+- Sync reads from local cache (fast, no network round-trip)
 - Automatic sync to server and across tabs/devices via SSE
 - `userStorageChanged` event fires on all changes (local or remote)
 - Total storage limited to 10MB per user
 
 | Method | Description |
 |--------|-------------|
-| `getUserStorage<T>(key): T \| undefined` | Get a value (sync, from local cache) |
+| `getUserStorage<T>(key): T \| undefined` | Get a value (sync, from cache) |
 | `setUserStorage(key, value): void` | Set a value (updates cache, syncs to server) |
-| `getAllUserStorage(): Record<string, unknown>` | Get all stored data (sync, from local cache) |
+| `getAllUserStorage(): Record<string, unknown>` | Get all stored data (sync, from cache) |
 
 ```typescript
-// Sync read at startup (before auth completes)
+// After initialize(), storage is fresh from server
+const authenticated = await client.initialize();
+
+// Sync reads are now trustworthy
 const theme = client.getUserStorage<string>('theme');
 applyTheme(theme ?? 'light');
 
@@ -491,8 +495,7 @@ client.setUserStorage('sidebar', { collapsed: true, width: 280 });
 // Delete a key
 client.setUserStorage('theme', null);
 
-// The cache may be stale from a previous session — listen for updates
-// to apply fresh values once sync completes (or when other tabs/devices change values)
+// Listen for changes from other tabs/devices
 client.on('userStorageChanged', ({ key, value, source }) => {
   // source: 'local' (this client) or 'remote' (server/other client)
   if (key === 'theme') applyTheme(value as string);
