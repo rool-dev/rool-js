@@ -4,6 +4,7 @@
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';
   import Footer from './Footer.svelte';
+  import EffortSelector, { type PromptEffort } from './EffortSelector.svelte';
 
   const rool = createRool();
   rool.init();
@@ -14,9 +15,17 @@
   let selectedConversationId = $state<string | null>(null);
   let isSending = $state(false);
   let messageInput = $state('');
+  let effort = $state<PromptEffort>('STANDARD');
   let messagesContainer: HTMLElement | null = $state(null);
+  let inputElement: HTMLTextAreaElement | null = $state(null);
   let editingConversationId = $state<string | null>(null);
   let editingName = $state('');
+
+  function resizeTextarea() {
+    if (!inputElement) return;
+    inputElement.style.height = 'auto';
+    inputElement.style.height = Math.min(inputElement.scrollHeight, 250) + 'px';
+  }
 
   // Derived state
   let currentInteractions = $derived(currentSpace?.interactions ?? []);
@@ -132,7 +141,10 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // On touch devices (coarse pointer), don't submit on Enter - no easy Shift access
+    // On devices with fine pointer (mouse/trackpad), Enter submits (Shift+Enter for newline)
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
       e.preventDefault();
       sendMessage();
     }
@@ -148,10 +160,12 @@
 
     const text = messageInput.trim();
     messageInput = '';
+    resizeTextarea();
     isSending = true;
 
     try {
-      await currentSpace.prompt(text);
+      const effortOption = effort === 'STANDARD' ? undefined : effort;
+      await currentSpace.prompt(text, { effort: effortOption });
     } catch (err) {
       console.error('Failed to send message:', err);
     } finally {
@@ -229,7 +243,7 @@
         </aside>
 
         <!-- Chat area -->
-        <div class="flex-1 flex flex-col min-h-0">
+        <div class="flex-1 flex flex-col min-h-0 relative">
           {#if selectedConversationId}
             <!-- Mobile header with back button -->
             <div class="flex items-center gap-2 p-4 border-b border-slate-200 bg-white md:hidden">
@@ -246,7 +260,7 @@
             </div>
 
             <!-- Messages -->
-            <div class="flex-1 overflow-auto min-h-0 p-4 space-y-4" bind:this={messagesContainer}>
+            <div class="flex-1 overflow-auto min-h-0 p-4 pb-24 space-y-4" bind:this={messagesContainer}>
               {#if currentInteractions.length === 0}
                 <div class="flex-1 flex flex-col items-center justify-center h-full text-center">
                   <div class="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-6">
@@ -266,33 +280,27 @@
 
                   <!-- Assistant response -->
                   {#if interaction.output}
-                    <div class="flex justify-start">
-                      <div class="max-w-[80%] bg-white border border-slate-200 rounded-2xl rounded-bl-md px-4 py-2 shadow-sm">
-                        <div class="markdown-output text-sm text-slate-700">
-                          <SvelteMarkdown source={interaction.output} />
-                        </div>
-                      </div>
+                    <div class="markdown-output text-sm text-slate-700">
+                      <SvelteMarkdown source={interaction.output} />
                     </div>
                   {:else}
                     <!-- Loading state -->
-                    <div class="flex justify-start">
-                      <div class="max-w-[80%] bg-white border border-slate-200 rounded-2xl rounded-bl-md px-4 py-2 shadow-sm">
-                        {#if interaction.toolCalls && interaction.toolCalls.length > 0}
-                          <div class="space-y-1">
-                            {#each interaction.toolCalls as toolCall}
-                              <div class="flex items-center gap-2 text-sm text-slate-500">
-                                <Icon icon="mdi:chevron-right" class="w-4 h-4 text-indigo-500" />
-                                <span class="font-mono text-xs">{toolCall.name}</span>
-                              </div>
-                            {/each}
-                          </div>
-                        {:else}
-                          <div class="flex items-center gap-2 text-slate-400">
-                            <Icon icon="mdi:loading" class="w-4 h-4 animate-spin" />
-                            <span class="text-sm">Thinking...</span>
-                          </div>
-                        {/if}
-                      </div>
+                    <div class="text-slate-400">
+                      {#if interaction.toolCalls && interaction.toolCalls.length > 0}
+                        <div class="space-y-1">
+                          {#each interaction.toolCalls as toolCall}
+                            <div class="flex items-center gap-2 text-sm text-slate-500">
+                              <Icon icon="mdi:chevron-right" class="w-4 h-4 text-indigo-500" />
+                              <span class="font-mono text-xs">{toolCall.name}</span>
+                            </div>
+                          {/each}
+                        </div>
+                      {:else}
+                        <div class="flex items-center gap-2">
+                          <Icon icon="mdi:loading" class="w-4 h-4 animate-spin" />
+                          <span class="text-sm">Thinking...</span>
+                        </div>
+                      {/if}
                     </div>
                   {/if}
                 {/each}
@@ -300,18 +308,21 @@
             </div>
 
             <!-- Input area -->
-            <div class="p-4 border-t border-slate-200 bg-white">
-              <div class="flex items-end gap-2">
+            <div class="absolute bottom-0 left-0 right-0 p-4">
+              <div class="flex items-end gap-1 bg-white rounded-3xl px-2 py-2 border border-slate-200 shadow-sm focus-within:border-indigo-400 transition-colors">
+                <EffortSelector bind:value={effort} />
                 <textarea
-                  class="flex-1 px-4 py-2 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none min-h-[44px] max-h-32"
+                  bind:this={inputElement}
+                  class="flex-1 bg-transparent outline-none placeholder:text-slate-400 resize-none overflow-y-auto leading-6 py-1 input-scrollbar"
                   placeholder="Type a message..."
                   rows="1"
                   bind:value={messageInput}
                   onkeydown={handleKeydown}
+                  oninput={resizeTextarea}
                   disabled={isSending}
                 ></textarea>
                 <button
-                  class="px-4 py-2 h-11 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-blue-500 rounded-xl hover:from-indigo-400 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  class="p-1.5 rounded-full text-slate-500 hover:text-indigo-500 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 transition-colors"
                   onclick={sendMessage}
                   disabled={isSending || !messageInput.trim()}
                   aria-label="Send message"
@@ -319,7 +330,7 @@
                   {#if isSending}
                     <Icon icon="mdi:loading" class="w-5 h-5 animate-spin" />
                   {:else}
-                    <Icon icon="mdi:send" class="w-5 h-5" />
+                    <Icon icon="mdi:arrow-up" class="w-5 h-5" />
                   {/if}
                 </button>
               </div>
@@ -465,5 +476,23 @@
 
   .markdown-output :global(th) {
     @apply bg-slate-50 font-semibold;
+  }
+
+  .input-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  .input-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .input-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .input-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 2px;
   }
 </style>
