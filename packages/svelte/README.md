@@ -49,6 +49,7 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.spacesLoading` | Whether spaces are loading |
 | `rool.spacesError` | Error from loading spaces |
 | `rool.connectionState` | SSE connection state |
+| `rool.userStorage` | User storage (cross-device preferences) |
 | `space.interactions` | Conversation interactions (auto-updates) |
 | `collection.objects` | Objects matching a filter (auto-updates) |
 | `collection.loading` | Whether collection is loading |
@@ -78,6 +79,7 @@ rool.destroy();           // Clean up all resources
   // rool.spacesLoading    → boolean
   // rool.spacesError      → Error | null
   // rool.connectionState  → 'connected' | 'disconnected' | 'reconnecting'
+  // rool.userStorage      → Record<string, unknown>
 </script>
 
 {#if rool.spacesLoading}
@@ -89,6 +91,31 @@ rool.destroy();           // Clean up all resources
     <div>{space.name}</div>
   {/each}
 {/if}
+```
+
+### User Storage
+
+Reactive cross-device storage for user preferences. Synced from server on `init()`, then kept up-to-date via SSE.
+
+```svelte
+<script>
+  const rool = createRool();
+  rool.init();
+</script>
+
+<!-- Reactive binding to storage values -->
+{#if rool.userStorage.onboarding_complete}
+  <Dashboard />
+{:else}
+  <Onboarding onstep={(step) => rool.setUserStorage('onboarding_step', step)} />
+{/if}
+
+<!-- Theme toggle -->
+<button onclick={() => rool.setUserStorage('theme',
+  rool.userStorage.theme === 'dark' ? 'light' : 'dark'
+)}>
+  Toggle theme
+</button>
 ```
 
 ### Opening Spaces

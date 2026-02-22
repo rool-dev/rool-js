@@ -16,6 +16,8 @@
   let showActionsMenu = $state(false);
   let isCreating = $state(false);
 
+  const STORAGE_KEY = 'flashcards:lastSpaceId';
+
   // URL query param sync
   function getSpaceIdFromUrl(): string | null {
     const params = new URLSearchParams(window.location.search);
@@ -32,14 +34,22 @@
     history.replaceState(null, '', url.toString());
   }
 
-  let initialSpaceId = getSpaceIdFromUrl();
+  // Get initial space: URL param first, then user storage
+  function getInitialSpaceId(): string | null {
+    return getSpaceIdFromUrl() ?? (rool.userStorage[STORAGE_KEY] as string | undefined) ?? null;
+  }
 
-  // Auto-open space from URL param once authenticated
+  let initialSpaceId: string | null = null;
+  let hasTriedInitialSpace = false;
+
+  // Auto-open space from URL param or user storage once authenticated
   $effect(() => {
-    if (initialSpaceId && rool.authenticated && !currentSpace) {
-      const spaceId = initialSpaceId;
-      initialSpaceId = null;
-      openSpace(spaceId);
+    if (rool.authenticated && !currentSpace && !hasTriedInitialSpace) {
+      const spaceId = getInitialSpaceId();
+      if (spaceId) {
+        hasTriedInitialSpace = true;
+        openSpace(spaceId);
+      }
     }
   });
 
@@ -47,6 +57,7 @@
     try {
       await onSpaceChange(spaceId);
       updateUrlSpaceId(spaceId);
+      rool.setUserStorage(STORAGE_KEY, spaceId);
     } catch {
       updateUrlSpaceId(null);
     }
@@ -54,6 +65,7 @@
 
   function selectSpace(spaceId: string) {
     updateUrlSpaceId(spaceId);
+    rool.setUserStorage(STORAGE_KEY, spaceId);
     onSpaceChange(spaceId);
   }
 

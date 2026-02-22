@@ -7,6 +7,7 @@ import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
  * Provides:
  * - Reactive auth state (`authenticated`)
  * - Reactive spaces list (`spaces`)
+ * - Reactive user storage (`userStorage`)
  * - Direct access to SDK spaces (no wrapper abstraction)
  */
 class RoolImpl {
@@ -20,6 +21,7 @@ class RoolImpl {
   spacesLoading = $state(false);
   spacesError = $state<Error | null>(null);
   connectionState = $state<ConnectionState>('disconnected');
+  userStorage = $state<Record<string, unknown>>({});
 
   constructor(config?: RoolClientConfig) {
     this.#client = new RoolClient(config);
@@ -55,6 +57,17 @@ class RoolImpl {
     const onSpaceRenamed = () => this.#refreshSpaces();
     this.#client.on('spaceRenamed', onSpaceRenamed);
     this.#unsubscribers.push(() => this.#client.off('spaceRenamed', onSpaceRenamed));
+
+    const onUserStorageChanged = ({ key, value }: { key: string; value: unknown }) => {
+      if (value === null || value === undefined) {
+        const { [key]: _, ...rest } = this.userStorage;
+        this.userStorage = rest;
+      } else {
+        this.userStorage = { ...this.userStorage, [key]: value };
+      }
+    };
+    this.#client.on('userStorageChanged', onUserStorageChanged);
+    this.#unsubscribers.push(() => this.#client.off('userStorageChanged', onUserStorageChanged));
   }
 
   async #refreshSpaces() {
@@ -76,6 +89,8 @@ class RoolImpl {
   async init(): Promise<boolean> {
     this.authenticated = await this.#client.initialize();
     if (this.authenticated) {
+      // Populate reactive storage from SDK cache (now fresh from server)
+      this.userStorage = this.#client.getAllUserStorage();
       await this.#refreshSpaces();
     }
     return this.authenticated;
@@ -134,25 +149,12 @@ class RoolImpl {
   }
 
   /**
-   * Get a value from user storage (sync read from local cache).
-   */
-  getUserStorage<T = unknown>(key: string): T | undefined {
-    return this.#client.getUserStorage<T>(key);
-  }
-
-  /**
    * Set a value in user storage.
-   * Updates local cache immediately, then syncs to server.
+   * Updates reactive state immediately, then syncs to server.
    */
   setUserStorage(key: string, value: unknown): void {
     this.#client.setUserStorage(key, value);
-  }
-
-  /**
-   * Get all user storage data (sync read from local cache).
-   */
-  getAllUserStorage(): Record<string, unknown> {
-    return this.#client.getAllUserStorage();
+    // Reactive state updated via userStorageChanged event
   }
 
   /**
