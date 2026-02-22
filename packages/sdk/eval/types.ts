@@ -40,16 +40,16 @@ export interface TestCaseResults {
   medianDurationMs: number;
 }
 
+export type Environment = 'local' | 'dev' | 'prod';
+
 /**
  * Runner configuration.
  */
 export interface RunnerConfig {
-  /** Target server URL (default: http://localhost:1357) */
-  targetUrl?: string;
-  /** Auth server URL (default: https://api.dev.rool.dev) */
-  authUrl?: string;
+  /** Target environment (default: local) */
+  env?: Environment;
   /** Number of times to run each case (default: 1) */
   runs?: number;
-  /** Number of parallel workers (default: 10) */
+  /** Number of parallel workers (default: 25) */
   workers?: number;
 }

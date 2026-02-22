@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { EvalRunner } from './runner.js';
-import type { TestCase } from './types.js';
+import type { TestCase, Environment } from './types.js';
 
 // Import test cases
 import { testCase as haikuPrompt } from './cases/haiku-prompt.js';
@@ -43,13 +43,14 @@ const cases: Record<string, TestCase> = {
 function parseArgs() {
   const args = process.argv.slice(2);
   const config: {
+    env: Environment;
     runs: number;
     workers: number;
     include: string[];
-    targetUrl?: string;
     clear?: string;
     clearOnly?: string;
   } = {
+    env: 'local',
     runs: 1,
     workers: 25,
     include: [],
@@ -58,17 +59,27 @@ function parseArgs() {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
+      case '-e':
+      case '--env': {
+        const env = args[++i];
+        if (env !== 'local' && env !== 'dev' && env !== 'prod') {
+          console.error(`Invalid environment: ${env}. Must be local, dev, or prod.`);
+          process.exit(1);
+        }
+        config.env = env;
+        break;
+      }
+      case '-r':
       case '--runs':
         config.runs = parseInt(args[++i], 10);
         break;
+      case '-w':
       case '--workers':
-        config.workers = parseInt(args[++i], 25);
+        config.workers = parseInt(args[++i], 10);
         break;
+      case '-i':
       case '--include':
         config.include.push(args[++i]);
-        break;
-      case '--target':
-        config.targetUrl = args[++i];
         break;
       case '--clear':
         config.clear = args[++i];
@@ -83,19 +94,20 @@ function parseArgs() {
         }
         process.exit(0);
         break;
+      case '-h':
       case '--help':
         console.log(`
-Usage: eval [options]
+Usage: pnpm eval [options]
 
 Options:
-  --runs <n>         Number of times to run each case (default: 1)
-  --workers <n>      Number of parallel workers (default: 25)
-  --include <pat>    Only run cases matching pattern (can be repeated)
-  --target <url>     Target server URL (default: ROOL_TARGET_URL or http://localhost:1357)
-  --clear <prefix>   Clear spaces starting with prefix before running
-  --clear-only <prefix>  Clear spaces starting with prefix and exit
-  --list             List available cases and exit
-  --help             Show this help
+  -e, --env <local|dev|prod>  Target environment (default: local)
+  -w, --workers <n>           Number of concurrent workers (default: 25)
+  -r, --runs <n>              Number of runs per case (default: 1)
+  -i, --include <pattern>     Only run cases matching pattern (can be repeated)
+  --clear <prefix>            Clear spaces starting with prefix before running
+  --clear-only <prefix>       Clear spaces starting with prefix and exit
+  --list                      List available cases and exit
+  -h, --help                  Show this help
 `);
         process.exit(0);
     }
@@ -124,9 +136,9 @@ async function main() {
   }
 
   const runner = new EvalRunner({
+    env: args.env,
     runs: args.runs,
     workers: args.workers,
-    targetUrl: args.targetUrl,
   });
 
   try {
