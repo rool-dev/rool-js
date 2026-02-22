@@ -1,9 +1,11 @@
 <script lang="ts">
   import { createRool, type ReactiveSpace } from '@rool-dev/svelte';
+  import type { PromptEffort } from './EffortSelector.svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';
   import Footer from './Footer.svelte';
+  import EffortSelector from './EffortSelector.svelte';
 
   const rool = createRool();
   rool.init();
@@ -13,10 +15,15 @@
   let output = $state('');
   let isLoading = $state(false);
   let readOnly = $state(true);
+  let effort = $state<PromptEffort>('STANDARD');
 
   const CONVERSATION_ID = 'soft-sql';
   const CONVERSATION_NAME = 'Soft SQL';
-  const SYSTEM_INSTRUCTION = `Behave like an intelligent SQL interpreter. Respond with simple markdown tables. Translate the objects in the space to the implied structure in your responses.`;
+  const SYSTEM_INSTRUCTION = `Behave like an intelligent SQL interpreter. Respond with simple markdown tables. Translate the objects in the space to the implied structure in your responses.
+
+Only modify the space when the user explicitly uses mutation keywords (INSERT, UPDATE, DELETE, CREATE, DROP, ALTER and similar). For SELECT and other read operations, just return results.
+
+If read-only mode is enabled and the user requests a mutation, respond with a relevant error message`;
 
   // Auto-redirect to login when not authenticated
   $effect(() => {
@@ -50,7 +57,8 @@
 
     isLoading = true;
     try {
-      const result = await currentSpace.prompt(query.trim(), { readOnly, ephemeral: true });
+      const effortOption = effort === 'STANDARD' ? undefined : effort;
+      const result = await currentSpace.prompt(query.trim(), { readOnly, effort: effortOption, ephemeral: true });
       output = result.message ?? '';
     } catch (err) {
       output = `Error: ${err instanceof Error ? err.message : String(err)}`;
@@ -84,7 +92,7 @@
       {#if currentSpace}
         <!-- Query input -->
         <div class="p-2">
-          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible">
             <textarea
               class="w-full px-4 py-3 font-mono text-sm text-slate-800 placeholder:text-slate-400 resize-none focus:outline-none min-h-[80px]"
               bind:value={query}
@@ -93,19 +101,22 @@
               disabled={isLoading}
             ></textarea>
             <div class="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-100">
-              <label class="flex items-center gap-2 cursor-pointer select-none group">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={readOnly}
-                  aria-label="Read-only mode"
-                  onclick={() => readOnly = !readOnly}
-                  class="relative w-9 h-5 rounded-full transition-colors duration-200 {readOnly ? 'bg-emerald-500' : 'bg-slate-300'}"
-                >
-                  <span class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 {readOnly ? 'translate-x-4' : 'translate-x-0'}"></span>
-                </button>
-                <span class="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">Read-only</span>
-              </label>
+              <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer select-none group">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={readOnly}
+                    aria-label="Read-only mode"
+                    onclick={() => readOnly = !readOnly}
+                    class="relative w-9 h-5 rounded-full transition-colors duration-200 {readOnly ? 'bg-emerald-500' : 'bg-slate-300'}"
+                  >
+                    <span class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 {readOnly ? 'translate-x-4' : 'translate-x-0'}"></span>
+                  </button>
+                  <span class="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">Read-only</span>
+                </label>
+                <EffortSelector bind:value={effort} />
+              </div>
               <button
                 class="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-lg hover:from-emerald-400 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-emerald-500 disabled:hover:to-cyan-500 transition-all duration-200 shadow-sm"
                 onclick={submitQuery}
