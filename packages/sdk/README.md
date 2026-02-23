@@ -112,8 +112,7 @@ await space.createObject({
     type: 'article',
     headline: '{{catchy headline about coffee}}',
     body: '{{informative paragraph}}'
-  },
-  prompt: 'Write about specialty coffee brewing'
+  }
 });
 
 // Update existing content with AI
@@ -571,14 +570,19 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 | `updateObject(objectId, options): Promise<{ object, message }>` | Update an existing object. Returns the updated object and message. |
 | `deleteObjects(objectIds): Promise<void>` | Delete objects. Outbound links are removed automatically. |
 
-#### createObject / updateObject Options
-
-Both methods accept an options object:
+#### createObject Options
 
 | Option | Description |
 |--------|-------------|
-| `data` | Object data fields (any key-value pairs). Include `id` to use a custom ID (createObject only). Use `{{placeholder}}` for AI-generated content. Using `null`/`undefined` deletes a field. Fields prefixed with `_` are hidden from AI. Optional for both methods. |
-| `prompt` | Natural language instruction for AI to generate or modify content. |
+| `data` | Object data fields (required). Include `id` to use a custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
+| `ephemeral` | If true, the operation won't be recorded in conversation history. Useful for transient operations. |
+
+#### updateObject Options
+
+| Option | Description |
+|--------|-------------|
+| `data` | Fields to add or update. Pass `null`/`undefined` to delete a field. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
+| `prompt` | Natural language instruction for AI to modify content. |
 | `ephemeral` | If true, the operation won't be recorded in conversation history. Useful for transient operations. |
 
 #### findObjects Options

@@ -351,18 +351,16 @@ export class GraphQLClient {
     spaceId: string,
     data: Record<string, unknown>,
     conversationId: string,
-    prompt?: string,
     ephemeral?: boolean,
   ): Promise<string> {
     const mutation = `
-      mutation CreateObject($spaceId: String!, $data: String!, $prompt: String, $conversationId: String!, $ephemeral: Boolean) {
-        createObject(spaceId: $spaceId, data: $data, prompt: $prompt, conversationId: $conversationId, ephemeral: $ephemeral)
+      mutation CreateObject($spaceId: String!, $data: String!, $conversationId: String!, $ephemeral: Boolean) {
+        createObject(spaceId: $spaceId, data: $data, conversationId: $conversationId, ephemeral: $ephemeral)
       }
     `;
     const result = await this.request<{ createObject: string }>(mutation, {
       spaceId,
       data: JSON.stringify(data),
-      prompt,
       conversationId,
       ephemeral,
     });

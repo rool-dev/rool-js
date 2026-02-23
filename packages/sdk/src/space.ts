@@ -427,12 +427,11 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   /**
    * Create a new object with optional AI generation.
    * @param options.data - Object data fields (any key-value pairs). Optionally include `id` to use a custom ID. Use {{placeholder}} for AI-generated content. Fields prefixed with _ are hidden from AI.
-   * @param options.prompt - AI prompt for content generation (optional).
    * @param options.ephemeral - If true, the operation won't be recorded in conversation history.
    * @returns The created object (with AI-filled content) and message
    */
   async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    const { data = {}, prompt, ephemeral } = options;
+    const { data, ephemeral } = options;
 
     // Use data.id if provided (string), otherwise generate
     const objectId = typeof data.id === 'string' ? data.id : generateEntityId();
@@ -464,7 +463,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
     // Await server call (may trigger AI processing that updates local state via patches)
     try {
-      const message = await this.graphqlClient.createObject(this.id, dataWithId, this._conversationId, prompt, ephemeral);
+      const message = await this.graphqlClient.createObject(this.id, dataWithId, this._conversationId, ephemeral);
       // Return current state (may have been updated by AI patches)
       return { object: this._data.objects[objectId].data, message };
     } catch (error) {
