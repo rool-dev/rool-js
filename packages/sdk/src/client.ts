@@ -348,7 +348,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Publish an app. The app will be accessible at:
-   * https://rool.app/{user_slug}/{appId}/
+   * https://use.rool.app/{appId}/
    *
    * @param appId - URL-safe identifier (alphanumeric, hyphens, underscores)
    * @param options - App name, bundle (zip file), and optional SPA flag
