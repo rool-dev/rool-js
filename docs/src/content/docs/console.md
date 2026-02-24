@@ -1,5 +1,6 @@
 ---
 title: Rool Console
+description: Web application for managing Rool Spaces. Chat with your spaces, organize information, and manage access.
 ---
 
 The Rool Console is a web application for managing your spaces directly.
@@ -12,5 +13,3 @@ The Rool Console is a web application for managing your spaces directly.
 - Manage access for users, groups, and third-party apps
 
 [Open Console](https://console.rool.dev)
-
-*Full documentation coming soon.*

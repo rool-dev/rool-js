@@ -1,7 +1,4 @@
----
-title: Rool Documentation
-description: Build applications where AI operates on a structured world model. TypeScript SDK, Svelte bindings, and CLI for Rool Spaces.
----
+# Rool
 
 Rool Spaces is a persistent and collaborative environment for organizing objects and their relationships. Build applications where AI operates on a structured world model rather than a text conversation.
 
@@ -21,7 +18,7 @@ rool create --svelte my-app
 cd my-app && npm install && npm run dev
 ```
 
-For detailed API documentation, read the [SDK docs](/sdk/) or point your coding agent at them.
+For detailed API documentation, read the [SDK docs](https://docs.rool.dev/sdk/) or point your coding agent at them.
 
 ## Demo Apps
 
@@ -46,16 +43,16 @@ The web application for managing your spaces. Create, explore, and collaborate o
 
 Build your own applications using Rool Spaces with the TypeScript SDK.
 
-[Read SDK Docs](/sdk/)
+[Read SDK Docs](https://docs.rool.dev/sdk/)
 
 ### Svelte
 
 Reactive Svelte 5 bindings for the SDK using native runes.
 
-[Read Svelte Docs](/svelte/)
+[Read Svelte Docs](https://docs.rool.dev/svelte/)
 
 ### CLI
 
 Manage and interact with Rool Spaces and Rool Apps from the command line.
 
-[Read CLI Docs](/cli/)
+[Read CLI Docs](https://docs.rool.dev/cli/)

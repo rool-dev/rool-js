@@ -49,4 +49,11 @@ writeFileSync(`${contentDir}/cli.md`, transform(cliReadme, 'Rool CLI'));
 const svelteReadme = readFileSync(`${root}/packages/svelte/README.md`, 'utf-8');
 writeFileSync(`${contentDir}/svelte.md`, transform(svelteReadme, 'Rool Svelte'));
 
+// Generate llms.txt from index.md (strip frontmatter, fix relative links)
+const indexMd = readFileSync(`${contentDir}/index.md`, 'utf-8');
+const llmsTxt = indexMd
+  .replace(/^---[\s\S]*?---\n+/, '# Rool\n\n') // Replace frontmatter with title
+  .replace(/\]\(\//g, '](https://docs.rool.dev/'); // Make relative links absolute
+writeFileSync(`${__dirname}/public/llms.txt`, llmsTxt);
+
 console.log('Docs built from READMEs');
