@@ -122,10 +122,12 @@ class ReactiveSpaceImpl {
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
+  #conversationId = $state<string>('');
 
   constructor(space: RoolSpace) {
     this.#space = space;
     this.interactions = space.getInteractions();
+    this.#conversationId = space.conversationId;
 
     // Subscribe to conversation updates
     const onConversationUpdated = () => {
@@ -140,8 +142,9 @@ class ReactiveSpaceImpl {
     space.on('reset', onReset);
     this.#unsubscribers.push(() => space.off('reset', onReset));
 
-    // Update interactions when switching conversations
+    // Update interactions and conversationId when switching conversations
     const onConversationIdChanged = () => {
+      this.#conversationId = space.conversationId;
       this.interactions = space.getInteractions();
     };
     space.on('conversationIdChanged', onConversationIdChanged);
@@ -153,7 +156,7 @@ class ReactiveSpaceImpl {
   get name() { return this.#space.name; }
   get role() { return this.#space.role; }
   get userId() { return this.#space.userId; }
-  get conversationId() { return this.#space.conversationId; }
+  get conversationId() { return this.#conversationId; }
   set conversationId(id: string) { this.#space.conversationId = id; }
 
   // Proxy all methods
