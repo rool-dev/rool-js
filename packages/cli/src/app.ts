@@ -4,7 +4,7 @@ import archiver from 'archiver';
 import { type Command } from 'commander';
 import { getClient } from './client.js';
 import { formatBytes } from './format.js';
-import { DEFAULT_API_URL } from './constants.js';
+import { type Environment } from './constants.js';
 
 async function zipDirectory(dirPath: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -32,7 +32,6 @@ export function registerApp(program: Command): void {
     .argument('<path>', 'directory to publish')
     .option('-n, --name <name>', 'app display name (defaults to app-id)')
     .option('--no-spa', 'disable SPA routing (404s will not serve index.html)')
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # Publish a directory as an app
@@ -40,7 +39,8 @@ Examples:
 
   # Publish with a custom name
   $ rool app publish my-app ./dist -n "My App"`)
-    .action(async (appId: string, dirPath: string, opts: { name?: string; spa: boolean; url: string }) => {
+    .action(async (appId: string, dirPath: string, opts: { name?: string; spa: boolean }, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
       // Validate directory exists
       const resolvedPath = path.resolve(dirPath);
       if (!fs.existsSync(resolvedPath)) {
@@ -66,7 +66,7 @@ Examples:
       const zipBuffer = await zipDirectory(resolvedPath);
       console.log(`Bundle size: ${formatBytes(zipBuffer.length)}`);
 
-      const client = await getClient(opts.url);
+      const client = await getClient(env);
       try {
         console.log(`Publishing ${appId}...`);
         const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
@@ -85,13 +85,13 @@ Examples:
   app
     .command('list')
     .description('List published apps')
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # List published apps
   $ rool app list`)
-    .action(async (opts: { url: string }) => {
-      const client = await getClient(opts.url);
+    .action(async (_opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      const client = await getClient(env);
       try {
         const apps = await client.listApps();
 
@@ -119,13 +119,13 @@ Examples:
     .command('unpublish')
     .description('Unpublish an app')
     .argument('<app-id>', 'app to unpublish')
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # Unpublish an app
   $ rool app unpublish my-app`)
-    .action(async (appId: string, opts: { url: string }) => {
-      const client = await getClient(opts.url);
+    .action(async (appId: string, _opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      const client = await getClient(env);
       try {
         const a = await client.getAppInfo(appId);
         if (!a) {
@@ -144,7 +144,6 @@ Examples:
     .command('slug')
     .description('Show or set your user slug')
     .argument('[new-slug]', 'new slug to set')
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # Show your user slug
@@ -152,8 +151,9 @@ Examples:
 
   # Set your user slug
   $ rool app slug my-slug`)
-    .action(async (newSlug: string | undefined, opts: { url: string }) => {
-      const client = await getClient(opts.url);
+    .action(async (newSlug: string | undefined, _opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      const client = await getClient(env);
       try {
         const user = await client.getCurrentUser();
 

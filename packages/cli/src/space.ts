@@ -1,7 +1,7 @@
 import * as readline from 'node:readline';
 import { type Command } from 'commander';
 import { getClient } from './client.js';
-import { DEFAULT_API_URL } from './constants.js';
+import { type Environment } from './constants.js';
 
 function confirm(message: string): Promise<boolean> {
   const rl = readline.createInterface({
@@ -26,34 +26,34 @@ export function registerSpace(program: Command): void {
   program
     .command('spaces', { hidden: true })
     .description('List all spaces (alias for "space list")')
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
-    .action(async (opts: { url: string }) => {
-      await listSpaces(opts.url);
+    .action(async (_opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      await listSpaces(env);
     });
 
   space
     .command('list')
     .description('List all spaces')
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # List your spaces
   $ rool space list`)
-    .action(async (opts: { url: string }) => {
-      await listSpaces(opts.url);
+    .action(async (_opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      await listSpaces(env);
     });
 
   space
     .command('create')
     .description('Create a new space')
     .argument('<name>', 'space name')
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # Create a new space
   $ rool space create "My New Project"`)
-    .action(async (name: string, opts: { url: string }) => {
-      const client = await getClient(opts.url);
+    .action(async (name: string, _opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      const client = await getClient(env);
       try {
         const newSpace = await client.createSpace(name);
         console.log(`Created space: ${newSpace.id}  ${newSpace.name}`);
@@ -68,7 +68,6 @@ Examples:
     .description('Delete a space')
     .argument('<name>', 'space name')
     .option('-y, --yes', 'skip confirmation prompt')
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # Delete a space (with confirmation)
@@ -76,8 +75,9 @@ Examples:
 
   # Delete without confirmation
   $ rool space delete "Old Project" -y`)
-    .action(async (name: string, opts: { yes?: boolean; url: string }) => {
-      const client = await getClient(opts.url);
+    .action(async (name: string, opts: { yes?: boolean }, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      const client = await getClient(env);
       try {
         const list = await client.listSpaces();
         const spaceInfo = list.find(s => s.name === name);
@@ -108,8 +108,8 @@ Examples:
     });
 }
 
-async function listSpaces(apiUrl: string): Promise<void> {
-  const client = await getClient(apiUrl);
+async function listSpaces(env: Environment): Promise<void> {
+  const client = await getClient(env);
   try {
     const list = await client.listSpaces();
 

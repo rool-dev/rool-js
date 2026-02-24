@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { type Command } from 'commander';
 import { getClient } from './client.js';
 import { formatBytes } from './format.js';
-import { DEFAULT_API_URL, DEFAULT_SPACE_NAME } from './constants.js';
+import { DEFAULT_SPACE_NAME, type Environment } from './constants.js';
 
 function getContentType(filePath: string): string {
   try {
@@ -25,7 +25,6 @@ export function registerMedia(program: Command): void {
     .argument('<file>', 'file to upload')
     .option('-m, --message <text>', 'optional comment/description')
     .option('-s, --space <name>', 'space name', DEFAULT_SPACE_NAME)
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # Upload a file
@@ -36,7 +35,8 @@ Examples:
 
   # Upload to a specific space
   $ rool media upload logo.png -s "My Project"`)
-    .action(async (filePath: string, opts: { message?: string; space: string; url: string }) => {
+    .action(async (filePath: string, opts: { message?: string; space: string }, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
       if (!fs.existsSync(filePath)) {
         console.error(`File not found: ${filePath}`);
         process.exit(1);
@@ -52,7 +52,7 @@ Examples:
       const contentType = getContentType(filePath);
       const size = stats.size;
 
-      const client = await getClient(opts.url);
+      const client = await getClient(env);
 
       // Find or create space by name
       const spaces = await client.listSpaces();

@@ -3,7 +3,7 @@ import { type Command } from 'commander';
 import { type RoolClient, type RoolSpace } from '@rool-dev/sdk';
 import { getClient } from './client.js';
 import { formatMarkdown } from './format.js';
-import { DEFAULT_API_URL, DEFAULT_SPACE_NAME, DEFAULT_CONVERSATION_ID } from './constants.js';
+import { DEFAULT_SPACE_NAME, DEFAULT_CONVERSATION_ID, type Environment } from './constants.js';
 
 export function registerChat(program: Command): void {
   program
@@ -12,7 +12,6 @@ export function registerChat(program: Command): void {
     .argument('[prompt...]', 'prompt to send')
     .option('-s, --space <name>', 'space name', DEFAULT_SPACE_NAME)
     .option('-c, --conversation <id>', 'conversation ID', DEFAULT_CONVERSATION_ID)
-    .option('-u, --url <url>', 'API URL', DEFAULT_API_URL)
     .addHelpText('after', `
 Examples:
   # Chat with the default space
@@ -23,9 +22,10 @@ Examples:
 
   # Use a specific space
   $ rool chat -s "My Project" "Summarize the current state"`)
-    .action(async (promptWords: string[], opts: { space: string; conversation: string; url: string }) => {
+    .action(async (promptWords: string[], opts: { space: string; conversation: string }, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
       const prompt = promptWords.join(' ');
-      const client = await getClient(opts.url);
+      const client = await getClient(env);
 
       // Find or create space by name
       const spaces = await client.listSpaces();
