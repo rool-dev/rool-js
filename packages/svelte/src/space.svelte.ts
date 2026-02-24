@@ -1,4 +1,4 @@
-import type { RoolSpace, Interaction, RoolObject, FindObjectsOptions } from '@rool-dev/sdk';
+import type { RoolSpace, Interaction, RoolObject, FindObjectsOptions, ConversationInfo } from '@rool-dev/sdk';
 
 /**
  * Options for creating a reactive collection.
@@ -122,12 +122,16 @@ class ReactiveSpaceImpl {
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
+  conversations = $state<ConversationInfo[]>([]);
   #conversationId = $state<string>('');
 
   constructor(space: RoolSpace) {
     this.#space = space;
     this.interactions = space.getInteractions();
     this.#conversationId = space.conversationId;
+
+    // Initial fetch of conversations (async)
+    this.#refreshConversations();
 
     // Subscribe to conversation updates
     const onConversationUpdated = () => {
@@ -149,6 +153,17 @@ class ReactiveSpaceImpl {
     };
     space.on('conversationIdChanged', onConversationIdChanged);
     this.#unsubscribers.push(() => space.off('conversationIdChanged', onConversationIdChanged));
+
+    // Update conversations list when conversations change
+    const onConversationsChanged = () => {
+      this.#refreshConversations();
+    };
+    space.on('conversationsChanged', onConversationsChanged);
+    this.#unsubscribers.push(() => space.off('conversationsChanged', onConversationsChanged));
+  }
+
+  async #refreshConversations() {
+    this.conversations = await this.#space.listConversations();
   }
 
   // Proxy read-only properties
