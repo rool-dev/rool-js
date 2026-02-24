@@ -326,75 +326,39 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   }
 
   /**
-   * Find objects using structured filters and natural language.
-   * @param options.where - Structured field requirements (exact match)
-   * @param options.prompt - Natural language query/refinement
-   * @param options.limit - Maximum number of results to return
-   * @param options.objectIds - Scope search to specific objects
-   * @returns The matching objects and a message from the AI
+   * Find objects using structured filters and/or natural language.
+   *
+   * `where` provides exact-match filtering — values must match literally (no placeholders or operators).
+   * `prompt` enables AI-powered semantic queries. When both are provided, `where` and `objectIds`
+   * constrain the data set before the AI sees it.
+   *
+   * @param options.where - Exact-match field filter (e.g. `{ type: 'article' }`). Constrains which objects the AI can see when combined with `prompt`.
+   * @param options.prompt - Natural language query. Triggers AI evaluation (uses credits).
+   * @param options.limit - Maximum number of results to return (applies to structured filtering only; the AI controls its own result size).
+   * @param options.objectIds - Scope search to specific object IDs. Constrains the candidate set in both structured and AI queries.
+   * @param options.order - Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). Only applies to structured filtering (no `prompt`).
+   * @param options.ephemeral - If true, the query won't be recorded in conversation history.
+   * @returns The matching objects and a descriptive message.
    *
    * @example
-   * // Exact match
+   * // Exact match (no AI, no credits)
    * const { objects } = await space.findObjects({ where: { type: 'article' } });
    *
    * @example
-   * // Natural language
+   * // Natural language (AI query)
    * const { objects, message } = await space.findObjects({
    *   prompt: 'articles about space exploration'
    * });
    *
    * @example
-   * // Combined - structured + natural language
+   * // Combined — where narrows the data, prompt queries within it
    * const { objects } = await space.findObjects({
    *   where: { type: 'article' },
-   *   prompt: 'published in the last month',
+   *   prompt: 'that discuss climate solutions positively',
    *   limit: 10
    * });
    */
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
-    const order = options.order ?? 'desc';
-
-    // Check if we need AI (only when prompt is provided)
-    const needsAI = !!options.prompt;
-
-    // If no AI needed, filter locally (avoids server round trip)
-    if (!needsAI) {
-      // Get entries (not just data) so we can sort by modifiedAt
-      let entries = Object.entries(this._data.objects);
-
-      // Apply where clause (exact match)
-      if (options.where && Object.keys(options.where).length > 0) {
-        entries = entries.filter(([, entry]) =>
-          Object.entries(options.where!).every(([key, value]) => entry.data[key] === value)
-        );
-      }
-
-      // Apply scope filter
-      if (options.objectIds && options.objectIds.length > 0) {
-        const scope = new Set(options.objectIds);
-        entries = entries.filter(([id]) => scope.has(id));
-      }
-
-      // Sort by modifiedAt
-      entries.sort((a, b) => {
-        const aTime = a[1].modifiedAt ?? 0;
-        const bTime = b[1].modifiedAt ?? 0;
-        return order === 'desc' ? bTime - aTime : aTime - bTime;
-      });
-
-      // Apply limit
-      if (options.limit) {
-        entries = entries.slice(0, options.limit);
-      }
-
-      const objects = entries.map(([, entry]) => entry.data);
-      return {
-        objects,
-        message: `Found ${objects.length} object(s) matching criteria`,
-      };
-    }
-
-    // Otherwise, use server (with AI)
     return this.graphqlClient.findObjects(this._id, options, this._conversationId);
   }
 

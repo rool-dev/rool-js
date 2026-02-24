@@ -587,21 +587,25 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 
 #### findObjects Options
 
-Find objects using structured filters and natural language. All queries are executed server-side.
+Find objects using structured filters and/or natural language.
+
+- **`where` only** — exact-match filtering, no AI, no credits.
+- **`prompt` only** — AI-powered semantic query over all objects.
+- **`where` + `prompt`** — `where` (and `objectIds`) narrow the data set first, then the AI queries within the constrained set.
 
 | Option | Description |
 |--------|-------------|
-| `where` | Structured field requirements (exact match). |
-| `prompt` | Natural language query for additional filtering. |
-| `limit` | Maximum number of results to return. |
-| `objectIds` | Scope search to specific objects (like `prompt()`). |
-| `order` | Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). |
+| `where` | Exact-match field filter (e.g. `{ type: 'article' }`). Values must match literally — no operators or `{{placeholders}}`. When combined with `prompt`, constrains which objects the AI can see. |
+| `prompt` | Natural language query. Triggers AI evaluation (uses credits). |
+| `limit` | Maximum number of results. Only applies to structured filtering (no `prompt`). |
+| `objectIds` | Scope to specific object IDs. Constrains the candidate set in both structured and AI queries. |
+| `order` | Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). Only applies to structured filtering (no `prompt`). |
 | `ephemeral` | If true, the query won't be recorded in conversation history. Useful for responsive search. |
 
 **Examples:**
 
 ```typescript
-// Exact field matching (no AI needed)
+// Exact field matching (no AI, no credits)
 const { objects } = await space.findObjects({
   where: { type: 'article', status: 'published' }
 });
@@ -611,7 +615,7 @@ const { objects, message } = await space.findObjects({
   prompt: 'articles about space exploration published this year'
 });
 
-// Combined: structured filter + natural language
+// Combined: where narrows the data, prompt queries within it
 const { objects } = await space.findObjects({
   where: { type: 'article' },
   prompt: 'that discuss climate solutions positively',
@@ -619,7 +623,7 @@ const { objects } = await space.findObjects({
 });
 ```
 
-The AI has access to the full object graph context (except `_`-prefixed fields) when evaluating queries. The returned `message` explains why objects matched the criteria.
+When `where` or `objectIds` are provided with a `prompt`, the AI only sees the filtered subset — not the full space. The returned `message` explains the query result.
 
 ### Relations
 

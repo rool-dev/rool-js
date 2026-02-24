@@ -243,11 +243,15 @@ export interface PromptOptions {
 }
 
 export interface FindObjectsOptions {
+  /** Exact-match field filter (e.g. `{ type: 'article' }`). No operators or placeholders — values must match literally. When combined with `prompt`, constrains which objects the AI can see. */
   where?: Record<string, unknown>;
+  /** Natural language query. Triggers AI evaluation (uses credits). When combined with `where`/`objectIds`, the AI only sees the pre-filtered set. */
   prompt?: string;
+  /** Maximum number of results. Only applies to structured filtering (no `prompt`); the AI controls its own result size. */
   limit?: number;
+  /** Scope search to specific object IDs. Constrains the candidate set in both structured and AI queries. */
   objectIds?: string[];
-  /** Sort order by modifiedAt. Default: 'desc' (most recent first) */
+  /** Sort order by modifiedAt. Default: 'desc' (most recent first). Only applies to structured filtering (no `prompt`). */
   order?: 'asc' | 'desc';
   /** If true, the query won't be recorded in conversation history. Useful for responsive search. */
   ephemeral?: boolean;
