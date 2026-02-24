@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, generateId, type ReactiveSpace, type ConversationInfo } from '@rool-dev/svelte';
+  import { createRool, generateId, type ReactiveSpace } from '@rool-dev/svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';
@@ -11,7 +11,6 @@
 
   // State
   let currentSpace = $state<ReactiveSpace | null>(null);
-  let conversations = $state<ConversationInfo[]>([]);
   let selectedConversationId = $state<string | null>(null);
   let isSending = $state(false);
   let messageInput = $state('');
@@ -28,6 +27,7 @@
   }
 
   // Derived state
+  let conversations = $derived(currentSpace?.conversations ?? []);
   let currentInteractions = $derived(currentSpace?.interactions ?? []);
   let selectedConversation = $derived(conversations.find(c => c.id === selectedConversationId));
 
@@ -45,13 +45,7 @@
     }
   });
 
-  async function loadConversations() {
-    if (!currentSpace) return;
-    conversations = await currentSpace.listConversations();
-  }
-
   function resetState() {
-    conversations = [];
     selectedConversationId = null;
     messageInput = '';
   }
@@ -65,13 +59,14 @@
     if (!spaceId) return;
 
     currentSpace = await rool.openSpace(spaceId);
-    await loadConversations();
+  }
 
-    // Select first conversation if exists
-    if (conversations.length > 0) {
+  // Select first conversation when space changes and has conversations
+  $effect(() => {
+    if (currentSpace && conversations.length > 0 && !selectedConversationId) {
       selectConversation(conversations[0].id);
     }
-  }
+  });
 
   function selectConversation(id: string) {
     if (!currentSpace) return;
@@ -85,7 +80,6 @@
     await currentSpace.renameConversation(id, 'New Chat');
     currentSpace.conversationId = id;
     selectedConversationId = id;
-    await loadConversations();
     // Start editing the new conversation name
     editingConversationId = id;
     editingName = 'New Chat';
@@ -108,7 +102,6 @@
       return;
     }
     await currentSpace.renameConversation(editingConversationId, editingName.trim());
-    await loadConversations();
     cancelEdit();
   }
 
@@ -128,15 +121,10 @@
     if (!currentSpace) return;
 
     await currentSpace.deleteConversation(convId);
-    await loadConversations();
 
     // If we deleted the selected conversation, clear selection
     if (selectedConversationId === convId) {
       selectedConversationId = null;
-      // Select first remaining conversation if any
-      if (conversations.length > 0) {
-        selectConversation(conversations[0].id);
-      }
     }
   }
 
