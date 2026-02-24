@@ -597,9 +597,9 @@ Find objects using structured filters and/or natural language.
 |--------|-------------|
 | `where` | Exact-match field filter (e.g. `{ type: 'article' }`). Values must match literally — no operators or `{{placeholders}}`. When combined with `prompt`, constrains which objects the AI can see. |
 | `prompt` | Natural language query. Triggers AI evaluation (uses credits). |
-| `limit` | Maximum number of results. Only applies to structured filtering (no `prompt`). |
+| `limit` | Maximum number of results. |
 | `objectIds` | Scope to specific object IDs. Constrains the candidate set in both structured and AI queries. |
-| `order` | Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). Only applies to structured filtering (no `prompt`). |
+| `order` | Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). |
 | `ephemeral` | If true, the query won't be recorded in conversation history. Useful for responsive search. |
 
 **Examples:**
