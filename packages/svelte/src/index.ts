@@ -6,7 +6,7 @@ export { wrapSpace } from './space.svelte.js';
 
 // Types
 export type { Rool } from './rool.svelte.js';
-export type { ReactiveSpace, ReactiveCollection, CollectionOptions } from './space.svelte.js';
+export type { ReactiveSpace, ReactiveObject, ReactiveCollection, CollectionOptions } from './space.svelte.js';
 
 // Re-export SDK types for convenience
 export type {

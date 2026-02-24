@@ -113,6 +113,84 @@ class ReactiveCollectionImpl {
 export type ReactiveCollection = ReactiveCollectionImpl;
 
 /**
+ * A reactive single object that auto-updates when the object changes.
+ */
+class ReactiveObjectImpl {
+  #space: RoolSpace;
+  #objectId: string;
+  #unsubscribers: (() => void)[] = [];
+
+  // Reactive state
+  data = $state<RoolObject | undefined>(undefined);
+  loading = $state(true);
+
+  constructor(space: RoolSpace, objectId: string) {
+    this.#space = space;
+    this.#objectId = objectId;
+    this.#setup();
+  }
+
+  #setup() {
+    // Initial fetch
+    this.refresh();
+
+    // Listen for updates to this specific object
+    const onObjectUpdated = ({ objectId, object }: { objectId: string; object: RoolObject }) => {
+      if (objectId === this.#objectId) {
+        this.data = object;
+      }
+    };
+    this.#space.on('objectUpdated', onObjectUpdated);
+    this.#unsubscribers.push(() => this.#space.off('objectUpdated', onObjectUpdated));
+
+    // Listen for creation (in case object didn't exist initially)
+    const onObjectCreated = ({ object }: { object: RoolObject }) => {
+      if (object.id === this.#objectId) {
+        this.data = object;
+      }
+    };
+    this.#space.on('objectCreated', onObjectCreated);
+    this.#unsubscribers.push(() => this.#space.off('objectCreated', onObjectCreated));
+
+    // Listen for deletion
+    const onObjectDeleted = ({ objectId }: { objectId: string }) => {
+      if (objectId === this.#objectId) {
+        this.data = undefined;
+      }
+    };
+    this.#space.on('objectDeleted', onObjectDeleted);
+    this.#unsubscribers.push(() => this.#space.off('objectDeleted', onObjectDeleted));
+
+    // Handle full resets
+    const onReset = () => this.refresh();
+    this.#space.on('reset', onReset);
+    this.#unsubscribers.push(() => this.#space.off('reset', onReset));
+  }
+
+  /**
+   * Re-fetch the object from the space.
+   */
+  async refresh(): Promise<void> {
+    this.loading = true;
+    try {
+      this.data = await this.#space.getObject(this.#objectId);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  /**
+   * Stop listening for updates and clean up.
+   */
+  close(): void {
+    for (const unsub of this.#unsubscribers) unsub();
+    this.#unsubscribers.length = 0;
+  }
+}
+
+export type ReactiveObject = ReactiveObjectImpl;
+
+/**
  * Minimal wrapper that adds reactive `interactions` to RoolSpace.
  * All other properties and methods are proxied to the underlying space.
  */
@@ -235,7 +313,22 @@ class ReactiveSpaceImpl {
   on(...args: Parameters<RoolSpace['on']>) { return this.#space.on(...args); }
   off(...args: Parameters<RoolSpace['off']>) { return this.#space.off(...args); }
 
-  // Reactive collections
+  // Reactive primitives
+
+  /**
+   * Create a reactive object that auto-updates when the object changes.
+   *
+   * @example
+   * const article = space.object('article-123');
+   * // article.data is reactive (RoolObject | undefined)
+   * // article.loading indicates fetch status
+   * // article.refresh() to manually re-fetch
+   * // article.close() to stop listening
+   */
+  object(objectId: string): ReactiveObject {
+    return new ReactiveObjectImpl(this.#space, objectId);
+  }
+
   /**
    * Create a reactive collection that auto-updates when matching objects change.
    *
