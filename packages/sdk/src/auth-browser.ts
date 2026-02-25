@@ -2,7 +2,7 @@
 import type { AuthProvider, AuthUser } from './types.js';
 import type { Logger } from './logger.js';
 
-const REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before expiry
+const REFRESH_BUFFER_MS = 15 * 60 * 1000; // Refresh 15 minutes before expiry
 
 const DEFAULT_STORAGE_PREFIX = 'rool_';
 
@@ -18,6 +18,7 @@ export class BrowserAuthProvider implements AuthProvider {
     private logger: Logger;
     private refreshPromise: Promise<boolean> | null = null;
     private refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    private boundVisibilityHandler: (() => void) | null = null;
 
     /**
      * Get a short hash of the auth URL for scoping storage by endpoint.
@@ -66,6 +67,7 @@ export class BrowserAuthProvider implements AuthProvider {
     initialize(): boolean {
         const wasCallback = this.processCallback();
         this.scheduleTokenRefresh();
+        this.listenForVisibility();
         return wasCallback;
     }
 
@@ -83,11 +85,11 @@ export class BrowserAuthProvider implements AuthProvider {
      */
     async getToken(): Promise<string | undefined> {
         const accessToken = this.readAccessToken();
-        const expiresAt = this.readExpiresAt();
 
         if (!accessToken) return undefined;
 
         // Token expired or about to expire - try refresh
+        const expiresAt = this.readExpiresAt();
         if (expiresAt && Date.now() >= expiresAt - REFRESH_BUFFER_MS) {
             const refreshed = await this.tryRefreshToken();
             if (!refreshed) return undefined;
@@ -184,6 +186,10 @@ export class BrowserAuthProvider implements AuthProvider {
      */
     destroy(): void {
         this.cancelScheduledRefresh();
+        if (this.boundVisibilityHandler) {
+            document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
+            this.boundVisibilityHandler = null;
+        }
     }
 
     /**
@@ -295,6 +301,18 @@ export class BrowserAuthProvider implements AuthProvider {
                 void this.tryRefreshToken();
             }, delay);
         }
+    }
+
+    private listenForVisibility(): void {
+        if (typeof document === 'undefined') return;
+        if (this.boundVisibilityHandler) return;
+
+        this.boundVisibilityHandler = () => {
+            if (document.visibilityState === 'visible') {
+                this.scheduleTokenRefresh();
+            }
+        };
+        document.addEventListener('visibilitychange', this.boundVisibilityHandler);
     }
 
     private cancelScheduledRefresh(): void {
