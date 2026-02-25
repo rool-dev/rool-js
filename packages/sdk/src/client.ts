@@ -57,6 +57,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   // User storage cache (synced to localStorage)
   private _storageCache: Record<string, unknown> = {};
 
+  // Current user (fetched during initialize)
+  private _currentUser: CurrentUser | null = null;
+
   constructor(config: RoolClientConfig = {}) {
     super();
 
@@ -106,6 +109,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       // Sync storage from server (replaces potentially stale localStorage cache)
       try {
         const user = await this.getCurrentUser();
+        this._currentUser = user;
         this._storageCache = user.storage ?? {};
         this.saveStorageCache();
       } catch (error) {
@@ -184,10 +188,18 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Get auth identity decoded from JWT token.
-   * For the Rool user (with server-assigned id), use getCurrentUser().
+   * For the Rool user (with server-assigned id), use currentUser.
    */
   getAuthUser(): AuthUser {
     return this.authManager.getAuthUser();
+  }
+
+  /**
+   * Get the current Rool user (cached from initialize).
+   * Available after successful authentication.
+   */
+  get currentUser(): CurrentUser | null {
+    return this._currentUser;
   }
 
   // ===========================================================================
@@ -322,7 +334,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Returns the user's server-assigned id, email, plan, and credits.
    */
   async getCurrentUser(): Promise<CurrentUser> {
-    return this.graphqlClient.getAccount();
+    const user = await this.graphqlClient.getAccount();
+    this._currentUser = user;
+    return user;
   }
 
   /**

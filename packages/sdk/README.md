@@ -416,7 +416,8 @@ When a user accesses a space via link, they're granted the corresponding role (`
 
 | Method | Description |
 |--------|-------------|
-| `getCurrentUser(): Promise<CurrentUser>` | Get current Rool user (id, email, name, slug, plan, creditsBalance, totalCreditsUsed, createdAt, lastActivity, processedAt, storage) |
+| `currentUser: CurrentUser \| null` | Cached user profile from `initialize()`. Use for sync access to user info (id, email, name, etc.). Returns `null` before init or if not authenticated. |
+| `getCurrentUser(): Promise<CurrentUser>` | Fetch fresh user profile from server (id, email, name, slug, plan, creditsBalance, totalCreditsUsed, createdAt, lastActivity, processedAt, storage) |
 | `searchUser(email): Promise<UserResult \| null>` | Find user by exact email address (no partial matching) |
 
 ### Real-time Collaboration
