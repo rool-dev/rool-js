@@ -46,8 +46,21 @@ class ReactiveCollectionImpl {
     this.#unsubscribers.push(() => this.#space.off('objectCreated', onObjectCreated));
 
     const onObjectUpdated = ({ objectId, object }: { objectId: string; object: RoolObject }) => {
-      // Re-fetch if object was in collection OR now matches the filter
-      if (this.#currentIds.has(objectId) || this.#matches(object)) {
+      const wasInCollection = this.#currentIds.has(objectId);
+      const nowMatches = this.#matches(object);
+
+      if (wasInCollection && nowMatches) {
+        // Update in place
+        const index = this.objects.findIndex((o) => o.id === objectId);
+        if (index !== -1) {
+          this.objects[index] = object;
+        }
+      } else if (wasInCollection && !nowMatches) {
+        // Remove from collection
+        this.objects = this.objects.filter((o) => o.id !== objectId);
+        this.#currentIds.delete(objectId);
+      } else if (!wasInCollection && nowMatches) {
+        // Add to collection (re-fetch to respect limit/order)
         this.refresh();
       }
     };
@@ -56,7 +69,8 @@ class ReactiveCollectionImpl {
 
     const onObjectDeleted = ({ objectId }: { objectId: string }) => {
       if (this.#currentIds.has(objectId)) {
-        this.refresh();
+        this.objects = this.objects.filter((o) => o.id !== objectId);
+        this.#currentIds.delete(objectId);
       }
     };
     this.#space.on('objectDeleted', onObjectDeleted);

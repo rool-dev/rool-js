@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser } from '@rool-dev/sdk';
 import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
 /**
@@ -22,6 +22,7 @@ class RoolImpl {
   spacesError = $state<Error | null>(null);
   connectionState = $state<ConnectionState>('disconnected');
   userStorage = $state<Record<string, unknown>>({});
+  currentUser = $state<CurrentUser | null>(null);
 
   constructor(config?: RoolClientConfig) {
     this.#client = new RoolClient(config);
@@ -89,7 +90,8 @@ class RoolImpl {
   async init(): Promise<boolean> {
     this.authenticated = await this.#client.initialize();
     if (this.authenticated) {
-      // Populate reactive storage from SDK cache (now fresh from server)
+      // Populate reactive state from SDK (now fresh from server)
+      this.currentUser = this.#client.currentUser;
       this.userStorage = this.#client.getAllUserStorage();
       await this.#refreshSpaces();
     }

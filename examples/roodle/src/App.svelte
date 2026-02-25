@@ -3,7 +3,6 @@
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import { flip } from 'svelte/animate';
-  import { fly } from 'svelte/transition';
   import Header from './Header.svelte';
   import Footer from './Footer.svelte';
   import SlotCard from './SlotCard.svelte';
@@ -49,6 +48,8 @@
   let isOrganizer = $derived(currentSpace?.role === 'owner');
   let currentInteractions = $derived(currentSpace?.interactions ?? []);
   let sortedSlots = $derived([...slots].sort((a, b) => a.datetime.localeCompare(b.datetime)));
+  let userName = $derived(rool.currentUser?.name ?? rool.currentUser?.email ?? 'Anonymous');
+  let collectionsLoading = $derived(eventCollection?.loading || slotsCollection?.loading);
 
   // URL handling
   function getSpaceIdFromUrl(): string | null {
@@ -115,6 +116,7 @@ Rules:
 - It options thin out, you are allowed to go below 4 options, but be creative
 - Explain your reasoning briefly when making changes
 - Don't repeat the actual slot status in the chat, the user sees the slots directly in the UI
+- The user can also delete a slot directly, in this case, create a new slot to replace it.
 
 You are allowed to disregard the above rules if asked to do so to resolve scheduling difficulties
 `;
@@ -164,7 +166,8 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
           title: formTitle.trim(),
           description: formDescription.trim() || undefined,
           duration: formDuration
-        }
+        },
+        ephemeral: true
       });
 
       // Set system instruction
@@ -215,9 +218,15 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
 
   async function confirmSlot(slot: Slot) {
     if (!currentSpace || isSending) return;
+    // Add user to yes array if not already there
+    const currentYes = slot.yes ?? [];
+    if (currentYes.includes(userName)) return;
     isSending = true;
     try {
-      await currentSpace.prompt(`I'm available for ${formatSlotDateTime(slot.datetime)}`);
+      await currentSpace.updateObject(slot.id, {
+        data: { yes: [...currentYes, userName] },
+        ephemeral: true
+      });
     } finally {
       isSending = false;
     }
@@ -227,7 +236,12 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     if (!currentSpace || isSending) return;
     isSending = true;
     try {
-      await currentSpace.prompt(`I can't make ${formatSlotDateTime(slot.datetime)}`);
+      // Delete the slot, then ask AI to create a replacement
+      await currentSpace.deleteObjects([slot.id]);
+      await currentSpace.prompt(
+        `I can't make ${formatSlotDateTime(slot.datetime)}. Create a replacement time slot.`,
+        { ephemeral: true }
+      );
     } finally {
       isSending = false;
     }
@@ -377,6 +391,19 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
   <div class="h-dvh bg-slate-50 flex flex-col overflow-hidden">
     <Header {rool} {currentSpace} eventTitle={event?.title ?? null} />
 
+    <!-- Connection state banner -->
+    {#if rool.connectionState === 'reconnecting'}
+      <div class="bg-amber-100 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-800">
+        <Icon icon="mdi:wifi-off" class="w-4 h-4 inline-block mr-1" />
+        Reconnecting...
+      </div>
+    {:else if rool.connectionState === 'disconnected'}
+      <div class="bg-red-100 border-b border-red-200 px-4 py-2 text-center text-sm text-red-800">
+        <Icon icon="mdi:wifi-off" class="w-4 h-4 inline-block mr-1" />
+        Disconnected — changes may not sync
+      </div>
+    {/if}
+
     <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full min-h-0 p-4">
       {#if !currentSpace}
         <!-- Loading space -->
@@ -438,11 +465,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
             <h3 class="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2 sm:mb-3">Available Times</h3>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
               {#each sortedSlots as slot (slot.id)}
-                <div
-                  in:fly={{ x: 50, duration: 200 }}
-                  out:fly={{ x: -50, duration: 150 }}
-                  animate:flip={{ duration: 200 }}
-                >
+                <div animate:flip={{ duration: 200 }}>
                   <SlotCard
                     {slot}
                     {isOrganizer}
@@ -456,7 +479,12 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
               {/each}
             </div>
           </div>
-        {:else if !isSending}
+        {:else if collectionsLoading || isSending}
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 text-center">
+            <Icon icon="mdi:loading" class="w-8 h-8 text-amber-500 mx-auto mb-2 animate-spin" />
+            <p class="text-sm text-slate-500">Loading time slots...</p>
+          </div>
+        {:else}
           <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-center">
             <Icon icon="mdi:calendar-question" class="w-8 h-8 text-amber-500 mx-auto mb-2" />
             <p class="text-sm text-amber-700">No time slots yet. The AI will suggest some options.</p>
