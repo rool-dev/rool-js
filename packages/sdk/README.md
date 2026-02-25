@@ -254,7 +254,6 @@ if (!authenticated) {
 | `login(appName): void` | Redirect to login page. The app name is displayed on the auth page ("Sign in to {appName}"). |
 | `logout(): void` | Clear tokens and state |
 | `isAuthenticated(): Promise<boolean>` | Check auth status (validates token) |
-| `getToken(): Promise<string \| undefined>` | Get current access token |
 | `getAuthUser(): AuthUser` | Get auth identity from JWT (`{ email, name }`) |
 
 ## AI Agent
@@ -508,6 +507,7 @@ client.on('userStorageChanged', ({ key, value, source }) => {
 |--------|-------------|
 | `RoolClient.generateId(): string` | Generate 6-char alphanumeric ID (static) |
 | `graphql<T>(query, variables?): Promise<T>` | Execute raw GraphQL |
+| `fetch(path, init?): Promise<Response>` | Authenticated fetch to the Rool API (adds Bearer token) |
 | `destroy(): void` | Clean up resources |
 
 ### Client Events

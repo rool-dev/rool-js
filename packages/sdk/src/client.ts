@@ -45,6 +45,7 @@ type ResolvedUrls = {
  * - AI operations (prompt, image generation)
  */
 export class RoolClient extends EventEmitter<RoolClientEvents> {
+  private baseUrl: string;
   private urls: ResolvedUrls;
   private authManager: AuthManager;
   private graphqlClient: GraphQLClient;
@@ -66,12 +67,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.logger = config.logger ?? defaultLogger;
     this._emitterLogger = this.logger;
 
-    const baseUrl = (config.baseUrl ?? 'https://api.rool.dev').replace(/\/+$/, ''); // Remove trailing slashes
+    this.baseUrl = (config.baseUrl ?? 'https://api.rool.dev').replace(/\/+$/, ''); // Remove trailing slashes
     this.urls = {
-      graphql: config.graphqlUrl ?? `${baseUrl}/graphql`,
-      media: config.mediaUrl ?? `${baseUrl}/media`,
-      auth: config.authUrl ?? `${baseUrl}/auth`,
-      apps: `${baseUrl}/apps`,
+      graphql: config.graphqlUrl ?? `${this.baseUrl}/graphql`,
+      media: config.mediaUrl ?? `${this.baseUrl}/media`,
+      auth: config.authUrl ?? `${this.baseUrl}/auth`,
+      apps: `${this.baseUrl}/apps`,
     };
 
     this.authManager = new AuthManager({
@@ -179,11 +180,20 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Get current access token.
-   * Returns undefined if not authenticated.
+   * Make an authenticated fetch request to the Rool API.
+   * Use this escape hatch for app-specific endpoints not covered by the typed API.
+   *
+   * @param path - Path relative to the base URL (e.g., '/billing/usage')
+   * @param init - Standard fetch RequestInit options. Authorization header is added automatically.
    */
-  async getToken(): Promise<string | undefined> {
-    return this.authManager.getToken();
+  async fetch(path: string, init?: RequestInit): Promise<Response> {
+    const token = await this.authManager.getToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const headers = new Headers(init?.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+
+    return fetch(`${this.baseUrl}${path}`, { ...init, headers });
   }
 
   /**
