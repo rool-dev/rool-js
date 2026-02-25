@@ -332,6 +332,8 @@ export interface AuthProvider {
   initialize?: () => boolean;
   /** Get current access token */
   getToken: () => Promise<string | undefined>;
+  /** Get current rool token (signed JWT asserting auth origin) */
+  getRoolToken?: () => string | undefined;
   /** Get auth identity from current session (decoded from token) */
   getAuthUser: () => { email: string | null; name: string | null };
   /** Check if currently authenticated (validates token is usable) */

@@ -45,6 +45,7 @@ export class BrowserAuthProvider implements AuthProvider {
         return {
             access: `${prefix}access_token`,
             refresh: `${prefix}refresh_token`,
+            rool: `${prefix}rool_token`,
             expiresAt: `${prefix}token_expires_at`,
             state: `${prefix}auth_state`,
         } as const;
@@ -100,6 +101,13 @@ export class BrowserAuthProvider implements AuthProvider {
     }
 
     /**
+     * Get current rool token (signed JWT asserting auth origin).
+     */
+    getRoolToken(): string | undefined {
+        return localStorage.getItem(this.storageKeys.rool) ?? undefined;
+    }
+
+    /**
      * Get auth identity decoded from JWT token.
      */
     getAuthUser(): AuthUser {
@@ -150,6 +158,7 @@ export class BrowserAuthProvider implements AuthProvider {
         if (!idToken) return false;
 
         const refreshToken = params.get('refresh_token');
+        const roolToken = params.get('rool_token');
         const expiresIn = params.get('expires_in');
         const expiresAt = expiresIn ? Date.now() + Number(expiresIn) * 1000 : NaN;
         const incomingState = params.get('state');
@@ -169,6 +178,7 @@ export class BrowserAuthProvider implements AuthProvider {
         // Clear state and store tokens
         this.clearState();
         this.writeTokens(idToken, refreshToken, expiresAt);
+        this.writeRoolToken(roolToken);
 
         // Clean URL
         const cleanUrl = window.location.origin + window.location.pathname + window.location.search;
@@ -229,6 +239,7 @@ export class BrowserAuthProvider implements AuthProvider {
 
         const refreshToken = localStorage.getItem(this.storageKeys.refresh);
         if (!refreshToken) return false;
+        const roolToken = localStorage.getItem(this.storageKeys.rool);
 
         this.refreshPromise = (async () => {
             let response: Response;
@@ -236,7 +247,10 @@ export class BrowserAuthProvider implements AuthProvider {
                 response = await fetch(`${this.authBaseUrl}/refresh`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refresh_token: refreshToken }),
+                    body: JSON.stringify({
+                        refresh_token: refreshToken,
+                        rool_token: roolToken,
+                    }),
                 });
             } catch (error) {
                 // Network error - don't clear tokens, might work next time
@@ -271,6 +285,7 @@ export class BrowserAuthProvider implements AuthProvider {
                 }
 
                 this.writeTokens(accessToken, nextRefreshToken, expiresAt);
+                this.writeRoolToken(data.rool_token ?? null);
                 this.scheduleTokenRefresh();
                 return true;
             } catch (error) {
@@ -357,8 +372,17 @@ export class BrowserAuthProvider implements AuthProvider {
         }
     }
 
+    private writeRoolToken(token: string | null): void {
+        if (token) {
+            localStorage.setItem(this.storageKeys.rool, token);
+        } else {
+            localStorage.removeItem(this.storageKeys.rool);
+        }
+    }
+
     private clearTokens(): void {
         this.writeTokens(null, null, null);
+        this.writeRoolToken(null);
     }
 
     private storeState(value: string): void {

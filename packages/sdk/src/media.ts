@@ -54,9 +54,13 @@ export class MediaClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const response = await fetch(this.baseUrl(spaceId), {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
 
     if (!response.ok) {
@@ -81,6 +85,9 @@ export class MediaClient {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
     };
+
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
 
     if (file instanceof File || file instanceof Blob) {
       const formData = new FormData();
@@ -149,9 +156,13 @@ export class MediaClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const response = await fetch(url, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
 
     if (!response.ok) {
@@ -168,10 +179,14 @@ export class MediaClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const proxyUrl = `${this.baseUrl(spaceId)}/proxy?url=${encodeURIComponent(url)}`;
     const response = await fetch(proxyUrl, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
 
     if (!response.ok) {
@@ -188,10 +203,14 @@ export class MediaClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const filename = this.extractFilename(url);
     const response = await fetch(`${this.baseUrl(spaceId)}/${encodeURIComponent(filename)}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
 
     if (!response.ok && response.status !== 204) {
@@ -208,10 +227,14 @@ export class MediaClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const exportUrl = `${this.config.backendOrigin}/spaces/${encodeURIComponent(spaceId)}/export`;
     const response = await fetch(exportUrl, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
 
     if (!response.ok) {
@@ -231,6 +254,10 @@ export class MediaClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const formData = new FormData();
     formData.append('name', name);
     formData.append('archive', archive, 'archive.zip');
@@ -238,7 +265,7 @@ export class MediaClient {
     const importUrl = `${this.config.backendOrigin}/spaces/import`;
     const response = await fetch(importUrl, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       body: formData,
     });
 

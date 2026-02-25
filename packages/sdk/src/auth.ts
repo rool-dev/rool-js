@@ -65,6 +65,13 @@ export class AuthManager {
   }
 
   /**
+   * Get current rool token (signed JWT asserting auth origin).
+   */
+  getRoolToken(): string | undefined {
+    return this.provider.getRoolToken?.();
+  }
+
+  /**
    * Get auth identity from current session (decoded from token).
    */
   getAuthUser(): AuthUser {

@@ -19,6 +19,7 @@ export interface NodeAuthConfig {
 interface StoredCredentials {
     access_token: string;
     refresh_token: string | null;
+    rool_token: string | null;
     expires_at: number;
 }
 
@@ -104,6 +105,11 @@ export class NodeAuthProvider implements AuthProvider {
         }
     }
 
+    getRoolToken(): string | undefined {
+        const creds = this.readCredentials();
+        return creds?.rool_token ?? undefined;
+    }
+
     async isAuthenticated(): Promise<boolean> {
         const token = await this.getToken();
         return token !== undefined;
@@ -140,6 +146,7 @@ export class NodeAuthProvider implements AuthProvider {
                 this.writeCredentials({
                     access_token: tokens.id_token, // GCIP returns id_token
                     refresh_token: tokens.refresh_token,
+                    rool_token: tokens.rool_token ?? null,
                     expires_at: expiresAt
                 });
                 this.config.onAuthStateChanged?.(true);
@@ -231,7 +238,10 @@ export class NodeAuthProvider implements AuthProvider {
             const response = await fetch(`${this.authEndpoint}/refresh`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh_token: creds.refresh_token }),
+                body: JSON.stringify({
+                    refresh_token: creds.refresh_token,
+                    rool_token: creds.rool_token,
+                }),
             });
 
             if (!response.ok) {
@@ -250,6 +260,7 @@ export class NodeAuthProvider implements AuthProvider {
             const newCreds: StoredCredentials = {
                 access_token: data.id_token,
                 refresh_token: data.refresh_token || creds.refresh_token,
+                rool_token: data.rool_token ?? creds.rool_token,
                 expires_at: Date.now() + (Number(data.expires_in) * 1000),
             };
 
@@ -300,6 +311,7 @@ export class NodeAuthProvider implements AuthProvider {
                         const params = new URLSearchParams(body);
                         const idToken = params.get('id_token');
                         const refreshToken = params.get('refresh_token');
+                        const roolToken = params.get('rool_token');
                         const expiresIn = params.get('expires_in');
 
                         if (idToken && expiresIn) {
@@ -308,6 +320,7 @@ export class NodeAuthProvider implements AuthProvider {
                             server.emit('authenticated', {
                                 id_token: idToken,
                                 refresh_token: refreshToken,
+                                rool_token: roolToken,
                                 expires_in: Number(expiresIn)
                             });
                         } else {

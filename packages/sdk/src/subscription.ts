@@ -72,11 +72,15 @@ export class ClientSubscriptionManager {
     this.config.onConnectionStateChanged('reconnecting');
 
     try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+      };
+      const roolToken = this.config.authManager.getRoolToken();
+      if (roolToken) headers['X-Rool-Token'] = roolToken;
+
       this.client = createClient({
         url: this.config.graphqlUrl,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
       });
 
       const query = `
@@ -280,11 +284,15 @@ export class SpaceSubscriptionManager {
     this.config.onConnectionStateChanged('reconnecting');
 
     try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+      };
+      const roolToken = this.config.authManager.getRoolToken();
+      if (roolToken) headers['X-Rool-Token'] = roolToken;
+
       this.client = createClient({
         url: this.config.graphqlUrl,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
       });
 
       const query = `

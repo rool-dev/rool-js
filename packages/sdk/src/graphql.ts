@@ -592,6 +592,11 @@ export class GraphQLClient {
       Authorization: `Bearer ${token}`,
     };
 
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) {
+      headers['X-Rool-Token'] = roolToken;
+    }
+
     const timezone = getTimezone();
     if (timezone) {
       headers['X-Timezone'] = timezone;

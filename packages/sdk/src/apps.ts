@@ -25,9 +25,13 @@ export class AppsClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const response = await fetch(this.config.appsUrl, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
 
     if (!response.ok) {
@@ -44,9 +48,13 @@ export class AppsClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
 
     if (response.status === 404) {
@@ -69,6 +77,10 @@ export class AppsClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const formData = new FormData();
     formData.append('bundle', options.bundle);
     formData.append('name', options.name);
@@ -78,7 +90,7 @@ export class AppsClient {
 
     const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
       body: formData,
     });
 
@@ -98,9 +110,13 @@ export class AppsClient {
     const token = await this.config.authManager.getToken();
     if (!token) throw new Error('Not authenticated');
 
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const roolToken = this.config.authManager.getRoolToken();
+    if (roolToken) headers['X-Rool-Token'] = roolToken;
+
     const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
 
     if (!response.ok && response.status !== 204) {

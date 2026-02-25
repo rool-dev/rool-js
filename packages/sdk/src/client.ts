@@ -192,6 +192,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
     const headers = new Headers(init?.headers);
     headers.set('Authorization', `Bearer ${token}`);
+    const roolToken = this.authManager.getRoolToken();
+    if (roolToken) headers.set('X-Rool-Token', roolToken);
 
     return fetch(`${this.baseUrl}${path}`, { ...init, headers });
   }
