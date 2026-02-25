@@ -78,16 +78,20 @@ export class NodeAuthProvider implements AuthProvider {
         return this.readCredentials() !== null;
     }
 
-    async getToken(): Promise<string | undefined> {
+    async getTokens(): Promise<{ accessToken: string; roolToken: string } | undefined> {
         const creds = this.readCredentials();
         if (!creds) return undefined;
 
         // Refresh if expiring in less than 5 minutes
         if (Date.now() >= creds.expires_at - 5 * 60 * 1000) {
-            return this.refreshToken(creds);
+            const refreshed = await this.refreshToken(creds);
+            if (!refreshed) return undefined;
+            const freshCreds = this.readCredentials();
+            if (!freshCreds) return undefined;
+            return { accessToken: freshCreds.access_token, roolToken: freshCreds.rool_token ?? '' };
         }
 
-        return creds.access_token;
+        return { accessToken: creds.access_token, roolToken: creds.rool_token ?? '' };
     }
 
     getAuthUser(): AuthUser {
@@ -105,14 +109,9 @@ export class NodeAuthProvider implements AuthProvider {
         }
     }
 
-    getRoolToken(): string | undefined {
-        const creds = this.readCredentials();
-        return creds?.rool_token ?? undefined;
-    }
-
     async isAuthenticated(): Promise<boolean> {
-        const token = await this.getToken();
-        return token !== undefined;
+        const tokens = await this.getTokens();
+        return tokens !== undefined;
     }
 
     async login(appName: string): Promise<void> {

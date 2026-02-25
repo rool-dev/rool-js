@@ -581,21 +581,17 @@ export class GraphQLClient {
     query: string,
     variables?: Record<string, unknown>
   ): Promise<T> {
-    const token = await this.config.authManager.getToken();
-    if (!token) {
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) {
       throw new Error('Not authenticated');
     }
 
     const body = JSON.stringify({ query, variables });
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${tokens.accessToken}`,
+      'X-Rool-Token': tokens.roolToken,
     };
-
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) {
-      headers['X-Rool-Token'] = roolToken;
-    }
 
     const timezone = getTimezone();
     if (timezone) {

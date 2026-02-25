@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, generateId, type ReactiveSpace } from '@rool-dev/svelte';
+  import { createRool, generateId, type ReactiveSpace, type ConversationInfo } from '@rool-dev/svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';

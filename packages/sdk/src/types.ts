@@ -330,10 +330,8 @@ export interface SpaceEvent {
 export interface AuthProvider {
   /** Initialize the provider (e.g. check for callbacks, start timers) */
   initialize?: () => boolean;
-  /** Get current access token */
-  getToken: () => Promise<string | undefined>;
-  /** Get current rool token (signed JWT asserting auth origin) */
-  getRoolToken?: () => string | undefined;
+  /** Get current access token and rool token. Returns undefined if not authenticated. */
+  getTokens: () => Promise<{ accessToken: string; roolToken: string } | undefined>;
   /** Get auth identity from current session (decoded from token) */
   getAuthUser: () => { email: string | null; name: string | null };
   /** Check if currently authenticated (validates token is usable) */

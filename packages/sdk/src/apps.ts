@@ -22,12 +22,10 @@ export class AppsClient {
    * List all published apps for the current user.
    */
   async list(): Promise<PublishedAppInfo[]> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const response = await fetch(this.config.appsUrl, {
       method: 'GET',
@@ -45,12 +43,10 @@ export class AppsClient {
    * Get info for a specific published app.
    */
   async get(appId: string): Promise<PublishedAppInfo | null> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
       method: 'GET',
@@ -74,12 +70,10 @@ export class AppsClient {
    * @param options - App name, bundle (zip file), and optional SPA flag
    */
   async publish(appId: string, options: PublishAppOptions): Promise<PublishedAppInfo> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const formData = new FormData();
     formData.append('bundle', options.bundle);
@@ -107,12 +101,10 @@ export class AppsClient {
    * Unpublish an app.
    */
   async unpublish(appId: string): Promise<void> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
       method: 'DELETE',

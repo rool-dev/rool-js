@@ -187,13 +187,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * @param init - Standard fetch RequestInit options. Authorization header is added automatically.
    */
   async fetch(path: string, init?: RequestInit): Promise<Response> {
-    const token = await this.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
     const headers = new Headers(init?.headers);
-    headers.set('Authorization', `Bearer ${token}`);
-    const roolToken = this.authManager.getRoolToken();
-    if (roolToken) headers.set('X-Rool-Token', roolToken);
+    headers.set('Authorization', `Bearer ${tokens.accessToken}`);
+    headers.set('X-Rool-Token', tokens.roolToken);
 
     return fetch(`${this.baseUrl}${path}`, { ...init, headers });
   }

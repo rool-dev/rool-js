@@ -59,8 +59,8 @@ export class ClientSubscriptionManager {
   }
 
   private async connect(): Promise<void> {
-    const token = await this.config.authManager.getToken();
-    if (!token) {
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) {
       // Token not available - may be refreshing or network not ready after wake
       // Schedule retry instead of giving up
       if (!this.isIntentionalClose) {
@@ -73,10 +73,9 @@ export class ClientSubscriptionManager {
 
     try {
       const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${tokens.accessToken}`,
+        'X-Rool-Token': tokens.roolToken,
       };
-      const roolToken = this.config.authManager.getRoolToken();
-      if (roolToken) headers['X-Rool-Token'] = roolToken;
 
       this.client = createClient({
         url: this.config.graphqlUrl,
@@ -266,8 +265,8 @@ export class SpaceSubscriptionManager {
   }
 
   private async connect(): Promise<void> {
-    const token = await this.config.authManager.getToken();
-    if (!token) {
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) {
       const error = new Error('Cannot subscribe: not authenticated');
       this.config.onError(error);
       if (this._initialConnectPromise) {
@@ -285,10 +284,9 @@ export class SpaceSubscriptionManager {
 
     try {
       const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${tokens.accessToken}`,
+        'X-Rool-Token': tokens.roolToken,
       };
-      const roolToken = this.config.authManager.getRoolToken();
-      if (roolToken) headers['X-Rool-Token'] = roolToken;
 
       this.client = createClient({
         url: this.config.graphqlUrl,

@@ -51,12 +51,10 @@ export class MediaClient {
    * List all media files for a space.
    */
   async list(spaceId: string): Promise<MediaInfo[]> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const response = await fetch(this.baseUrl(spaceId), {
       method: 'GET',
@@ -78,16 +76,14 @@ export class MediaClient {
     spaceId: string,
     file: File | Blob | { data: string; contentType: string }
   ): Promise<string> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
     let body: FormData | string;
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${tokens.accessToken}`,
+      'X-Rool-Token': tokens.roolToken,
     };
-
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
 
     if (file instanceof File || file instanceof Blob) {
       const formData = new FormData();
@@ -153,12 +149,10 @@ export class MediaClient {
    * Fetch a backend URL with auth headers.
    */
   private async fetchWithAuth(url: string): Promise<Response> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const response = await fetch(url, {
       method: 'GET',
@@ -176,12 +170,10 @@ export class MediaClient {
    * Fetch an external URL via the server proxy (bypasses CORS).
    */
   private async fetchViaProxy(spaceId: string, url: string): Promise<Response> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const proxyUrl = `${this.baseUrl(spaceId)}/proxy?url=${encodeURIComponent(url)}`;
     const response = await fetch(proxyUrl, {
@@ -200,12 +192,10 @@ export class MediaClient {
    * Delete a media file by URL.
    */
   async delete(spaceId: string, url: string): Promise<void> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const filename = this.extractFilename(url);
     const response = await fetch(`${this.baseUrl(spaceId)}/${encodeURIComponent(filename)}`, {
@@ -224,12 +214,10 @@ export class MediaClient {
    * plus a media/ folder with all media files.
    */
   async exportArchive(spaceId: string): Promise<Blob> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const exportUrl = `${this.config.backendOrigin}/spaces/${encodeURIComponent(spaceId)}/export`;
     const response = await fetch(exportUrl, {
@@ -251,12 +239,10 @@ export class MediaClient {
    * Returns the new space ID.
    */
   async importArchive(name: string, archive: Blob): Promise<string> {
-    const token = await this.config.authManager.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    const roolToken = this.config.authManager.getRoolToken();
-    if (roolToken) headers['X-Rool-Token'] = roolToken;
+    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
     const formData = new FormData();
     formData.append('name', name);

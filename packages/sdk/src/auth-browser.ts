@@ -76,17 +76,16 @@ export class BrowserAuthProvider implements AuthProvider {
      * Check if user is currently authenticated (validates token is usable).
      */
     async isAuthenticated(): Promise<boolean> {
-        const token = await this.getToken();
-        return token !== undefined;
+        const tokens = await this.getTokens();
+        return tokens !== undefined;
     }
 
     /**
-     * Get current access token, refreshing if expired.
+     * Get current access token and rool token, refreshing if expired.
      * Returns undefined if not authenticated.
      */
-    async getToken(): Promise<string | undefined> {
+    async getTokens(): Promise<{ accessToken: string; roolToken: string } | undefined> {
         const accessToken = this.readAccessToken();
-
         if (!accessToken) return undefined;
 
         // Token expired or about to expire - try refresh
@@ -94,17 +93,12 @@ export class BrowserAuthProvider implements AuthProvider {
         if (expiresAt && Date.now() >= expiresAt - REFRESH_BUFFER_MS) {
             const refreshed = await this.tryRefreshToken();
             if (!refreshed) return undefined;
-            return this.readAccessToken() ?? undefined;
+            const refreshedToken = this.readAccessToken();
+            if (!refreshedToken) return undefined;
+            return { accessToken: refreshedToken, roolToken: this.readRoolToken() };
         }
 
-        return accessToken;
-    }
-
-    /**
-     * Get current rool token (signed JWT asserting auth origin).
-     */
-    getRoolToken(): string | undefined {
-        return localStorage.getItem(this.storageKeys.rool) ?? undefined;
+        return { accessToken, roolToken: this.readRoolToken() };
     }
 
     /**
@@ -339,6 +333,10 @@ export class BrowserAuthProvider implements AuthProvider {
 
     private readAccessToken(): string | null {
         return localStorage.getItem(this.storageKeys.access);
+    }
+
+    private readRoolToken(): string {
+        return localStorage.getItem(this.storageKeys.rool) ?? '';
     }
 
     private readExpiresAt(): number | null {

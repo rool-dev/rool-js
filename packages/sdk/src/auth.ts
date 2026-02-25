@@ -57,18 +57,11 @@ export class AuthManager {
   }
 
   /**
-   * Get current access token.
+   * Get current access token and rool token.
    * Returns undefined if not authenticated.
    */
-  async getToken(): Promise<string | undefined> {
-    return this.provider.getToken();
-  }
-
-  /**
-   * Get current rool token (signed JWT asserting auth origin).
-   */
-  getRoolToken(): string | undefined {
-    return this.provider.getRoolToken?.();
+  async getTokens(): Promise<{ accessToken: string; roolToken: string } | undefined> {
+    return this.provider.getTokens();
   }
 
   /**
