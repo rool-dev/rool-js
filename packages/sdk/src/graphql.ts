@@ -430,11 +430,11 @@ export class GraphQLClient {
     spaceId: string,
     prompt: string,
     conversationId: string,
-    options: PromptOptions = {}
+    options: Omit<PromptOptions, 'attachments'> & { attachmentUrls?: string[] } = {}
   ): Promise<{ message: string; modifiedObjectIds: string[] }> {
     const mutation = `
-      mutation Prompt($spaceId: String!, $prompt: String!, $objectIds: [String!], $responseSchema: JSON, $conversationId: String!, $effort: PromptEffort, $ephemeral: Boolean, $readOnly: Boolean) {
-        prompt(spaceId: $spaceId, prompt: $prompt, objectIds: $objectIds, responseSchema: $responseSchema, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly) {
+      mutation Prompt($spaceId: String!, $prompt: String!, $objectIds: [String!], $responseSchema: JSON, $conversationId: String!, $effort: PromptEffort, $ephemeral: Boolean, $readOnly: Boolean, $attachments: [String!]) {
+        prompt(spaceId: $spaceId, prompt: $prompt, objectIds: $objectIds, responseSchema: $responseSchema, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments) {
           message
           modifiedObjectIds
         }
@@ -451,6 +451,7 @@ export class GraphQLClient {
       effort: options.effort,
       ephemeral: options.ephemeral,
       readOnly: options.readOnly,
+      attachments: options.attachmentUrls,
     });
     return response.prompt;
   }

@@ -287,6 +287,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 | `effort` | Effort level: `'QUICK'`, `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | If true, don't record in conversation history (useful for tab completion) |
 | `readOnly` | If true, disable mutation tools (create, update, link, unlink). Use for questions. |
+| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Uploaded to the media store via `uploadMedia()`. Resulting URLs are stored on the interaction's `attachments` field for UI rendering. **Currently only images are interpreted by the AI**; other file types are uploaded and stored but the AI cannot read their contents. |
 
 ### Effort Levels
 
@@ -321,6 +322,13 @@ const { message } = await space.prompt(
 await space.prompt(
   "Analyze relationships and reorganize",
   { effort: 'REASONING' }
+);
+
+// Attach files for the AI to see (File from <input>, Blob, or base64)
+const file = fileInput.files[0]; // from <input type="file">
+await space.prompt(
+  "Describe what's in this photo and create an object for it",
+  { attachments: [file] }
 );
 ```
 
@@ -1009,6 +1017,7 @@ interface Interaction {
   ai: boolean;                   // Whether AI was invoked (vs synthetic confirmation)
   modifiedObjectIds: string[];   // Objects affected by this interaction
   toolCalls: ToolCall[];         // Tools called during this interaction (for AI prompts)
+  attachments?: string[];        // Media URLs attached by the user (images, documents, etc.)
 }
 ```
 
@@ -1038,6 +1047,7 @@ interface PromptOptions {
   effort?: PromptEffort;     // Effort level (default: 'STANDARD')
   ephemeral?: boolean;       // Don't record in conversation history
   readOnly?: boolean;        // Disable mutation tools (default: false)
+  attachments?: Array<File | Blob | { data: string; contentType: string }>;  // Files to attach (uploaded to media store)
 }
 ```
 

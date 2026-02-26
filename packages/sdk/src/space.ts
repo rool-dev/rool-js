@@ -933,7 +933,16 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * @returns The message from the AI and the list of objects that were created or modified
    */
   async prompt(prompt: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
-    const result = await this.graphqlClient.prompt(this._id, prompt, this._conversationId, options);
+    // Upload attachments via media endpoint, then send URLs to the server
+    const { attachments, ...rest } = options ?? {};
+    let attachmentUrls: string[] | undefined;
+    if (attachments?.length) {
+      attachmentUrls = await Promise.all(
+        attachments.map(file => this.mediaClient.upload(this._id, file))
+      );
+    }
+
+    const result = await this.graphqlClient.prompt(this._id, prompt, this._conversationId, { ...rest, attachmentUrls });
     
     // Hydrate modified object IDs to actual objects (filter out deleted ones)
     const objects = result.modifiedObjectIds

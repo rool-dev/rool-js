@@ -61,6 +61,8 @@ export interface Interaction {
   ai: boolean;
   modifiedObjectIds: string[];
   toolCalls: ToolCall[];
+  /** Media URLs attached by the user (uploaded images, documents, etc.) */
+  attachments?: string[];
 }
 
 /**
@@ -240,6 +242,17 @@ export interface PromptOptions {
   ephemeral?: boolean;
   /** If true, mutation tools (create, update, link, unlink) are disabled. Defaults to false. */
   readOnly?: boolean;
+  /**
+   * User-attached files to upload and make visible to the AI.
+   * Accepts the same types as `uploadMedia()`: File, Blob, or `{ data, contentType }` for base64.
+   * Files are uploaded to the media store; the resulting URLs are sent to the server
+   * and stored on the interaction's `attachments` field.
+   *
+   * **Note:** Currently only images (JPEG, PNG, GIF, WebP, SVG) are interpreted by the AI.
+   * Other file types are uploaded and stored on the interaction for UI rendering,
+   * but the AI cannot read their contents.
+   */
+  attachments?: Array<File | Blob | { data: string; contentType: string }>;
 }
 
 export interface FindObjectsOptions {
