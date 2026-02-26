@@ -39,7 +39,8 @@ Examples:
 
   # Publish with a custom name
   $ rool app publish my-app ./dist -n "My App"`)
-    .action(async (appId: string, dirPath: string, opts: { name?: string; spa: boolean }, command: Command) => {
+    .action(async (rawAppId: string, dirPath: string, opts: { name?: string; spa: boolean }, command: Command) => {
+      const appId = rawAppId.toLowerCase();
       const { env } = command.optsWithGlobals() as { env: Environment };
       // Validate directory exists
       const resolvedPath = path.resolve(dirPath);
@@ -123,7 +124,8 @@ Examples:
 Examples:
   # Unpublish an app
   $ rool app unpublish my-app`)
-    .action(async (appId: string, _opts: object, command: Command) => {
+    .action(async (rawAppId: string, _opts: object, command: Command) => {
+      const appId = rawAppId.toLowerCase();
       const { env } = command.optsWithGlobals() as { env: Environment };
       const client = await getClient(env);
       try {

@@ -375,7 +375,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Publish an app. The app will be accessible at:
    * https://{appId}.rool.app/
    *
-   * @param appId - URL-safe identifier (alphanumeric, hyphens, underscores)
+   * @param appId - URL-safe identifier (alphanumeric, hyphens, underscores; case-insensitive, lowercased by server)
    * @param options - App name, bundle (zip file), and optional SPA flag
    */
   async publishApp(appId: string, options: PublishAppOptions): Promise<PublishedAppInfo> {

@@ -50,7 +50,6 @@ rool <command> [options]
 | `-m, --message <text>` | optional comment/description |  | `media upload` |
 | `-y, --yes` | skip confirmation prompt |  | `space delete` |
 | `-n, --name <name>` | app display name (defaults to app-id) |  | `app publish` |
-| `--no-spa` | disable SPA routing (404s will not serve index.html) |  | `app publish` |
 
 ### Examples
 
