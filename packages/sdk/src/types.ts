@@ -248,9 +248,11 @@ export interface PromptOptions {
    * Files are uploaded to the media store; the resulting URLs are sent to the server
    * and stored on the interaction's `attachments` field.
    *
-   * **Note:** Currently only images (JPEG, PNG, GIF, WebP, SVG) are interpreted by the AI.
-   * Other file types are uploaded and stored on the interaction for UI rendering,
-   * but the AI cannot read their contents.
+   * Supported file types:
+   * - **Images** (JPEG, PNG, GIF, WebP, SVG) — viewed natively by the AI
+   * - **PDFs** — viewed natively by the AI
+   * - **Text files** (TXT, Markdown, CSV, JSON, XML, HTML) — read as text
+   * - **DOCX** — text extracted and read by the AI
    */
   attachments?: Array<File | Blob | { data: string; contentType: string }>;
 }
