@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount } from '../helpers.js';
+
 
 /**
  * Tests creation of browser nodes with URLs.
@@ -35,7 +35,6 @@ export const testCase: TestCase = {
       expect(hasUrlMatching(/cnn\.com/), 'Should have CNN URL').to.be.true;
       expect(hasUrlMatching(/dr\.dk/), 'Should have DR URL').to.be.true;
 
-      expectLinkCount(space, 0);
     } finally {
       space.close();
     }

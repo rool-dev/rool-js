@@ -160,36 +160,6 @@ export class GraphQLClient {
     });
   }
 
-  async link(spaceId: string, source: string, relation: string, target: string, conversationId: string): Promise<void> {
-    const mutation = `
-      mutation Link($spaceId: String!, $source: String!, $relation: String!, $target: String!, $conversationId: String!) {
-        link(spaceId: $spaceId, source: $source, relation: $relation, target: $target, conversationId: $conversationId)
-      }
-    `;
-    await this.request(mutation, {
-      spaceId,
-      source,
-      relation,
-      target,
-      conversationId,
-    });
-  }
-
-  async unlink(spaceId: string, source: string, relation: string | undefined, target: string | undefined, conversationId: string): Promise<void> {
-    const mutation = `
-      mutation Unlink($spaceId: String!, $source: String!, $relation: String, $target: String, $conversationId: String!) {
-        unlink(spaceId: $spaceId, source: $source, relation: $relation, target: $target, conversationId: $conversationId)
-      }
-    `;
-    await this.request(mutation, {
-      spaceId,
-      source,
-      relation: relation ?? null,
-      target: target ?? null,
-      conversationId,
-    });
-  }
-
   async deleteObjects(spaceId: string, ids: string[], conversationId: string): Promise<void> {
     const mutation = `
       mutation DeleteObjects($spaceId: String!, $ids: [String!]!, $conversationId: String!) {
@@ -550,7 +520,7 @@ export class GraphQLClient {
     await this.request(mutation, { spaceId, userId });
   }
 
-  async setLinkAccess(spaceId: string, linkAccess: LinkAccess): Promise<void> {
+  async setLinkAccess(spaceId: string, linkAccess: string): Promise<void> {
     const mutation = `
       mutation SetLinkAccess($spaceId: String!, $linkAccess: String!) {
         setLinkAccess(spaceId: $spaceId, linkAccess: $linkAccess)

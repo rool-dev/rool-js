@@ -36,6 +36,7 @@ export type {
   SpaceMember,
   RoolUserRole,
   LinkAccess,
+
   UserResult,
   CurrentUser,
   AuthUser,
@@ -62,8 +63,6 @@ export type {
   ObjectCreatedEvent,
   ObjectUpdatedEvent,
   ObjectDeletedEvent,
-  LinkedEvent,
-  UnlinkedEvent,
   MetadataUpdatedEvent,
   ConversationUpdatedEvent,
   ConversationsChangedEvent,

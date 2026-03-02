@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount, loadArchiveFixture } from '../helpers.js';
+import { loadArchiveFixture } from '../helpers.js';
 
 // Expected image-search objects in the electrical fixture
 const EXPECTED_IMAGE_NODE_IDS = new Set(['2TvtH2', '86Trm4']);
@@ -41,7 +41,6 @@ export const testCase: TestCase = {
       // Verify space was not modified
       const finalObjectIds = space.getObjectIds();
       expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
-      expectLinkCount(space, 8);
     } finally {
       space.close();
     }

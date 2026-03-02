@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount } from '../helpers.js';
+
 
 const BOAT_EMOJIS = new Set(['⛵', '🚤', '🛶', '🚢']);
 
@@ -33,7 +33,6 @@ export const testCase: TestCase = {
       const objectIds = space.getObjectIds();
       expect(objectIds).to.have.length(1);
       expect(objectIds[0]).to.equal(topicId);
-      expectLinkCount(space, 0);
 
       // Verify emoji was added and is boat-related
       const topic = await space.getObject(topicId);

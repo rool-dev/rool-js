@@ -18,7 +18,7 @@ Each object should have:
  * Tests that the AI can split a markdown node into a topic with child segments.
  */
 export const testCase: TestCase = {
-  description: 'Converts a markdown node to a topic and creates linked child segments',
+  description: 'Converts a markdown node to a topic and creates referenced child segments',
 
   async run(client) {
     // Import the fixture
@@ -52,14 +52,10 @@ export const testCase: TestCase = {
         expect((md.text as string).length).to.be.greaterThan(0, 'Markdown should have text');
       }
 
-      // Verify children are linked from the original node with 'expand' relation
-      const children = await space.getChildren(ORIGINAL_NODE_ID, 'expand');
-      expect(children.length).to.be.at.least(2, 'Should have at least 2 expand children');
-
-      // Verify all new markdowns are among the children
-      const childIds = new Set(children.map(c => c.id));
+      // Verify the topic references its children via data fields
+      const topicData = JSON.stringify(convertedNode);
       for (const md of newMarkdowns) {
-        expect(childIds.has(md.id), `Markdown ${md.id} should be linked from topic`).to.be.true;
+        expect(topicData).to.include(md.id, `Topic should reference child ${md.id} in its data`);
       }
     } finally {
       space.close();

@@ -1,14 +1,13 @@
 # Rool SDK
 
-The TypeScript SDK for Rool Spaces, a persistent and collaborative environment for organizing objects and their relationships.
+The TypeScript SDK for Rool Spaces, a persistent and collaborative environment for organizing objects.
 
 Rool Spaces enables you to build applications where AI operates on a structured world model rather than a text conversation. The context for all AI operations is the full object graph, allowing the system to reason about, update, and expand the state of your application directly.
 
 Use Rool to programmatically instruct agents to generate content, research topics, or reorganize data. The client manages authentication, real-time synchronization, and media storage, supporting both single-user and multi-user workflows.
 
 **Core primitives:**
-- **Objects** — Key-value records with any fields you define
-- **Relations** — Directional links between objects (e.g., `earth` → `orbits` → `sun`)
+- **Objects** — Key-value records with any fields you define. References between objects are data fields whose values are object IDs.
 - **AI operations** — Create, update, or query objects using natural language and `{{placeholders}}`
 
 See [Patterns & Examples](#patterns--examples) for what you can build.
@@ -50,16 +49,14 @@ const { object: earth } = await space.createObject({
     name: 'Earth',
     mass: '{{mass in Earth masses}}',
     radius: '{{radius in km}}',
-    orbitalPeriod: '{{orbital period in days}}'
+    orbitalPeriod: '{{orbital period in days}}',
+    orbits: sun.id  // Reference to the sun object
   }
 });
 
-// Link objects together
-await space.link(earth.id, 'orbits', sun.id);
-
 // Use the AI agent to work with your data
 const { message, objects } = await space.prompt(
-  'Add the other planets in our solar system and link them to the Sun'
+  'Add the other planets in our solar system, each referencing the Sun'
 );
 console.log(message);  // AI explains what it did
 console.log(`Created ${objects.length} objects`);
@@ -75,7 +72,7 @@ space.close();
 
 ## Core Concepts
 
-### Objects & Relations
+### Objects & References
 
 **Objects** are plain key-value records. The `id` field is reserved; everything else is application-defined.
 
@@ -83,23 +80,17 @@ space.close();
 { id: 'abc123', type: 'article', title: 'Hello World', status: 'draft' }
 ```
 
-**Relations** connect objects directionally through named links. Each relation name represents a multi-valued reference set on the source object.
+**References** between objects are data fields whose values are object IDs. The system detects these statistically — any string field whose value matches an existing object ID is recognized as a reference.
 
 ```typescript
-await space.link(earth.id, 'orbits', sun.id);
-// Reads as: "earth.orbits includes sun"
+// A planet references a star via the 'orbits' field
+{ id: 'earth', type: 'planet', name: 'Earth', orbits: 'sun-01' }
 
-const orbited = space.getChildren(earth.id, 'orbits');  // [sun] - what earth links TO
-const orbiters = space.getParents(sun.id, 'orbits');    // [earth] - what links TO sun
+// An array of references
+{ id: 'team-a', type: 'team', name: 'Alpha', members: ['user-1', 'user-2', 'user-3'] }
 ```
 
-Relations are indexed and idempotent — creating the same link twice has no effect.
-
-**Notes:**
-- Relation names are application-defined strings
-- Relations are not stored in object data fields
-- Only relations created via `link()` participate in traversal (`getParents`, `getChildren`) and indexing
-- Storing object IDs inside regular object fields is possible, but those references are opaque to the system
+References are just data — no special API is needed to create or remove them. Set a field to an object ID to create a reference; clear it to remove it.
 
 ### AI Placeholder Pattern
 
@@ -199,14 +190,14 @@ await space.createObject({ data: { id: 'article-42', title: 'The Meaning of Life
 ```
 
 **Why use custom IDs?**
-- **Fire-and-forget creation** — Know the ID immediately without awaiting the response. You can create an object and link to it in parallel; the sync happens in the background.
+- **Fire-and-forget creation** — Know the ID immediately without awaiting the response.
 - **Meaningful IDs** — Use domain-specific IDs like `user-123` or `doc-abc` for easier debugging and external references.
 
 ```typescript
-// Fire-and-forget: create and link without waiting
+// Fire-and-forget: create and reference without waiting
 const id = RoolClient.generateId();
 space.createObject({ data: { id, type: 'note', text: '{{expand this idea}}' } });
-space.link(parentId, 'hasNote', id);  // Can link immediately
+space.updateObject(parentId, { data: { notes: [...existingNotes, id] } }); // Add reference immediately
 ```
 
 **Constraints:**
@@ -258,7 +249,7 @@ if (!authenticated) {
 
 ## AI Agent
 
-The `prompt()` method is the primary way to invoke the AI agent. The agent has editor-level capabilities — it can create, modify, delete, link, and research — but cannot see or modify `_`-prefixed fields.
+The `prompt()` method is the primary way to invoke the AI agent. The agent has editor-level capabilities — it can create, modify, and delete objects — but cannot see or modify `_`-prefixed fields.
 
 ```typescript
 const { message, objects } = await space.prompt(
@@ -286,7 +277,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 | `responseSchema` | Request structured JSON instead of text summary |
 | `effort` | Effort level: `'QUICK'`, `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | If true, don't record in conversation history (useful for tab completion) |
-| `readOnly` | If true, disable mutation tools (create, update, link, unlink). Use for questions. |
+| `readOnly` | If true, disable mutation tools (create, update, delete). Use for questions. |
 | `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Uploaded to the media store via `uploadMedia()`. Resulting URLs are stored on the interaction's `attachments` field for UI rendering. **Currently only images are interpreted by the AI**; other file types are uploaded and stored but the AI cannot read their contents. |
 
 ### Effort Levels
@@ -301,7 +292,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 ### Examples
 
 ```typescript
-// Reorganize and link existing objects
+// Reorganize existing objects
 const { objects } = await space.prompt(
   "Group these notes by topic and create a parent node for each group."
 );
@@ -387,7 +378,7 @@ await space.addUser(user.id, 'editor');
 |------|--------------|
 | `owner` | Full control, can delete space and manage all users |
 | `admin` | All editor capabilities, plus can manage users (except other admins/owners) |
-| `editor` | Can create, modify, delete objects and links |
+| `editor` | Can create, modify, and delete objects |
 | `viewer` | Read-only access (can query with `prompt` and `findObjects`) |
 
 ### Space Collaboration Methods
@@ -397,27 +388,27 @@ await space.addUser(user.id, 'editor');
 | `listUsers(): Promise<SpaceMember[]>` | List users with access |
 | `addUser(userId, role): Promise<void>` | Add user to space (requires owner or admin role) |
 | `removeUser(userId): Promise<void>` | Remove user from space (requires owner or admin role) |
-| `setLinkAccess(linkAccess): Promise<void>` | Set link sharing level (requires owner or admin role) |
+| `setLinkAccess(linkAccess): Promise<void>` | Set URL sharing level (requires owner or admin role) |
 
-### Link Sharing
+### URL Sharing
 
-Enable public link access to allow anyone with the link to access your space:
+Enable public URL access to allow anyone with the space URL to access it:
 
 ```typescript
-// Allow anyone with the link to view
+// Allow anyone with the URL to view
 await space.setLinkAccess('viewer');
 
-// Allow anyone with the link to edit
+// Allow anyone with the URL to edit
 await space.setLinkAccess('editor');
 
-// Disable link access (default)
+// Disable URL access (default)
 await space.setLinkAccess('none');
 
 // Check current setting
 console.log(space.linkAccess); // 'none' | 'viewer' | 'editor'
 ```
 
-When a user accesses a space via link, they're granted the corresponding role (`viewer` or `editor`) based on the space's `linkAccess` setting.
+When a user accesses a space via URL, they're granted the corresponding role (`viewer` or `editor`) based on the space's `linkAccess` setting.
 
 ### Client User Methods
 
@@ -553,7 +544,7 @@ Spaces are first-class objects with built-in undo/redo, event emission, and real
 | `id: string` | Space ID |
 | `name: string` | Space name |
 | `role: RoolUserRole` | User's role (`'owner' \| 'admin' \| 'editor' \| 'viewer'`) |
-| `linkAccess: LinkAccess` | Link sharing level (`'none' \| 'viewer' \| 'editor'`) |
+| `linkAccess: LinkAccess` | URL sharing level (`'none' \| 'viewer' \| 'editor'`) |
 | `userId: string` | Current user's ID |
 | `conversationId: string` | ID for interaction history (tracks AI context). Writable — set to switch conversations. |
 | `isReadOnly(): boolean` | True if viewer role |
@@ -567,7 +558,7 @@ Spaces are first-class objects with built-in undo/redo, event emission, and real
 
 ### Object Operations
 
-Objects are plain key/value records. `id` is the only reserved field; everything else is application-defined.
+Objects are plain key/value records. `id` is the only reserved field; everything else is application-defined. References between objects are data fields whose values are object IDs.
 
 | Method | Description |
 |--------|-------------|
@@ -577,7 +568,7 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 | `getObjectIds(options?): string[]` | Get all object IDs. Sorted by modifiedAt (desc by default). Options: `{ limit?, order? }`. |
 | `createObject(options): Promise<{ object, message }>` | Create a new object. Returns the object (with AI-filled content) and message. |
 | `updateObject(objectId, options): Promise<{ object, message }>` | Update an existing object. Returns the updated object and message. |
-| `deleteObjects(objectIds): Promise<void>` | Delete objects. Outbound links are removed automatically. |
+| `deleteObjects(objectIds): Promise<void>` | Delete objects. Other objects referencing deleted objects retain stale ref values. |
 
 #### createObject Options
 
@@ -634,40 +625,6 @@ const { objects } = await space.findObjects({
 
 When `where` or `objectIds` are provided with a `prompt`, the AI only sees the filtered subset — not the full space. The returned `message` explains the query result.
 
-### Relations
-
-| Method | Description |
-|--------|-------------|
-| `link(sourceId, relation, targetId): Promise<void>` | Add target to the named relation on source. Reads as "source.relation includes target". |
-| `unlink(sourceId, relation?, targetId?): Promise<boolean>` | Remove relations. Three forms: `(source, relation, target)` removes one link, `(source, relation)` clears all targets for that relation, `(source)` clears all relations on source. |
-| `getParents(objectId, relation?, options?): Promise<RoolObject[]>` | Get objects that link TO this object. Sorted by modifiedAt (desc by default). Options: `{ limit?, order? }`. |
-| `getChildren(objectId, relation?, options?): Promise<RoolObject[]>` | Get objects this object links TO. Sorted by modifiedAt (desc by default). Options: `{ limit?, order? }`. |
-
-**Examples:**
-
-```typescript
-// Create relations
-await space.link(earth.id, 'orbits', sun.id);
-await space.link(sun.id, 'hasPlanet', earth.id);
-
-// This reads as:
-// "earth.orbits includes sun"
-// "sun.hasPlanet includes earth"
-
-// Remove one specific link
-await space.unlink(earth.id, 'orbits', sun.id);
-
-// Clear all targets for a relation
-await space.unlink(earth.id, 'orbits');
-
-// Clear ALL relations on an object
-await space.unlink(earth.id);
-
-// Query relations
-const planets = space.getChildren(sun.id, 'hasPlanet');
-const stars = space.getParents(earth.id, 'orbits');
-```
-
 ### Undo/Redo
 
 | Method | Description |
@@ -683,7 +640,7 @@ See [Checkpoints & Undo/Redo](#checkpoints--undoredo) for semantics.
 
 ### Space Metadata
 
-Store arbitrary data alongside the Space without it being part of the graph content (e.g., viewport state, user preferences).
+Store arbitrary data alongside the Space without it being part of the object data (e.g., viewport state, user preferences).
 
 | Method | Description |
 |--------|-------------|
@@ -726,7 +683,7 @@ Export and import space data as zip archives for backup, portability, or migrati
 
 | Method | Description |
 |--------|-------------|
-| `space.exportArchive(): Promise<Blob>` | Export objects, relations, metadata, conversations, and media as a zip archive |
+| `space.exportArchive(): Promise<Blob>` | Export objects, metadata, conversations, and media as a zip archive |
 | `client.importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
 
 **Export:**
@@ -741,7 +698,7 @@ const url = URL.createObjectURL(archive);
 const newSpace = await client.importArchive('Imported Data', archiveBlob);
 ```
 
-The archive format bundles `data.json` (with objects, relations, metadata, and conversations) and a `media/` folder containing all media files. Media URLs are rewritten to relative paths within the archive and restored on import.
+The archive format bundles `data.json` (with objects, metadata, and conversations) and a `media/` folder containing all media files. Media URLs are rewritten to relative paths within the archive and restored on import.
 
 ### Space Events
 
@@ -758,10 +715,6 @@ Semantic events describe what changed. Events fire for both local changes and re
 space.on('objectCreated', ({ objectId, object, source }) => void)
 space.on('objectUpdated', ({ objectId, object, source }) => void)
 space.on('objectDeleted', ({ objectId, source }) => void)
-
-// Link events
-space.on('linked', ({ sourceId, relation, targetId, source }) => void)
-space.on('unlinked', ({ sourceId, relation, targetId, source }) => void)
 
 // Space metadata
 space.on('metadataUpdated', ({ metadata, source }) => void)
@@ -806,7 +759,7 @@ try {
 
 ## Interaction History
 
-Each `RoolSpace` instance has a `conversationId` that tracks interaction history for that space. The history records all meaningful interactions (prompts, object changes, links) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
+Each `RoolSpace` instance has a `conversationId` that tracks interaction history for that space. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
 
 ### What the AI Receives
 
@@ -933,7 +886,7 @@ Note: Interaction history is truncated to the most recent 50 entries to manage s
 
 The `ai` field in interactions distinguishes AI-generated responses from synthetic confirmations:
 - `ai: true` — AI processed this operation (prompt, or createObject/updateObject with placeholders)
-- `ai: false` — System confirmation only (e.g., "Linked X to Y", "Created object abc123")
+- `ai: false` — System confirmation only (e.g., "Created object abc123")
 
 ### Tool Calls
 
@@ -947,6 +900,7 @@ The `toolCalls` array captures what the AI agent did during execution. Use it to
 // RoolObject represents the object data you work with
 // Always contains `id`, plus any additional fields
 // Fields prefixed with _ are hidden from AI
+// References between objects are fields whose values are object IDs
 interface RoolObject {
   id: string;
   [key: string]: unknown;
@@ -989,7 +943,6 @@ interface RoolSpaceData {
 
 // Full stored object structure (for advanced use with getData())
 interface RoolObjectEntry {
-  links: Record<string, string[]>;  // relation -> [targetId1, targetId2, ...]
   data: RoolObject;                 // The actual object data
   modifiedAt: number;               // Timestamp of last modification
   modifiedBy: string;               // User ID who last modified
@@ -1001,7 +954,7 @@ interface RoolObjectEntry {
 
 ```typescript
 interface ToolCall {
-  name: string;      // Tool name (e.g., "create_object", "link", "search_web")
+  name: string;      // Tool name (e.g., "create_object", "update_object", "search_web")
   input: unknown;    // Arguments passed to the tool
   result: string;    // Truncated result (max 500 chars)
 }
@@ -1011,7 +964,7 @@ interface Interaction {
   timestamp: number;
   userId: string;                // Who performed this interaction
   userName?: string | null;      // Display name at time of interaction
-  operation: 'prompt' | 'createObject' | 'updateObject' | 'link' | 'unlink' | 'deleteObjects';
+  operation: 'prompt' | 'createObject' | 'updateObject' | 'deleteObjects';
   input: string;                 // What the user did: prompt text or action description
   output: string | null;         // Result: AI response or confirmation message (null while in-progress)
   ai: boolean;                   // Whether AI was invoked (vs synthetic confirmation)
@@ -1055,7 +1008,7 @@ interface PromptOptions {
 
 A Rool Space is a persistent, shared world model. Applications project different interaction patterns onto the same core primitives:
 
-- **Objects and relations** store durable state
+- **Objects** store durable state, with references to other objects via data fields
 - **Interaction history** tracks what happened (requests, results, modified objects)
 - **Events** describe what changed in real-time
 
@@ -1076,7 +1029,7 @@ Below are a few representative patterns.
 ### Multi-User World / Text Adventure
 
 - **Space**: rooms, items, NPCs, players as objects
-- **Relations**: navigation, containment, location
+- **References**: navigation, containment, location via data fields
 - **Conversation**: player commands and narrative continuity
 
 **Pattern**
@@ -1087,17 +1040,18 @@ Below are a few representative patterns.
 ### Collaborative Knowledge Graph
 
 - **Space**: concepts, sources, hypotheses as objects
-- **Relations**: semantic links between them
+- **References**: semantic connections between objects via data fields
 - **Conversation**: exploratory analysis and questioning
 
 **Pattern**
-- Graph structure lives in relations
+- Graph structure lives in object data fields containing other object IDs
 - AI operates on selected subgraphs via `objectIds`
 - Analysis results are stored; reasoning steps are transient
 
 ### Common Design Invariants
 
-- Durable content lives in space objects and relations
+- Durable content lives in space objects
+- References between objects are data fields whose values are object IDs
 - Interaction history lives in space conversations (persistent, synced, truncated to 50 entries)
 - UI state lives in the client, space metadata, or `_`-prefixed fields
 - AI focus is controlled by object selection, not by replaying history

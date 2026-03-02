@@ -13,7 +13,6 @@ import type {
   JSONPatchOp,
   SpaceEvents,
   RoolUserRole,
-  LinkAccess,
   SpaceMember,
   PromptOptions,
   FindObjectsOptions,
@@ -26,6 +25,7 @@ import type {
   RoolEventSource,
   Interaction,
   ConversationInfo,
+  LinkAccess,
 } from './types.js';
 
 // 6-character alphanumeric ID (62^6 = 56.8 billion possible values)
@@ -61,7 +61,7 @@ export interface SpaceConfig {
  * First-class Space object.
  * 
  * Features:
- * - High-level object/link operations
+ * - High-level object operations
  * - Built-in undo/redo with checkpoints
  * - Metadata management
  * - Event emission for state changes
@@ -414,7 +414,6 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
     // Build the entry for local state (optimistic - server will overwrite audit fields)
     const entry: RoolObjectEntry = {
-      links: {},
       data: dataWithId,
       modifiedAt: Date.now(),
       modifiedBy: this._userId,
@@ -504,27 +503,12 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
   /**
    * Delete objects by IDs.
-   * Outbound links are automatically deleted with the object.
-   * Inbound links become orphans (tolerated).
+   * Other objects that reference deleted objects via data fields will retain stale ref values.
    */
   async deleteObjects(objectIds: string[]): Promise<void> {
     if (objectIds.length === 0) return;
 
     const deletedObjectIds: string[] = [];
-
-    // Collect links that will be orphaned (for events)
-    const deletedLinks: Array<{ sourceId: string; targetId: string; relation: string }> = [];
-    for (const objectId of objectIds) {
-      const entry = this._data.objects[objectId];
-      if (entry) {
-        // Collect outbound links for deletion events
-        for (const [relation, targets] of Object.entries(entry.links)) {
-          for (const targetId of Object.keys(targets)) {
-            deletedLinks.push({ sourceId: objectId, targetId, relation });
-          }
-        }
-      }
-    }
 
     // Remove objects (local state)
     for (const objectId of objectIds) {
@@ -535,9 +519,6 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     }
 
     // Emit semantic events
-    for (const link of deletedLinks) {
-      this.emit('unlinked', { ...link, source: 'local_user' });
-    }
     for (const objectId of deletedObjectIds) {
       this.emit('objectDeleted', { objectId, source: 'local_user' });
     }
@@ -683,208 +664,6 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
-  }
-
-  // ===========================================================================
-  // Link Operations
-  // ===========================================================================
-
-  /**
-   * Create a link between objects.
-   * Links are stored on the source object.
-   */
-  async link(
-    sourceId: string,
-    relation: string,
-    targetId: string
-  ): Promise<void> {
-    const entry = this._data.objects[sourceId];
-    if (!entry) {
-      throw new Error(`Source object ${sourceId} not found`);
-    }
-
-    // Update local state immediately
-    if (!entry.links[relation]) {
-      entry.links[relation] = [];
-    }
-    if (!entry.links[relation].includes(targetId)) {
-      entry.links[relation].push(targetId);
-    }
-
-    this.emit('linked', { sourceId, relation, targetId, source: 'local_user' });
-
-    // Await server call
-    try {
-      await this.graphqlClient.link(this.id, sourceId, relation, targetId, this._conversationId);
-    } catch (error) {
-      this.logger.error('[RoolSpace] Failed to create link:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
-  }
-
-  /**
-   * Remove links from a source object.
-   * Three forms:
-   * - unlink(source, relation, target): remove one specific link
-   * - unlink(source, relation): clear all targets for that relation
-   * - unlink(source): clear ALL relations on the source
-   * @returns true if any links were removed
-   */
-  async unlink(sourceId: string, relation?: string, targetId?: string): Promise<boolean> {
-    const entry = this._data.objects[sourceId];
-    if (!entry) {
-      throw new Error(`Source object ${sourceId} not found`);
-    }
-
-    const deletedLinks: Array<{ relation: string; targetId: string }> = [];
-
-    // Update local state based on which parameters are provided
-    if (relation && targetId) {
-      // Remove one specific link: source.relation -> target
-      const existing = entry.links[relation] ?? [];
-      if (existing.includes(targetId)) {
-        entry.links[relation] = existing.filter(t => t !== targetId);
-        if (entry.links[relation].length === 0) {
-          delete entry.links[relation];
-        }
-        deletedLinks.push({ relation, targetId });
-      }
-    } else if (relation && !targetId) {
-      // Clear all targets for this relation
-      if (entry.links[relation]) {
-        for (const target of entry.links[relation]) {
-          deletedLinks.push({ relation, targetId: target });
-        }
-        delete entry.links[relation];
-      }
-    } else if (!relation && !targetId) {
-      // Clear ALL relations on the source
-      for (const [rel, targets] of Object.entries(entry.links)) {
-        for (const target of targets) {
-          deletedLinks.push({ relation: rel, targetId: target });
-        }
-        delete entry.links[rel];
-      }
-    }
-
-    // Emit semantic events
-    for (const link of deletedLinks) {
-      this.emit('unlinked', { sourceId, relation: link.relation, targetId: link.targetId, source: 'local_user' });
-    }
-
-    // Await server call
-    try {
-      await this.graphqlClient.unlink(this.id, sourceId, relation, targetId, this._conversationId);
-    } catch (error) {
-      this.logger.error('[RoolSpace] Failed to remove link:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
-
-    return deletedLinks.length > 0;
-  }
-
-  /**
-   * Get parent objects (objects that have links pointing TO this object).
-   * @param relation - Optional filter by relation name
-   * @param options.limit - Maximum number of parents to return
-   * @param options.order - Sort order by modifiedAt ('asc' or 'desc', default: 'desc')
-   */
-  async getParents(
-    objectId: string,
-    relation?: string,
-    options?: { limit?: number; order?: 'asc' | 'desc' }
-  ): Promise<RoolObject[]> {
-    const order = options?.order ?? 'desc';
-    const parentEntries: [string, RoolObjectEntry][] = [];
-
-    for (const [id, entry] of Object.entries(this._data.objects)) {
-      for (const [rel, targets] of Object.entries(entry.links)) {
-        if ((!relation || rel === relation) && targets.includes(objectId)) {
-          parentEntries.push([id, entry]);
-          break; // Found a link, move to next object
-        }
-      }
-    }
-
-    // Sort by modifiedAt
-    parentEntries.sort((a, b) => {
-      const aTime = a[1].modifiedAt ?? 0;
-      const bTime = b[1].modifiedAt ?? 0;
-      return order === 'desc' ? bTime - aTime : aTime - bTime;
-    });
-
-    let parents = parentEntries.map(([, entry]) => entry.data);
-
-    if (options?.limit) {
-      parents = parents.slice(0, options.limit);
-    }
-
-    return parents;
-  }
-
-  /**
-   * Get child objects (objects that this object has links pointing TO).
-   * Filters out orphan targets (targets that don't exist).
-   * @param relation - Optional filter by relation name
-   * @param options.limit - Maximum number of children to return
-   * @param options.order - Sort order by modifiedAt ('asc' or 'desc', default: 'desc')
-   */
-  async getChildren(
-    objectId: string,
-    relation?: string,
-    options?: { limit?: number; order?: 'asc' | 'desc' }
-  ): Promise<RoolObject[]> {
-    const entry = this._data.objects[objectId];
-    if (!entry) return [];
-
-    const order = options?.order ?? 'desc';
-    const childEntries: [string, RoolObjectEntry][] = [];
-
-    for (const [rel, targets] of Object.entries(entry.links)) {
-      if (!relation || rel === relation) {
-        for (const targetId of targets) {
-          // Filter orphans - only include existing targets
-          const targetEntry = this._data.objects[targetId];
-          if (targetEntry) {
-            childEntries.push([targetId, targetEntry]);
-          }
-        }
-      }
-    }
-
-    // Sort by modifiedAt
-    childEntries.sort((a, b) => {
-      const aTime = a[1].modifiedAt ?? 0;
-      const bTime = b[1].modifiedAt ?? 0;
-      return order === 'desc' ? bTime - aTime : aTime - bTime;
-    });
-
-    let children = childEntries.map(([, entry]) => entry.data);
-
-    if (options?.limit) {
-      children = children.slice(0, options.limit);
-    }
-
-    return children;
-  }
-
-  /**
-   * Get all child object IDs including orphans (targets that may not exist).
-   * @param relation - Optional filter by relation name
-   */
-  getChildrenIncludingOrphans(objectId: string, relation?: string): string[] {
-    const entry = this._data.objects[objectId];
-    if (!entry) return [];
-
-    const children: string[] = [];
-    for (const [rel, targets] of Object.entries(entry.links)) {
-      if (!relation || rel === relation) {
-        children.push(...targets);
-      }
-    }
-    return children;
   }
 
   // ===========================================================================
@@ -1190,22 +969,6 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
             if (entry) {
               this.emit('objectUpdated', { objectId, object: entry.data, source });
               updatedObjects.add(objectId);
-            }
-          }
-        } else if (parts[3] === 'links') {
-          // /objects/{objectId}/links/{relation} - links are arrays of target IDs
-          if (parts.length === 5) {
-            const relation = parts[4];
-
-            if (op.op === 'add' || op.op === 'replace') {
-              // New relation added or replaced - emit linked for all targets in the array
-              const targets = this._data.objects[objectId]?.links[relation] ?? [];
-              for (const targetId of targets) {
-                this.emit('linked', { sourceId: objectId, relation, targetId, source });
-              }
-            } else if (op.op === 'remove') {
-              // Relation removed - we don't have the old targets, so we can't emit individual unlinked events
-              // The targets were already removed from local state by applyPatch before this runs
             }
           }
         }

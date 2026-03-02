@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount } from '../helpers.js';
+
 
 const isYouTubeUrl = (s: unknown): boolean =>
   typeof s === 'string' && (s.includes('youtube.com') || s.includes('youtu.be'));
@@ -44,7 +44,6 @@ export const testCase: TestCase = {
       const hasCorrectVideo = KNOWN_VIDEO_IDS.some(id => url.toLowerCase().includes(id.toLowerCase()));
       expect(hasCorrectVideo, `Video URL should contain one of: ${KNOWN_VIDEO_IDS.join(', ')}`).to.be.true;
 
-      expectLinkCount(space, 0);
     } finally {
       space.close();
     }

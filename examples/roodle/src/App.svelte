@@ -106,8 +106,6 @@ The slot objects should have this exact schema:
 - yes: [array of user names]
 - chosen: true (only when finalized by organizer)
 
-Do not use links at all in this space
-
 Rules:
 - Create time slots as objects with the exact schema
 - When participants share constraints, update the slots accordingly. 

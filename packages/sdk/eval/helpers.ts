@@ -25,17 +25,6 @@ export function loadArchiveFixture(name: string): Blob {
 }
 
 /**
- * Assert that the space has exactly n links total.
- */
-export function expectLinkCount(space: RoolSpace, n: number): void {
-  const data = space.getData();
-  const allLinks = Object.values(data.objects).flatMap(entry =>
-    Object.values(entry.links).flat()
-  );
-  expect(allLinks.length, `Expected ${n} links, found ${allLinks.length}`).to.equal(n);
-}
-
-/**
  * Assert that all objects have valid, unique URLs in the specified field.
  */
 export function expectValidUniqueUrls(objects: RoolObject[], field: string): void {

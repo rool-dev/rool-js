@@ -27,11 +27,10 @@ export interface RoolObjectStat {
 
 /**
  * Internal storage structure for a space object.
- * - links: Outbound relationships { relation: [targetId1, targetId2, ...] }
  * - data: The user content (RoolObject). Fields prefixed with _ are hidden from AI.
+ *   References between objects are data fields whose values are object IDs.
  */
 export interface RoolObjectEntry {
-  links: Record<string, string[]>;
   data: RoolObject;
   modifiedAt: number;
   modifiedBy: string;
@@ -42,7 +41,7 @@ export interface RoolObjectEntry {
  * A tool call record - captures what the agent did during an interaction.
  */
 export interface ToolCall {
-  name: string;      // Tool name ("create_object", "link", etc.)
+  name: string;      // Tool name ("create_object", "update_object", etc.)
   input: unknown;    // Original args (verbatim)
   result: string;    // Stringified, truncated result
 }
@@ -55,7 +54,7 @@ export interface Interaction {
   timestamp: number;
   userId: string;
   userName?: string | null;  // Display name at time of interaction
-  operation: 'prompt' | 'createObject' | 'updateObject' | 'link' | 'unlink' | 'deleteObjects';
+  operation: 'prompt' | 'createObject' | 'updateObject' | 'deleteObjects';
   input: string;
   output: string | null;
   ai: boolean;
@@ -240,7 +239,7 @@ export interface PromptOptions {
   effort?: PromptEffort;
   /** If true, the prompt won't be recorded in conversation history. Useful for transient operations like tab completion. */
   ephemeral?: boolean;
-  /** If true, mutation tools (create, update, link, unlink) are disabled. Defaults to false. */
+  /** If true, mutation tools (create, update, delete) are disabled. Defaults to false. */
   readOnly?: boolean;
   /**
    * User-attached files to upload and make visible to the AI.
@@ -452,20 +451,6 @@ export interface ObjectDeletedEvent {
   source: ChangeSource;
 }
 
-export interface LinkedEvent {
-  sourceId: string;
-  relation: string;
-  targetId: string;
-  source: ChangeSource;
-}
-
-export interface UnlinkedEvent {
-  sourceId: string;
-  relation: string;
-  targetId: string;
-  source: ChangeSource;
-}
-
 export interface MetadataUpdatedEvent {
   metadata: Record<string, unknown>;
   source: ChangeSource;
@@ -497,7 +482,6 @@ export interface ConversationsChangedEvent {
  *
  * Semantic events describe what changed:
  * - `objectCreated`, `objectUpdated`, `objectDeleted`: Object changes
- * - `linked`, `unlinked`: Link changes
  * - `metadataUpdated`: Space metadata changes
  * - `conversationUpdated`: Conversation interaction history changed
  * - `conversationsChanged`: Conversation list changed (created, deleted, renamed)
@@ -514,10 +498,6 @@ export interface SpaceEvents {
   objectUpdated: (event: ObjectUpdatedEvent) => void;
   /** An object was deleted */
   objectDeleted: (event: ObjectDeletedEvent) => void;
-  /** A link was added between objects */
-  linked: (event: LinkedEvent) => void;
-  /** A link was removed between objects */
-  unlinked: (event: UnlinkedEvent) => void;
   /** Space metadata was updated */
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Conversation interaction history was updated */

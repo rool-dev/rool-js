@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount } from '../helpers.js';
+
 
 const PLANET_NAMES = ['draugr', 'poltergeist', 'phobetor'] as const;
 
@@ -16,10 +16,10 @@ const isPlanetData = (data: Record<string, unknown>, planet: string): boolean =>
 
 /**
  * Tests knowledge graph creation with web research.
- * Validates hierarchy creation and link structure.
+ * Validates hierarchy creation and reference structure.
  */
 export const testCase: TestCase = {
-  description: 'Creates PSR B1257+12 exoplanet hierarchy with links',
+  description: 'Creates PSR B1257+12 exoplanet hierarchy with references',
 
   async run(client) {
     const space = await client.createSpace('EVAL: exoplanets');
@@ -50,22 +50,26 @@ export const testCase: TestCase = {
         expect((planetObj!.text as string).length).to.be.at.least(20, `${planet} should have description`);
       }
 
-      // Verify link structure
+      // Verify reference structure — the topic should reference the planets via data fields
       const data = space.getData();
       const topicId = Object.keys(data.objects).find(id => isTopicData(data.objects[id].data as Record<string, unknown>));
       expect(topicId, 'Topic should exist in space').to.exist;
 
-      const topicLinks = data.objects[topicId!].links.expand ?? [];
       const planetIds = PLANET_NAMES.map(planet =>
         Object.keys(data.objects).find(id => isPlanetData(data.objects[id].data as Record<string, unknown>, planet))
       );
 
       for (const planetId of planetIds) {
         expect(planetId, 'Planet should exist').to.exist;
-        expect(topicLinks.includes(planetId!), `Topic should link to planet ${planetId}`).to.be.true;
       }
 
-      expectLinkCount(space, 3);
+      // The topic's data fields should contain references to planet IDs
+      const topicData = data.objects[topicId!].data;
+      const allTopicValues = JSON.stringify(topicData);
+      for (const planetId of planetIds) {
+        expect(allTopicValues).to.include(planetId!, `Topic should reference planet ${planetId} in its data`);
+      }
+
     } finally {
       space.close();
     }

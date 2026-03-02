@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount, expectValidUniqueUrls, expectUrlsFetchable } from '../helpers.js';
+import { expectValidUniqueUrls, expectUrlsFetchable } from '../helpers.js';
 
 /**
  * Tests web search and image URL extraction.
@@ -22,7 +22,6 @@ export const testCase: TestCase = {
       expect(objects).to.have.length(3);
       expectValidUniqueUrls(objects, 'imageUrl');
       await expectUrlsFetchable(space, objects, 'imageUrl');
-      expectLinkCount(space, 0);
     } finally {
       space.close();
     }

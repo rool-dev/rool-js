@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount } from '../helpers.js';
+
 
 const DIGIT_TO_WORDS: Record<string, string[]> = {
   '0': ['zero', 'none', 'nothing', 'naught'],
@@ -56,7 +56,6 @@ export const testCase: TestCase = {
       const mentionsNumber = lowerText.includes(digit) || words.some(word => lowerText.includes(word));
       expect(mentionsNumber, `Poem should mention the number ${digit} or its word form`).to.be.true;
 
-      expectLinkCount(space, 0);
     } finally {
       space.close();
     }

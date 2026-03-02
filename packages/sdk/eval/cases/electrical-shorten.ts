@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount, loadArchiveFixture } from '../helpers.js';
+import { loadArchiveFixture } from '../helpers.js';
 
 const prompt = `For every markdown node, regenerate prose for the \`text\` field. The shortened text should be at least 30% shorter`;
 
@@ -38,9 +38,6 @@ export const testCase: TestCase = {
       // Verify structure unchanged: same objects
       const finalObjectIds = space.getObjectIds();
       expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
-
-      // Verify link count unchanged (8 links in electrical fixture)
-      expectLinkCount(space, 8);
 
       // Verify non-markdown objects unchanged
       for (const [id, initialData] of initialNonMarkdownData) {

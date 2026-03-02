@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount } from '../helpers.js';
+
 
 const EXPECTED_VALUE = (Math.E + Math.PI) ** 4; // ≈ 1179.107099469
 /**
@@ -36,7 +36,6 @@ export const testCase: TestCase = {
       const tolerance = EXPECTED_VALUE * 0.00001;
       expect(value).to.be.closeTo(EXPECTED_VALUE, tolerance);
 
-      expectLinkCount(space, 0);
     } finally {
       space.close();
     }

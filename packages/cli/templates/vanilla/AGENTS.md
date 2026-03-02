@@ -19,15 +19,13 @@ node_modules/@rool-dev/sdk/README.md
 
 **RoolClient** - Authentication and space lifecycle. One per app.
 
-**RoolSpace** - The workspace. Contains objects, relations, and conversations.
+**RoolSpace** - The workspace. Contains objects and conversations.
 - `space.prompt(text)` - Invoke AI to create/modify objects
 - `space.checkpoint()` - Create undo point before mutations
 - `space.on(event, handler)` - Subscribe to real-time events
 - `space.findObjects({ where? })` - Query objects
 
-**Objects** - Key-value records with `id` field. Created via `space.createObject()` or AI.
-
-**Relations** - Directional links between objects via `space.link(source, relation, target)`.
+**Objects** - Key-value records with `id` field. Created via `space.createObject()` or AI. References between objects are data fields whose values are object IDs.
 
 ## Event-Driven Pattern
 
@@ -41,8 +39,6 @@ space.on('objectCreated', ({ objectId, object, source }) => {
 
 space.on('objectUpdated', ({ objectId, object }) => { ... });
 space.on('objectDeleted', ({ objectId }) => { ... });
-space.on('linked', ({ sourceId, relation, targetId }) => { ... });
-space.on('unlinked', ({ sourceId, relation, targetId }) => { ... });
 ```
 
 ## Key Pattern

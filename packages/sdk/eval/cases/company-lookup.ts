@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount } from '../helpers.js';
+
 
 /**
  * Tests createObject with AI placeholder to research company information.
@@ -31,9 +31,8 @@ export const testCase: TestCase = {
       const cvr = String(object.cvr).replace(/\s/g, ''); // Remove any spaces
       expect(cvr).to.equal('29530335', 'CVR number should be 29530335');
 
-      // Verify no extra objects or links were created
+      // Verify no extra objects were created
       expect(space.getObjectIds()).to.have.length(1);
-      expectLinkCount(space, 0);
     } finally {
       space.close();
     }

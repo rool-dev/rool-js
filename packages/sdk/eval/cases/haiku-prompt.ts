@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount } from '../helpers.js';
+
 
 /**
  * Tests the prompt() API by creating haiku nodes.
@@ -45,7 +45,6 @@ export const testCase: TestCase = {
         }
       }
 
-      expectLinkCount(space, 0);
     } finally {
       space.close();
     }

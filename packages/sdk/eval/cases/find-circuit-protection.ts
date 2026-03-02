@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { expectLinkCount, loadArchiveFixture } from '../helpers.js';
+import { loadArchiveFixture } from '../helpers.js';
 
 // MZpMsZ is "Wiring and Circuit Protection" - the expected result
 const EXPECTED_NODE_ID = 'MZpMsZ';
@@ -36,7 +36,6 @@ export const testCase: TestCase = {
       // Verify space was not modified
       const finalObjectIds = space.getObjectIds();
       expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
-      expectLinkCount(space, 8);
     } finally {
       space.close();
     }
