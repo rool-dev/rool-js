@@ -282,12 +282,6 @@ class ReactiveSpaceImpl {
   updateObject(...args: Parameters<RoolSpace['updateObject']>) { return this.#space.updateObject(...args); }
   deleteObjects(...args: Parameters<RoolSpace['deleteObjects']>) { return this.#space.deleteObjects(...args); }
 
-  // Relations
-  link(...args: Parameters<RoolSpace['link']>) { return this.#space.link(...args); }
-  unlink(...args: Parameters<RoolSpace['unlink']>) { return this.#space.unlink(...args); }
-  getParents(...args: Parameters<RoolSpace['getParents']>) { return this.#space.getParents(...args); }
-  getChildren(...args: Parameters<RoolSpace['getChildren']>) { return this.#space.getChildren(...args); }
-
   // AI
   prompt(...args: Parameters<RoolSpace['prompt']>) { return this.#space.prompt(...args); }
 

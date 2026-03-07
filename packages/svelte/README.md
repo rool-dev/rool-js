@@ -2,7 +2,7 @@
 
 Svelte 5 bindings for Rool Spaces. Adds reactive state to the SDK using `$state` runes.
 
-**Requires Svelte 5.** For core concepts (objects, relations, AI placeholders, undo/redo), see the [SDK documentation](../sdk/README.md).
+**Requires Svelte 5.** For core concepts (objects, references, AI placeholders, undo/redo), see the [SDK documentation](../sdk/README.md).
 
 ## Installation
 
@@ -222,12 +222,6 @@ await space.createObject({ data: { type: 'note', text: 'Hello' } })
 await space.updateObject(id, { data: { text: 'Updated' } })
 await space.deleteObjects([id])
 await space.findObjects({ where: { type: 'note' } })
-
-// Relations
-await space.link(sourceId, 'references', targetId)
-await space.unlink(sourceId, 'references', targetId)
-await space.getChildren(id, 'references')
-await space.getParents(id, 'references')
 
 // AI
 await space.prompt('Summarize everything')
