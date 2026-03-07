@@ -1,17 +1,38 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { loadArchiveFixture } from '../helpers.js';
 
-const ORIGINAL_NODE_ID = 'Kj7mNp';
+const SAILING_TEXT = `## The Ancient Origins of Sailing
+
+Sailing has ancient roots, emerging as a critical means of trade, transportation, and exploration.
+Before steam power, sailing vessels were the primary way to navigate the world's waters, enabling
+cultural exchange and the Age of Discovery.
+
+## The Age of Sail: Dominance and Advancements
+
+The Age of Sail (mid-16th to mid-19th century) marked the peak of sailing ships in global trade and warfare.
+Advances in ship design, rigging, and naval artillery transformed maritime power. Sailing warships became 
+instruments of geopolitical influence, with a nation's reach determined by the speed of its fleet.
+
+## Decline of Commercial Sailing
+
+In the late 19th century, steam power gradually replaced sail. Steam engines offered reliable schedules
+and higher speeds, making sail economically uncompetitive. By the early 20th century, the era of commercial
+sailing had ended.
+
+## Modern Sailing: Recreation and Sport
+
+Today sailing is primarily recreational, spanning offshore racing, cruising, and coastal day-sailing.
+Its appeal endures through the challenge of mastering wind and water and the unique freedom it offers.`;
 
 const prompt = `Convert the selected markdown node into a topic node, keeping the same headline.
 Then create markdown child nodes for each logical segment of the original text.
-Connect each child to the topic with outbound "expand" edges.
+Each child should have a "parent" field referencing the topic node's ID.
 
 Each object should have:
 - type: "markdown" | "topic"
 - headline: string
 - text: string
+- parent: <id> (for children only)
 `;
 
 /**
@@ -21,26 +42,31 @@ export const testCase: TestCase = {
   description: 'Converts a markdown node to a topic and creates referenced child segments',
 
   async run(client) {
-    // Import the fixture
-    const archive = loadArchiveFixture('sailing');
-    const space = await client.importArchive('EVAL: sailing-split', archive);
+    const space = await client.createSpace('EVAL: sailing-split');
 
     try {
-      // Verify initial state
-      const initialNode = await space.getObject(ORIGINAL_NODE_ID);
-      expect(initialNode!.type).to.equal('markdown');
+      // Create the initial markdown node
+      const { object: initialNode } = await space.createObject({
+        data: {
+          type: 'markdown',
+          headline: 'History of Sailing',
+          text: SAILING_TEXT,
+        },
+        ephemeral: true,
+      });
+      const nodeId = initialNode.id;
 
       // Run the prompt with the node selected
-      const { objects } = await space.prompt(prompt, { objectIds: [ORIGINAL_NODE_ID] });
+      const { objects } = await space.prompt(prompt, { objectIds: [nodeId] });
 
       // Verify the original node was converted to a topic
-      const convertedNode = await space.getObject(ORIGINAL_NODE_ID);
+      const convertedNode = await space.getObject(nodeId);
       expect(convertedNode!.type).to.equal('topic', 'Original node should be converted to topic');
       expect(convertedNode!.headline).to.equal('History of Sailing', 'Headline should be preserved');
 
       // Find new markdown children
       const newMarkdowns = objects.filter(
-        o => o.id !== ORIGINAL_NODE_ID && o.type === 'markdown'
+        o => o.id !== nodeId && o.type === 'markdown'
       );
       expect(newMarkdowns.length).to.be.at.least(2, 'Should create at least 2 markdown children');
 
@@ -52,10 +78,9 @@ export const testCase: TestCase = {
         expect((md.text as string).length).to.be.greaterThan(0, 'Markdown should have text');
       }
 
-      // Verify the topic references its children via data fields
-      const topicData = JSON.stringify(convertedNode);
+      // Verify each child references the topic via "parent"
       for (const md of newMarkdowns) {
-        expect(topicData).to.include(md.id, `Topic should reference child ${md.id} in its data`);
+        expect(md.parent, `Child ${md.id} should have parent field`).to.equal(nodeId);
       }
     } finally {
       space.close();
