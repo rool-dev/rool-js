@@ -12,7 +12,8 @@
     "docs:prebuild": "pnpm --filter @rool-dev/cli generate-readme && node docs/build-docs.js",
     "docs:dev": "pnpm run docs:prebuild && astro dev --root docs",
     "docs:build": "pnpm run docs:prebuild && astro build --root docs",
-    "docs:preview": "astro preview --root docs"
+    "docs:preview": "astro preview --root docs",
+    "release": "node scripts/release.js"
   },
   "devDependencies": {
     "astro": "^5.2.5",

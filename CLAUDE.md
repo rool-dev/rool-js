@@ -8,6 +8,7 @@ Official TypeScript SDK and CLI for the Rool platform. This is a pnpm monorepo.
 |---------|------|-----|
 | @rool-dev/sdk | `packages/sdk/` | TypeScript SDK |
 | @rool-dev/cli | `packages/cli/` | Command-line interface |
+| @rool-dev/svelte | `packages/svelte/` | Svelte wrapper |
 
 ## Commands
 - `pnpm install` - Install all dependencies
@@ -27,4 +28,9 @@ pnpm build
 ```
 
 ## Publishing
-Packages are published independently to npm under the `@rool-dev` scope.
+All packages share a single version number and are published together under the `@rool-dev` scope.
+
+```bash
+pnpm release 0.2.0          # bumps all package.json files, commits, and tags v0.2.0
+git push origin main --tags  # triggers CI to publish all packages
+```

@@ -1,12 +1,8 @@
-name: CLI CI/CD
+name: Release
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'packages/cli/**'
-      - '.github/workflows/cli.yml'
-  workflow_dispatch:
+    tags: ['v*']
 
 jobs:
   ci:
@@ -31,20 +27,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build SDK (needed for CLI types)
-        run: pnpm --filter @rool-dev/sdk build
+      - name: Build all packages
+        run: pnpm build
 
-      - name: Typecheck
-        run: pnpm --filter @rool-dev/cli typecheck
+      - name: Typecheck all packages
+        run: pnpm typecheck
 
-      - name: Build CLI
-        run: pnpm --filter @rool-dev/cli build
-
-  publish-dev:
-    name: Publish dev release
+  publish:
+    name: Publish all packages
     runs-on: ubuntu-latest
     needs: ci
-    if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write
@@ -71,22 +63,33 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm --filter @rool-dev/cli... build
+      - name: Build all packages
+        run: pnpm build
 
-      - name: Generate README
+      - name: Generate CLI README
         run: pnpm --filter @rool-dev/cli generate-readme
 
-      - name: Set dev version
-        working-directory: packages/cli
+      - name: Verify versions match tag
         run: |
-          BASE_VERSION=$(node -p "require('./package.json').version")
-          SHORT_SHA=${GITHUB_SHA::7}
-          DEV_VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
-          echo "Publishing version: ${DEV_VERSION}"
-          npm version "${DEV_VERSION}" --no-git-tag-version
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          for pkg in packages/sdk packages/cli packages/svelte; do
+            PKG_NAME=$(node -p "require('./$pkg/package.json').name")
+            PKG_VERSION=$(node -p "require('./$pkg/package.json').version")
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "Error: Tag version ($TAG_VERSION) doesn't match $PKG_NAME version ($PKG_VERSION)"
+              exit 1
+            fi
+            echo "✓ $PKG_NAME: $PKG_VERSION"
+          done
 
-      - name: Publish to npm (dev tag)
+      - name: Publish SDK
+        working-directory: packages/sdk
+        run: npm publish --access public
+
+      - name: Publish CLI
         working-directory: packages/cli
-        run: pnpm publish --tag dev --access public --no-git-checks
+        run: pnpm publish --access public --no-git-checks
 
+      - name: Publish Svelte
+        working-directory: packages/svelte
+        run: pnpm publish --access public --no-git-checks
