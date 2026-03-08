@@ -115,7 +115,7 @@ try {
   // Tag doesn't exist, good
 }
 
-// Bump versions
+// Bump versions in package.json files
 for (const pkgPath of packages) {
   const fullPath = join(root, pkgPath);
   const pkg = JSON.parse(readFileSync(fullPath, 'utf-8'));

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { type Command } from 'commander';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const cliPkgJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf-8'));
 
 type Framework = 'svelte' | 'vanilla';
 
@@ -110,8 +111,8 @@ Examples:
       copyDir(templateDir, targetDir, [
         ['rool-app', packageName],
         ['Rool App', title],
-        ['"@rool-dev/sdk": "workspace:*"', '"@rool-dev/sdk": "^0.1.16"'],
-        ['"@rool-dev/svelte": "workspace:*"', '"@rool-dev/svelte": "^0.1.12"'],
+        ['"@rool-dev/sdk": "workspace:*"', `"@rool-dev/sdk": "^${cliPkgJson.version}"`],
+        ['"@rool-dev/svelte": "workspace:*"', `"@rool-dev/svelte": "^${cliPkgJson.version}"`],
       ]);
 
       // Print next steps

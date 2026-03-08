@@ -17,7 +17,12 @@ const contentDir = `${__dirname}/src/content/docs`;
 // Ensure content directory exists
 mkdirSync(contentDir, { recursive: true });
 
-function transform(content, title) {
+function getVersion(pkgPath) {
+  const pkg = JSON.parse(readFileSync(`${root}/${pkgPath}/package.json`, 'utf-8'));
+  return pkg.version;
+}
+
+function transform(content, title, pkgPath) {
   // Fix LICENSE links (make them external GitHub links)
   content = content.replace(
     /\[LICENSE\]\(\.\.\/\.\.\/LICENSE\)/g,
@@ -28,9 +33,12 @@ function transform(content, title) {
   content = content.replace(/^# .+\n+/, '');
 
   // Add frontmatter for Starlight
+  const version = getVersion(pkgPath);
   const frontmatter = `---
 title: ${title}
 ---
+
+<p><code>v${version}</code></p>
 
 `;
 
@@ -39,15 +47,15 @@ title: ${title}
 
 // SDK README → sdk.md (will be at /sdk/)
 const sdkReadme = readFileSync(`${root}/packages/sdk/README.md`, 'utf-8');
-writeFileSync(`${contentDir}/sdk.md`, transform(sdkReadme, 'Rool SDK'));
+writeFileSync(`${contentDir}/sdk.md`, transform(sdkReadme, 'Rool SDK', 'packages/sdk'));
 
 // CLI README → cli.md (will be at /cli/)
 const cliReadme = readFileSync(`${root}/packages/cli/README.md`, 'utf-8');
-writeFileSync(`${contentDir}/cli.md`, transform(cliReadme, 'Rool CLI'));
+writeFileSync(`${contentDir}/cli.md`, transform(cliReadme, 'Rool CLI', 'packages/cli'));
 
 // Svelte README → svelte.md (will be at /svelte/)
 const svelteReadme = readFileSync(`${root}/packages/svelte/README.md`, 'utf-8');
-writeFileSync(`${contentDir}/svelte.md`, transform(svelteReadme, 'Rool Svelte'));
+writeFileSync(`${contentDir}/svelte.md`, transform(svelteReadme, 'Rool Svelte', 'packages/svelte'));
 
 // Generate llms.txt from index.md (strip frontmatter, fix relative links)
 const indexMd = readFileSync(`${contentDir}/index.md`, 'utf-8');

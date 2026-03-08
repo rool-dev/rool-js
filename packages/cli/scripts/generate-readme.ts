@@ -207,10 +207,6 @@ ${exampleBlocks.join('\n\n')}
 
 On first use, the CLI opens your browser to authenticate. Credentials are stored in \`~/.config/rool/\`.
 
-## Version
-
-${version ? `Current version: \`${version}\`. ` : ''}Use \`rool --version\` to check your installed version.
-
 ## License
 
 MIT - see [LICENSE](../../LICENSE) for details.

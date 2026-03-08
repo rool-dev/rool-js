@@ -32,6 +32,8 @@ docs/dist/
 docs/.astro/
 docs/src/content/docs/sdk.md
 docs/src/content/docs/cli.md
+docs/src/content/docs/svelte.md
+docs/public/llms.txt
 
 # Lockfile (regenerated)
 # Keep pnpm-lock.yaml in repo for reproducible builds
