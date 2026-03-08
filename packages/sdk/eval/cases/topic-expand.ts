@@ -19,6 +19,11 @@ export const testCase: TestCase = {
     const space = await client.createSpace('EVAL: topic-expand');
 
     try {
+      await space.createCollection('topic', [
+        { name: 'type', type: { kind: 'literal', value: 'topic' } },
+        { name: 'headline', type: { kind: 'string' } },
+      ]);
+
       // Create a single topic node
       const { object: createdTopic } = await space.createObject({
         data: {

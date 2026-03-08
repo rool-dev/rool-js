@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { expectCollectionWithFields } from '../helpers.js';
 
 
 /**
@@ -24,8 +25,10 @@ export const testCase: TestCase = {
 
       expect(objects).to.have.length(3);
 
+      // Verify schema has a collection with headline and text
+      expectCollectionWithFields(space, ['headline', 'text']);
+
       for (const obj of objects) {
-        expect(obj.type).to.equal('markdown');
         expect(obj.headline).to.be.a('string');
         expect((obj.headline as string).length).to.be.greaterThan(0);
         expect(obj.text).to.be.a('string');

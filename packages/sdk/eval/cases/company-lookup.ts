@@ -13,6 +13,12 @@ export const testCase: TestCase = {
     const space = await client.createSpace('EVAL: company-lookup');
 
     try {
+      await space.createCollection('company', [
+        { name: 'type', type: { kind: 'literal', value: 'company' } },
+        { name: 'name', type: { kind: 'string' } },
+        { name: 'cvr', type: { kind: 'string' } },
+      ]);
+
       // Create object with known company name and placeholder for CVR
       const { object } = await space.createObject({
         data: {

@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { expectCollectionWithFields } from '../helpers.js';
 
 
 /**
@@ -24,9 +25,8 @@ export const testCase: TestCase = {
 
       expect(objects).to.have.length(3);
 
-      for (const obj of objects) {
-        expect(obj.type).to.equal('browser');
-      }
+      // Verify schema has a collection with headline and url fields
+      expectCollectionWithFields(space, ['headline', 'url']);
 
       const hasUrlMatching = (pattern: RegExp): boolean =>
         objects.some(obj => typeof obj.url === 'string' && pattern.test(obj.url as string));

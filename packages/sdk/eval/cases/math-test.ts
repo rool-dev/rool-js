@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { expectCollectionWithFields } from '../helpers.js';
 
 
 const EXPECTED_VALUE = (Math.E + Math.PI) ** 4; // ≈ 1179.107099469
@@ -24,8 +25,8 @@ export const testCase: TestCase = {
 
       const calc = objects[0];
 
-      // Check type
-      expect(calc.type).to.equal('calculation');
+      // Check schema has a collection with a value field
+      expectCollectionWithFields(space, ['value']);
 
       // Value should be a number
       expect(calc.value).to.be.a('number');

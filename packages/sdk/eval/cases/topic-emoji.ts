@@ -16,6 +16,11 @@ export const testCase: TestCase = {
     const space = await client.createSpace('EVAL: topic-emoji');
 
     try {
+      await space.createCollection('topic', [
+        { name: 'type', type: { kind: 'literal', value: 'topic' } },
+        { name: 'headline', type: { kind: 'string' } },
+      ]);
+
       // Create a single topic node
       const { object: createdTopic } = await space.createObject({
         data: {
@@ -42,7 +47,7 @@ export const testCase: TestCase = {
 
       // Normalize emoji (remove variation selectors)
       const emoji = (topic!.emoji as string).replace(/\uFE0F/g, '');
-      expect(BOAT_EMOJIS.has(emoji), `Expected boat emoji, got: ${topic.emoji}`).to.be.true;
+      expect(BOAT_EMOJIS.has(emoji), `Expected boat emoji, got: ${topic!.emoji}`).to.be.true;
     } finally {
       space.close();
     }

@@ -26,6 +26,9 @@ import type {
   Interaction,
   ConversationInfo,
   LinkAccess,
+  SpaceSchema,
+  CollectionDef,
+  PropDef,
 } from './types.js';
 
 // 6-character alphanumeric ID (62^6 = 56.8 billion possible values)
@@ -528,6 +531,89 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       await this.graphqlClient.deleteObjects(this.id, objectIds, this._conversationId);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to delete objects:', error);
+      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+
+  // ===========================================================================
+  // Collection Schema Operations
+  // ===========================================================================
+
+  /**
+   * Get the current schema for this space.
+   * Returns a map of collection names to their definitions.
+   */
+  getSchema(): SpaceSchema {
+    return this._data.schema ?? {};
+  }
+
+  /**
+   * Create a new collection schema.
+   * @param name - Collection name (must start with a letter, alphanumeric/hyphens/underscores only)
+   * @param props - Property definitions for the collection
+   * @returns The created CollectionDef
+   */
+  async createCollection(name: string, props: PropDef[]): Promise<CollectionDef> {
+    if (this._data.schema?.[name]) {
+      throw new Error(`Collection "${name}" already exists`);
+    }
+
+    // Optimistic local update
+    if (!this._data.schema) {
+      this._data.schema = {};
+    }
+    const optimisticDef: CollectionDef = { props: props.map(p => ({ name: p.name, type: p.type })) };
+    this._data.schema[name] = optimisticDef;
+
+    try {
+      return await this.graphqlClient.createCollection(this._id, name, props, this._conversationId);
+    } catch (error) {
+      this.logger.error('[RoolSpace] Failed to create collection:', error);
+      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+
+  /**
+   * Alter an existing collection schema, replacing its property definitions.
+   * @param name - Name of the collection to alter
+   * @param props - New property definitions (replaces all existing props)
+   * @returns The updated CollectionDef
+   */
+  async alterCollection(name: string, props: PropDef[]): Promise<CollectionDef> {
+    if (!this._data.schema?.[name]) {
+      throw new Error(`Collection "${name}" not found`);
+    }
+
+    // Optimistic local update
+    this._data.schema[name] = { props: props.map(p => ({ name: p.name, type: p.type })) };
+
+    try {
+      return await this.graphqlClient.alterCollection(this._id, name, props, this._conversationId);
+    } catch (error) {
+      this.logger.error('[RoolSpace] Failed to alter collection:', error);
+      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+
+  /**
+   * Drop a collection schema.
+   * @param name - Name of the collection to drop
+   */
+  async dropCollection(name: string): Promise<void> {
+    if (!this._data.schema?.[name]) {
+      throw new Error(`Collection "${name}" not found`);
+    }
+
+    // Optimistic local update
+    delete this._data.schema[name];
+
+    try {
+      await this.graphqlClient.dropCollection(this._id, name, this._conversationId);
+    } catch (error) {
+      this.logger.error('[RoolSpace] Failed to drop collection:', error);
       this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }

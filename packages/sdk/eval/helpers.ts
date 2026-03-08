@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import type { RoolSpace } from '../src/space.js';
-import type { RoolObject } from '../src/types.js';
+import type { RoolObject, CollectionDef } from '../src/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -22,6 +22,31 @@ export function loadArchiveFixture(name: string): Blob {
   const filePath = join(__dirname, 'fixtures', `${name}.zip`);
   const buffer = readFileSync(filePath);
   return new Blob([buffer], { type: 'application/zip' });
+}
+
+/**
+ * Assert that a collection exists in the space schema by exact name.
+ */
+export function expectCollection(space: RoolSpace, name: string): CollectionDef {
+  const schema = space.getSchema();
+  expect(schema[name], `Expected collection "${name}" in schema`).to.exist;
+  return schema[name];
+}
+
+/**
+ * Find a collection in the schema whose props include all the given field names.
+ * Fails if no matching collection is found.
+ */
+export function expectCollectionWithFields(space: RoolSpace, fields: string[]): CollectionDef {
+  const schema = space.getSchema();
+  for (const [name, def] of Object.entries(schema)) {
+    const propNames = def.props.map(p => p.name);
+    if (fields.every(f => propNames.includes(f))) {
+      return def;
+    }
+  }
+  const names = Object.keys(schema).join(', ') || '(none)';
+  expect.fail(`No collection with fields [${fields.join(', ')}] found in schema. Collections: ${names}`);
 }
 
 /**

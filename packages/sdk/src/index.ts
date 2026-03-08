@@ -49,6 +49,12 @@ export type {
   PublishAppOptions,
   PublishedAppInfo,
 
+  // Schema types
+  PropType,
+  PropDef,
+  CollectionDef,
+  SpaceSchema,
+
   // AI types
   PromptOptions,
   FindObjectsOptions,

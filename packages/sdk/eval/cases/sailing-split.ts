@@ -45,6 +45,12 @@ export const testCase: TestCase = {
     const space = await client.createSpace('EVAL: sailing-split');
 
     try {
+      await space.createCollection('markdown', [
+        { name: 'type', type: { kind: 'literal', value: 'markdown' } },
+        { name: 'headline', type: { kind: 'string' } },
+        { name: 'text', type: { kind: 'string' } },
+      ]);
+
       // Create the initial markdown node
       const { object: initialNode } = await space.createObject({
         data: {

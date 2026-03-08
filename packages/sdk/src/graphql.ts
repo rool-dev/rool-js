@@ -15,6 +15,8 @@ import type {
   RoolObject,
   ConversationInfo,
   LinkAccess,
+  CollectionDef,
+  PropDef,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 
@@ -316,6 +318,73 @@ export class GraphQLClient {
       conversationId,
     });
   }
+
+  // ===========================================================================
+  // Collection Schema Operations
+  // ===========================================================================
+
+  async createCollection(
+    spaceId: string,
+    name: string,
+    props: PropDef[],
+    conversationId: string,
+  ): Promise<CollectionDef> {
+    const mutation = `
+      mutation CreateCollection($spaceId: String!, $name: String!, $props: String!, $conversationId: String!) {
+        createCollection(spaceId: $spaceId, name: $name, props: $props, conversationId: $conversationId)
+      }
+    `;
+    const result = await this.request<{ createCollection: string }>(mutation, {
+      spaceId,
+      name,
+      props: JSON.stringify(props),
+      conversationId,
+    });
+    const parsed = JSON.parse(result.createCollection);
+    return parsed[name] as CollectionDef;
+  }
+
+  async alterCollection(
+    spaceId: string,
+    name: string,
+    props: PropDef[],
+    conversationId: string,
+  ): Promise<CollectionDef> {
+    const mutation = `
+      mutation AlterCollection($spaceId: String!, $name: String!, $props: String!, $conversationId: String!) {
+        alterCollection(spaceId: $spaceId, name: $name, props: $props, conversationId: $conversationId)
+      }
+    `;
+    const result = await this.request<{ alterCollection: string }>(mutation, {
+      spaceId,
+      name,
+      props: JSON.stringify(props),
+      conversationId,
+    });
+    const parsed = JSON.parse(result.alterCollection);
+    return parsed[name] as CollectionDef;
+  }
+
+  async dropCollection(
+    spaceId: string,
+    name: string,
+    conversationId: string,
+  ): Promise<void> {
+    const mutation = `
+      mutation DropCollection($spaceId: String!, $name: String!, $conversationId: String!) {
+        dropCollection(spaceId: $spaceId, name: $name, conversationId: $conversationId)
+      }
+    `;
+    await this.request(mutation, {
+      spaceId,
+      name,
+      conversationId,
+    });
+  }
+
+  // ===========================================================================
+  // Object Operations
+  // ===========================================================================
 
   async createObject(
     spaceId: string,

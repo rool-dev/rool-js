@@ -3,6 +3,48 @@
 // Generic types for space-based applications using the Rool server API
 // =============================================================================
 
+// =============================================================================
+// Collection Schema Types
+// =============================================================================
+
+/**
+ * Property type descriptor. Recursive structure supporting primitives,
+ * enums, literals, arrays, optionals (maybe), and object references.
+ */
+export type PropType =
+  | { kind: 'string' }
+  | { kind: 'number' }
+  | { kind: 'boolean' }
+  | { kind: 'array'; inner?: PropType }
+  | { kind: 'maybe'; inner: PropType }
+  | { kind: 'enum'; values: string[] }
+  | { kind: 'literal'; value: string | number | boolean }
+  | { kind: 'ref' };
+
+/**
+ * A named property definition within a collection.
+ */
+export interface PropDef {
+  name: string;
+  type: PropType;
+}
+
+/**
+ * A collection definition — a named set of typed properties.
+ */
+export interface CollectionDef {
+  props: PropDef[];
+}
+
+/**
+ * The full schema for a space — a map of collection names to definitions.
+ */
+export type SpaceSchema = Record<string, CollectionDef>;
+
+// =============================================================================
+// Object Types
+// =============================================================================
+
 /**
  * Object data - the user content portion of an object.
  * Always contains `id` (the object's unique identifier).
@@ -92,12 +134,15 @@ export interface ConversationInfo {
  * Space structure - objects keyed by ID.
  * meta is space-level metadata, preserved but hidden from AI operations.
  * conversations contains conversation data keyed by conversationId.
+ * schema contains collection definitions keyed by collection name.
  */
 export interface RoolSpaceData {
   /** Monotonically increasing version for sync consistency detection */
   version: number;
   objects: Record<string, RoolObjectEntry>;
   meta: Record<string, unknown>;
+  /** Collection schema definitions keyed by collection name */
+  schema?: SpaceSchema;
   /** Conversations keyed by conversationId */
   conversations?: Record<string, Conversation>;
 }
