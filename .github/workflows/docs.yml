@@ -2,14 +2,7 @@ name: Deploy Docs
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'packages/sdk/README.md'
-      - 'packages/cli/src/**'
-      - 'packages/cli/scripts/**'
-      - 'packages/svelte/README.md'
-      - 'docs/**'
-      - '.github/workflows/docs.yml'
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
