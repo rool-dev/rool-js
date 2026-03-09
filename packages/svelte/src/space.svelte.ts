@@ -1,4 +1,4 @@
-import type { RoolSpace, Interaction, RoolObject, FindObjectsOptions, ConversationInfo } from '@rool-dev/sdk';
+import type { RoolSpace, Interaction, RoolObject, FindObjectsOptions, ConversationInfo, PropDef } from '@rool-dev/sdk';
 
 /**
  * Options for creating a reactive collection.
@@ -307,6 +307,12 @@ class ReactiveSpaceImpl {
   listConversations() { return this.#space.listConversations(); }
   getSystemInstruction() { return this.#space.getSystemInstruction(); }
   setSystemInstruction(...args: Parameters<RoolSpace['setSystemInstruction']>) { return this.#space.setSystemInstruction(...args); }
+
+  // Schema
+  getSchema() { return this.#space.getSchema(); }
+  createCollection(...args: Parameters<RoolSpace['createCollection']>) { return this.#space.createCollection(...args); }
+  alterCollection(...args: Parameters<RoolSpace['alterCollection']>) { return this.#space.alterCollection(...args); }
+  dropCollection(...args: Parameters<RoolSpace['dropCollection']>) { return this.#space.dropCollection(...args); }
 
   // Media
   uploadMedia(...args: Parameters<RoolSpace['uploadMedia']>) { return this.#space.uploadMedia(...args); }

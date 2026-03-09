@@ -226,6 +226,15 @@ await space.findObjects({ where: { type: 'note' } })
 // AI
 await space.prompt('Summarize everything')
 
+// Schema
+space.getSchema()
+await space.createCollection('article', [
+  { name: 'title', type: { kind: 'string' } },
+  { name: 'status', type: { kind: 'enum', values: ['draft', 'published'] } },
+])
+await space.alterCollection('article', [...updatedProps])
+await space.dropCollection('article')
+
 // Undo/Redo
 await space.checkpoint('Before edit')
 await space.undo()
@@ -267,6 +276,10 @@ import type {
   PromptOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  PropType,
+  PropDef,
+  CollectionDef,
+  SpaceSchema,
 } from '@rool-dev/svelte';
 ```
 

@@ -23,4 +23,8 @@ export type {
   PromptOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  PropType,
+  PropDef,
+  CollectionDef,
+  SpaceSchema,
 } from '@rool-dev/sdk';

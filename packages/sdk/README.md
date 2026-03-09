@@ -677,6 +677,58 @@ if (response.contentType.startsWith('image/')) {
 }
 ```
 
+### Collection Schema
+
+Define typed collection schemas to give structure to your space. The schema is visible to the AI agent, guiding how it creates and updates objects.
+
+```typescript
+// Define a collection with typed properties
+await space.createCollection('article', [
+  { name: 'title', type: { kind: 'string' } },
+  { name: 'status', type: { kind: 'enum', values: ['draft', 'published', 'archived'] } },
+  { name: 'tags', type: { kind: 'array', inner: { kind: 'string' } } },
+  { name: 'author', type: { kind: 'ref' } },
+]);
+
+// Read the current schema
+const schema = space.getSchema();
+console.log(schema.article.props); // PropDef[]
+
+// Modify an existing collection's properties
+await space.alterCollection('article', [
+  { name: 'title', type: { kind: 'string' } },
+  { name: 'status', type: { kind: 'enum', values: ['draft', 'review', 'published', 'archived'] } },
+  { name: 'tags', type: { kind: 'array', inner: { kind: 'string' } } },
+  { name: 'author', type: { kind: 'ref' } },
+  { name: 'wordCount', type: { kind: 'number' } },
+]);
+
+// Remove a collection schema
+await space.dropCollection('article');
+```
+
+| Method | Description |
+|--------|-------------|
+| `getSchema(): SpaceSchema` | Get all collection definitions |
+| `createCollection(name, props): Promise<CollectionDef>` | Create a new collection schema |
+| `alterCollection(name, props): Promise<CollectionDef>` | Replace a collection's property definitions |
+| `dropCollection(name): Promise<void>` | Remove a collection schema |
+
+#### Property Types
+
+| Kind | Description | Example |
+|------|-------------|---------|
+| `string` | Text value | `{ kind: 'string' }` |
+| `number` | Numeric value | `{ kind: 'number' }` |
+| `boolean` | True/false | `{ kind: 'boolean' }` |
+| `ref` | Reference to another object | `{ kind: 'ref' }` |
+| `enum` | One of a set of values | `{ kind: 'enum', values: ['a', 'b'] }` |
+| `literal` | Exact value | `{ kind: 'literal', value: 'fixed' }` |
+| `array` | List of values | `{ kind: 'array', inner: { kind: 'string' } }` |
+| `maybe` | Optional (nullable) | `{ kind: 'maybe', inner: { kind: 'number' } }` |
+
+Schema is stored in the space data and syncs in real-time. The AI agent uses the schema to understand what collections exist and what fields they expect, producing more consistent objects.
+
 ### Import/Export
 
 Export and import space data as zip archives for backup, portability, or migration:
@@ -894,6 +946,35 @@ The `toolCalls` array captures what the AI agent did during execution. Use it to
 
 ## Data Types
 
+### Schema Types
+
+```typescript
+// Property type descriptor (recursive)
+type PropType =
+  | { kind: 'string' }
+  | { kind: 'number' }
+  | { kind: 'boolean' }
+  | { kind: 'array'; inner?: PropType }
+  | { kind: 'maybe'; inner: PropType }
+  | { kind: 'enum'; values: string[] }
+  | { kind: 'literal'; value: string | number | boolean }
+  | { kind: 'ref' };
+
+// A named property within a collection
+interface PropDef {
+  name: string;
+  type: PropType;
+}
+
+// A collection definition
+interface CollectionDef {
+  props: PropDef[];
+}
+
+// Full schema — collection names to definitions
+type SpaceSchema = Record<string, CollectionDef>;
+```
+
 ### Space Data
 
 ```typescript
@@ -938,6 +1019,7 @@ interface RoolSpaceData {
   version: number;  // Monotonically increasing version for sync consistency
   objects: Record<string, RoolObjectEntry>;
   meta: Record<string, unknown>;  // Space-level metadata
+  schema?: SpaceSchema;  // Collection schema definitions
   conversations?: Record<string, Conversation>;  // Conversations keyed by conversationId
 }
 
