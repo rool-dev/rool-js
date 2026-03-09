@@ -1,4 +1,3 @@
-import { immutableJSONPatch } from 'immutable-json-patch';
 import { EventEmitter } from './event-emitter.js';
 import type { GraphQLClient } from './graphql.js';
 import type { MediaClient } from './media.js';
@@ -8,9 +7,7 @@ import type { Logger } from './logger.js';
 import type {
   RoolSpaceData,
   RoolObject,
-  RoolObjectEntry,
   RoolObjectStat,
-  JSONPatchOp,
   SpaceEvents,
   RoolUserRole,
   SpaceMember,
@@ -22,8 +19,8 @@ import type {
   MediaResponse,
   ChangeSource,
   SpaceEvent,
-  RoolEventSource,
   Interaction,
+  Conversation,
   ConversationInfo,
   LinkAccess,
   SpaceSchema,
@@ -41,6 +38,9 @@ export function generateEntityId(): string {
   }
   return result;
 }
+
+// Default timeout for waiting on SSE object events (30 seconds)
+const OBJECT_COLLECT_TIMEOUT = 30000;
 
 export interface SpaceConfig {
   id: string;
@@ -62,7 +62,11 @@ export interface SpaceConfig {
 
 /**
  * First-class Space object.
- * 
+ *
+ * Objects are fetched on demand from the server; only schema, metadata,
+ * and conversations are cached locally. Object changes arrive via SSE
+ * semantic events and are emitted as SDK events.
+ *
  * Features:
  * - High-level object operations
  * - Built-in undo/redo with checkpoints
@@ -77,7 +81,6 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   private _linkAccess: LinkAccess;
   private _userId: string;
   private _conversationId: string;
-  private _data: RoolSpaceData;
   private _closed: boolean = false;
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
@@ -85,6 +88,20 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   private onCloseCallback: (spaceId: string) => void;
   private _subscriptionReady: Promise<void>;
   private logger: Logger;
+
+  // Local cache for bounded data (schema, metadata, conversations, object IDs)
+  private _meta: Record<string, unknown>;
+  private _schema: SpaceSchema;
+  private _conversations: Record<string, Conversation>;
+  private _objectIds: string[];
+
+  // Object collection: tracks pending local mutations for dedup
+  // Maps objectId → optimistic object data (for create/update) or null (for delete)
+  private _pendingMutations = new Map<string, RoolObject | null>();
+  // Resolvers waiting for object data from SSE events
+  private _objectResolvers = new Map<string, (obj: RoolObject) => void>();
+  // Buffer for object data that arrived before a collector was registered
+  private _objectBuffer = new Map<string, RoolObject>();
 
   constructor(config: SpaceConfig) {
     super();
@@ -95,11 +112,16 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     this._userId = config.userId;
     this._emitterLogger = config.logger;
     this._conversationId = config.conversationId ?? generateEntityId();
-    this._data = config.initialData;
     this.graphqlClient = config.graphqlClient;
     this.mediaClient = config.mediaClient;
     this.logger = config.logger;
     this.onCloseCallback = config.onClose;
+
+    // Initialize local cache from server data
+    this._meta = config.initialData.meta ?? {};
+    this._schema = config.initialData.schema ?? {};
+    this._conversations = config.initialData.conversations ?? {};
+    this._objectIds = config.initialData.objectIds ?? [];
 
     // Create space-level subscription
     this.subscriptionManager = new SpaceSubscriptionManager({
@@ -190,7 +212,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * Returns the interactions array.
    */
   getInteractions(): Interaction[] {
-    return this._data.conversations?.[this._conversationId]?.interactions ?? [];
+    return this._conversations[this._conversationId]?.interactions ?? [];
   }
 
   /**
@@ -198,14 +220,14 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * Useful for viewing other conversations in the space.
    */
   getInteractionsById(conversationId: string): Interaction[] {
-    return this._data.conversations?.[conversationId]?.interactions ?? [];
+    return this._conversations[conversationId]?.interactions ?? [];
   }
 
   /**
    * Get all conversation IDs that have conversations in this space.
    */
   getConversationIds(): string[] {
-    return Object.keys(this._data.conversations ?? {});
+    return Object.keys(this._conversations);
   }
 
   // ===========================================================================
@@ -235,6 +257,12 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     this._closed = true;
     this.subscriptionManager.destroy();
     this.onCloseCallback(this._id);
+
+    // Clean up pending object collectors
+    this._objectResolvers.clear();
+    this._objectBuffer.clear();
+    this._pendingMutations.clear();
+
     this.removeAllListeners();
   }
 
@@ -244,7 +272,6 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
   /**
    * Create a checkpoint (seal current batch of changes).
-   * Patches accumulate automatically - this seals them with a label.
    * @returns The checkpoint ID
    */
   async checkpoint(label: string = 'Change'): Promise<string> {
@@ -280,7 +307,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    */
   async undo(): Promise<boolean> {
     const result = await this.graphqlClient.undo(this._id, this._conversationId);
-    // Server broadcasts space_patched if successful, which updates local state
+    // Server broadcasts space_changed, which triggers reset event
     return result.success;
   }
 
@@ -290,7 +317,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    */
   async redo(): Promise<boolean> {
     const result = await this.graphqlClient.redo(this._id, this._conversationId);
-    // Server broadcasts space_patched if successful, which updates local state
+    // Server broadcasts space_changed, which triggers reset event
     return result.success;
   }
 
@@ -307,25 +334,20 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
 
   /**
    * Get an object's data by ID.
-   * Returns just the data portion (RoolObject), not the full entry with meta/links.
+   * Fetches from the server on each call.
    */
   async getObject(objectId: string): Promise<RoolObject | undefined> {
-    return this._data.objects[objectId]?.data;
+    return this.graphqlClient.getObject(this._id, objectId);
   }
 
   /**
    * Get an object's stat (audit information).
    * Returns modification timestamp and author, or undefined if object not found.
    */
-  async stat(objectId: string): Promise<RoolObjectStat | undefined> {
-    const entry = this._data.objects[objectId];
-    if (!entry) return undefined;
-
-    return {
-      modifiedAt: entry.modifiedAt,
-      modifiedBy: entry.modifiedBy,
-      modifiedByName: entry.modifiedByName,
-    };
+  async stat(_objectId: string): Promise<RoolObjectStat | undefined> {
+    // TODO: Requires a dedicated server endpoint for object audit info
+    this.logger.warn('[RoolSpace] stat() not yet supported in stateless mode');
+    return undefined;
   }
 
   /**
@@ -342,52 +364,25 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * @param options.order - Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). Only applies to structured filtering (no `prompt`).
    * @param options.ephemeral - If true, the query won't be recorded in conversation history.
    * @returns The matching objects and a descriptive message.
-   *
-   * @example
-   * // Exact match (no AI, no credits)
-   * const { objects } = await space.findObjects({ where: { type: 'article' } });
-   *
-   * @example
-   * // Natural language (AI query)
-   * const { objects, message } = await space.findObjects({
-   *   prompt: 'articles about space exploration'
-   * });
-   *
-   * @example
-   * // Combined — where narrows the data, prompt queries within it
-   * const { objects } = await space.findObjects({
-   *   where: { type: 'article' },
-   *   prompt: 'that discuss climate solutions positively',
-   *   limit: 10
-   * });
    */
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
     return this.graphqlClient.findObjects(this._id, options, this._conversationId);
   }
 
   /**
-   * Get all object IDs.
+   * Get all object IDs (sync, from local cache).
+   * The list is loaded on open and kept current via SSE events.
    * @param options.limit - Maximum number of IDs to return
    * @param options.order - Sort order by modifiedAt ('asc' or 'desc', default: 'desc')
    */
   getObjectIds(options?: { limit?: number; order?: 'asc' | 'desc' }): string[] {
-    const order = options?.order ?? 'desc';
-
-    let entries = Object.entries(this._data.objects);
-
-    // Sort by modifiedAt
-    entries.sort((a, b) => {
-      const aTime = a[1].modifiedAt ?? 0;
-      const bTime = b[1].modifiedAt ?? 0;
-      return order === 'desc' ? bTime - aTime : aTime - bTime;
-    });
-
-    let ids = entries.map(([id]) => id);
-
-    if (options?.limit) {
+    let ids = this._objectIds;
+    if (options?.order === 'asc') {
+      ids = [...ids].reverse();
+    }
+    if (options?.limit !== undefined) {
       ids = ids.slice(0, options.limit);
     }
-
     return ids;
   }
 
@@ -408,33 +403,26 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       throw new Error(`Invalid object ID "${objectId}". IDs must contain only alphanumeric characters, hyphens, and underscores.`);
     }
 
-    // Fail if object already exists
-    if (this._data.objects[objectId]) {
-      throw new Error(`Object "${objectId}" already exists`);
-    }
+    const dataWithId = { ...data, id: objectId } as RoolObject;
 
-    const dataWithId = { ...data, id: objectId };
+    // Emit optimistic event and track for dedup
+    this._pendingMutations.set(objectId, dataWithId);
+    this.emit('objectCreated', { objectId, object: dataWithId, source: 'local_user' });
 
-    // Build the entry for local state (optimistic - server will overwrite audit fields)
-    const entry: RoolObjectEntry = {
-      data: dataWithId,
-      modifiedAt: Date.now(),
-      modifiedBy: this._userId,
-      modifiedByName: null,
-    };
-
-    // Update local state immediately (optimistic)
-    this._data.objects[objectId] = entry;
-    this.emit('objectCreated', { objectId, object: entry.data, source: 'local_user' });
-
-    // Await server call (may trigger AI processing that updates local state via patches)
     try {
-      const message = await this.graphqlClient.createObject(this.id, dataWithId, this._conversationId, ephemeral);
-      // Return current state (may have been updated by AI patches)
-      return { object: this._data.objects[objectId].data, message };
+      // Await mutation — server processes AI placeholders before responding.
+      // SSE events arrive during the await and are buffered via _deliverObject.
+      const { message } = await this.graphqlClient.createObject(this.id, dataWithId, this._conversationId, ephemeral);
+      // Collect resolved object from buffer (or wait if not yet arrived)
+      const object = await this._collectObject(objectId);
+      return { object, message };
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to create object:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      this._pendingMutations.delete(objectId);
+      this._cancelCollector(objectId);
+      // Emit reset so UI can recover from the optimistic event
+      this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
+      this.emit('reset', { source: 'system' });
       throw error;
     }
   }
@@ -451,11 +439,6 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     objectId: string,
     options: UpdateObjectOptions
   ): Promise<{ object: RoolObject; message: string }> {
-    const entry = this._data.objects[objectId];
-    if (!entry) {
-      throw new Error(`Object ${objectId} not found for update`);
-    }
-
     const { data, ephemeral } = options;
 
     // id is immutable after creation (but null/undefined means delete attempt, which we also reject)
@@ -476,30 +459,24 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       }
     }
 
-    // Build local updates (apply deletions and updates)
+    // Emit optimistic event if we have data changes
     if (data) {
-      for (const [key, value] of Object.entries(data)) {
-        if (value === null || value === undefined) {
-          delete entry.data[key];
-        } else {
-          entry.data[key] = value;
-        }
-      }
+      // Build optimistic object (best effort — we may not have the current state)
+      const optimistic = { id: objectId, ...data } as RoolObject;
+      this._pendingMutations.set(objectId, optimistic);
+      this.emit('objectUpdated', { objectId, object: optimistic, source: 'local_user' });
     }
 
-    // Emit semantic event with updated object
-    if (data) {
-      this.emit('objectUpdated', { objectId, object: entry.data, source: 'local_user' });
-    }
-
-    // Await server call (may trigger AI processing that updates local state via patches)
     try {
-      const message = await this.graphqlClient.updateObject(this.id, objectId, this._conversationId, serverData, options.prompt, ephemeral);
-      // Return current state (may have been updated by AI patches)
-      return { object: this._data.objects[objectId].data, message };
+      const { message } = await this.graphqlClient.updateObject(this.id, objectId, this._conversationId, serverData, options.prompt, ephemeral);
+      const object = await this._collectObject(objectId);
+      return { object, message };
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to update object:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      this._pendingMutations.delete(objectId);
+      this._cancelCollector(objectId);
+      this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
+      this.emit('reset', { source: 'system' });
       throw error;
     }
   }
@@ -511,27 +488,21 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   async deleteObjects(objectIds: string[]): Promise<void> {
     if (objectIds.length === 0) return;
 
-    const deletedObjectIds: string[] = [];
-
-    // Remove objects (local state)
+    // Track for dedup and emit optimistic events
     for (const objectId of objectIds) {
-      if (this._data.objects[objectId]) {
-        delete this._data.objects[objectId];
-        deletedObjectIds.push(objectId);
-      }
-    }
-
-    // Emit semantic events
-    for (const objectId of deletedObjectIds) {
+      this._pendingMutations.set(objectId, null);
       this.emit('objectDeleted', { objectId, source: 'local_user' });
     }
 
-    // Await server call
     try {
       await this.graphqlClient.deleteObjects(this.id, objectIds, this._conversationId);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to delete objects:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      for (const objectId of objectIds) {
+        this._pendingMutations.delete(objectId);
+      }
+      this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
+      this.emit('reset', { source: 'system' });
       throw error;
     }
   }
@@ -545,7 +516,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * Returns a map of collection names to their definitions.
    */
   getSchema(): SpaceSchema {
-    return this._data.schema ?? {};
+    return this._schema;
   }
 
   /**
@@ -555,22 +526,19 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * @returns The created CollectionDef
    */
   async createCollection(name: string, props: PropDef[]): Promise<CollectionDef> {
-    if (this._data.schema?.[name]) {
+    if (this._schema[name]) {
       throw new Error(`Collection "${name}" already exists`);
     }
 
     // Optimistic local update
-    if (!this._data.schema) {
-      this._data.schema = {};
-    }
     const optimisticDef: CollectionDef = { props: props.map(p => ({ name: p.name, type: p.type })) };
-    this._data.schema[name] = optimisticDef;
+    this._schema[name] = optimisticDef;
 
     try {
       return await this.graphqlClient.createCollection(this._id, name, props, this._conversationId);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to create collection:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      delete this._schema[name];
       throw error;
     }
   }
@@ -582,18 +550,19 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * @returns The updated CollectionDef
    */
   async alterCollection(name: string, props: PropDef[]): Promise<CollectionDef> {
-    if (!this._data.schema?.[name]) {
+    if (!this._schema[name]) {
       throw new Error(`Collection "${name}" not found`);
     }
 
+    const previous = this._schema[name];
     // Optimistic local update
-    this._data.schema[name] = { props: props.map(p => ({ name: p.name, type: p.type })) };
+    this._schema[name] = { props: props.map(p => ({ name: p.name, type: p.type })) };
 
     try {
       return await this.graphqlClient.alterCollection(this._id, name, props, this._conversationId);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to alter collection:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      this._schema[name] = previous;
       throw error;
     }
   }
@@ -603,18 +572,19 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * @param name - Name of the collection to drop
    */
   async dropCollection(name: string): Promise<void> {
-    if (!this._data.schema?.[name]) {
+    if (!this._schema[name]) {
       throw new Error(`Collection "${name}" not found`);
     }
 
+    const previous = this._schema[name];
     // Optimistic local update
-    delete this._data.schema[name];
+    delete this._schema[name];
 
     try {
       await this.graphqlClient.dropCollection(this._id, name, this._conversationId);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to drop collection:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      this._schema[name] = previous;
       throw error;
     }
   }
@@ -631,9 +601,8 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     const targetConversationId = conversationId ?? this._conversationId;
 
     // Optimistic local update
-    if (this._data.conversations?.[targetConversationId]) {
-      delete this._data.conversations[targetConversationId];
-    }
+    const previous = this._conversations[targetConversationId];
+    delete this._conversations[targetConversationId];
 
     // Emit events
     this.emit('conversationUpdated', {
@@ -651,7 +620,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       await this.graphqlClient.deleteConversation(this.id, targetConversationId);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to delete conversation:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      if (previous) this._conversations[targetConversationId] = previous;
       throw error;
     }
   }
@@ -662,19 +631,17 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    */
   async renameConversation(conversationId: string, name: string): Promise<void> {
     // Optimistic local update - auto-create if needed
-    if (!this._data.conversations) {
-      this._data.conversations = {};
-    }
-    const isNew = !this._data.conversations[conversationId];
+    const isNew = !this._conversations[conversationId];
+    const previous = this._conversations[conversationId];
     if (isNew) {
-      this._data.conversations[conversationId] = {
+      this._conversations[conversationId] = {
         name,
         createdAt: Date.now(),
         createdBy: this._userId,
         interactions: [],
       };
     } else {
-      this._data.conversations[conversationId].name = name;
+      this._conversations[conversationId] = { ...this._conversations[conversationId], name };
     }
 
     // Emit events
@@ -694,16 +661,28 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       await this.graphqlClient.renameConversation(this.id, conversationId, name);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to rename conversation:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      if (isNew) {
+        delete this._conversations[conversationId];
+      } else if (previous) {
+        this._conversations[conversationId] = previous;
+      }
       throw error;
     }
   }
 
   /**
    * List all conversations in this space with summary info.
+   * Returns from local cache (kept in sync via SSE).
    */
-  async listConversations(): Promise<ConversationInfo[]> {
-    return this.graphqlClient.listConversations(this.id);
+  listConversations(): ConversationInfo[] {
+    return Object.entries(this._conversations).map(([id, conv]) => ({
+      id,
+      name: conv.name ?? null,
+      createdAt: conv.createdAt,
+      createdBy: conv.createdBy,
+      createdByName: conv.createdByName ?? null,
+      interactionCount: conv.interactions.length,
+    }));
   }
 
   /**
@@ -711,7 +690,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * Returns undefined if no system instruction is set.
    */
   getSystemInstruction(): string | undefined {
-    return this._data.conversations?.[this._conversationId]?.systemInstruction;
+    return this._conversations[this._conversationId]?.systemInstruction;
   }
 
   /**
@@ -720,20 +699,19 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    */
   async setSystemInstruction(instruction: string | null): Promise<void> {
     // Optimistic local update
-    if (!this._data.conversations) {
-      this._data.conversations = {};
-    }
-    if (!this._data.conversations[this._conversationId]) {
-      this._data.conversations[this._conversationId] = {
+    if (!this._conversations[this._conversationId]) {
+      this._conversations[this._conversationId] = {
         createdAt: Date.now(),
         createdBy: this._userId,
         interactions: [],
       };
     }
+    const previous = this._conversations[this._conversationId];
     if (instruction === null) {
-      delete this._data.conversations[this._conversationId].systemInstruction;
+      const { systemInstruction: _, ...rest } = this._conversations[this._conversationId];
+      this._conversations[this._conversationId] = rest;
     } else {
-      this._data.conversations[this._conversationId].systemInstruction = instruction;
+      this._conversations[this._conversationId] = { ...this._conversations[this._conversationId], systemInstruction: instruction };
     }
 
     // Emit event
@@ -747,7 +725,7 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
       await this.graphqlClient.setSystemInstruction(this.id, this._conversationId, instruction);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to set system instruction:', error);
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
+      this._conversations[this._conversationId] = previous;
       throw error;
     }
   }
@@ -761,17 +739,13 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * Metadata is stored in meta and hidden from AI operations.
    */
   setMetadata(key: string, value: unknown): void {
-    if (!this._data.meta) {
-      this._data.meta = {};
-    }
-    this._data.meta[key] = value;
-    this.emit('metadataUpdated', { metadata: this._data.meta, source: 'local_user' });
+    this._meta[key] = value;
+    this.emit('metadataUpdated', { metadata: this._meta, source: 'local_user' });
 
-    // Fire-and-forget server call - errors trigger resync
-    this.graphqlClient.setSpaceMeta(this.id, this._data.meta, this._conversationId)
+    // Fire-and-forget server call
+    this.graphqlClient.setSpaceMeta(this.id, this._meta, this._conversationId)
       .catch((error) => {
         this.logger.error('[RoolSpace] Failed to set meta:', error);
-        this.resyncFromServer(error instanceof Error ? error : new Error(String(error)));
       });
   }
 
@@ -779,14 +753,14 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
    * Get a space-level metadata value.
    */
   getMetadata(key: string): unknown {
-    return this._data.meta?.[key];
+    return this._meta[key];
   }
 
   /**
    * Get all space-level metadata.
    */
   getAllMetadata(): Record<string, unknown> {
-    return this._data.meta ?? {};
+    return this._meta;
   }
 
   // ===========================================================================
@@ -808,12 +782,32 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     }
 
     const result = await this.graphqlClient.prompt(this._id, prompt, this._conversationId, { ...rest, attachmentUrls });
-    
-    // Hydrate modified object IDs to actual objects (filter out deleted ones)
-    const objects = result.modifiedObjectIds
-      .map(id => this._data.objects[id]?.data)
-      .filter((obj): obj is RoolObject => obj !== undefined);
-    
+
+    // Collect modified objects — they arrive via SSE events during/after the mutation.
+    // Try collecting from buffer first, then fetch any missing from server.
+    const objects: RoolObject[] = [];
+    const missing: string[] = [];
+
+    for (const id of result.modifiedObjectIds) {
+      const buffered = this._objectBuffer.get(id);
+      if (buffered) {
+        this._objectBuffer.delete(id);
+        objects.push(buffered);
+      } else {
+        missing.push(id);
+      }
+    }
+
+    // Fetch any objects not yet received via SSE
+    if (missing.length > 0) {
+      const fetched = await Promise.all(
+        missing.map(id => this.graphqlClient.getObject(this._id, id))
+      );
+      for (const obj of fetched) {
+        if (obj) objects.push(obj);
+      }
+    }
+
     return {
       message: result.message,
       objects,
@@ -900,14 +894,6 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   // Low-level Operations
   // ===========================================================================
 
-  /**
-   * Get the full space data.
-   * Use sparingly - prefer specific operations.
-   */
-  getData(): RoolSpaceData {
-    return this._data;
-  }
-
   // ===========================================================================
   // Import/Export
   // ===========================================================================
@@ -923,6 +909,68 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   }
 
   // ===========================================================================
+  // Object Collection (internal)
+  // ===========================================================================
+
+  /**
+   * Register a collector that resolves when the object arrives via SSE.
+   * If the object is already in the buffer (arrived before collector), resolves immediately.
+   * @internal
+   */
+  private _collectObject(objectId: string): Promise<RoolObject> {
+    return new Promise<RoolObject>((resolve, reject) => {
+      // Check buffer first — SSE event may have arrived before the HTTP response
+      const buffered = this._objectBuffer.get(objectId);
+      if (buffered) {
+        this._objectBuffer.delete(objectId);
+        resolve(buffered);
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        this._objectResolvers.delete(objectId);
+        // Fallback: try to fetch from server
+        this.graphqlClient.getObject(this._id, objectId).then(obj => {
+          if (obj) {
+            resolve(obj);
+          } else {
+            reject(new Error(`Timeout waiting for object ${objectId} from SSE`));
+          }
+        }).catch(reject);
+      }, OBJECT_COLLECT_TIMEOUT);
+
+      this._objectResolvers.set(objectId, (obj) => {
+        clearTimeout(timer);
+        resolve(obj);
+      });
+    });
+  }
+
+  /**
+   * Cancel a pending object collector (e.g., on mutation error).
+   * @internal
+   */
+  private _cancelCollector(objectId: string): void {
+    this._objectResolvers.delete(objectId);
+    this._objectBuffer.delete(objectId);
+  }
+
+  /**
+   * Deliver an object to a pending collector, or buffer it for later collection.
+   * @internal
+   */
+  private _deliverObject(objectId: string, object: RoolObject): void {
+    const resolver = this._objectResolvers.get(objectId);
+    if (resolver) {
+      resolver(object);
+      this._objectResolvers.delete(objectId);
+    } else {
+      // Buffer for prompt() or late collectors
+      this._objectBuffer.set(objectId, object);
+    }
+  }
+
+  // ===========================================================================
   // Event Handlers (internal - handles space subscription events)
   // ===========================================================================
 
@@ -934,198 +982,156 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
     // Ignore events after close - the space is being torn down
     if (this._closed) return;
 
+    const changeSource: ChangeSource = event.source === 'agent' ? 'remote_agent' : 'remote_user';
+
     switch (event.type) {
-      case 'space_patched':
-        if (event.patch) {
-          this.handleRemotePatch(event.patch, event.source);
+      case 'object_created':
+        if (event.objectId && event.object) {
+          this._handleObjectCreated(event.objectId, event.object, changeSource);
+        }
+        break;
+
+      case 'object_updated':
+        if (event.objectId && event.object) {
+          this._handleObjectUpdated(event.objectId, event.object, changeSource);
+        }
+        break;
+
+      case 'object_deleted':
+        if (event.objectId) {
+          this._handleObjectDeleted(event.objectId, changeSource);
+        }
+        break;
+
+      case 'schema_updated':
+        if (event.schema) {
+          this._schema = event.schema;
+        }
+        break;
+
+      case 'metadata_updated':
+        if (event.metadata) {
+          this._meta = event.metadata;
+          this.emit('metadataUpdated', { metadata: this._meta, source: changeSource });
+        }
+        break;
+
+      case 'conversation_updated':
+        if (event.conversationId && event.conversation) {
+          this._conversations[event.conversationId] = event.conversation;
+          this.emit('conversationUpdated', { conversationId: event.conversationId, source: changeSource });
+          // Emit conversationsChanged if this is a new conversation
+          this.emit('conversationsChanged', {
+            action: 'created',
+            conversationId: event.conversationId,
+            name: event.conversation.name,
+            source: changeSource,
+          });
+        }
+        break;
+
+      case 'conversation_deleted':
+        if (event.conversationId) {
+          delete this._conversations[event.conversationId];
+          this.emit('conversationUpdated', { conversationId: event.conversationId, source: changeSource });
+          this.emit('conversationsChanged', {
+            action: 'deleted',
+            conversationId: event.conversationId,
+            source: changeSource,
+          });
         }
         break;
 
       case 'space_changed':
-        // Full reload needed
+        // Full reload needed (undo/redo, bulk operations)
         void this.graphqlClient.getSpace(this._id).then(({ data }) => {
-          this._data = data;
-          this.emit('reset', { source: 'remote_user' });
+          if (this._closed) return;
+          this._meta = data.meta ?? {};
+          this._schema = data.schema ?? {};
+          this._conversations = data.conversations ?? {};
+          this._objectIds = data.objectIds ?? [];
+          this.emit('reset', { source: changeSource });
         });
         break;
     }
   }
 
   /**
-   * Check if a patch would actually change the current data.
-   * Used to deduplicate events when patches don't change anything (e.g., optimistic updates).
+   * Handle an object_created SSE event.
+   * Deduplicates against optimistic local creates.
    * @internal
    */
-  private didPatchChangeAnything(patch: JSONPatchOp[]): boolean {
-    for (const op of patch) {
-      const pathParts = op.path.split('/').filter(p => p);
-      let current: any = this._data;
-      for (const part of pathParts) {
-        current = current?.[part];
+  private _handleObjectCreated(objectId: string, object: RoolObject, source: ChangeSource): void {
+    // Deliver to any pending collector (for mutation return values)
+    this._deliverObject(objectId, object);
+
+    // Maintain local ID list — prepend (most recently modified first)
+    this._objectIds = [objectId, ...this._objectIds.filter(id => id !== objectId)];
+
+    const pending = this._pendingMutations.get(objectId);
+    if (pending !== undefined) {
+      // This is our own mutation echoed back
+      this._pendingMutations.delete(objectId);
+
+      if (pending !== null) {
+        // It was a create — already emitted objectCreated optimistically.
+        // Emit objectUpdated only if AI resolved placeholders (data changed).
+        if (JSON.stringify(pending) !== JSON.stringify(object)) {
+          this.emit('objectUpdated', { objectId, object, source });
+        }
       }
-      
-      if (op.op === 'remove' && current !== undefined) return true;
-      if ((op.op === 'add' || op.op === 'replace') && 
-          JSON.stringify(current) !== JSON.stringify((op as any).value)) return true;
-    }
-    return false;
-  }
-
-  /**
-   * Handle a patch event from another client.
-   * Checks for version gaps to detect missed patches.
-   * @internal
-   */
-  private handleRemotePatch(patch: JSONPatchOp[], source: RoolEventSource): void {
-    // Extract the new version from the patch
-    const versionOp = patch.find(
-      op => op.path === '/version' && (op.op === 'add' || op.op === 'replace')
-    ) as { op: 'add' | 'replace'; path: string; value: number } | undefined;
-
-    if (versionOp) {
-      const incomingVersion = versionOp.value;
-      const currentVersion = this._data.version ?? 0;
-      const expectedVersion = currentVersion + 1;
-
-      // Check for version gap (missed patches)
-      if (incomingVersion > expectedVersion) {
-        this.logger.warn(
-          `[RoolSpace] Version gap detected: expected ${expectedVersion}, got ${incomingVersion}. Resyncing.`
-        );
-        this.resyncFromServer(new Error(`Version gap: expected ${expectedVersion}, got ${incomingVersion}`))
-          .catch(() => { });
-        return;
-      }
-
-      // Skip stale patches (version <= current, already applied)
-      if (incomingVersion <= currentVersion) {
-        return;
-      }
-    }
-
-    // Check if patch would change anything BEFORE applying
-    const willChange = this.didPatchChangeAnything(patch);
-
-    try {
-      this._data = immutableJSONPatch(this._data, patch) as RoolSpaceData;
-    } catch (error) {
-      this.logger.error('[RoolSpace] Failed to apply remote patch:', error);
-      // Force resync on patch error
-      this.resyncFromServer(error instanceof Error ? error : new Error(String(error))).catch(() => { });
-      return;
-    }
-
-    // Only emit events if something actually changed
-    if (willChange) {
-      const changeSource: ChangeSource = source === 'agent' ? 'remote_agent' : 'remote_user';
-      this.emitSemanticEventsFromPatch(patch, changeSource);
+    } else {
+      // Remote event — emit normally
+      this.emit('objectCreated', { objectId, object, source });
     }
   }
 
   /**
-   * Parse JSON patch operations and emit semantic events.
+   * Handle an object_updated SSE event.
+   * Deduplicates against optimistic local updates.
    * @internal
    */
-  private emitSemanticEventsFromPatch(patch: JSONPatchOp[], source: ChangeSource): void {
-    // Track which objects have been updated (to avoid duplicate events)
-    const updatedObjects = new Set<string>();
+  private _handleObjectUpdated(objectId: string, object: RoolObject, source: ChangeSource): void {
+    // Deliver to any pending collector
+    this._deliverObject(objectId, object);
 
-    for (const op of patch) {
-      const { path } = op;
+    // Maintain local ID list — move to front (most recently modified)
+    this._objectIds = [objectId, ...this._objectIds.filter(id => id !== objectId)];
 
-      // Object operations: /objects/{objectId}/...
-      if (path.startsWith('/objects/')) {
-        const parts = path.split('/');
-        const objectId = parts[2];
+    const pending = this._pendingMutations.get(objectId);
+    if (pending !== undefined) {
+      // This is our own mutation echoed back
+      this._pendingMutations.delete(objectId);
 
-        if (parts.length === 3) {
-          // /objects/{objectId} - full object add or remove
-          if (op.op === 'add') {
-            const entry = this._data.objects[objectId];
-            if (entry) {
-              this.emit('objectCreated', { objectId, object: entry.data, source });
-            }
-          } else if (op.op === 'remove') {
-            this.emit('objectDeleted', { objectId, source });
-          }
-        } else if (parts[3] === 'data') {
-          // /objects/{objectId}/data/... - data field update
-          if (!updatedObjects.has(objectId)) {
-            const entry = this._data.objects[objectId];
-            if (entry) {
-              this.emit('objectUpdated', { objectId, object: entry.data, source });
-              updatedObjects.add(objectId);
-            }
-          }
+      if (pending !== null) {
+        // Already emitted objectUpdated optimistically.
+        // Emit again only if data changed (AI resolved placeholders).
+        if (JSON.stringify(pending) !== JSON.stringify(object)) {
+          this.emit('objectUpdated', { objectId, object, source });
         }
       }
-      else if (path === '/meta' || path.startsWith('/meta/')) {
-        this.emit('metadataUpdated', { metadata: this._data.meta, source });
-      }
-      // Conversation operations: /conversations/{conversationId} or /conversations/{conversationId}/...
-      else if (path.startsWith('/conversations/')) {
-        const parts = path.split('/');
-        const conversationId = parts[2];
-        if (conversationId) {
-          this.emit('conversationUpdated', { conversationId, source });
-
-          // Emit conversationsChanged for list-level changes
-          if (parts.length === 3) {
-            // /conversations/{conversationId} - full conversation add or remove
-            if (op.op === 'add') {
-              const conv = this._data.conversations?.[conversationId];
-              this.emit('conversationsChanged', {
-                action: 'created',
-                conversationId,
-                name: conv?.name,
-                source,
-              });
-            } else if (op.op === 'remove') {
-              this.emit('conversationsChanged', {
-                action: 'deleted',
-                conversationId,
-                source,
-              });
-            }
-          } else if (parts[3] === 'name') {
-            // /conversations/{conversationId}/name - rename
-            const conv = this._data.conversations?.[conversationId];
-            this.emit('conversationsChanged', {
-              action: 'renamed',
-              conversationId,
-              name: conv?.name,
-              source,
-            });
-          }
-        }
-      }
+    } else {
+      // Remote event
+      this.emit('objectUpdated', { objectId, object, source });
     }
   }
 
-  // ===========================================================================
-  // Private Methods
-  // ===========================================================================
+  /**
+   * Handle an object_deleted SSE event.
+   * Deduplicates against optimistic local deletes.
+   * @internal
+   */
+  private _handleObjectDeleted(objectId: string, source: ChangeSource): void {
+    // Remove from local ID list
+    this._objectIds = this._objectIds.filter(id => id !== objectId);
 
-  private async resyncFromServer(originalError?: Error): Promise<void> {
-    this.logger.warn('[RoolSpace] Resyncing from server after sync failure');
-    try {
-      const { data } = await this.graphqlClient.getSpace(this._id);
-      // Check again after await - space might have been closed during fetch
-      if (this._closed) return;
-      this._data = data;
-      // Clear history is now async but we don't need to wait for it during resync
-      // (it's a server-side cleanup that can happen in background)
-      this.clearHistory().catch((err) => {
-        this.logger.warn('[RoolSpace] Failed to clear history during resync:', err);
-      });
-      this.emit('syncError', originalError ?? new Error('Sync failed'));
-      this.emit('reset', { source: 'system' });
-    } catch (error) {
-      // If space was closed during fetch, don't log error - expected during teardown
-      if (this._closed) return;
-      this.logger.error('[RoolSpace] Failed to resync from server:', error);
-      // Still emit syncError with the original error
-      this.emit('syncError', originalError ?? new Error('Sync failed'));
+    const pending = this._pendingMutations.get(objectId);
+    if (pending !== undefined) {
+      // This is our own delete echoed back — already emitted
+      this._pendingMutations.delete(objectId);
+    } else {
+      // Remote event
+      this.emit('objectDeleted', { objectId, source });
     }
   }
 }

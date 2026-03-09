@@ -68,18 +68,6 @@ export interface RoolObjectStat {
 }
 
 /**
- * Internal storage structure for a space object.
- * - data: The user content (RoolObject). Fields prefixed with _ are hidden from AI.
- *   References between objects are data fields whose values are object IDs.
- */
-export interface RoolObjectEntry {
-  data: RoolObject;
-  modifiedAt: number;
-  modifiedBy: string;
-  modifiedByName: string | null;
-}
-
-/**
  * A tool call record - captures what the agent did during an interaction.
  */
 export interface ToolCall {
@@ -131,33 +119,21 @@ export interface ConversationInfo {
 }
 
 /**
- * Space structure - objects keyed by ID.
+ * Space structure - locally cached space state (excludes objects).
+ * Objects are fetched on demand via getObject/findObjects and delivered via SSE events.
  * meta is space-level metadata, preserved but hidden from AI operations.
  * conversations contains conversation data keyed by conversationId.
  * schema contains collection definitions keyed by collection name.
  */
 export interface RoolSpaceData {
-  /** Monotonically increasing version for sync consistency detection */
-  version: number;
-  objects: Record<string, RoolObjectEntry>;
   meta: Record<string, unknown>;
+  /** Object IDs ordered by modifiedAt (desc). Maintained locally via SSE events. */
+  objectIds?: string[];
   /** Collection schema definitions keyed by collection name */
   schema?: SpaceSchema;
   /** Conversations keyed by conversationId */
   conversations?: Record<string, Conversation>;
 }
-
-// =============================================================================
-// JSON Patch (RFC 6902)
-// =============================================================================
-
-export type JSONPatchOp =
-  | { op: 'add'; path: string; value: unknown }
-  | { op: 'remove'; path: string }
-  | { op: 'replace'; path: string; value: unknown }
-  | { op: 'move'; path: string; from: string }
-  | { op: 'copy'; path: string; from: string }
-  | { op: 'test'; path: string; value: unknown };
 
 // =============================================================================
 // Space Info & User Types
@@ -363,19 +339,37 @@ export interface ClientEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Space-level events (content changes)
+// Space-level events (semantic content changes)
 // -----------------------------------------------------------------------------
 
-export type SpaceEventType = 'connected' | 'space_patched' | 'space_changed';
+export type SpaceEventType =
+  | 'connected'
+  | 'space_changed'
+  | 'object_created'
+  | 'object_updated'
+  | 'object_deleted'
+  | 'schema_updated'
+  | 'metadata_updated'
+  | 'conversation_updated'
+  | 'conversation_deleted';
 
 export interface SpaceEvent {
   type: SpaceEventType;
   spaceId: string;
   timestamp: number;
-  patch?: JSONPatchOp[];  // Present on space_patched events
   source: RoolEventSource;
-  conversationId?: string;  // Present on space events
-  serverVersion?: number;  // Present on connected events
+  // Object events
+  objectId?: string;
+  object?: RoolObject;
+  // Schema events
+  schema?: SpaceSchema;
+  // Metadata events
+  metadata?: Record<string, unknown>;
+  // Conversation events
+  conversationId?: string;
+  conversation?: Conversation;
+  // Connected events
+  serverVersion?: number;
 }
 
 // =============================================================================

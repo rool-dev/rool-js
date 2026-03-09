@@ -803,12 +803,6 @@ try {
 }
 ```
 
-### Internal / Advanced
-
-| Method | Description |
-|--------|-------------|
-| `getData(): RoolSpaceData` | Get full space data (internal format) |
-
 ## Interaction History
 
 Each `RoolSpace` instance has a `conversationId` that tracks interaction history for that space. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
@@ -848,7 +842,7 @@ const conversationIds = space.getConversationIds();
 | `getConversationIds(): string[]` | List all conversation IDs that have conversations |
 | `deleteConversation(conversationId?): Promise<void>` | Delete a conversation and its history. Defaults to current conversation. |
 | `renameConversation(id, name): Promise<void>` | Rename a conversation. Creates it if it doesn't exist. |
-| `listConversations(): Promise<ConversationInfo[]>` | List all conversations with summary info. |
+| `listConversations(): ConversationInfo[]` | List all conversations with summary info. |
 | `getSystemInstruction(): string \| undefined` | Get system instruction for current conversation. |
 | `setSystemInstruction(instruction): Promise<void>` | Set system instruction for current conversation. Pass `null` to clear. |
 
@@ -1014,22 +1008,6 @@ interface ConversationInfo {
   interactionCount: number;
 }
 
-// Internal space data structure
-interface RoolSpaceData {
-  version: number;  // Monotonically increasing version for sync consistency
-  objects: Record<string, RoolObjectEntry>;
-  meta: Record<string, unknown>;  // Space-level metadata
-  schema?: SpaceSchema;  // Collection schema definitions
-  conversations?: Record<string, Conversation>;  // Conversations keyed by conversationId
-}
-
-// Full stored object structure (for advanced use with getData())
-interface RoolObjectEntry {
-  data: RoolObject;                 // The actual object data
-  modifiedAt: number;               // Timestamp of last modification
-  modifiedBy: string;               // User ID who last modified
-  modifiedByName: string | null;    // Display name at time of modification
-}
 ```
 
 ### Interaction Types

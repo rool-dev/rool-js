@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, SpaceEvent, JSONPatchOp, RoolEventSource } from './types.js';
+import type { ConnectionState, ClientEvent, SpaceEvent, RoolEventSource, RoolObject, SpaceSchema, Conversation } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 
@@ -416,31 +416,28 @@ export class SpaceSubscriptionManager {
     const type = raw.type as SpaceEvent["type"];
     const spaceId = raw.spaceId as string;
     const timestamp = raw.timestamp as number;
-    const source = raw.source as RoolEventSource;
+    const source = (raw.source as RoolEventSource) ?? 'user';
 
     if (!type || !spaceId) return null;
 
     switch (type) {
       case 'connected':
-        return {
-          type,
-          spaceId,
-          timestamp,
-          source: source ?? 'user',  // connected event may not have source
-          serverVersion: raw.serverVersion as number,
-        };
-      case 'space_patched':
-        if (!source) return null;
-        return {
-          type,
-          spaceId,
-          timestamp,
-          patch: raw.patch as JSONPatchOp[],
-          source,
-        };
+        return { type, spaceId, timestamp, source, serverVersion: raw.serverVersion as number };
       case 'space_changed':
-        if (!source) return null;
         return { type, spaceId, timestamp, source };
+      case 'object_created':
+      case 'object_updated':
+        return { type, spaceId, timestamp, source, objectId: raw.objectId as string, object: raw.object as RoolObject };
+      case 'object_deleted':
+        return { type, spaceId, timestamp, source, objectId: raw.objectId as string };
+      case 'schema_updated':
+        return { type, spaceId, timestamp, source, schema: raw.schema as SpaceSchema };
+      case 'metadata_updated':
+        return { type, spaceId, timestamp, source, metadata: raw.metadata as Record<string, unknown> };
+      case 'conversation_updated':
+        return { type, spaceId, timestamp, source, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
+      case 'conversation_deleted':
+        return { type, spaceId, timestamp, source, conversationId: raw.conversationId as string };
       default:
         this.logger.warn('[RoolSpace] Unknown space event type:', type);
         return null;

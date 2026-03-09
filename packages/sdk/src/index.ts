@@ -19,11 +19,8 @@ export type { Logger } from './logger.js';
 export type {
   // Core types
   RoolObject,
-  RoolObjectEntry,
   RoolObjectStat,
-  RoolSpaceData,
   RoolSpaceInfo,
-  JSONPatchOp,
 
   // Subscription event types (wire protocol)
   ClientEvent,

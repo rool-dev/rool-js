@@ -1,4 +1,4 @@
-import type { RoolSpace, Interaction, RoolObject, FindObjectsOptions, ConversationInfo, PropDef } from '@rool-dev/sdk';
+import type { RoolSpace, Interaction, RoolObject, FindObjectsOptions, ConversationInfo } from '@rool-dev/sdk';
 
 /**
  * Options for creating a reactive collection.
@@ -254,8 +254,8 @@ class ReactiveSpaceImpl {
     this.#unsubscribers.push(() => space.off('conversationsChanged', onConversationsChanged));
   }
 
-  async #refreshConversations() {
-    this.conversations = await this.#space.listConversations();
+  #refreshConversations() {
+    this.conversations = this.#space.listConversations();
   }
 
   // Proxy read-only properties
@@ -359,7 +359,6 @@ class ReactiveSpaceImpl {
 
   // Advanced
   rename(...args: Parameters<RoolSpace['rename']>) { return this.#space.rename(...args); }
-  getData() { return this.#space.getData(); }
   get isReadOnly() { return this.#space.isReadOnly; }
   addUser(...args: Parameters<RoolSpace['addUser']>) { return this.#space.addUser(...args); }
   removeUser(...args: Parameters<RoolSpace['removeUser']>) { return this.#space.removeUser(...args); }

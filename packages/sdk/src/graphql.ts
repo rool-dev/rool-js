@@ -13,7 +13,6 @@ import type {
   CurrentUser,
   UserResult,
   RoolObject,
-  ConversationInfo,
   LinkAccess,
   CollectionDef,
   PropDef,
@@ -76,6 +75,7 @@ export class GraphQLClient {
       query GetSpace($id: String!) {
         getSpace(id: $id) {
           data
+          objectIds
           name
           role
           userId
@@ -83,9 +83,11 @@ export class GraphQLClient {
         }
       }
     `;
-    const response = await this.request<{ getSpace: { data: string; name: string; role: string; userId: string; linkAccess: LinkAccess } }>(query, { id: spaceId });
+    const response = await this.request<{ getSpace: { data: string; objectIds: string[]; name: string; role: string; userId: string; linkAccess: LinkAccess } }>(query, { id: spaceId });
+    const data = JSON.parse(response.getSpace.data) as RoolSpaceData;
+    data.objectIds = response.getSpace.objectIds;
     return {
-      data: JSON.parse(response.getSpace.data),
+      data,
       name: response.getSpace.name,
       role: response.getSpace.role,
       userId: response.getSpace.userId,
@@ -103,18 +105,21 @@ export class GraphQLClient {
         createSpace(name: $name) {
           spaceId
           data
+          objectIds
           name
           role
           userId
         }
       }
     `;
-    const response = await this.request<{ createSpace: { spaceId: string; data: string; name: string; role: string; userId: string } }>(mutation, {
+    const response = await this.request<{ createSpace: { spaceId: string; data: string; objectIds: string[]; name: string; role: string; userId: string } }>(mutation, {
       name,
     });
+    const data = JSON.parse(response.createSpace.data) as RoolSpaceData;
+    data.objectIds = response.createSpace.objectIds;
     return {
       spaceId: response.createSpace.spaceId,
-      data: JSON.parse(response.createSpace.data),
+      data,
       name: response.createSpace.name,
       role: response.createSpace.role,
       userId: response.createSpace.userId,
@@ -211,25 +216,6 @@ export class GraphQLClient {
       conversationId,
       systemInstruction: instruction,
     });
-  }
-
-  async listConversations(spaceId: string): Promise<ConversationInfo[]> {
-    const query = `
-      query ListConversations($spaceId: String!) {
-        listConversations(spaceId: $spaceId) {
-          id
-          name
-          createdAt
-          createdBy
-          createdByName
-          interactionCount
-        }
-      }
-    `;
-    const result = await this.request<{ listConversations: ConversationInfo[] }>(query, {
-      spaceId,
-    });
-    return result.listConversations;
   }
 
   // ===========================================================================
@@ -391,13 +377,16 @@ export class GraphQLClient {
     data: Record<string, unknown>,
     conversationId: string,
     ephemeral?: boolean,
-  ): Promise<string> {
+  ): Promise<{ objectId: string; message: string }> {
     const mutation = `
       mutation CreateObject($spaceId: String!, $data: String!, $conversationId: String!, $ephemeral: Boolean) {
-        createObject(spaceId: $spaceId, data: $data, conversationId: $conversationId, ephemeral: $ephemeral)
+        createObject(spaceId: $spaceId, data: $data, conversationId: $conversationId, ephemeral: $ephemeral) {
+          objectId
+          message
+        }
       }
     `;
-    const result = await this.request<{ createObject: string }>(mutation, {
+    const result = await this.request<{ createObject: { objectId: string; message: string } }>(mutation, {
       spaceId,
       data: JSON.stringify(data),
       conversationId,
@@ -413,13 +402,16 @@ export class GraphQLClient {
     data?: Record<string, unknown>,
     prompt?: string,
     ephemeral?: boolean,
-  ): Promise<string> {
+  ): Promise<{ objectId: string; message: string }> {
     const mutation = `
       mutation UpdateObject($spaceId: String!, $id: String!, $data: String, $prompt: String, $conversationId: String!, $ephemeral: Boolean) {
-        updateObject(spaceId: $spaceId, id: $id, data: $data, prompt: $prompt, conversationId: $conversationId, ephemeral: $ephemeral)
+        updateObject(spaceId: $spaceId, id: $id, data: $data, prompt: $prompt, conversationId: $conversationId, ephemeral: $ephemeral) {
+          objectId
+          message
+        }
       }
     `;
-    const result = await this.request<{ updateObject: string }>(mutation, {
+    const result = await this.request<{ updateObject: { objectId: string; message: string } }>(mutation, {
       spaceId,
       id,
       data: data ? JSON.stringify(data) : undefined,
@@ -428,6 +420,22 @@ export class GraphQLClient {
       ephemeral,
     });
     return result.updateObject;
+  }
+
+  async getObject(
+    spaceId: string,
+    objectId: string,
+  ): Promise<RoolObject | undefined> {
+    const query = `
+      query GetObject($spaceId: String!, $objectId: String!) {
+        getObject(spaceId: $spaceId, objectId: $objectId)
+      }
+    `;
+    const result = await this.request<{ getObject: RoolObject | null }>(query, {
+      spaceId,
+      objectId,
+    });
+    return result.getObject ?? undefined;
   }
 
   async findObjects(
