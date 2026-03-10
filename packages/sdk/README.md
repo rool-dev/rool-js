@@ -558,7 +558,7 @@ Spaces are first-class objects with built-in undo/redo, event emission, and real
 
 ### Object Operations
 
-Objects are plain key/value records. `id` is the only reserved field; everything else is application-defined. References between objects are data fields whose values are object IDs.
+Objects are plain key/value records. `id` is the only reserved field; everything else is application-defined. References between objects are data fields whose values are object IDs. All objects must belong to a collection (see below in the schema section). Before adding a new type of object, update the schema in the space.
 
 | Method | Description |
 |--------|-------------|
@@ -679,10 +679,11 @@ if (response.contentType.startsWith('image/')) {
 
 ### Collection Schema
 
-Define typed collection schemas to give structure to your space. The schema is visible to the AI agent, guiding how it creates and updates objects.
+Collections are types you can use to group objects in a space. Every object must belong to a collection. Collections make up the schema and are stored in the space data, syncing in real time together with the rest of the space. The schema is also visible to the AI agent, which it can use to understand what collections exist and what fields they contain, producing more consistent objects.
+
 
 ```typescript
-// Define a collection with typed properties
+// Define a collection with typed fields
 await space.createCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'enum', values: ['draft', 'published', 'archived'] } },
@@ -692,9 +693,9 @@ await space.createCollection('article', [
 
 // Read the current schema
 const schema = space.getSchema();
-console.log(schema.article.props); // PropDef[]
+console.log(schema.article.fields); // FieldDef[]
 
-// Modify an existing collection's properties
+// Modify an existing collection's fields
 await space.alterCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'enum', values: ['draft', 'review', 'published', 'archived'] } },
@@ -703,18 +704,18 @@ await space.alterCollection('article', [
   { name: 'wordCount', type: { kind: 'number' } },
 ]);
 
-// Remove a collection schema
+// Remove a collection
 await space.dropCollection('article');
 ```
 
 | Method | Description |
 |--------|-------------|
 | `getSchema(): SpaceSchema` | Get all collection definitions |
-| `createCollection(name, props): Promise<CollectionDef>` | Create a new collection schema |
-| `alterCollection(name, props): Promise<CollectionDef>` | Replace a collection's property definitions |
-| `dropCollection(name): Promise<void>` | Remove a collection schema |
+| `createCollection(name, fields): Promise<CollectionDef>` | Add a new collection to the schema |
+| `alterCollection(name, fields): Promise<CollectionDef>` | Replace a collection's field definitions |
+| `dropCollection(name): Promise<void>` | Remove a collection from the schema |
 
-#### Property Types
+#### Field Types
 
 | Kind | Description | Example |
 |------|-------------|---------|
@@ -726,8 +727,6 @@ await space.dropCollection('article');
 | `literal` | Exact value | `{ kind: 'literal', value: 'fixed' }` |
 | `array` | List of values | `{ kind: 'array', inner: { kind: 'string' } }` |
 | `maybe` | Optional (nullable) | `{ kind: 'maybe', inner: { kind: 'number' } }` |
-
-Schema is stored in the space data and syncs in real-time. The AI agent uses the schema to understand what collections exist and what fields they expect, producing more consistent objects.
 
 ### Import/Export
 
@@ -943,33 +942,31 @@ The `toolCalls` array captures what the AI agent did during execution. Use it to
 ### Schema Types
 
 ```typescript
-// Property type descriptor (recursive)
-type PropType =
+// Allowed field types
+type FieldType =
   | { kind: 'string' }
   | { kind: 'number' }
   | { kind: 'boolean' }
-  | { kind: 'array'; inner?: PropType }
-  | { kind: 'maybe'; inner: PropType }
+  | { kind: 'array'; inner?: FieldType }
+  | { kind: 'maybe'; inner: FieldType }
   | { kind: 'enum'; values: string[] }
   | { kind: 'literal'; value: string | number | boolean }
   | { kind: 'ref' };
 
-// A named property within a collection
-interface PropDef {
+interface FieldDef {
   name: string;
-  type: PropType;
+  type: FieldType;
 }
 
-// A collection definition
 interface CollectionDef {
-  props: PropDef[];
+  fields: FieldDef[];
 }
 
 // Full schema — collection names to definitions
 type SpaceSchema = Record<string, CollectionDef>;
 ```
 
-### Space Data
+### Object Data
 
 ```typescript
 // RoolObject represents the object data you work with
@@ -987,7 +984,11 @@ interface RoolObjectStat {
   modifiedBy: string;
   modifiedByName: string | null;
 }
+```
 
+### Conversations
+
+```typescript
 // Conversation container with metadata
 interface Conversation {
   name?: string;                // Conversation name (optional)

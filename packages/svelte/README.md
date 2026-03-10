@@ -276,8 +276,8 @@ import type {
   PromptOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
-  PropType,
-  PropDef,
+  FieldType,
+  FieldDef,
   CollectionDef,
   SpaceSchema,
 } from '@rool-dev/svelte';

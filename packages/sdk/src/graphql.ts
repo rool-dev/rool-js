@@ -15,7 +15,7 @@ import type {
   RoolObject,
   LinkAccess,
   CollectionDef,
-  PropDef,
+  FieldDef,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 
@@ -312,18 +312,18 @@ export class GraphQLClient {
   async createCollection(
     spaceId: string,
     name: string,
-    props: PropDef[],
+    fields: FieldDef[],
     conversationId: string,
   ): Promise<CollectionDef> {
     const mutation = `
-      mutation CreateCollection($spaceId: String!, $name: String!, $props: String!, $conversationId: String!) {
-        createCollection(spaceId: $spaceId, name: $name, props: $props, conversationId: $conversationId)
+      mutation CreateCollection($spaceId: String!, $name: String!, $fields: String!, $conversationId: String!) {
+        createCollection(spaceId: $spaceId, name: $name, fields: $fields, conversationId: $conversationId)
       }
     `;
     const result = await this.request<{ createCollection: string }>(mutation, {
       spaceId,
       name,
-      props: JSON.stringify(props),
+      fields: JSON.stringify(fields),
       conversationId,
     });
     const parsed = JSON.parse(result.createCollection);
@@ -333,18 +333,18 @@ export class GraphQLClient {
   async alterCollection(
     spaceId: string,
     name: string,
-    props: PropDef[],
+    fields: FieldDef[],
     conversationId: string,
   ): Promise<CollectionDef> {
     const mutation = `
-      mutation AlterCollection($spaceId: String!, $name: String!, $props: String!, $conversationId: String!) {
-        alterCollection(spaceId: $spaceId, name: $name, props: $props, conversationId: $conversationId)
+      mutation AlterCollection($spaceId: String!, $name: String!, $fields: String!, $conversationId: String!) {
+        alterCollection(spaceId: $spaceId, name: $name, fields: $fields, conversationId: $conversationId)
       }
     `;
     const result = await this.request<{ alterCollection: string }>(mutation, {
       spaceId,
       name,
-      props: JSON.stringify(props),
+      fields: JSON.stringify(fields),
       conversationId,
     });
     const parsed = JSON.parse(result.alterCollection);

@@ -34,14 +34,14 @@ export function expectCollection(space: RoolSpace, name: string): CollectionDef 
 }
 
 /**
- * Find a collection in the schema whose props include all the given field names.
+ * Find a collection in the schema whose fields include all the given field names.
  * Fails if no matching collection is found.
  */
 export function expectCollectionWithFields(space: RoolSpace, fields: string[]): CollectionDef {
   const schema = space.getSchema();
   for (const [name, def] of Object.entries(schema)) {
-    const propNames = def.props.map(p => p.name);
-    if (fields.every(f => propNames.includes(f))) {
+    const fieldNames = def.fields.map(f => f.name);
+    if (fields.every(f => fieldNames.includes(f))) {
       return def;
     }
   }

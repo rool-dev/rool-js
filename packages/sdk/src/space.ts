@@ -25,7 +25,7 @@ import type {
   LinkAccess,
   SpaceSchema,
   CollectionDef,
-  PropDef,
+  FieldDef,
 } from './types.js';
 
 // 6-character alphanumeric ID (62^6 = 56.8 billion possible values)
@@ -522,20 +522,20 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   /**
    * Create a new collection schema.
    * @param name - Collection name (must start with a letter, alphanumeric/hyphens/underscores only)
-   * @param props - Property definitions for the collection
+   * @param fields - Field definitions for the collection
    * @returns The created CollectionDef
    */
-  async createCollection(name: string, props: PropDef[]): Promise<CollectionDef> {
+  async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
     if (this._schema[name]) {
       throw new Error(`Collection "${name}" already exists`);
     }
 
     // Optimistic local update
-    const optimisticDef: CollectionDef = { props: props.map(p => ({ name: p.name, type: p.type })) };
+    const optimisticDef: CollectionDef = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
     this._schema[name] = optimisticDef;
 
     try {
-      return await this.graphqlClient.createCollection(this._id, name, props, this._conversationId);
+      return await this.graphqlClient.createCollection(this._id, name, fields, this._conversationId);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to create collection:', error);
       delete this._schema[name];
@@ -544,22 +544,22 @@ export class RoolSpace extends EventEmitter<SpaceEvents> {
   }
 
   /**
-   * Alter an existing collection schema, replacing its property definitions.
+   * Alter an existing collection schema, replacing its field definitions.
    * @param name - Name of the collection to alter
-   * @param props - New property definitions (replaces all existing props)
+   * @param fields - New field definitions (replaces all existing fields)
    * @returns The updated CollectionDef
    */
-  async alterCollection(name: string, props: PropDef[]): Promise<CollectionDef> {
+  async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
     if (!this._schema[name]) {
       throw new Error(`Collection "${name}" not found`);
     }
 
     const previous = this._schema[name];
     // Optimistic local update
-    this._schema[name] = { props: props.map(p => ({ name: p.name, type: p.type })) };
+    this._schema[name] = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
 
     try {
-      return await this.graphqlClient.alterCollection(this._id, name, props, this._conversationId);
+      return await this.graphqlClient.alterCollection(this._id, name, fields, this._conversationId);
     } catch (error) {
       this.logger.error('[RoolSpace] Failed to alter collection:', error);
       this._schema[name] = previous;

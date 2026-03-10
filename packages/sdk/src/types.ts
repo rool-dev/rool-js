@@ -8,32 +8,32 @@
 // =============================================================================
 
 /**
- * Property type descriptor. Recursive structure supporting primitives,
+ * Field type descriptor. Recursive structure supporting primitives,
  * enums, literals, arrays, optionals (maybe), and object references.
  */
-export type PropType =
+export type FieldType =
   | { kind: 'string' }
   | { kind: 'number' }
   | { kind: 'boolean' }
-  | { kind: 'array'; inner?: PropType }
-  | { kind: 'maybe'; inner: PropType }
+  | { kind: 'array'; inner?: FieldType }
+  | { kind: 'maybe'; inner: FieldType }
   | { kind: 'enum'; values: string[] }
   | { kind: 'literal'; value: string | number | boolean }
   | { kind: 'ref' };
 
 /**
- * A named property definition within a collection.
+ * A named field definition within a collection.
  */
-export interface PropDef {
+export interface FieldDef {
   name: string;
-  type: PropType;
+  type: FieldType;
 }
 
 /**
- * A collection definition — a named set of typed properties.
+ * A collection definition — a named set of typed fields.
  */
 export interface CollectionDef {
-  props: PropDef[];
+  fields: FieldDef[];
 }
 
 /**

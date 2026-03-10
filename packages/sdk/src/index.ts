@@ -47,8 +47,8 @@ export type {
   PublishedAppInfo,
 
   // Schema types
-  PropType,
-  PropDef,
+  FieldType,
+  FieldDef,
   CollectionDef,
   SpaceSchema,
 
