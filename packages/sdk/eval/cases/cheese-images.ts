@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { expectValidUniqueUrls, expectUrlsFetchable } from '../helpers.js';
+import { generateEntityId } from '../../src/channel.js';
 
 /**
  * Tests web search and image URL extraction.
@@ -11,9 +12,10 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: cheese-images');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      const { objects } = await space.prompt(`
+      const { objects } = await channel.prompt(`
         Create three new nodes, each with a different image of cheese from the web.
         - Each node should store the image URL in an "imageUrl" field.
         - Do not add any edges.
@@ -21,9 +23,9 @@ export const testCase: TestCase = {
 
       expect(objects).to.have.length(3);
       expectValidUniqueUrls(objects, 'imageUrl');
-      await expectUrlsFetchable(space, objects, 'imageUrl');
+      await expectUrlsFetchable(channel, objects, 'imageUrl');
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

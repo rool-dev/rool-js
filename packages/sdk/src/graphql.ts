@@ -8,14 +8,17 @@ import type {
   PromptOptions,
   FindObjectsOptions,
   RoolSpaceInfo,
-  RoolSpaceData,
   SpaceMember,
   CurrentUser,
   UserResult,
   RoolObject,
+  RoolObjectStat,
   LinkAccess,
   CollectionDef,
   FieldDef,
+  ConversationInfo,
+  Conversation,
+  SpaceSchema,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 
@@ -33,6 +36,19 @@ function getTimezone(): string | undefined {
 export interface GraphQLClientConfig {
   graphqlUrl: string;
   authManager: AuthManager;
+}
+
+/** Result from the openChannel GraphQL query */
+export interface OpenChannelResult {
+  name: string;
+  role: string;
+  userId: string;
+  linkAccess: LinkAccess;
+  objectIds: string[];
+  objectStats: Record<string, RoolObjectStat>;
+  schema: SpaceSchema;
+  meta: Record<string, unknown>;
+  conversation: Conversation | undefined;
 }
 
 interface GraphQLResponse<T> {
@@ -70,59 +86,83 @@ export class GraphQLClient {
     return response.listSpaces;
   }
 
-  async getSpace(spaceId: string): Promise<{ data: RoolSpaceData; name: string; role: string; userId: string; linkAccess: LinkAccess }> {
+  async openSpace(spaceId: string): Promise<{ name: string; role: string; linkAccess: LinkAccess; channels: ConversationInfo[] }> {
     const query = `
-      query GetSpace($id: String!) {
-        getSpace(id: $id) {
-          data
-          objectIds
+      query OpenSpace($id: String!) {
+        openSpace(id: $id) {
           name
           role
-          userId
           linkAccess
+          channels {
+            id
+            name
+            createdAt
+            createdBy
+            createdByName
+            interactionCount
+          }
         }
       }
     `;
-    const response = await this.request<{ getSpace: { data: string; objectIds: string[]; name: string; role: string; userId: string; linkAccess: LinkAccess } }>(query, { id: spaceId });
-    const data = JSON.parse(response.getSpace.data) as RoolSpaceData;
-    data.objectIds = response.getSpace.objectIds;
-    return {
-      data,
-      name: response.getSpace.name,
-      role: response.getSpace.role,
-      userId: response.getSpace.userId,
-      linkAccess: response.getSpace.linkAccess,
-    };
+    const response = await this.request<{ openSpace: { name: string; role: string; linkAccess: LinkAccess; channels: ConversationInfo[] } }>(query, { id: spaceId });
+    return response.openSpace;
   }
 
   // ===========================================================================
   // Space Lifecycle Operations (called from RoolClient)
   // ===========================================================================
 
-  async createSpace(name: string): Promise<{ spaceId: string; data: RoolSpaceData; name: string; role: string; userId: string }> {
+  async createSpace(name: string): Promise<{ spaceId: string }> {
     const mutation = `
       mutation CreateSpace($name: String!) {
         createSpace(name: $name) {
           spaceId
-          data
-          objectIds
-          name
-          role
-          userId
         }
       }
     `;
-    const response = await this.request<{ createSpace: { spaceId: string; data: string; objectIds: string[]; name: string; role: string; userId: string } }>(mutation, {
+    const response = await this.request<{ createSpace: { spaceId: string } }>(mutation, {
       name,
     });
-    const data = JSON.parse(response.createSpace.data) as RoolSpaceData;
-    data.objectIds = response.createSpace.objectIds;
+    return { spaceId: response.createSpace.spaceId };
+  }
+
+  /** Response from openChannel — top-level fields, single conversation, object stats */
+  async openChannel(spaceId: string, channelId: string): Promise<OpenChannelResult> {
+    const query = `
+      query OpenChannel($spaceId: String!, $channelId: String!) {
+        openChannel(spaceId: $spaceId, channelId: $channelId) {
+          name
+          role
+          userId
+          linkAccess
+          objectIds
+          objectStats
+          schema
+          meta
+          conversation
+        }
+      }
+    `;
+    const response = await this.request<{ openChannel: {
+      name: string; role: string; userId: string; linkAccess: LinkAccess;
+      objectIds: string[];
+      objectStats: Record<string, RoolObjectStat> | null;
+      schema: SpaceSchema | null;
+      meta: Record<string, unknown> | null;
+      conversation: Conversation | null;
+    } }>(query, { spaceId, channelId });
+
+    const r = response.openChannel;
     return {
-      spaceId: response.createSpace.spaceId,
-      data,
-      name: response.createSpace.name,
-      role: response.createSpace.role,
-      userId: response.createSpace.userId,
+      name: r.name,
+      role: r.role,
+      userId: r.userId,
+      linkAccess: r.linkAccess,
+      objectIds: r.objectIds,
+      objectStats: r.objectStats ?? {},
+      schema: r.schema ?? {},
+      meta: r.meta ?? {},
+      conversation: r.conversation ?? undefined,
     };
   }
 
@@ -150,7 +190,7 @@ export class GraphQLClient {
   }
 
   // ===========================================================================
-  // Space Content Operations (called from RoolSpace)
+  // Space Content Operations (called from RoolChannel)
   // These require conversationId for AI context
   // ===========================================================================
 

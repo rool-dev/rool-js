@@ -1,14 +1,15 @@
 <script lang="ts">
-  import type { Rool, ReactiveSpace } from '@rool-dev/svelte';
+  import type { Rool } from '@rool-dev/svelte';
   import Icon from '@iconify/svelte';
 
   interface Props {
     rool: Rool;
-    currentSpace: ReactiveSpace | null;
+    spaceName: string | null;
+    spaceId: string | null;
     onSpaceChange: (spaceId: string) => void;
   }
 
-  let { rool, currentSpace, onSpaceChange }: Props = $props();
+  let { rool, spaceName, spaceId, onSpaceChange }: Props = $props();
 
   let showNewSpaceForm = $state(false);
   let newSpaceName = $state('');
@@ -22,10 +23,10 @@
     return params.get('space');
   }
 
-  function updateUrlSpaceId(spaceId: string | null) {
+  function updateUrlSpaceId(id: string | null) {
     const url = new URL(window.location.href);
-    if (spaceId) {
-      url.searchParams.set('space', spaceId);
+    if (id) {
+      url.searchParams.set('space', id);
     } else {
       url.searchParams.delete('space');
     }
@@ -36,25 +37,25 @@
 
   // Auto-open space from URL param once authenticated
   $effect(() => {
-    if (initialSpaceId && rool.authenticated && !currentSpace) {
-      const spaceId = initialSpaceId;
+    if (initialSpaceId && rool.authenticated && !spaceId) {
+      const id = initialSpaceId;
       initialSpaceId = null;
-      openSpace(spaceId);
+      openSpace(id);
     }
   });
 
-  async function openSpace(spaceId: string) {
+  async function openSpace(id: string) {
     try {
-      await onSpaceChange(spaceId);
-      updateUrlSpaceId(spaceId);
+      await onSpaceChange(id);
+      updateUrlSpaceId(id);
     } catch {
       updateUrlSpaceId(null);
     }
   }
 
-  function selectSpace(spaceId: string) {
-    updateUrlSpaceId(spaceId);
-    onSpaceChange(spaceId);
+  function selectSpace(id: string) {
+    updateUrlSpaceId(id);
+    onSpaceChange(id);
   }
 
   // Close dropdowns on outside click
@@ -129,7 +130,7 @@
           onclick={() => { showSpaceDropdown = !showSpaceDropdown; showActionsMenu = false; }}
         >
           <span class="truncate flex-1 font-medium">
-            {currentSpace?.name ?? 'Select a space...'}
+            {spaceName ?? 'Select a space...'}
           </span>
           <Icon icon="mdi:chevron-down" class="w-4 h-4 shrink-0 text-slate-400" />
         </button>
@@ -139,11 +140,11 @@
           <div class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
             {#each rool.spaces ?? [] as s}
               <button
-                class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 {s.id === currentSpace?.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'}"
+                class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 {s.id === spaceId ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'}"
                 onclick={() => { selectSpace(s.id); showSpaceDropdown = false; }}
               >
                 <span class="truncate flex-1">{s.name}</span>
-                {#if s.id === currentSpace?.id}
+                {#if s.id === spaceId}
                   <Icon icon="mdi:check" class="w-4 h-4 shrink-0" />
                 {/if}
               </button>

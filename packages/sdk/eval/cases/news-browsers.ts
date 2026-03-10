@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { expectCollectionWithFields } from '../helpers.js';
+import { generateEntityId } from '../../src/channel.js';
 
 
 /**
@@ -12,9 +13,10 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: news-browsers');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      const { objects } = await space.prompt(`
+      const { objects } = await channel.prompt(`
         Create browser objects for BBC, CNN, and dr.dk.
         Each object should have:
         - type: "browser"
@@ -26,7 +28,7 @@ export const testCase: TestCase = {
       expect(objects).to.have.length(3);
 
       // Verify schema has a collection with headline and url fields
-      expectCollectionWithFields(space, ['headline', 'url']);
+      expectCollectionWithFields(channel, ['headline', 'url']);
 
       const hasUrlMatching = (pattern: RegExp): boolean =>
         objects.some(obj => typeof obj.url === 'string' && pattern.test(obj.url as string));
@@ -36,7 +38,7 @@ export const testCase: TestCase = {
       expect(hasUrlMatching(/dr\.dk/), 'Should have DR URL').to.be.true;
 
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

@@ -8,7 +8,8 @@ import { GraphQLClient } from './graphql.js';
 import { ClientSubscriptionManager } from './subscription.js';
 import { MediaClient } from './media.js';
 import { AppsClient } from './apps.js';
-import { RoolSpace, generateEntityId } from './space.js';
+import { RoolChannel, generateEntityId } from './channel.js';
+import { RoolSpace } from './space.js';
 import { defaultLogger, type Logger } from './logger.js';
 import type {
   RoolClientConfig,
@@ -35,14 +36,14 @@ type ResolvedUrls = {
 /**
  * Rool Client - Manages authentication, space lifecycle, and shared infrastructure.
  *
- * The client is lightweight - most operations happen on Space instances
+ * The client is lightweight - most operations happen on RoolChannel instances.
  *
  * Features:
  * - Authentication (login, logout, token management)
- * - Spaces lifecycle (list, open, create, delete)
+ * - Space lifecycle (list, create, delete, rename)
+ * - Channel management (open, list, rename, delete)
  * - Client-level subscription for lifecycle events
- * - Media operations
- * - AI operations (prompt, image generation)
+ * - User storage (cross-device key-value storage)
  */
 export class RoolClient extends EventEmitter<RoolClientEvents> {
   private baseUrl: string;
@@ -52,8 +53,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   private subscriptionManager: ClientSubscriptionManager | null = null;
   private logger: Logger;
 
-  // Registry of open spaces (for cleanup on logout/destroy)
-  private openSpaces = new Map<string, RoolSpace>();
+  // Registry of open channels (for cleanup on logout/destroy)
+  private openChannels = new Map<string, RoolChannel>();
 
   // User storage cache (synced to localStorage)
   private _storageCache: Record<string, unknown> = {};
@@ -129,11 +130,11 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.authManager.destroy();
     this.subscriptionManager?.destroy();
 
-    // Close all open spaces
-    for (const space of this.openSpaces.values()) {
-      space.close();
+    // Close all open channels
+    for (const channel of this.openChannels.values()) {
+      channel.close();
     }
-    this.openSpaces.clear();
+    this.openChannels.clear();
 
     this.removeAllListeners();
   }
@@ -157,11 +158,11 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.authManager.logout();
     this.unsubscribe();
 
-    // Close all open spaces
-    for (const space of this.openSpaces.values()) {
-      space.close();
+    // Close all open channels
+    for (const channel of this.openChannels.values()) {
+      channel.close();
     }
-    this.openSpaces.clear();
+    this.openChannels.clear();
   }
 
   /**
@@ -225,87 +226,113 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Open an existing space.
-   * Loads the space data from the server and returns a Space instance.
-   * The space manages its own real-time subscription.
-   * 
-   * @param spaceId - The ID of the space to open
-   * @param options.conversationId - Optional conversation ID for AI context continuity. If not provided, a new conversation is created.
+   * Open a channel (space + conversation pair).
+   * Loads the space data from the server and returns a RoolChannel instance.
+   * The channel manages its own real-time subscription.
+   * If the conversation doesn't exist, the server creates it.
+   *
+   * @param spaceId - The ID of the space
+   * @param conversationId - The conversation ID for this channel
    */
-  async openSpace(spaceId: string, options?: { conversationId?: string }): Promise<RoolSpace> {
+  async openChannel(spaceId: string, conversationId: string): Promise<RoolChannel> {
     // Ensure client subscription is active (for lifecycle events)
     void this.ensureSubscribed();
 
-    const { data, name, role, userId, linkAccess } = await this.graphqlClient.getSpace(spaceId);
+    const result = await this.graphqlClient.openChannel(spaceId, conversationId);
 
-    const space = new RoolSpace({
+    const channel = new RoolChannel({
+      id: spaceId,
+      name: result.name,
+      role: result.role as RoolUserRole,
+      linkAccess: result.linkAccess,
+      userId: result.userId,
+      objectIds: result.objectIds,
+      objectStats: result.objectStats,
+      schema: result.schema,
+      meta: result.meta,
+      conversation: result.conversation,
+      conversationId,
+      graphqlClient: this.graphqlClient,
+      mediaClient: this.mediaClient,
+      graphqlUrl: this.urls.graphql,
+      authManager: this.authManager,
+      logger: this.logger,
+      onClose: (id) => this.unregisterChannel(id),
+    });
+
+    // Wait for real-time subscription before returning
+    await channel._waitForSubscription();
+
+    // Register for cleanup
+    this.registerChannel(spaceId, channel);
+
+    return channel;
+  }
+
+  /**
+   * Open a space for admin operations.
+   * Returns a lightweight handle for user management, link access,
+   * channel management, and export. Does not start a real-time subscription.
+   *
+   * To work with objects and AI, call space.openChannel(conversationId).
+   */
+  async openSpace(spaceId: string): Promise<RoolSpace> {
+    const { name, role, linkAccess, channels } = await this.graphqlClient.openSpace(spaceId);
+
+    return new RoolSpace({
       id: spaceId,
       name,
       role: role as RoolUserRole,
       linkAccess,
-      userId,
-      initialData: data,
-      conversationId: options?.conversationId,
+      channels,
       graphqlClient: this.graphqlClient,
       mediaClient: this.mediaClient,
-      graphqlUrl: this.urls.graphql,
-      authManager: this.authManager,
-      logger: this.logger,
-      onClose: (id) => this.unregisterSpace(id),
+      openChannelFn: (sid, cid) => this.openChannel(sid, cid),
     });
-
-    // Wait for real-time subscription before returning
-    await space._waitForSubscription();
-
-    // Register for cleanup
-    this.registerSpace(spaceId, space);
-
-    return space;
   }
 
   /**
    * Create a new space.
-   * Creates on server and returns a Space instance.
-   * The space manages its own real-time subscription.
-   * 
-   * @param name - Optional name for the space
-   * @param options.conversationId - Optional conversation ID for AI context continuity. If not provided, a new conversation is created.
+   * Returns a RoolSpace handle for admin operations.
+   * Call space.openChannel(conversationId) to start working with objects.
    */
-  async createSpace(name?: string, options?: { conversationId?: string }): Promise<RoolSpace> {
+  async createSpace(name: string): Promise<RoolSpace> {
     // Ensure client subscription is active (for lifecycle events)
     void this.ensureSubscribed();
 
-    // Server generates the ID and returns full space data
-    const { spaceId, data, name: spaceName, userId } = await this.graphqlClient.createSpace(name ?? 'Untitled');
+    const { spaceId } = await this.graphqlClient.createSpace(name);
 
-    const space = new RoolSpace({
+    return new RoolSpace({
       id: spaceId,
-      name: spaceName,
+      name,
       role: 'owner',
-      linkAccess: 'none', // New spaces default to no link access
-      userId,
-      initialData: data,
-      conversationId: options?.conversationId,
+      linkAccess: 'none',
+      channels: [],
       graphqlClient: this.graphqlClient,
       mediaClient: this.mediaClient,
-      graphqlUrl: this.urls.graphql,
-      authManager: this.authManager,
-      logger: this.logger,
-      onClose: (id) => this.unregisterSpace(id),
+      openChannelFn: (sid, cid) => this.openChannel(sid, cid),
     });
+  }
 
-    // Wait for real-time subscription before returning
-    await space._waitForSubscription();
+  /**
+   * Rename a channel (conversation) in a space.
+   * Lightweight — single GraphQL mutation, no subscription needed.
+   */
+  async renameChannel(spaceId: string, channelId: string, name: string): Promise<void> {
+    await this.graphqlClient.renameConversation(spaceId, channelId, name);
+  }
 
-    // Register for cleanup
-    this.registerSpace(spaceId, space);
-
-    return space;
+  /**
+   * Delete a channel (conversation) from a space.
+   * Lightweight — single GraphQL mutation, no subscription needed.
+   */
+  async deleteChannel(spaceId: string, channelId: string): Promise<void> {
+    await this.graphqlClient.deleteConversation(spaceId, channelId);
   }
 
   /**
    * Delete a space.
-   * Note: This does not affect any open Space instances - they become stale.
+   * Note: This does not affect any open Channel instances - they become stale.
    */
   async deleteSpace(spaceId: string): Promise<void> {
     await this.graphqlClient.deleteSpace(spaceId);
@@ -315,25 +342,17 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   /**
    * Import a space from a zip archive.
    * Creates a new space with the given name and imports objects, relations, and media.
-   * Returns the opened RoolSpace instance.
-   *
-   * @param name - Name for the imported space
-   * @param archive - Zip archive blob (from exportArchive or file upload)
-   * @param options.conversationId - Optional conversation ID for AI context continuity
+   * Returns a RoolSpace handle.
    */
-  async importArchive(
-    name: string,
-    archive: Blob,
-    options?: { conversationId?: string }
-  ): Promise<RoolSpace> {
+  async importArchive(name: string, archive: Blob): Promise<RoolSpace> {
     // Ensure client subscription is active (for lifecycle events)
     void this.ensureSubscribed();
 
     // Import via REST endpoint (creates the space)
     const spaceId = await this.mediaClient.importArchive(name, archive);
 
-    // Open the newly created space
-    return this.openSpace(spaceId, options);
+    // Open the space to get its data
+    return this.openSpace(spaceId);
   }
 
   // ===========================================================================
@@ -544,15 +563,15 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   // ===========================================================================
-  // Private Methods - Space Registry
+  // Private Methods - Channel Registry
   // ===========================================================================
 
-  private registerSpace(spaceId: string, space: RoolSpace): void {
-    this.openSpaces.set(spaceId, space);
+  private registerChannel(spaceId: string, channel: RoolChannel): void {
+    this.openChannels.set(spaceId, channel);
   }
 
-  private unregisterSpace(spaceId: string): void {
-    this.openSpaces.delete(spaceId);
+  private unregisterChannel(spaceId: string): void {
+    this.openChannels.delete(spaceId);
   }
 
   // ===========================================================================
@@ -607,6 +626,25 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
       case 'user_storage_changed':
         this.handleUserStorageChanged(event.key!, event.value);
+        break;
+
+      case 'channel_created':
+        this.emit('channelCreated', event.spaceId!, {
+          id: event.channelId!,
+          name: event.name ?? null,
+          createdAt: event.channelCreatedAt ?? Date.now(),
+          createdBy: event.channelCreatedBy ?? '',
+          createdByName: event.channelCreatedByName ?? null,
+          interactionCount: 0,
+        });
+        break;
+
+      case 'channel_renamed':
+        this.emit('channelRenamed', event.spaceId!, event.channelId!, event.name ?? '');
+        break;
+
+      case 'channel_deleted':
+        this.emit('channelDeleted', event.spaceId!, event.channelId!);
         break;
     }
   }

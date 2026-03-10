@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, type ReactiveSpace, type ReactiveCollection, type RoolObject } from '@rool-dev/svelte';
+  import { createRool, type ReactiveChannel, type ReactiveWatch, type RoolObject } from '@rool-dev/svelte';
   import { fly } from 'svelte/transition';
   import { calculateNextReview } from './sm2.js';
   import Icon from '@iconify/svelte';
@@ -21,9 +21,9 @@
   }
 
   // State
-  let currentSpace = $state<ReactiveSpace | null>(null);
-  let topicsCollection = $state<ReactiveCollection | null>(null);
-  let cardsCollection = $state<ReactiveCollection | null>(null);
+  let currentSpace = $state<ReactiveChannel | null>(null);
+  let topicsCollection = $state<ReactiveWatch | null>(null);
+  let cardsCollection = $state<ReactiveWatch | null>(null);
   let selectedTopicName = $state<string | null>(null);
   let isLoading = $state(false);
   let isGenerating = $state(false);
@@ -65,17 +65,17 @@ Card structure: { type: 'card', topic: '<topic>', front: '...', back: '...', due
       return;
     }
 
-    currentSpace = await rool.openSpace(spaceId, { conversationId: 'flashcards' });
-    await currentSpace.renameConversation('flashcards', 'Flashcards');
+    currentSpace = await rool.openChannel(spaceId, 'flashcards');
+    await currentSpace.rename('Flashcards');
     await currentSpace.setSystemInstruction(SYSTEM_INSTRUCTION);
-    topicsCollection = currentSpace.collection({ where: { type: 'topic' } });
+    topicsCollection = currentSpace.watch({ where: { type: 'topic' } });
   }
 
   function selectTopic(topicName: string) {
     cardsCollection?.close();
     selectedTopicName = topicName;
     if (currentSpace) {
-      cardsCollection = currentSpace.collection({ where: { type: 'card', topic: topicName } });
+      cardsCollection = currentSpace.watch({ where: { type: 'card', topic: topicName } });
     }
   }
 

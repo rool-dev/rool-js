@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { generateEntityId } from '../../src/channel.js';
 
 
 const DIGIT_TO_WORDS: Record<string, string[]> = {
@@ -24,9 +25,10 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: poem-number');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      const { objects } = await space.prompt(`
+      const { objects } = await channel.prompt(`
         Create a markdown object with:
         - headline: a single digit (0-9) representing a randomly chosen number
         - text: a short poem (at least 4 lines) about that number
@@ -57,7 +59,7 @@ export const testCase: TestCase = {
       expect(mentionsNumber, `Poem should mention the number ${digit} or its word form`).to.be.true;
 
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

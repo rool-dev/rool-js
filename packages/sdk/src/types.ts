@@ -118,23 +118,6 @@ export interface ConversationInfo {
   interactionCount: number;
 }
 
-/**
- * Space structure - locally cached space state (excludes objects).
- * Objects are fetched on demand via getObject/findObjects and delivered via SSE events.
- * meta is space-level metadata, preserved but hidden from AI operations.
- * conversations contains conversation data keyed by conversationId.
- * schema contains collection definitions keyed by collection name.
- */
-export interface RoolSpaceData {
-  meta: Record<string, unknown>;
-  /** Object IDs ordered by modifiedAt (desc). Maintained locally via SSE events. */
-  objectIds?: string[];
-  /** Collection schema definitions keyed by collection name */
-  schema?: SpaceSchema;
-  /** Conversations keyed by conversationId */
-  conversations?: Record<string, Conversation>;
-}
-
 // =============================================================================
 // Space Info & User Types
 // =============================================================================
@@ -320,13 +303,13 @@ export type RoolEventSource = 'user' | 'agent';
 // Client-level events (space lifecycle)
 // -----------------------------------------------------------------------------
 
-export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'space_access_changed' | 'user_storage_changed';
+export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'space_access_changed' | 'user_storage_changed' | 'channel_created' | 'channel_renamed' | 'channel_deleted';
 
 export interface ClientEvent {
   type: ClientEventType;
-  spaceId?: string;  // Present on space events
+  spaceId?: string;  // Present on space and channel events
   timestamp: number;
-  name?: string;  // Present on space_created, space_renamed, space_access_changed events
+  name?: string;  // Present on space_created, space_renamed, space_access_changed, channel_created, channel_renamed events
   ownerId?: string;  // Present on space_created, space_access_changed events
   size?: number;  // Present on space_created, space_access_changed events
   createdAt?: string;  // Present on space_created, space_access_changed events
@@ -336,6 +319,10 @@ export interface ClientEvent {
   key?: string;   // Present on user_storage_changed events
   value?: unknown; // Present on user_storage_changed events
   serverVersion?: string;  // Present on connected events
+  channelId?: string;  // Present on channel_created, channel_renamed, channel_deleted events
+  channelCreatedAt?: number;  // Present on channel_created events
+  channelCreatedBy?: string;  // Present on channel_created events
+  channelCreatedByName?: string;  // Present on channel_created events
 }
 
 // -----------------------------------------------------------------------------
@@ -361,6 +348,8 @@ export interface SpaceEvent {
   // Object events
   objectId?: string;
   object?: RoolObject;
+  /** Object stat (audit info) — present on object_created and object_updated events */
+  objectStat?: RoolObjectStat;
   // Schema events
   schema?: SpaceSchema;
   // Metadata events
@@ -449,6 +438,12 @@ export interface RoolClientEvents {
   spaceRemoved: (spaceId: string) => void;
   /** Emitted when a space is renamed (by any client) */
   spaceRenamed: (spaceId: string, newName: string) => void;
+  /** Emitted when a channel is created in a space */
+  channelCreated: (spaceId: string, channel: ConversationInfo) => void;
+  /** Emitted when a channel is renamed */
+  channelRenamed: (spaceId: string, channelId: string, newName: string) => void;
+  /** Emitted when a channel is deleted */
+  channelDeleted: (spaceId: string, channelId: string) => void;
   /** Emitted when user storage changes (local or remote) */
   userStorageChanged: (event: UserStorageChangedEvent) => void;
   /** Emitted when SSE connection state changes */
@@ -504,33 +499,19 @@ export interface ConversationUpdatedEvent {
   source: ChangeSource;
 }
 
-export interface ConversationIdChangedEvent {
-  previousConversationId: string;
-  newConversationId: string;
-}
-
-export interface ConversationsChangedEvent {
-  action: 'created' | 'deleted' | 'renamed';
-  conversationId: string;
-  name?: string;
-  source: ChangeSource;
-}
-
 /**
- * Space-level events (content changes within a specific space).
+ * Channel-level events (content changes within a specific channel).
  *
  * Semantic events describe what changed:
  * - `objectCreated`, `objectUpdated`, `objectDeleted`: Object changes
  * - `metadataUpdated`: Space metadata changes
  * - `conversationUpdated`: Conversation interaction history changed
- * - `conversationsChanged`: Conversation list changed (created, deleted, renamed)
- * - `conversationIdChanged`: ConversationId was changed on the space
  * - `reset`: Full state replacement (undo/redo, resync)
  *
  * Events fire for both local changes and remote changes (from other users or AI agents).
  * Use the `source` field to determine the origin of the change.
  */
-export interface SpaceEvents {
+export interface ChannelEvents {
   /** A new object was created */
   objectCreated: (event: ObjectCreatedEvent) => void;
   /** An existing object was updated */
@@ -541,18 +522,17 @@ export interface SpaceEvents {
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Conversation interaction history was updated */
   conversationUpdated: (event: ConversationUpdatedEvent) => void;
-  /** Conversation list changed (created, deleted, or renamed) */
-  conversationsChanged: (event: ConversationsChangedEvent) => void;
   /** Full state replacement (undo/redo, resync) */
   reset: (event: SpaceResetEvent) => void;
-  /** Emitted when conversationId is changed */
-  conversationIdChanged: (event: ConversationIdChangedEvent) => void;
-  /** Emitted when a sync error occurs and the space resyncs from server */
+  /** Emitted when a sync error occurs and the channel resyncs from server */
   syncError: (error: Error) => void;
   /** Index signature for EventEmitter compatibility */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: (...args: any[]) => void;
 }
+
+/** @deprecated Use ChannelEvents instead */
+export type SpaceEvents = ChannelEvents;
 
 // =============================================================================
 // Auth Types

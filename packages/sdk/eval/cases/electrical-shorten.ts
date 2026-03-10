@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
+import { generateEntityId } from '../../src/channel.js';
 
 const prompt = `For every markdown node, regenerate prose for the \`text\` field. The shortened text should be at least 30% shorter`;
 
@@ -15,15 +16,16 @@ export const testCase: TestCase = {
     // Import the fixture
     const archive = loadArchiveFixture('electrical');
     const space = await client.importArchive('EVAL: electrical-shorten', archive);
+    const channel = await space.openChannel(generateEntityId());
 
     try {
       // Capture initial state
-      const initialObjectIds = space.getObjectIds();
+      const initialObjectIds = channel.getObjectIds();
       const initialMarkdownTexts = new Map<string, number>();
       const initialNonMarkdownData = new Map<string, string>();
 
       for (const id of initialObjectIds) {
-        const obj = await space.getObject(id);
+        const obj = await channel.getObject(id);
         if (obj!.type === 'markdown') {
           const text = obj!.text as string;
           initialMarkdownTexts.set(id, text?.length ?? 0);
@@ -33,15 +35,15 @@ export const testCase: TestCase = {
       }
 
       // Run the prompt
-      await space.prompt(prompt);
+      await channel.prompt(prompt);
 
       // Verify structure unchanged: same objects
-      const finalObjectIds = space.getObjectIds();
+      const finalObjectIds = channel.getObjectIds();
       expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
 
       // Verify non-markdown objects unchanged
       for (const [id, initialData] of initialNonMarkdownData) {
-        const finalObj = await space.getObject(id);
+        const finalObj = await channel.getObject(id);
         expect(JSON.stringify(finalObj)).to.equal(
           initialData,
           `Non-markdown object ${id} should be unchanged`
@@ -50,7 +52,7 @@ export const testCase: TestCase = {
 
       // Verify markdown text was shortened
       for (const [id, initialLength] of initialMarkdownTexts) {
-        const finalObj = await space.getObject(id);
+        const finalObj = await channel.getObject(id);
         expect(finalObj!.type).to.equal('markdown');
         expect(finalObj!.text).to.be.a('string');
 
@@ -62,7 +64,7 @@ export const testCase: TestCase = {
         );
       }
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

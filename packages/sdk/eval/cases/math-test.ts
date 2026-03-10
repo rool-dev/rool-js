@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { expectCollectionWithFields } from '../helpers.js';
+import { generateEntityId } from '../../src/channel.js';
 
 
 const EXPECTED_VALUE = (Math.E + Math.PI) ** 4; // ≈ 1179.107099469
@@ -12,9 +13,10 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: math-test');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      const { objects } = await space.prompt(`
+      const { objects } = await channel.prompt(`
         Create a new object with:
         - type: "calculation"
         - value: the computed result of (e+pi)^4
@@ -26,7 +28,7 @@ export const testCase: TestCase = {
       const calc = objects[0];
 
       // Check schema has a collection with a value field
-      expectCollectionWithFields(space, ['value']);
+      expectCollectionWithFields(channel, ['value']);
 
       // Value should be a number
       expect(calc.value).to.be.a('number');
@@ -38,7 +40,7 @@ export const testCase: TestCase = {
       expect(value).to.be.closeTo(EXPECTED_VALUE, tolerance);
 
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

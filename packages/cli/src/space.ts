@@ -57,7 +57,6 @@ Examples:
       try {
         const newSpace = await client.createSpace(name);
         console.log(`Created space: ${newSpace.id}  ${newSpace.name}`);
-        newSpace.close();
       } finally {
         client.destroy();
       }

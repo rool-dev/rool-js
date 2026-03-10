@@ -1,6 +1,6 @@
 import * as readline from 'node:readline';
 import { type Command } from 'commander';
-import { type RoolClient, type RoolSpace } from '@rool-dev/sdk';
+import { type RoolClient, type RoolChannel } from '@rool-dev/sdk';
 import { getClient } from './client.js';
 import { formatMarkdown } from './format.js';
 import { DEFAULT_SPACE_NAME, DEFAULT_CONVERSATION_ID, type Environment } from './constants.js';
@@ -31,24 +31,25 @@ Examples:
       const spaces = await client.listSpaces();
       const spaceInfo = spaces.find(s => s.name === opts.space);
 
-      let space: RoolSpace;
+      let channel: RoolChannel;
       if (spaceInfo) {
-        space = await client.openSpace(spaceInfo.id, { conversationId: opts.conversation });
+        channel = await client.openChannel(spaceInfo.id, opts.conversation);
       } else {
-        space = await client.createSpace(opts.space, { conversationId: opts.conversation });
+        const space = await client.createSpace(opts.space);
+        channel = await space.openChannel(opts.conversation);
       }
 
       if (prompt) {
         // One-shot mode
         try {
-          await sendPrompt(space, prompt);
+          await sendPrompt(channel, prompt);
         } finally {
-          space.close();
+          channel.close();
           client.destroy();
         }
       } else {
         // Interactive mode
-        await interactiveMode(space, client);
+        await interactiveMode(channel, client);
       }
     });
 }
@@ -60,7 +61,7 @@ function clearStatusLine(): void {
   }
 }
 
-async function sendPrompt(space: RoolSpace, prompt: string): Promise<void> {
+async function sendPrompt(space: RoolChannel, prompt: string): Promise<void> {
   // Subscribe to progress updates
   const onUpdate = () => {
     const latest = space.getInteractions().at(-1);
@@ -85,7 +86,7 @@ async function sendPrompt(space: RoolSpace, prompt: string): Promise<void> {
   }
 }
 
-async function interactiveMode(space: RoolSpace, client: RoolClient): Promise<void> {
+async function interactiveMode(space: RoolChannel, client: RoolClient): Promise<void> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

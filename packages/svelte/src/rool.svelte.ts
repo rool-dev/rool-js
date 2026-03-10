@@ -1,5 +1,5 @@
-import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser } from '@rool-dev/sdk';
-import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
+import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser } from '@rool-dev/sdk';
+import { wrapChannel, createChannelList, type ReactiveChannel, type ReactiveChannelList } from './channel.svelte.js';
 
 /**
  * Rool client with reactive state for Svelte 5.
@@ -8,12 +8,12 @@ import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
  * - Reactive auth state (`authenticated`)
  * - Reactive spaces list (`spaces`)
  * - Reactive user storage (`userStorage`)
- * - Direct access to SDK spaces (no wrapper abstraction)
+ * - Channel-based access to spaces
  */
 class RoolImpl {
   #client: RoolClient;
   #unsubscribers: (() => void)[] = [];
-  #openSpaces: Set<ReactiveSpace> = new Set();
+  #openChannels: Set<ReactiveChannel> = new Set();
 
   // Reactive state
   authenticated = $state<boolean | null>(null); // null = checking, false = not auth, true = auth
@@ -106,34 +106,41 @@ class RoolImpl {
   }
 
   /**
-   * Log out and close all open spaces.
+   * Log out and close all open channels.
    */
   logout(): void {
-    for (const space of this.#openSpaces) {
-      space.close();
+    for (const channel of this.#openChannels) {
+      channel.close();
     }
-    this.#openSpaces.clear();
+    this.#openChannels.clear();
     this.#client.logout();
   }
 
   /**
-   * Open an existing space. Returns a ReactiveSpace with reactive `interactions`.
+   * Open a channel (space + conversation pair).
+   * Returns a ReactiveChannel with reactive `interactions`.
    */
-  async openSpace(id: string, options?: { conversationId?: string }): Promise<ReactiveSpace> {
-    const space = await this.#client.openSpace(id, options);
-    const reactiveSpace = wrapSpace(space);
-    this.#openSpaces.add(reactiveSpace);
-    return reactiveSpace;
+  async openChannel(spaceId: string, conversationId: string): Promise<ReactiveChannel> {
+    const channel = await this.#client.openChannel(spaceId, conversationId);
+    const reactiveChannel = wrapChannel(channel);
+    this.#openChannels.add(reactiveChannel);
+    return reactiveChannel;
   }
 
   /**
-   * Create a new space. Returns a ReactiveSpace with reactive `interactions`.
+   * Open a space for admin operations.
+   * Returns a lightweight RoolSpace handle (not reactive).
    */
-  async createSpace(name?: string, options?: { conversationId?: string }): Promise<ReactiveSpace> {
-    const space = await this.#client.createSpace(name, options);
-    const reactiveSpace = wrapSpace(space);
-    this.#openSpaces.add(reactiveSpace);
-    return reactiveSpace;
+  openSpace(spaceId: string): Promise<RoolSpace> {
+    return this.#client.openSpace(spaceId);
+  }
+
+  /**
+   * Create a new space.
+   * Returns a lightweight RoolSpace handle (not reactive).
+   */
+  createSpace(name: string): Promise<RoolSpace> {
+    return this.#client.createSpace(name);
   }
 
   /**
@@ -168,17 +175,10 @@ class RoolImpl {
 
   /**
    * Import a space from a zip archive.
-   * Returns a ReactiveSpace with reactive `interactions`.
+   * Returns a lightweight RoolSpace handle (not reactive).
    */
-  async importArchive(
-    name: string,
-    archive: Blob,
-    options?: { conversationId?: string }
-  ): Promise<ReactiveSpace> {
-    const space = await this.#client.importArchive(name, archive, options);
-    const reactiveSpace = wrapSpace(space);
-    this.#openSpaces.add(reactiveSpace);
-    return reactiveSpace;
+  importArchive(name: string, archive: Blob): Promise<RoolSpace> {
+    return this.#client.importArchive(name, archive);
   }
 
   /**
@@ -196,13 +196,36 @@ class RoolImpl {
   }
 
   /**
+   * Rename a channel (conversation) in a space.
+   */
+  renameChannel(spaceId: string, channelId: string, name: string): Promise<void> {
+    return this.#client.renameChannel(spaceId, channelId, name);
+  }
+
+  /**
+   * Delete a channel (conversation) from a space.
+   */
+  deleteChannel(spaceId: string, channelId: string): Promise<void> {
+    return this.#client.deleteChannel(spaceId, channelId);
+  }
+
+  /**
+   * Create a reactive channel list for a space.
+   * Auto-updates when channels are created, renamed, or deleted.
+   * Call close() when done to stop listening.
+   */
+  channels(spaceId: string): ReactiveChannelList {
+    return createChannelList(this.#client, spaceId);
+  }
+
+  /**
    * Clean up resources.
    */
   destroy(): void {
-    for (const space of this.#openSpaces) {
-      space.close();
+    for (const channel of this.#openChannels) {
+      channel.close();
     }
-    this.#openSpaces.clear();
+    this.#openChannels.clear();
 
     for (const unsub of this.#unsubscribers) {
       unsub();

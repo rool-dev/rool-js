@@ -1,12 +1,14 @@
 # Rool SDK
 
-The TypeScript SDK for Rool Spaces, a persistent and collaborative environment for organizing objects.
+The TypeScript SDK for Rool, a persistent and collaborative environment for organizing objects.
 
-Rool Spaces enables you to build applications where AI operates on a structured world model rather than a text conversation. The context for all AI operations is the full object graph, allowing the system to reason about, update, and expand the state of your application directly.
+Rool enables you to build applications where AI operates on a structured world model rather than a text conversation. The context for all AI operations is the full object graph, allowing the system to reason about, update, and expand the state of your application directly.
 
 Use Rool to programmatically instruct agents to generate content, research topics, or reorganize data. The client manages authentication, real-time synchronization, and media storage, supporting both single-user and multi-user workflows.
 
 **Core primitives:**
+- **Spaces** — Containers for objects, schema, metadata, and channels
+- **Channels** — A space + conversationId pair. All object and AI operations go through a channel.
 - **Objects** — Key-value records with any fields you define. References between objects are data fields whose values are object IDs.
 - **AI operations** — Create, update, or query objects using natural language and `{{placeholders}}`
 
@@ -30,47 +32,78 @@ if (!authenticated) {
   client.login('My App');  // Redirects to auth page, shows "Sign in to My App"
 }
 
-// Create a new space (or open existing with client.openSpace('id'))
+// Create a new space, then open a channel on it
 const space = await client.createSpace('Solar System');
+const channel = await space.openChannel('main');
+
+// Define the schema — what types of objects exist and their fields
+await channel.createCollection('body', [
+  { name: 'name', type: { kind: 'string' } },
+  { name: 'mass', type: { kind: 'string' } },
+  { name: 'radius', type: { kind: 'string' } },
+  { name: 'orbits', type: { kind: 'maybe', inner: { kind: 'ref' } } },
+]);
 
 // Create objects with AI-generated content using {{placeholders}}
-const { object: sun } = await space.createObject({
+const { object: sun } = await channel.createObject({
   data: {
-    type: 'star',
     name: 'Sun',
     mass: '{{mass in solar masses}}',
-    temperature: '{{surface temperature in Kelvin}}'
+    radius: '{{radius in km}}'
   }
 });
 
-const { object: earth } = await space.createObject({
+const { object: earth } = await channel.createObject({
   data: {
-    type: 'planet',
     name: 'Earth',
     mass: '{{mass in Earth masses}}',
     radius: '{{radius in km}}',
-    orbitalPeriod: '{{orbital period in days}}',
     orbits: sun.id  // Reference to the sun object
   }
 });
 
 // Use the AI agent to work with your data
-const { message, objects } = await space.prompt(
+const { message, objects } = await channel.prompt(
   'Add the other planets in our solar system, each referencing the Sun'
 );
 console.log(message);  // AI explains what it did
 console.log(`Created ${objects.length} objects`);
 
 // Query with natural language
-const { objects: innerPlanets } = await space.findObjects({
+const { objects: innerPlanets } = await channel.findObjects({
   prompt: 'planets closer to the sun than Earth'
 });
 
 // Clean up
-space.close();
+channel.close();
 ```
 
 ## Core Concepts
+
+### Spaces and Channels
+
+A **space** is a container that holds objects, schema, metadata, and channels. A **channel** is a space + conversationId pair — it's the handle you use for all object and AI operations.
+
+There are two main handles:
+- **`RoolSpace`** — Lightweight admin handle for user management, link access, channel management, and export. No real-time subscription.
+- **`RoolChannel`** — Full real-time handle for objects, AI prompts, media, schema, and undo/redo.
+
+```typescript
+// Open a space for admin operations
+const space = await client.openSpace('space-id');
+await space.addUser(userId, 'editor');
+await space.setLinkAccess('viewer');
+
+// Open a channel for object and AI operations
+const channel = await client.openChannel('space-id', 'my-conversation');
+await channel.prompt('Create some planets');
+
+// Or open a channel via the space handle
+const channel2 = await space.openChannel('research');
+await channel2.prompt('Analyze the data');  // Independent conversation
+```
+
+The `conversationId` is fixed when you open a channel and cannot be changed. To use a different conversation, open a new channel. Both channels share the same objects and schema — only the conversation history differs.
 
 ### Objects & References
 
@@ -98,7 +131,7 @@ Use `{{description}}` in field values to have AI generate content:
 
 ```typescript
 // Create with AI-generated content
-await space.createObject({
+await channel.createObject({
   data: {
     type: 'article',
     headline: '{{catchy headline about coffee}}',
@@ -107,12 +140,12 @@ await space.createObject({
 });
 
 // Update existing content with AI
-await space.updateObject('abc123', {
+await channel.updateObject('abc123', {
   prompt: 'Make the body shorter and more casual'
 });
 
 // Add new AI-generated field to existing object
-await space.updateObject('abc123', {
+await channel.updateObject('abc123', {
   data: { summary: '{{one-sentence summary}}' }
 });
 ```
@@ -127,17 +160,17 @@ Undo/redo works on **checkpoints**, not individual operations. Call `checkpoint(
 
 ```typescript
 // Create a checkpoint before user action
-await space.checkpoint('Delete object');
-await space.deleteObjects([objectId]);
+await channel.checkpoint('Delete object');
+await channel.deleteObjects([objectId]);
 
 // User can now undo back to the checkpoint
-if (await space.canUndo()) {
-  await space.undo(); // Restores the deleted object
+if (await channel.canUndo()) {
+  await channel.undo(); // Restores the deleted object
 }
 
 // Redo reapplies the undone action
-if (await space.canRedo()) {
-  await space.redo(); // Deletes the object again
+if (await channel.canRedo()) {
+  await channel.redo(); // Deletes the object again
 }
 ```
 
@@ -150,7 +183,7 @@ In collaborative scenarios, conflicting changes (modified by others since your c
 Fields starting with `_` (e.g., `_ui`, `_cache`) are hidden from AI but otherwise behave like normal fields — they sync in real-time, persist to the server, support undo/redo, and are visible to all users of the Space. Use them for UI state, positions, or other data the AI shouldn't see or modify:
 
 ```typescript
-await space.createObject({
+await channel.createObject({
   data: {
     title: 'My Article',
     author: "John Doe",
@@ -170,7 +203,7 @@ Events fire for both local and remote changes. The `source` field indicates orig
 
 ```typescript
 // All UI updates happen in one place, regardless of change source
-space.on('objectUpdated', ({ objectId, object, source }) => {
+channel.on('objectUpdated', ({ objectId, object, source }) => {
   renderObject(objectId, object);
   if (source === 'remote_agent') {
     doLayout(); // AI might have added content
@@ -178,7 +211,7 @@ space.on('objectUpdated', ({ objectId, object, source }) => {
 });
 
 // Caller just makes the change - event handler does the UI work
-space.updateObject(objectId, { prompt: 'expand this' });
+channel.updateObject(objectId, { prompt: 'expand this' });
 ```
 
 ### Custom Object IDs
@@ -186,7 +219,7 @@ space.updateObject(objectId, { prompt: 'expand this' });
 By default, `createObject` generates a 6-character alphanumeric ID. Provide your own via `data.id`:
 
 ```typescript
-await space.createObject({ data: { id: 'article-42', title: 'The Meaning of Life' } });
+await channel.createObject({ data: { id: 'article-42', title: 'The Meaning of Life' } });
 ```
 
 **Why use custom IDs?**
@@ -196,8 +229,8 @@ await space.createObject({ data: { id: 'article-42', title: 'The Meaning of Life
 ```typescript
 // Fire-and-forget: create and reference without waiting
 const id = RoolClient.generateId();
-space.createObject({ data: { id, type: 'note', text: '{{expand this idea}}' } });
-space.updateObject(parentId, { data: { notes: [...existingNotes, id] } }); // Add reference immediately
+channel.createObject({ data: { id, type: 'note', text: '{{expand this idea}}' } });
+channel.updateObject(parentId, { data: { notes: [...existingNotes, id] } }); // Add reference immediately
 ```
 
 **Constraints:**
@@ -252,7 +285,7 @@ if (!authenticated) {
 The `prompt()` method is the primary way to invoke the AI agent. The agent has editor-level capabilities — it can create, modify, and delete objects — but cannot see or modify `_`-prefixed fields.
 
 ```typescript
-const { message, objects } = await space.prompt(
+const { message, objects } = await channel.prompt(
   "Create a topic node for the solar system, then child nodes for each planet."
 );
 console.log(`AI: ${message}`);
@@ -293,31 +326,31 @@ Returns a message (the AI's response) and the list of objects that were created 
 
 ```typescript
 // Reorganize existing objects
-const { objects } = await space.prompt(
+const { objects } = await channel.prompt(
   "Group these notes by topic and create a parent node for each group."
 );
 
 // Work with specific objects
-const result = await space.prompt(
+const result = await channel.prompt(
   "Summarize these articles",
   { objectIds: ['article-1', 'article-2'] }
 );
 
 // Quick question without mutations (fast model + read-only)
-const { message } = await space.prompt(
+const { message } = await channel.prompt(
   "What topics are covered?",
   { effort: 'QUICK', readOnly: true }
 );
 
 // Complex analysis with extended reasoning
-await space.prompt(
+await channel.prompt(
   "Analyze relationships and reorganize",
   { effort: 'REASONING' }
 );
 
 // Attach files for the AI to see (File from <input>, Blob, or base64)
 const file = fileInput.files[0]; // from <input type="file">
-await space.prompt(
+await channel.prompt(
   "Describe what's in this photo and create an object for it",
   { attachments: [file] }
 );
@@ -328,7 +361,7 @@ await space.prompt(
 Use `responseSchema` to get structured JSON instead of a text message:
 
 ```typescript
-const { message } = await space.prompt("Categorize these items", {
+const { message } = await channel.prompt("Categorize these items", {
   objectIds: ['item-1', 'item-2', 'item-3'],
   responseSchema: {
     type: 'object',
@@ -349,7 +382,7 @@ console.log(result.categories, result.summary);
 ### Context Flow
 
 AI operations automatically receive context:
-- **Interaction history** — Previous interactions and their results from this conversation
+- **Interaction history** — Previous interactions and their results from this channel's conversation
 - **Recently modified objects** — Objects created or changed recently
 - **Selected objects** — Objects passed via `objectIds` are given primary focus
 
@@ -369,6 +402,7 @@ if (!user) {
 }
 
 // Add them to the space
+const space = await client.openSpace('space-id');
 await space.addUser(user.id, 'editor');
 ```
 
@@ -383,6 +417,8 @@ await space.addUser(user.id, 'editor');
 
 ### Space Collaboration Methods
 
+These methods are available on `RoolSpace`:
+
 | Method | Description |
 |--------|-------------|
 | `listUsers(): Promise<SpaceMember[]>` | List users with access |
@@ -395,6 +431,8 @@ await space.addUser(user.id, 'editor');
 Enable public URL access to allow anyone with the space URL to access it:
 
 ```typescript
+const space = await client.openSpace('space-id');
+
 // Allow anyone with the URL to view
 await space.setLinkAccess('viewer');
 
@@ -423,7 +461,7 @@ When a user accesses a space via URL, they're granted the corresponding role (`v
 When multiple users have a space open, changes sync in real-time. The `source` field in events tells you who made the change:
 
 ```typescript
-space.on('objectUpdated', ({ objectId, object, source }) => {
+channel.on('objectUpdated', ({ objectId, object, source }) => {
   if (source === 'remote_user') {
     // Another user made this change
     showCollaboratorActivity(object);
@@ -452,14 +490,28 @@ const client = new RoolClient({
 });
 ```
 
-### Space Lifecycle
+### Space & Channel Lifecycle
 
 | Method | Description |
 |--------|-------------|
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List available spaces |
-| `openSpace(id, options?): Promise<RoolSpace>` | Open a space for editing. Options: `{ conversationId?: string }` |
-| `createSpace(name?, options?): Promise<RoolSpace>` | Create a new space. Options: `{ conversationId?: string }` |
+| `openSpace(spaceId): Promise<RoolSpace>` | Open a space for admin operations (no real-time subscription) |
+| `openChannel(spaceId, conversationId): Promise<RoolChannel>` | Open a channel on a space with a specific conversation |
+| `createSpace(name): Promise<RoolSpace>` | Create a new space, returns admin handle |
 | `deleteSpace(id): Promise<void>` | Permanently delete a space (cannot be undone) |
+| `importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
+
+### Channel Management
+
+Manage channels (conversations) within a space. Available on both the client and space handles:
+
+| Method | Description |
+|--------|-------------|
+| `client.renameChannel(spaceId, channelId, name): Promise<void>` | Rename a channel |
+| `client.deleteChannel(spaceId, channelId): Promise<void>` | Delete a channel and its history |
+| `space.getChannels(): ConversationInfo[]` | List channels (from cached snapshot) |
+| `space.deleteChannel(channelId): Promise<void>` | Delete a channel |
+| `channel.rename(name): Promise<void>` | Rename the current channel |
 
 ### User Storage
 
@@ -516,6 +568,9 @@ client.on('authStateChanged', (authenticated: boolean) => void)
 client.on('spaceAdded', (space: RoolSpaceInfo) => void)      // Space created or access granted
 client.on('spaceRemoved', (spaceId: string) => void)         // Space deleted or access revoked
 client.on('spaceRenamed', (spaceId: string, newName: string) => void)
+client.on('channelCreated', (spaceId: string, channel: ConversationInfo) => void)
+client.on('channelRenamed', (spaceId: string, channelId: string, newName: string) => void)
+client.on('channelDeleted', (spaceId: string, channelId: string) => void)
 client.on('userStorageChanged', ({ key, value, source }: UserStorageChangedEvent) => void)
 client.on('connectionStateChanged', (state: 'connected' | 'disconnected' | 'reconnecting') => void)
 client.on('error', (error: Error, context?: string) => void)
@@ -535,7 +590,36 @@ client.on('spaceRenamed', (id, name) => {
 
 ## RoolSpace API
 
-Spaces are first-class objects with built-in undo/redo, event emission, and real-time sync.
+A space is a lightweight admin handle for space-level operations. It does not have a real-time subscription — use channels for live data and object operations.
+
+### Properties
+
+| Property | Description |
+|----------|-------------|
+| `id: string` | Space ID |
+| `name: string` | Space name |
+| `role: RoolUserRole` | User's role |
+| `linkAccess: LinkAccess` | URL sharing level |
+
+### Methods
+
+| Method | Description |
+|--------|-------------|
+| `openChannel(conversationId): Promise<RoolChannel>` | Open a channel on this space |
+| `rename(newName): Promise<void>` | Rename this space |
+| `delete(): Promise<void>` | Permanently delete this space |
+| `listUsers(): Promise<SpaceMember[]>` | List users with access |
+| `addUser(userId, role): Promise<void>` | Add user to space |
+| `removeUser(userId): Promise<void>` | Remove user from space |
+| `setLinkAccess(linkAccess): Promise<void>` | Set URL sharing level |
+| `getChannels(): ConversationInfo[]` | List channels (from cached snapshot) |
+| `deleteChannel(channelId): Promise<void>` | Delete a channel |
+| `exportArchive(): Promise<Blob>` | Export space as zip archive |
+| `refresh(): Promise<void>` | Refresh space data from server |
+
+## RoolChannel API
+
+A channel is a space + conversationId pair. All object operations, AI prompts, and real-time sync go through a channel. The `conversationId` is fixed at open time — to use a different conversation, open a new channel.
 
 ### Properties
 
@@ -546,15 +630,15 @@ Spaces are first-class objects with built-in undo/redo, event emission, and real
 | `role: RoolUserRole` | User's role (`'owner' \| 'admin' \| 'editor' \| 'viewer'`) |
 | `linkAccess: LinkAccess` | URL sharing level (`'none' \| 'viewer' \| 'editor'`) |
 | `userId: string` | Current user's ID |
-| `conversationId: string` | ID for interaction history (tracks AI context). Writable — set to switch conversations. |
-| `isReadOnly(): boolean` | True if viewer role |
+| `conversationId: string` | Conversation ID (read-only, fixed at open time) |
+| `isReadOnly: boolean` | True if viewer role |
 
 ### Lifecycle
 
 | Method | Description |
 |--------|-------------|
 | `close(): void` | Clean up resources and stop receiving updates |
-| `rename(newName): Promise<void>` | Rename the space |
+| `rename(name): Promise<void>` | Rename this channel (conversation) |
 
 ### Object Operations
 
@@ -563,7 +647,7 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 | Method | Description |
 |--------|-------------|
 | `getObject(objectId): Promise<RoolObject \| undefined>` | Get object data, or undefined if not found. |
-| `stat(objectId): Promise<RoolObjectStat \| undefined>` | Get object stat (audit info: modifiedAt, modifiedBy, modifiedByName), or undefined if not found. |
+| `stat(objectId): RoolObjectStat \| undefined` | Get object stat (audit info: modifiedAt, modifiedBy, modifiedByName), or undefined if not found. Sync read from local cache. |
 | `findObjects(options): Promise<{ objects, message }>` | Find objects using structured filters and natural language. Results sorted by modifiedAt (desc by default). |
 | `getObjectIds(options?): string[]` | Get all object IDs. Sorted by modifiedAt (desc by default). Options: `{ limit?, order? }`. |
 | `createObject(options): Promise<{ object, message }>` | Create a new object. Returns the object (with AI-filled content) and message. |
@@ -606,17 +690,17 @@ Find objects using structured filters and/or natural language.
 
 ```typescript
 // Exact field matching (no AI, no credits)
-const { objects } = await space.findObjects({
+const { objects } = await channel.findObjects({
   where: { type: 'article', status: 'published' }
 });
 
 // Pure natural language query (AI interprets)
-const { objects, message } = await space.findObjects({
+const { objects, message } = await channel.findObjects({
   prompt: 'articles about space exploration published this year'
 });
 
 // Combined: where narrows the data, prompt queries within it
-const { objects } = await space.findObjects({
+const { objects } = await channel.findObjects({
   where: { type: 'article' },
   prompt: 'that discuss climate solutions positively',
   limit: 10
@@ -661,16 +745,16 @@ Media URLs in object fields are visible to AI. Both uploaded and AI-generated me
 
 ```typescript
 // Upload an image
-const url = await space.uploadMedia(file);
-await space.createObject({ data: { title: 'Photo', image: url } });
+const url = await channel.uploadMedia(file);
+await channel.createObject({ data: { title: 'Photo', image: url } });
 
 // Or let AI generate one using a placeholder
-await space.createObject({
+await channel.createObject({
   data: { title: 'Mascot', image: '{{generate an image of a flying tortoise}}' }
 });
 
 // Display media (handles auth automatically)
-const response = await space.fetchMedia(object.image);
+const response = await channel.fetchMedia(object.image);
 if (response.contentType.startsWith('image/')) {
   const blob = await response.blob();
   img.src = URL.createObjectURL(blob);
@@ -684,7 +768,7 @@ Collections are types you can use to group objects in a space. Every object must
 
 ```typescript
 // Define a collection with typed fields
-await space.createCollection('article', [
+await channel.createCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'enum', values: ['draft', 'published', 'archived'] } },
   { name: 'tags', type: { kind: 'array', inner: { kind: 'string' } } },
@@ -692,11 +776,11 @@ await space.createCollection('article', [
 ]);
 
 // Read the current schema
-const schema = space.getSchema();
+const schema = channel.getSchema();
 console.log(schema.article.fields); // FieldDef[]
 
 // Modify an existing collection's fields
-await space.alterCollection('article', [
+await channel.alterCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'enum', values: ['draft', 'review', 'published', 'archived'] } },
   { name: 'tags', type: { kind: 'array', inner: { kind: 'string' } } },
@@ -705,7 +789,7 @@ await space.alterCollection('article', [
 ]);
 
 // Remove a collection
-await space.dropCollection('article');
+await channel.dropCollection('article');
 ```
 
 | Method | Description |
@@ -739,6 +823,7 @@ Export and import space data as zip archives for backup, portability, or migrati
 
 **Export:**
 ```typescript
+const space = await client.openSpace('space-id');
 const archive = await space.exportArchive();
 // Save as .zip file
 const url = URL.createObjectURL(archive);
@@ -746,12 +831,13 @@ const url = URL.createObjectURL(archive);
 
 **Import:**
 ```typescript
-const newSpace = await client.importArchive('Imported Data', archiveBlob);
+const space = await client.importArchive('Imported Data', archiveBlob);
+const channel = await space.openChannel('main');
 ```
 
 The archive format bundles `data.json` (with objects, metadata, and conversations) and a `media/` folder containing all media files. Media URLs are rewritten to relative paths within the archive and restored on import.
 
-### Space Events
+### Channel Events
 
 Semantic events describe what changed. Events fire for both local changes and remote changes.
 
@@ -763,27 +849,21 @@ Semantic events describe what changed. Events fire for both local changes and re
 // - 'system': Resync after error
 
 // Object events
-space.on('objectCreated', ({ objectId, object, source }) => void)
-space.on('objectUpdated', ({ objectId, object, source }) => void)
-space.on('objectDeleted', ({ objectId, source }) => void)
+channel.on('objectCreated', ({ objectId, object, source }) => void)
+channel.on('objectUpdated', ({ objectId, object, source }) => void)
+channel.on('objectDeleted', ({ objectId, source }) => void)
 
 // Space metadata
-space.on('metadataUpdated', ({ metadata, source }) => void)
+channel.on('metadataUpdated', ({ metadata, source }) => void)
 
 // Conversation updated (fetch with getInteractions())
-space.on('conversationUpdated', ({ conversationId, source }) => void)
-
-// Conversation list changed (created, deleted, renamed)
-space.on('conversationsChanged', ({ action, conversationId, name, source }) => void)
+channel.on('conversationUpdated', ({ conversationId, source }) => void)
 
 // Full state replacement (undo/redo, resync after error)
-space.on('reset', ({ source }) => void)
+channel.on('reset', ({ source }) => void)
 
-// ConversationId was changed on the space
-space.on('conversationIdChanged', ({ previousConversationId, newConversationId }) => void)
-
-// Sync error occurred, space resynced from server
-space.on('syncError', (error: Error) => void)
+// Sync error occurred, channel resynced from server
+channel.on('syncError', (error: Error) => void)
 ```
 
 ### Error Handling
@@ -792,7 +872,7 @@ AI operations may fail due to rate limiting or other transient errors. Check `er
 
 ```typescript
 try {
-  await space.updateObject(objectId, { prompt: 'expand this' });
+  await channel.updateObject(objectId, { prompt: 'expand this' });
 } catch (error) {
   if (error.message.includes('temporarily unavailable')) {
     showToast('Service busy, please try again in a moment');
@@ -804,13 +884,13 @@ try {
 
 ## Interaction History
 
-Each `RoolSpace` instance has a `conversationId` that tracks interaction history for that space. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
+Each channel has a `conversationId` that identifies its conversation. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
 
 ### What the AI Receives
 
 AI operations (`prompt`, `createObject`, `updateObject`, `findObjects`) automatically receive:
 
-- **Interaction history** — Previous interactions and their results from this conversation
+- **Interaction history** — Previous interactions and their results from this channel's conversation
 - **Recently modified objects** — Objects in the space recently created or changed
 - **Selected objects** — Objects passed via `objectIds` are given primary focus
 
@@ -819,31 +899,20 @@ This context flows automatically — no configuration needed. The AI sees enough
 ### Accessing History
 
 ```typescript
-// Get interactions for the current conversationId
-const interactions = space.getInteractions();
+// Get interactions for this channel's conversation
+const interactions = channel.getInteractions();
 // Returns: Interaction[]
-
-// Get interactions for a specific conversation ID
-const interactions = space.getInteractionsById('other-conversation-id');
-// Returns: Interaction[]
-
-// List all conversation IDs that have interactions
-const conversationIds = space.getConversationIds();
-// Returns: string[]
 ```
 
-### Conversation Access Methods
+### Conversation Methods
 
 | Method | Description |
 |--------|-------------|
-| `getInteractions(): Interaction[]` | Get interactions for the current conversationId |
-| `getInteractionsById(id): Interaction[]` | Get interactions for a specific conversation ID |
-| `getConversationIds(): string[]` | List all conversation IDs that have conversations |
-| `deleteConversation(conversationId?): Promise<void>` | Delete a conversation and its history. Defaults to current conversation. |
-| `renameConversation(id, name): Promise<void>` | Rename a conversation. Creates it if it doesn't exist. |
-| `listConversations(): ConversationInfo[]` | List all conversations with summary info. |
-| `getSystemInstruction(): string \| undefined` | Get system instruction for current conversation. |
-| `setSystemInstruction(instruction): Promise<void>` | Set system instruction for current conversation. Pass `null` to clear. |
+| `getInteractions(): Interaction[]` | Get interactions for this channel's conversation |
+| `getSystemInstruction(): string \| undefined` | Get system instruction for this conversation |
+| `setSystemInstruction(instruction): Promise<void>` | Set system instruction for this conversation. Pass `null` to clear. |
+
+Channel management (listing, renaming, deleting channels) is done via the client — see [Channel Management](#channel-management).
 
 ### System Instructions
 
@@ -851,18 +920,18 @@ System instructions customize how the AI behaves within a conversation. The inst
 
 ```typescript
 // Make the AI behave like an SQL interpreter
-await space.setSystemInstruction(
+await channel.setSystemInstruction(
   'Behave like an intelligent SQL interpreter. Respond with simple markdown tables. ' +
   'Translate the objects in the space to the implied structure in your responses.'
 );
 
 // Now prompts are interpreted as SQL-like queries
-const { message } = await space.prompt('SELECT task, due_date FROM tasks ORDER BY due_date');
+const { message } = await channel.prompt('SELECT task, due_date FROM tasks ORDER BY due_date');
 // Returns a markdown table of tasks, even if no "tasks" objects exist -
 // the AI infers actual tasks from the space content
 
 // Clear the instruction to return to default behavior
-await space.setSystemInstruction(null);
+await channel.setSystemInstruction(null);
 ```
 
 System instructions are useful for:
@@ -874,56 +943,37 @@ System instructions are useful for:
 ### Listening for Updates
 
 ```typescript
-space.on('conversationUpdated', ({ conversationId, source }) => {
+channel.on('conversationUpdated', ({ conversationId, source }) => {
   // Conversation changed - refresh if needed
-  const interactions = space.getInteractions();
+  const interactions = channel.getInteractions();
   renderInteractions(interactions);
 });
 ```
 
-### Conversation Isolation
+### Multiple Conversations
 
-By default, each call to `openSpace()` or `createSpace()` generates a new `conversationId`. This means:
-- Opening a space twice gives you two independent AI conversation histories
-- Closing and reopening a space starts fresh
-
-### Switching Conversations
-
-Set `conversationId` to switch conversations without reopening the space:
+Each channel is bound to a single conversation. To work with multiple conversations on the same space, open multiple channels:
 
 ```typescript
-const space = await client.openSpace('abc123');
+// Open two channels on the same space with different conversations
+const research = await client.openChannel('space-id', 'research');
+const main = await client.openChannel('space-id', 'main');
 
-// User clicks "Research" thread in sidebar
-space.conversationId = 'research-thread';
-await space.prompt("Analyze this data");
+// Each has independent history
+await research.prompt("Analyze this data");
+await main.prompt("Summarize findings");
 
-// User clicks "Main" thread
-space.conversationId = 'main-thread';
-await space.prompt("Summarize findings");
-
-// Listen for conversation switches
-space.on('conversationIdChanged', ({ previousConversationId, newConversationId }) => {
-  // Re-render chat UI with new conversation's history
-  renderChat(space.getInteractions());
-});
-```
-
-### Resuming Conversations
-
-Pass a `conversationId` at open time to start with a specific conversation:
-
-```typescript
-// Resume a known conversation when opening
-const space = await client.openSpace('abc123', { conversationId: 'research-thread' });
+// Close when done
+research.close();
+main.close();
 ```
 
 **Use cases:**
-- **Page refresh** — Store `conversationId` in localStorage to maintain context across reloads
-- **Multiple conversations** — Switch between different conversation contexts using the setter
-- **Collaborative conversations** — Share a `conversationId` between users to enable shared AI conversation history
+- **Chat app with sidebar** — Each sidebar entry is a channel with a different conversationId
+- **Page refresh** — Store the conversationId in localStorage to resume the same conversation
+- **Collaborative conversations** — Share a conversationId between users to enable shared AI conversation history
 
-**Tip:** Use the user's id as `conversationId` to share context across tabs/devices, or a fixed string like `'shared'` to share context across all users.
+**Tip:** Use the user's id as conversationId to share context across tabs/devices, or a fixed string like `'shared'` to share context across all users.
 
 Note: Interaction history is truncated to the most recent 50 entries to manage space size.
 
@@ -978,7 +1028,7 @@ interface RoolObject {
   [key: string]: unknown;
 }
 
-// Object stat - audit information returned by space.stat()
+// Object stat - audit information returned by channel.stat()
 interface RoolObjectStat {
   modifiedAt: number;
   modifiedBy: string;
@@ -999,7 +1049,7 @@ interface Conversation {
   interactions: Interaction[];  // Interaction history
 }
 
-// Conversation summary info (returned by listConversations)
+// Conversation summary info (returned by client.getChannels)
 interface ConversationInfo {
   id: string;
   name: string | null;
@@ -1008,7 +1058,6 @@ interface ConversationInfo {
   createdByName: string | null;
   interactionCount: number;
 }
-
 ```
 
 ### Interaction Types
@@ -1070,7 +1119,7 @@ interface PromptOptions {
 A Rool Space is a persistent, shared world model. Applications project different interaction patterns onto the same core primitives:
 
 - **Objects** store durable state, with references to other objects via data fields
-- **Interaction history** tracks what happened (requests, results, modified objects)
+- **Channels** provide independent AI conversation contexts over shared objects
 - **Events** describe what changed in real-time
 
 Below are a few representative patterns.
@@ -1078,12 +1127,12 @@ Below are a few representative patterns.
 ### Chat With Generated Artifacts
 
 - **Space**: documents, notes, images, tasks as objects
-- **Interaction history**: prompts and AI responses stored in space, synced across clients
+- **Channels**: each chat thread is a separate channel on the same space
 - **UI**: renders interactions from `getInteractions()` as chat; derives artifact lists from object events
 
 **Pattern**
 - Interaction history syncs in real-time; UI renders entries as chat bubbles
-- Artifacts are persistent objects
+- Artifacts are persistent objects shared across all channels
 - Listen to `conversationUpdated` to update chat UI
 - Selecting objects defines the AI working set via `objectIds`
 
@@ -1091,7 +1140,7 @@ Below are a few representative patterns.
 
 - **Space**: rooms, items, NPCs, players as objects
 - **References**: navigation, containment, location via data fields
-- **Conversation**: player commands and narrative continuity
+- **Channel**: player commands and narrative continuity
 
 **Pattern**
 - The space is the shared world state
@@ -1102,7 +1151,7 @@ Below are a few representative patterns.
 
 - **Space**: concepts, sources, hypotheses as objects
 - **References**: semantic connections between objects via data fields
-- **Conversation**: exploratory analysis and questioning
+- **Channel**: exploratory analysis and questioning
 
 **Pattern**
 - Graph structure lives in object data fields containing other object IDs
@@ -1113,7 +1162,7 @@ Below are a few representative patterns.
 
 - Durable content lives in space objects
 - References between objects are data fields whose values are object IDs
-- Interaction history lives in space conversations (persistent, synced, truncated to 50 entries)
+- Interaction history lives in channels (persistent, synced, truncated to 50 entries)
 - UI state lives in the client, space metadata, or `_`-prefixed fields
 - AI focus is controlled by object selection, not by replaying history
 

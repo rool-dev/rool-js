@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpace } from '@rool-dev/sdk';
+import { RoolClient, type RoolChannel, generateEntityId } from '@rool-dev/sdk';
 import './app.css';
 
 const APP_NAME = 'Rool App';
@@ -27,7 +27,7 @@ function renderSplash() {
   document.getElementById('login-btn')!.onclick = () => client.login(APP_NAME);
 }
 
-function renderApp(space: RoolSpace) {
+function renderApp(space: RoolChannel) {
   app.innerHTML = `
     <div class="min-h-dvh flex flex-col bg-gray-900 text-gray-100 font-mono text-sm">
       <header class="flex items-center justify-between px-4 py-2 border-b border-gray-700">
@@ -150,9 +150,16 @@ async function main() {
   const spaces = await client.listSpaces();
   const existing = spaces.find((s) => s.name === APP_NAME);
 
-  const space = existing ? await client.openSpace(existing.id) : await client.createSpace(APP_NAME);
+  const conversationId = generateEntityId();
+  let channel: RoolChannel;
+  if (existing) {
+    channel = await client.openChannel(existing.id, conversationId);
+  } else {
+    const space = await client.createSpace(APP_NAME);
+    channel = await space.openChannel(conversationId);
+  }
 
-  renderApp(space);
+  renderApp(channel);
 }
 
 main().catch(console.error);

@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { generateEntityId } from '../../src/channel.js';
 
 
 const isYouTubeUrl = (s: unknown): boolean =>
@@ -17,9 +18,10 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: find-video');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      const { objects } = await space.prompt(`
+      const { objects } = await channel.prompt(`
         Create a node with ukulele performance of "While My Guitar Gently Weeps" by Jake Shimabukuro.
 
         The node should have:
@@ -45,7 +47,7 @@ export const testCase: TestCase = {
       expect(hasCorrectVideo, `Video URL should contain one of: ${KNOWN_VIDEO_IDS.join(', ')}`).to.be.true;
 
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

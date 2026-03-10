@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
+import { generateEntityId } from '../../src/channel.js';
 
 // Expected image-search objects in the electrical fixture
 const EXPECTED_IMAGE_NODE_IDS = new Set(['2TvtH2', '86Trm4']);
@@ -15,13 +16,14 @@ export const testCase: TestCase = {
     // Import the fixture
     const archive = loadArchiveFixture('electrical');
     const space = await client.importArchive('EVAL: find-images', archive);
+    const channel = await space.openChannel(generateEntityId());
 
     try {
       // Capture initial state
-      const initialObjectIds = space.getObjectIds();
+      const initialObjectIds = channel.getObjectIds();
 
       // Use findObjects with semantic search to find image nodes
-      const { objects } = await space.findObjects({
+      const { objects } = await channel.findObjects({
         prompt: 'Find all objects that contain images',
       });
 
@@ -39,10 +41,10 @@ export const testCase: TestCase = {
       }
 
       // Verify space was not modified
-      const finalObjectIds = space.getObjectIds();
+      const finalObjectIds = channel.getObjectIds();
       expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

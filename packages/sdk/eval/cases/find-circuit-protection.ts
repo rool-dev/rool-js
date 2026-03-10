@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
+import { generateEntityId } from '../../src/channel.js';
 
 // MZpMsZ is "Wiring and Circuit Protection" - the expected result
 const EXPECTED_NODE_ID = 'MZpMsZ';
@@ -15,13 +16,14 @@ export const testCase: TestCase = {
     // Import the fixture
     const archive = loadArchiveFixture('electrical');
     const space = await client.importArchive('EVAL: find-circuit-protection', archive);
+    const channel = await space.openChannel(generateEntityId());
 
     try {
       // Capture initial state
-      const initialObjectIds = space.getObjectIds();
+      const initialObjectIds = channel.getObjectIds();
 
       // Use findObjects with semantic search
-      const { objects } = await space.findObjects({
+      const { objects } = await channel.findObjects({
         prompt: 'Find objects describing circuit protection',
       });
 
@@ -34,10 +36,10 @@ export const testCase: TestCase = {
       expect(objects[0].type).to.equal('markdown');
 
       // Verify space was not modified
-      const finalObjectIds = space.getObjectIds();
+      const finalObjectIds = channel.getObjectIds();
       expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

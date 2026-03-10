@@ -6,8 +6,11 @@
 // Main client
 export { RoolClient } from './client.js';
 
+// Channel class
+export { RoolChannel, generateEntityId } from './channel.js';
+
 // Space class
-export { RoolSpace, generateEntityId } from './space.js';
+export { RoolSpace } from './space.js';
 
 // Event emitter (for extending)
 export { EventEmitter } from './event-emitter.js';
@@ -62,13 +65,13 @@ export type {
   ConnectionState,
 
   // Event types (emitter)
+  ChannelEvents,
   SpaceEvents,
   ObjectCreatedEvent,
   ObjectUpdatedEvent,
   ObjectDeletedEvent,
   MetadataUpdatedEvent,
   ConversationUpdatedEvent,
-  ConversationsChangedEvent,
   SpaceResetEvent,
 
   // Conversation types

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, type ReactiveSpace } from '@rool-dev/svelte';
+  import { createRool, type ReactiveChannel } from '@rool-dev/svelte';
   import Splash from './Splash.svelte';
   import Header from './Header.svelte';
   import Chat from './Chat.svelte';
@@ -10,7 +10,7 @@
   const rool = createRool();
   rool.init();
 
-  let space = $state<ReactiveSpace | null>(null);
+  let space = $state<ReactiveChannel | null>(null);
 
   // Open space when ready
   $effect(() => {
@@ -23,9 +23,12 @@
     const spaces = rool.spaces!;
     const existing = spaces.find(s => s.name === APP_NAME);
 
-    space = existing
-      ? await rool.openSpace(existing.id, { conversationId: 'main' })
-      : await rool.createSpace(APP_NAME, { conversationId: 'main' });
+    if (existing) {
+      space = await rool.openChannel(existing.id, 'main');
+    } else {
+      const newSpace = await rool.createSpace(APP_NAME);
+      space = await rool.openChannel(newSpace.id, 'main');
+    }
   }
 </script>
 

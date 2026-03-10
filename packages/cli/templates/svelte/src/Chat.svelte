@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { ReactiveSpace } from '@rool-dev/svelte';
+  import type { ReactiveChannel } from '@rool-dev/svelte';
 
   interface Props {
-    space: ReactiveSpace;
+    space: ReactiveChannel;
   }
 
   let { space }: Props = $props();

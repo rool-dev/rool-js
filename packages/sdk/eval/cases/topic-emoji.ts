@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { generateEntityId } from '../../src/channel.js';
 
 
 const BOAT_EMOJIS = new Set(['⛵', '🚤', '🛶', '🚢']);
@@ -14,15 +15,16 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: topic-emoji');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      await space.createCollection('topic', [
+      await channel.createCollection('topic', [
         { name: 'type', type: { kind: 'literal', value: 'topic' } },
         { name: 'headline', type: { kind: 'string' } },
       ]);
 
       // Create a single topic node
-      const { object: createdTopic } = await space.createObject({
+      const { object: createdTopic } = await channel.createObject({
         data: {
           id: 'Xr4tQw',
           type: 'topic',
@@ -32,15 +34,15 @@ export const testCase: TestCase = {
       const topicId = createdTopic.id;
 
       // Run the prompt with the topic node selected
-      await space.prompt(prompt, { objectIds: [topicId] });
+      await channel.prompt(prompt, { objectIds: [topicId] });
 
       // Verify structure unchanged
-      const objectIds = space.getObjectIds();
+      const objectIds = channel.getObjectIds();
       expect(objectIds).to.have.length(1);
       expect(objectIds[0]).to.equal(topicId);
 
       // Verify emoji was added and is boat-related
-      const topic = await space.getObject(topicId);
+      const topic = await channel.getObject(topicId);
       expect(topic!.type).to.equal('topic');
       expect(topic!.headline).to.equal('Types of Sailboats');
       expect(topic!.emoji).to.be.a('string');
@@ -49,7 +51,7 @@ export const testCase: TestCase = {
       const emoji = (topic!.emoji as string).replace(/\uFE0F/g, '');
       expect(BOAT_EMOJIS.has(emoji), `Expected boat emoji, got: ${topic!.emoji}`).to.be.true;
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, SpaceEvent, RoolEventSource, RoolObject, SpaceSchema, Conversation } from './types.js';
+import type { ConnectionState, ClientEvent, SpaceEvent, RoolEventSource, RoolObject, RoolObjectStat, SpaceSchema, Conversation } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 
@@ -195,6 +195,17 @@ export class ClientSubscriptionManager {
         return { type, spaceId: raw.spaceId as string, timestamp };
       case 'user_storage_changed':
         return { type, timestamp, key: raw.key as string, value: raw.value };
+      case 'channel_created':
+        return {
+          type, spaceId: raw.spaceId as string, timestamp,
+          channelId: raw.channelId as string, name: raw.name as string,
+          channelCreatedAt: raw.createdAt as number, channelCreatedBy: raw.createdBy as string,
+          channelCreatedByName: raw.createdByName as string | undefined,
+        };
+      case 'channel_renamed':
+        return { type, spaceId: raw.spaceId as string, timestamp, channelId: raw.channelId as string, name: raw.name as string };
+      case 'channel_deleted':
+        return { type, spaceId: raw.spaceId as string, timestamp, channelId: raw.channelId as string };
       default:
         this.logger.warn('[RoolClient] Unknown client event type:', type);
         return null;
@@ -319,7 +330,7 @@ export class SpaceSubscriptionManager {
                 if (event) {
                   // Handle connected event - resolve initial promise
                   if (event.type === 'connected') {
-                    this.logger.info(`[RoolSpace] Connected to space ${event.spaceId}, server version: ${event.serverVersion}`);
+                    this.logger.info(`[RoolChannel] Connected to space ${event.spaceId}, server version: ${event.serverVersion}`);
                     if (!this._isSubscribed) {
                       this._isSubscribed = true;
                       this.config.onConnectionStateChanged('connected');
@@ -332,12 +343,12 @@ export class SpaceSubscriptionManager {
                   this.config.onEvent(event);
                 }
               } catch (e) {
-                this.logger.error('[RoolSpace] Failed to parse space event:', e);
+                this.logger.error('[RoolChannel] Failed to parse space event:', e);
               }
             }
           },
           error: (error) => {
-            this.logger.error('[RoolSpace] Space subscription error:', error);
+            this.logger.error('[RoolChannel] Space subscription error:', error);
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
 
@@ -365,7 +376,7 @@ export class SpaceSubscriptionManager {
         }
       );
     } catch (error) {
-      this.logger.error('[RoolSpace] Failed to establish space subscription:', error);
+      this.logger.error('[RoolChannel] Failed to establish space subscription:', error);
       this._isSubscribed = false;
       this.config.onConnectionStateChanged('disconnected');
 
@@ -391,7 +402,7 @@ export class SpaceSubscriptionManager {
   private scheduleReconnect(): void {
     this.cancelReconnect();
 
-    this.logger.info(`[RoolSpace] Space ${this.config.spaceId} reconnecting in ${this.reconnectDelay}ms...`);
+    this.logger.info(`[RoolChannel] Space ${this.config.spaceId} reconnecting in ${this.reconnectDelay}ms...`);
     this.config.onConnectionStateChanged('reconnecting');
 
     this.reconnectTimeoutId = setTimeout(() => {
@@ -427,7 +438,7 @@ export class SpaceSubscriptionManager {
         return { type, spaceId, timestamp, source };
       case 'object_created':
       case 'object_updated':
-        return { type, spaceId, timestamp, source, objectId: raw.objectId as string, object: raw.object as RoolObject };
+        return { type, spaceId, timestamp, source, objectId: raw.objectId as string, object: raw.object as RoolObject, objectStat: raw.objectStat as RoolObjectStat | undefined };
       case 'object_deleted':
         return { type, spaceId, timestamp, source, objectId: raw.objectId as string };
       case 'schema_updated':
@@ -439,7 +450,7 @@ export class SpaceSubscriptionManager {
       case 'conversation_deleted':
         return { type, spaceId, timestamp, source, conversationId: raw.conversationId as string };
       default:
-        this.logger.warn('[RoolSpace] Unknown space event type:', type);
+        this.logger.warn('[RoolChannel] Unknown space event type:', type);
         return null;
     }
   }

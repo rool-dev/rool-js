@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, generateId, type ReactiveSpace, type ConversationInfo } from '@rool-dev/svelte';
+  import { createRool, generateId, type ReactiveChannel, type ReactiveChannelList, type ConversationInfo } from '@rool-dev/svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';
@@ -10,14 +10,16 @@
   rool.init();
 
   // State
-  let currentSpace = $state<ReactiveSpace | null>(null);
-  let selectedConversationId = $state<string | null>(null);
+  let currentSpaceId = $state<string | null>(null);
+  let channelList = $state<ReactiveChannelList | null>(null);
+  let currentChannel = $state<ReactiveChannel | null>(null);
+  let selectedChannelId = $state<string | null>(null);
   let isSending = $state(false);
   let messageInput = $state('');
   let effort = $state<PromptEffort>('STANDARD');
   let messagesContainer: HTMLElement | null = $state(null);
   let inputElement: HTMLTextAreaElement | null = $state(null);
-  let editingConversationId = $state<string | null>(null);
+  let editingChannelId = $state<string | null>(null);
   let editingName = $state('');
 
   function resizeTextarea() {
@@ -27,9 +29,10 @@
   }
 
   // Derived state
-  let conversations = $derived(currentSpace?.conversations ?? []);
-  let currentInteractions = $derived(currentSpace?.interactions ?? []);
-  let selectedConversation = $derived(conversations.find(c => c.id === selectedConversationId));
+  let channels = $derived(channelList?.list ?? []);
+  let currentInteractions = $derived(currentChannel?.interactions ?? []);
+  let currentSpaceInfo = $derived(rool.spaces?.find(s => s.id === currentSpaceId));
+  let selectedChannel = $derived(channels.find(c => c.id === selectedChannelId));
 
   // Auto-login if not authenticated
   $effect(() => {
@@ -46,62 +49,66 @@
   });
 
   function resetState() {
-    selectedConversationId = null;
+    selectedChannelId = null;
     messageInput = '';
   }
 
   async function handleSpaceChange(spaceId: string | null) {
-    if (currentSpace) {
-      currentSpace.close();
-      currentSpace = null;
-      resetState();
-    }
+    currentChannel?.close();
+    currentChannel = null;
+    channelList?.close();
+    channelList = null;
+    currentSpaceId = null;
+    resetState();
+
     if (!spaceId) return;
 
-    currentSpace = await rool.openSpace(spaceId);
+    currentSpaceId = spaceId;
+    channelList = rool.channels(spaceId);
   }
 
-  // Select first conversation when space changes and has conversations
+  // Select first channel when space changes and has channels
   $effect(() => {
-    if (currentSpace && conversations.length > 0 && !selectedConversationId) {
-      selectConversation(conversations[0].id);
+    if (currentSpaceId && channels.length > 0 && !selectedChannelId) {
+      selectChannel(channels[0].id);
     }
   });
 
-  function selectConversation(id: string) {
-    if (!currentSpace) return;
-    selectedConversationId = id;
-    currentSpace.conversationId = id;
+  async function selectChannel(channelId: string) {
+    if (!currentSpaceId) return;
+    currentChannel?.close();
+    currentChannel = null;
+    selectedChannelId = channelId;
+    currentChannel = await rool.openChannel(currentSpaceId, channelId);
   }
 
-  async function createNewConversation() {
-    if (!currentSpace) return;
+  async function createNewChannel() {
+    if (!currentSpaceId) return;
     const id = generateId();
-    await currentSpace.renameConversation(id, 'New Chat');
-    currentSpace.conversationId = id;
-    selectedConversationId = id;
-    // Start editing the new conversation name
-    editingConversationId = id;
+    await rool.renameChannel(currentSpaceId, id, 'New Chat');
+    await selectChannel(id);
+    // Start editing the new channel name
+    editingChannelId = id;
     editingName = 'New Chat';
   }
 
   function startEditing(conv: ConversationInfo, e: MouseEvent) {
     e.stopPropagation();
-    editingConversationId = conv.id;
+    editingChannelId = conv.id;
     editingName = conv.name ?? '';
   }
 
   function cancelEdit() {
-    editingConversationId = null;
+    editingChannelId = null;
     editingName = '';
   }
 
   async function saveEdit() {
-    if (!currentSpace || !editingConversationId || !editingName.trim()) {
+    if (!currentSpaceId || !editingChannelId || !editingName.trim()) {
       cancelEdit();
       return;
     }
-    await currentSpace.renameConversation(editingConversationId, editingName.trim());
+    await rool.renameChannel(currentSpaceId, editingChannelId, editingName.trim());
     cancelEdit();
   }
 
@@ -116,15 +123,17 @@
     }
   }
 
-  async function deleteConversation(convId: string, e: MouseEvent) {
+  async function deleteChannel(channelId: string, e: MouseEvent) {
     e.stopPropagation();
-    if (!currentSpace) return;
+    if (!currentSpaceId) return;
 
-    await currentSpace.deleteConversation(convId);
+    await rool.deleteChannel(currentSpaceId, channelId);
 
-    // If we deleted the selected conversation, clear selection
-    if (selectedConversationId === convId) {
-      selectedConversationId = null;
+    // If we deleted the selected channel, close it
+    if (selectedChannelId === channelId) {
+      currentChannel?.close();
+      currentChannel = null;
+      selectedChannelId = null;
     }
   }
 
@@ -139,12 +148,14 @@
   }
 
   async function sendMessage() {
-    if (!currentSpace || !messageInput.trim() || isSending) return;
+    if (!currentSpaceId || !messageInput.trim() || isSending) return;
 
-    // Create conversation if none selected
-    if (!selectedConversationId) {
-      await createNewConversation();
+    // Create channel if none selected
+    if (!selectedChannelId) {
+      await createNewChannel();
     }
+
+    if (!currentChannel) return;
 
     const text = messageInput.trim();
     messageInput = '';
@@ -153,7 +164,7 @@
 
     try {
       const effortOption = effort === 'STANDARD' ? undefined : effort;
-      await currentSpace.prompt(text, { effort: effortOption });
+      await currentChannel.prompt(text, { effort: effortOption });
     } catch (err) {
       console.error('Failed to send message:', err);
     } finally {
@@ -171,19 +182,19 @@
   </div>
 {:else}
   <div class="h-dvh bg-slate-50 flex flex-col overflow-hidden">
-    <Header {rool} {currentSpace} onSpaceChange={handleSpaceChange} />
+    <Header {rool} spaceName={currentSpaceInfo?.name ?? null} spaceId={currentSpaceId} onSpaceChange={handleSpaceChange} />
 
     <main class="flex-1 flex max-w-5xl mx-auto w-full min-h-0">
-      {#if currentSpace}
-        <!-- Sidebar (conversations) - hidden on mobile when conversation selected -->
+      {#if currentSpaceId}
+        <!-- Sidebar (channels) - hidden on mobile when channel selected -->
         <aside class="hidden md:flex md:w-64 bg-white border-r border-slate-200 p-4 flex-col">
           <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Conversations</h2>
           <div class="flex-1 space-y-1 overflow-y-auto">
-            {#if conversations.length === 0}
+            {#if channels.length === 0}
               <p class="text-sm text-slate-400 px-3 py-2">No conversations yet</p>
             {:else}
-              {#each conversations as conv}
-                {#if editingConversationId === conv.id}
+              {#each channels as conv}
+                {#if editingChannelId === conv.id}
                   <div class="flex items-center gap-1 px-2 py-1">
                     <input
                       type="text"
@@ -195,11 +206,11 @@
                   </div>
                 {:else}
                   <div
-                    class="group flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors {selectedConversationId === conv.id ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-100'}"
+                    class="group flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors {selectedChannelId === conv.id ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-100'}"
                   >
                     <button
                       class="flex-1 text-left truncate"
-                      onclick={() => selectConversation(conv.id)}
+                      onclick={() => selectChannel(conv.id)}
                     >
                       {conv.name ?? 'Untitled'}
                     </button>
@@ -212,7 +223,7 @@
                     </button>
                     <button
                       class="p-1 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-opacity"
-                      onclick={(e) => deleteConversation(conv.id, e)}
+                      onclick={(e) => deleteChannel(conv.id, e)}
                       aria-label="Delete conversation"
                     >
                       <Icon icon="mdi:delete-outline" class="w-4 h-4" />
@@ -224,7 +235,7 @@
           </div>
           <button
             class="mt-4 w-full px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-            onclick={createNewConversation}
+            onclick={createNewChannel}
           >
             + New Conversation
           </button>
@@ -232,18 +243,18 @@
 
         <!-- Chat area -->
         <div class="flex-1 flex flex-col min-h-0 relative">
-          {#if selectedConversationId}
+          {#if selectedChannelId}
             <!-- Mobile header with back button -->
             <div class="flex items-center gap-2 p-4 border-b border-slate-200 bg-white md:hidden">
               <button
                 class="p-1.5 -ml-1.5 text-slate-500 hover:text-slate-700"
-                onclick={() => selectedConversationId = null}
+                onclick={() => { currentChannel?.close(); currentChannel = null; selectedChannelId = null; }}
                 aria-label="Back to conversations"
               >
                 <Icon icon="mdi:chevron-left" class="w-5 h-5" />
               </button>
               <span class="font-medium text-slate-800 truncate">
-                {selectedConversation?.name ?? 'Chat'}
+                {selectedChannel?.name ?? 'Chat'}
               </span>
             </div>
 
@@ -324,15 +335,15 @@
               </div>
             </div>
           {:else}
-            <!-- Mobile: Conversation list when none selected -->
+            <!-- Mobile: Channel list when none selected -->
             <div class="md:hidden flex-1 flex flex-col p-4">
               <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Conversations</h2>
               <div class="flex-1 space-y-1 overflow-y-auto">
-                {#if conversations.length === 0}
+                {#if channels.length === 0}
                   <p class="text-sm text-slate-400 py-2">No conversations yet</p>
                 {:else}
-                  {#each conversations as conv}
-                    {#if editingConversationId === conv.id}
+                  {#each channels as conv}
+                    {#if editingChannelId === conv.id}
                       <div class="flex items-center gap-1 px-2 py-1">
                         <input
                           type="text"
@@ -346,7 +357,7 @@
                       <div class="flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors text-slate-600 hover:bg-slate-100">
                         <button
                           class="flex-1 text-left truncate"
-                          onclick={() => selectConversation(conv.id)}
+                          onclick={() => selectChannel(conv.id)}
                         >
                           {conv.name ?? 'Untitled'}
                         </button>
@@ -359,7 +370,7 @@
                         </button>
                         <button
                           class="p-1 hover:text-red-500"
-                          onclick={(e) => deleteConversation(conv.id, e)}
+                          onclick={(e) => deleteChannel(conv.id, e)}
                           aria-label="Delete conversation"
                         >
                           <Icon icon="mdi:delete-outline" class="w-4 h-4" />
@@ -371,13 +382,13 @@
               </div>
               <button
                 class="mt-4 w-full px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-                onclick={createNewConversation}
+                onclick={createNewChannel}
               >
                 + New Conversation
               </button>
             </div>
 
-            <!-- Desktop: Empty state when no conversation selected -->
+            <!-- Desktop: Empty state when no channel selected -->
             <div class="hidden md:flex flex-1 flex-col items-center justify-center text-center">
               <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-6">
                 <Icon icon="mdi:chat-outline" class="w-8 h-8 text-slate-400" />

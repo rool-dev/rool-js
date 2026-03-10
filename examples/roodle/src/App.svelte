@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, type ReactiveSpace, type ReactiveCollection, type RoolObject } from '@rool-dev/svelte';
+  import { createRool, type ReactiveChannel, type ReactiveWatch, type RoolObject } from '@rool-dev/svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import { flip } from 'svelte/animate';
@@ -27,9 +27,9 @@
   const CONVERSATION_ID = 'scheduling';
 
   // State
-  let currentSpace = $state<ReactiveSpace | null>(null);
-  let eventCollection = $state<ReactiveCollection | null>(null);
-  let slotsCollection = $state<ReactiveCollection | null>(null);
+  let currentSpace = $state<ReactiveChannel | null>(null);
+  let eventCollection = $state<ReactiveWatch | null>(null);
+  let slotsCollection = $state<ReactiveWatch | null>(null);
   let messageInput = $state('');
   let isSending = $state(false);
   let isCreatingPlan = $state(false);
@@ -126,9 +126,9 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     slotsCollection?.close();
 
     try {
-      currentSpace = await rool.openSpace(spaceId, { conversationId: CONVERSATION_ID });
-      eventCollection = currentSpace.collection({ where: { type: 'event' }, limit: 1 });
-      slotsCollection = currentSpace.collection({ where: { type: 'slot' } });
+      currentSpace = await rool.openChannel(spaceId, CONVERSATION_ID);
+      eventCollection = currentSpace.watch({ where: { type: 'event' }, limit: 1 });
+      slotsCollection = currentSpace.watch({ where: { type: 'slot' } });
     } catch (err) {
       console.error('Failed to open space:', err);
       currentSpace = null;
@@ -147,18 +147,21 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     isCreatingPlan = true;
     try {
       // Create space
-      const space = await rool.createSpace(formTitle.trim(), { conversationId: CONVERSATION_ID });
-      currentSpace = space;
-
-      // Set up reactive collections
-      eventCollection = space.collection({ where: { type: 'event' }, limit: 1 });
-      slotsCollection = space.collection({ where: { type: 'slot' } });
+      const space = await rool.createSpace(formTitle.trim());
 
       // Enable link sharing
       await space.setLinkAccess('editor');
 
+      // Open a channel on the space
+      const channel = await rool.openChannel(space.id, CONVERSATION_ID);
+      currentSpace = channel;
+
+      // Set up reactive collections
+      eventCollection = channel.watch({ where: { type: 'event' }, limit: 1 });
+      slotsCollection = channel.watch({ where: { type: 'slot' } });
+
       // Create event object
-      await space.createObject({
+      await channel.createObject({
         data: {
           type: 'event',
           title: formTitle.trim(),
@@ -169,11 +172,11 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
       });
 
       // Set system instruction
-      await space.setSystemInstruction(buildSystemInstruction(formTitle.trim(), formDescription.trim() || undefined, formDuration));
+      await channel.setSystemInstruction(buildSystemInstruction(formTitle.trim(), formDescription.trim() || undefined, formDuration));
 
       // Generate initial slots
       const prefs = formDatePrefs.trim();
-      await space.prompt(
+      await channel.prompt(
         prefs ? `Create initial time slots. Date preferences: ${prefs}` : 'Create initial time slots.',
         { ephemeral: true }
       );

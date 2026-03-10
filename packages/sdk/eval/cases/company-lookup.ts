@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { generateEntityId } from '../../src/channel.js';
 
 
 /**
@@ -11,16 +12,17 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: company-lookup');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      await space.createCollection('company', [
+      await channel.createCollection('company', [
         { name: 'type', type: { kind: 'literal', value: 'company' } },
         { name: 'name', type: { kind: 'string' } },
         { name: 'cvr', type: { kind: 'string' } },
       ]);
 
       // Create object with known company name and placeholder for CVR
-      const { object } = await space.createObject({
+      const { object } = await channel.createObject({
         data: {
           type: 'company',
           name: 'Aves ApS',
@@ -38,9 +40,9 @@ export const testCase: TestCase = {
       expect(cvr).to.equal('29530335', 'CVR number should be 29530335');
 
       // Verify no extra objects were created
-      expect(space.getObjectIds()).to.have.length(1);
+      expect(channel.getObjectIds()).to.have.length(1);
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

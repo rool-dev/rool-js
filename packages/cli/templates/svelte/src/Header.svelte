@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { ReactiveSpace } from '@rool-dev/svelte';
+  import type { ReactiveChannel } from '@rool-dev/svelte';
 
   interface Props {
     appName: string;
-    space: ReactiveSpace | null;
+    space: ReactiveChannel | null;
     onLogout: () => void;
   }
 

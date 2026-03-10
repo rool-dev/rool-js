@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { generateEntityId } from '../../src/channel.js';
 
 const prompt = `
 Create three new nodes based on the contents of this topic node.
@@ -17,15 +18,16 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: topic-expand');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      await space.createCollection('topic', [
+      await channel.createCollection('topic', [
         { name: 'type', type: { kind: 'literal', value: 'topic' } },
         { name: 'headline', type: { kind: 'string' } },
       ]);
 
       // Create a single topic node
-      const { object: createdTopic } = await space.createObject({
+      const { object: createdTopic } = await channel.createObject({
         data: {
           id: 'Xr4tQw',
           type: 'topic',
@@ -35,7 +37,7 @@ export const testCase: TestCase = {
       const topicId = createdTopic.id;
 
       // Run the prompt with the topic node selected
-      const { objects } = await space.prompt(prompt, { objectIds: [topicId] });
+      const { objects } = await channel.prompt(prompt, { objectIds: [topicId] });
 
       // Verify new objects were created (at least 3: 2 image + 1 markdown)
       expect(objects.length).to.be.at.least(3);
@@ -54,7 +56,7 @@ export const testCase: TestCase = {
         }
       }
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

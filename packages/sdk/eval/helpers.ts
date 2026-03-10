@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import type { RoolSpace } from '../src/space.js';
+import type { RoolChannel } from '../src/channel.js';
 import type { RoolObject, CollectionDef } from '../src/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -27,7 +27,7 @@ export function loadArchiveFixture(name: string): Blob {
 /**
  * Assert that a collection exists in the space schema by exact name.
  */
-export function expectCollection(space: RoolSpace, name: string): CollectionDef {
+export function expectCollection(space: RoolChannel, name: string): CollectionDef {
   const schema = space.getSchema();
   expect(schema[name], `Expected collection "${name}" in schema`).to.exist;
   return schema[name];
@@ -37,7 +37,7 @@ export function expectCollection(space: RoolSpace, name: string): CollectionDef 
  * Find a collection in the schema whose fields include all the given field names.
  * Fails if no matching collection is found.
  */
-export function expectCollectionWithFields(space: RoolSpace, fields: string[]): CollectionDef {
+export function expectCollectionWithFields(space: RoolChannel, fields: string[]): CollectionDef {
   const schema = space.getSchema();
   for (const [name, def] of Object.entries(schema)) {
     const fieldNames = def.fields.map(f => f.name);
@@ -82,7 +82,7 @@ export function expectValidUniqueUrls(objects: RoolObject[], field: string): voi
 /**
  * Assert that all URLs in the specified field are actually fetchable via space.fetchMedia().
  */
-export async function expectUrlsFetchable(space: RoolSpace, objects: RoolObject[], field: string): Promise<void> {
+export async function expectUrlsFetchable(space: RoolChannel, objects: RoolObject[], field: string): Promise<void> {
   for (const obj of objects) {
     const url = obj[field] as string;
     if (!url) continue;

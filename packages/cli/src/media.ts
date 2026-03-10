@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type Command } from 'commander';
+import { generateEntityId, type RoolChannel } from '@rool-dev/sdk';
 import { getClient } from './client.js';
 import { formatBytes } from './format.js';
 import { DEFAULT_SPACE_NAME, type Environment } from './constants.js';
@@ -57,16 +58,21 @@ Examples:
       // Find or create space by name
       const spaces = await client.listSpaces();
       const spaceInfo = spaces.find(s => s.name === opts.space);
-      const space = spaceInfo
-        ? await client.openSpace(spaceInfo.id)
-        : await client.createSpace(opts.space);
+      const conversationId = generateEntityId();
+      let channel: RoolChannel;
+      if (spaceInfo) {
+        channel = await client.openChannel(spaceInfo.id, conversationId);
+      } else {
+        const space = await client.createSpace(opts.space);
+        channel = await space.openChannel(conversationId);
+      }
 
       try {
         const fileBuffer = fs.readFileSync(filePath);
         const blob = new Blob([fileBuffer], { type: contentType });
 
         console.log(`Uploading ${filename} (${formatBytes(size)})...`);
-        const url = await space.uploadMedia(blob);
+        const url = await channel.uploadMedia(blob);
 
         const objectData: Record<string, unknown> = {
           type: 'file',
@@ -81,13 +87,13 @@ Examples:
           objectData.comment = opts.message;
         }
 
-        const { object } = await space.createObject({ data: objectData });
+        const { object } = await channel.createObject({ data: objectData });
 
         console.log(`Uploaded: ${filename} (${formatBytes(size)})`);
         console.log(`Created object: ${object.id}`);
         console.log(`URL: ${url}`);
       } finally {
-        space.close();
+        channel.close();
         client.destroy();
       }
     });

@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { generateEntityId } from '../../src/channel.js';
 
 
 const PLANET_NAMES = ['draugr', 'poltergeist', 'phobetor'] as const;
@@ -23,9 +24,10 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: exoplanets');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      const { objects } = await space.prompt(`
+      const { objects } = await channel.prompt(`
         Create a knowledge graph about the exoplanets orbiting PSR B1257+12.
 
         Start with a node for the pulsar star, then add a 'planet' node for each exoplanet with its popular name in the headline field and a brief description in the text field. Each planet should have an "orbits" field referencing the topic node's ID.
@@ -34,7 +36,7 @@ export const testCase: TestCase = {
         - type: "planet" | "star"
         - headline: string
         - text: string
-        - orbits: <id> # optional 
+        - orbits: <id> # optional
       `);
 
       // Should create 4 objects: 1 topic + 3 planets
@@ -60,7 +62,7 @@ export const testCase: TestCase = {
       }
 
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

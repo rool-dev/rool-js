@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { generateEntityId } from '../../src/channel.js';
 
 const SAILING_TEXT = `## The Ancient Origins of Sailing
 
@@ -10,7 +11,7 @@ cultural exchange and the Age of Discovery.
 ## The Age of Sail: Dominance and Advancements
 
 The Age of Sail (mid-16th to mid-19th century) marked the peak of sailing ships in global trade and warfare.
-Advances in ship design, rigging, and naval artillery transformed maritime power. Sailing warships became 
+Advances in ship design, rigging, and naval artillery transformed maritime power. Sailing warships became
 instruments of geopolitical influence, with a nation's reach determined by the speed of its fleet.
 
 ## Decline of Commercial Sailing
@@ -43,16 +44,17 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: sailing-split');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      await space.createCollection('markdown', [
+      await channel.createCollection('markdown', [
         { name: 'type', type: { kind: 'literal', value: 'markdown' } },
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },
       ]);
 
       // Create the initial markdown node
-      const { object: initialNode } = await space.createObject({
+      const { object: initialNode } = await channel.createObject({
         data: {
           type: 'markdown',
           headline: 'History of Sailing',
@@ -63,10 +65,10 @@ export const testCase: TestCase = {
       const nodeId = initialNode.id;
 
       // Run the prompt with the node selected
-      const { objects } = await space.prompt(prompt, { objectIds: [nodeId] });
+      const { objects } = await channel.prompt(prompt, { objectIds: [nodeId] });
 
       // Verify the original node was converted to a topic
-      const convertedNode = await space.getObject(nodeId);
+      const convertedNode = await channel.getObject(nodeId);
       expect(convertedNode!.type).to.equal('topic', 'Original node should be converted to topic');
       expect(convertedNode!.headline).to.equal('History of Sailing', 'Headline should be preserved');
 
@@ -89,7 +91,7 @@ export const testCase: TestCase = {
         expect(md.parent, `Child ${md.id} should have parent field`).to.equal(nodeId);
       }
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

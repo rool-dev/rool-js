@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
+import { generateEntityId } from '../../src/channel.js';
 
 /**
  * Tests archive import/export with media files.
@@ -14,14 +15,15 @@ export const testCase: TestCase = {
     // Import the archive
     const archive = loadArchiveFixture('rools-star');
     const space = await client.importArchive('EVAL: import-export-archive', archive);
+    const channel = await space.openChannel(generateEntityId());
 
     try {
       // Verify object count (4 objects: star + 3 planets)
-      const objectIds = space.getObjectIds();
+      const objectIds = channel.getObjectIds();
       expect(objectIds).to.have.length(4);
 
       // Verify the star exists
-      const star = await space.getObject('XIQb6n');
+      const star = await channel.getObject('XIQb6n');
       expect(star).to.exist;
       expect(star!.name).to.equal("Rool's Star");
       expect(star!.type).to.equal('star');
@@ -29,7 +31,7 @@ export const testCase: TestCase = {
       expect(star!.image_url).to.include('https://');
 
       // Verify a planet with local media
-      const enki = await space.getObject('rjP7pk');
+      const enki = await channel.getObject('rjP7pk');
       expect(enki).to.exist;
       expect(enki!.name).to.equal('Enki');
       expect(enki!.type).to.equal('planet');
@@ -38,7 +40,7 @@ export const testCase: TestCase = {
       expect((enki!.image_url as string).length).to.be.greaterThan(0);
 
       // Verify the gas giant
-      const an = await space.getObject('1KIBtw');
+      const an = await channel.getObject('1KIBtw');
       expect(an).to.exist;
       expect(an!.name).to.equal('An');
       expect(an!.type).to.equal('planet');
@@ -50,12 +52,12 @@ export const testCase: TestCase = {
 
       // Verify the uploaded media is fetchable
       const enkiImageUrl = enki!.image_url as string;
-      const response = await space.fetchMedia(enkiImageUrl);
+      const response = await channel.fetchMedia(enkiImageUrl);
       const blob = await response.blob();
       expect(blob.size).to.be.greaterThan(10000); // ~70KB image
       expect(response.contentType).to.equal('image/png');
 
-      // Export back to archive
+      // Export back to archive (exportArchive is on the space, not the channel)
       const exported = await space.exportArchive();
 
       // Archive sizes should be similar (within 10% due to compression differences)
@@ -64,7 +66,7 @@ export const testCase: TestCase = {
       const ratio = exportedSize / originalSize;
       expect(ratio, `Export size ratio ${ratio} should be close to 1`).to.be.within(0.99, 1.01);
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

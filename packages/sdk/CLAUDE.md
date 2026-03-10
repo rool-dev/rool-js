@@ -6,7 +6,8 @@ TypeScript SDK for the Rool platform. Published as `@rool-dev/sdk`.
 
 ## Structure
 - `src/client.ts` - RoolClient: auth, space lifecycle, user storage
-- `src/space.ts` - RoolSpace: objects, AI prompts, undo/redo
+- `src/space.ts` - RoolSpace: lightweight admin handle (users, link access, channels, export)
+- `src/channel.ts` - RoolChannel: objects, AI prompts, media, schema, undo/redo
 - `src/auth-browser.ts` - Browser auth (localStorage, redirects)
 - `src/auth-node.ts` - Node.js auth (file-based, opens browser)
 - `src/subscription.ts` - SSE real-time sync

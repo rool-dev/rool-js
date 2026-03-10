@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, type ReactiveSpace } from '@rool-dev/svelte';
+  import { createRool, type ReactiveChannel } from '@rool-dev/svelte';
   import type { PromptEffort } from './EffortSelector.svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
@@ -7,10 +7,10 @@
   import Footer from './Footer.svelte';
   import EffortSelector from './EffortSelector.svelte';
 
-  const rool = createRool();
+  const rool = createRool( { baseUrl: "http://localhost:1357/", authUrl: "https://api.dev.rool.dev/auth/"});
   rool.init();
 
-  let currentSpace = $state<ReactiveSpace | null>(null);
+  let currentSpace = $state<ReactiveChannel | null>(null);
   let query = $state('');
   let output = $state('');
   let isLoading = $state(false);
@@ -43,10 +43,10 @@ If read-only mode is enabled and the user requests a mutation, respond with a re
     if (!spaceId) return;
 
     // Open the space with a fixed conversation ID
-    currentSpace = await rool.openSpace(spaceId, { conversationId: CONVERSATION_ID });
+    currentSpace = await rool.openChannel(spaceId, CONVERSATION_ID);
 
     // Rename the conversation (idempotent - safe to call even if already named)
-    await currentSpace.renameConversation(CONVERSATION_ID, CONVERSATION_NAME);
+    await currentSpace.rename(CONVERSATION_NAME);
 
     // Set the system instruction
     await currentSpace.setSystemInstruction(SYSTEM_INSTRUCTION);

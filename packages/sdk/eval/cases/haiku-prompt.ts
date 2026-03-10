@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { expectCollectionWithFields } from '../helpers.js';
+import { generateEntityId } from '../../src/channel.js';
 
 
 /**
@@ -12,9 +13,10 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: haiku-prompt');
+    const channel = await space.openChannel(generateEntityId());
 
     try {
-      const { objects } = await space.prompt(`
+      const { objects } = await channel.prompt(`
         Create three markdown nodes with the following fields:
         - type: "markdown"
         - headline: string (title for the haiku)
@@ -26,7 +28,7 @@ export const testCase: TestCase = {
       expect(objects).to.have.length(3);
 
       // Verify schema has a collection with headline and text
-      expectCollectionWithFields(space, ['headline', 'text']);
+      expectCollectionWithFields(channel, ['headline', 'text']);
 
       for (const obj of objects) {
         expect(obj.headline).to.be.a('string');
@@ -49,7 +51,7 @@ export const testCase: TestCase = {
       }
 
     } finally {
-      space.close();
+      channel.close();
     }
   },
 };

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { Rool, ReactiveSpace } from '@rool-dev/svelte';
+  import type { Rool, ReactiveChannel } from '@rool-dev/svelte';
   import Icon from '@iconify/svelte';
 
   interface Props {
     rool: Rool;
-    currentSpace: ReactiveSpace | null;
+    currentSpace: ReactiveChannel | null;
     eventTitle: string | null;
   }
 

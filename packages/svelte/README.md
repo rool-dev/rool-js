@@ -19,7 +19,7 @@ npm install @rool-dev/svelte
   const rool = createRool();
   rool.init();
 
-  let currentSpace = $state(null);
+  let channel = $state(null);
 </script>
 
 {#if !rool.authenticated}
@@ -27,13 +27,13 @@ npm install @rool-dev/svelte
 {:else}
   <h1>My Spaces</h1>
   {#each rool.spaces ?? [] as space}
-    <button onclick={async () => currentSpace = await rool.openSpace(space.id)}>
+    <button onclick={async () => channel = await rool.openChannel(space.id, 'main')}>
       {space.name}
     </button>
   {/each}
 
-  {#if currentSpace}
-    <p>Interactions: {currentSpace.interactions.length}</p>
+  {#if channel}
+    <p>Interactions: {channel.interactions.length}</p>
   {/if}
 {/if}
 ```
@@ -50,9 +50,9 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.spacesError` | Error from loading spaces |
 | `rool.connectionState` | SSE connection state |
 | `rool.userStorage` | User storage (cross-device preferences) |
-| `space.interactions` | Conversation interactions (auto-updates) |
-| `collection.objects` | Objects matching a filter (auto-updates) |
-| `collection.loading` | Whether collection is loading |
+| `channel.interactions` | Conversation interactions (auto-updates) |
+| `watch.objects` | Objects matching a filter (auto-updates) |
+| `watch.loading` | Whether watch is loading |
 
 Everything else passes through to the SDK directly. See the [SDK documentation](../sdk/README.md) for full API details.
 
@@ -65,7 +65,7 @@ const rool = createRool();
 
 rool.init();              // Process auth callbacks (call on app startup)
 rool.login('My App');     // Redirect to login page
-rool.logout();            // Clear auth state and close all spaces
+rool.logout();            // Clear auth state and close all channels
 rool.destroy();           // Clean up all resources
 ```
 
@@ -118,60 +118,108 @@ Reactive cross-device storage for user preferences. Synced from server on `init(
 </button>
 ```
 
-### Opening Spaces
+### Spaces & Channels
 
 ```typescript
-const space = await rool.openSpace('space-id');
-const space = await rool.openSpace('space-id', { conversationId: 'my-convo' });
-const space = await rool.createSpace('My New Space');
+// Open a channel (space + conversation pair) — reactive, with SSE
+const channel = await rool.openChannel('space-id', 'my-conversation');
 
-// Multiple spaces can be open at once
-const spaceA = await rool.openSpace('space-a');
-const spaceB = await rool.openSpace('space-b');
+// Create a space, then open a channel on it
+const space = await rool.createSpace('My New Space');
+const channel = await space.openChannel('main');
+
+// Open a space for admin operations (lightweight, no SSE)
+const space = await rool.openSpace('space-id');
+await space.rename('New Name');
+await space.addUser(userId, 'editor');
+
+// Delete a space
+await rool.deleteSpace('space-id');
+
+// Import a space from a zip archive
+const space = await rool.importArchive('Imported', archiveBlob);
 
 // Clean up
-space.close();
+channel.close();
 ```
 
-### ReactiveSpace
+### ReactiveChannel
 
-`openSpace` and `createSpace` return a `ReactiveSpace` — the SDK's `RoolSpace` with reactive `interactions`:
+`openChannel` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions`:
 
 ```svelte
 <script>
-  let space = $state(null);
+  let channel = $state(null);
 
-  async function open(id) {
-    space = await rool.openSpace(id);
+  async function open(spaceId) {
+    channel = await rool.openChannel(spaceId, 'main');
   }
 </script>
 
-{#if space}
+{#if channel}
   <!-- Reactive: updates as AI makes tool calls -->
-  {#each space.interactions as interaction}
+  {#each channel.interactions as interaction}
     <div>
       <strong>{interaction.operation}</strong>: {interaction.output}
     </div>
   {/each}
 
   <!-- All SDK methods work directly -->
-  <button onclick={() => space.prompt('Hello')}>Send</button>
+  <button onclick={() => channel.prompt('Hello')}>Send</button>
 {/if}
 ```
 
-### Reactive Collections
+### Reactive Object
 
-Create auto-updating collections of objects filtered by field values:
+Track a single object by ID with auto-updates:
 
 ```svelte
 <script>
-  let space = $state(null);
+  let channel = $state(null);
+  let item = $state(null);
+
+  async function open(spaceId, objectId) {
+    channel = await rool.openChannel(spaceId, 'main');
+    item = channel.object(objectId);
+  }
+</script>
+
+{#if item}
+  {#if item.loading}
+    <p>Loading...</p>
+  {:else if item.data}
+    <div>{item.data.title}</div>
+  {:else}
+    <p>Object not found</p>
+  {/if}
+{/if}
+```
+
+```typescript
+// Reactive state
+item.data      // $state<RoolObject | undefined>
+item.loading   // $state<boolean>
+
+// Methods
+item.refresh() // Manual re-fetch
+item.close()   // Stop listening for updates
+```
+
+**Lifecycle:** Reactive objects are tied to their channel. Closing the channel stops all updates — existing reactive objects will retain their last data but no longer refresh. Calling `channel.object()` after `close()` throws.
+
+### Reactive Watches
+
+Create auto-updating watches of objects filtered by field values:
+
+```svelte
+<script>
+  let channel = $state(null);
   let articles = $state(null);
 
-  async function open(id) {
-    space = await rool.openSpace(id);
-    // Create a reactive collection of all objects where type === 'article'
-    articles = space.collection({ where: { type: 'article' } });
+  async function open(spaceId) {
+    channel = await rool.openChannel(spaceId, 'main');
+    // Create a reactive watch of all objects where type === 'article'
+    articles = channel.watch({ where: { type: 'article' } });
   }
 </script>
 
@@ -186,11 +234,13 @@ Create auto-updating collections of objects filtered by field values:
 {/if}
 ```
 
-Collections automatically re-fetch when objects matching the filter are created, updated, or deleted. Since the SDK caches objects locally, re-fetches are typically instant (no network round-trip).
+Watches automatically re-fetch when objects matching the filter are created, updated, or deleted. Since the SDK caches objects locally, re-fetches are typically instant (no network round-trip).
+
+**Lifecycle:** Watches are tied to their channel. Closing the channel stops all updates — existing watches will retain their last data but no longer refresh. Calling `channel.watch()` after `close()` throws.
 
 ```typescript
-// Collection options (same as findObjects, but no AI prompt)
-const articles = space.collection({
+// Watch options (same as findObjects, but no AI prompt)
+const articles = channel.watch({
   where: { type: 'article', status: 'published' },
   order: 'desc',  // by modifiedAt (default)
   limit: 20,
@@ -205,45 +255,92 @@ articles.refresh() // Manual re-fetch
 articles.close()   // Stop listening for updates
 ```
 
+### Reactive Channel List
+
+List channels (conversations) for a space with auto-updates:
+
+```svelte
+<script>
+  const channelList = rool.channels('space-id');
+
+  // Clean up when done
+  import { onDestroy } from 'svelte';
+  onDestroy(() => channelList.close());
+</script>
+
+{#if channelList.loading}
+  <p>Loading channels...</p>
+{:else}
+  {#each channelList.list as ch}
+    <button onclick={() => openChannel(ch.id)}>{ch.name ?? ch.id}</button>
+  {/each}
+{/if}
+```
+
+```typescript
+// Reactive state
+channelList.list      // $state<ConversationInfo[]>
+channelList.loading   // $state<boolean>
+
+// Methods
+channelList.refresh() // Manual re-fetch
+channelList.close()   // Stop listening for updates
+```
+
+### Channel Management
+
+```typescript
+// Rename a channel (thin GraphQL call, no SSE needed)
+await rool.renameChannel('space-id', 'channel-id', 'New Name');
+
+// Delete a channel
+await rool.deleteChannel('space-id', 'channel-id');
+
+// Rename from within a channel
+await channel.rename('New Name');
+```
+
 ### Using the SDK
 
-All `RoolSpace` methods and properties are available on `ReactiveSpace`:
+All `RoolChannel` methods and properties are available on `ReactiveChannel`:
 
 ```typescript
 // Properties
-space.id
-space.name
-space.role
-space.conversationId
+channel.id
+channel.name
+channel.role
+channel.conversationId
 
 // Object operations
-await space.getObject(id)
-await space.createObject({ data: { type: 'note', text: 'Hello' } })
-await space.updateObject(id, { data: { text: 'Updated' } })
-await space.deleteObjects([id])
-await space.findObjects({ where: { type: 'note' } })
+await channel.getObject(id)
+await channel.createObject({ data: { type: 'note', text: 'Hello' } })
+await channel.updateObject(id, { data: { text: 'Updated' } })
+await channel.deleteObjects([id])
+await channel.findObjects({ where: { type: 'note' } })
 
 // AI
-await space.prompt('Summarize everything')
+await channel.prompt('Summarize everything')
 
 // Schema
-space.getSchema()
-await space.createCollection('article', [
+channel.getSchema()
+await channel.createCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'enum', values: ['draft', 'published'] } },
 ])
-await space.alterCollection('article', [...updatedProps])
-await space.dropCollection('article')
+await channel.alterCollection('article', [...updatedProps])
+await channel.dropCollection('article')
 
 // Undo/Redo
-await space.checkpoint('Before edit')
-await space.undo()
-await space.redo()
+await channel.checkpoint('Before edit')
+await channel.undo()
+await channel.redo()
 
 // Conversations
-await space.setSystemInstruction('You are helpful')
-await space.renameConversation('id', 'Research')
-space.getInteractions()
+await channel.setSystemInstruction('You are helpful')
+channel.getInteractions()
+
+// Channel admin
+await channel.rename('New Name')
 ```
 
 See the [SDK documentation](../sdk/README.md) for complete API details.
@@ -261,10 +358,11 @@ const id = generateId();
 
 ```typescript
 // Package types
-import type { Rool, ReactiveSpace, ReactiveCollection, CollectionOptions } from '@rool-dev/svelte';
+import type { Rool, ReactiveChannel, ReactiveObject, ReactiveWatch, WatchOptions, ReactiveChannelList } from '@rool-dev/svelte';
 
 // Re-exported from @rool-dev/sdk
 import type {
+  RoolChannel,
   RoolSpace,
   RoolSpaceInfo,
   RoolObject,

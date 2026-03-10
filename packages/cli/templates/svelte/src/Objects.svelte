@@ -1,16 +1,16 @@
 <script lang="ts">
-  import type { ReactiveSpace, ReactiveCollection } from '@rool-dev/svelte';
+  import type { ReactiveChannel, ReactiveWatch } from '@rool-dev/svelte';
 
   interface Props {
-    space: ReactiveSpace;
+    space: ReactiveChannel;
   }
 
   let { space }: Props = $props();
 
-  let collection = $state<ReactiveCollection | null>(null);
+  let collection = $state<ReactiveWatch | null>(null);
 
   $effect(() => {
-    const c = space.collection({});
+    const c = space.watch({});
     collection = c;
     return () => c.close();
   });

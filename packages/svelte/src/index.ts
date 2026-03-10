@@ -1,16 +1,17 @@
 // Main export
 export { createRool, generateId } from './rool.svelte.js';
 
-// Reactive space wrapper
-export { wrapSpace } from './space.svelte.js';
+// Reactive channel wrapper
+export { wrapChannel } from './channel.svelte.js';
 
 // Types
 export type { Rool } from './rool.svelte.js';
-export type { ReactiveSpace, ReactiveObject, ReactiveCollection, CollectionOptions } from './space.svelte.js';
+export type { ReactiveChannel, ReactiveObject, ReactiveWatch, ReactiveChannelList, WatchOptions } from './channel.svelte.js';
 
 // Re-export SDK types for convenience
 export type {
   RoolClientConfig,
+  RoolChannel,
   RoolSpace,
   RoolSpaceInfo,
   RoolObject,
