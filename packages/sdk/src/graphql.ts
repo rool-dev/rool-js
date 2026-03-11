@@ -126,7 +126,7 @@ export class GraphQLClient {
     return { spaceId: response.createSpace.spaceId };
   }
 
-  /** Response from openChannel — top-level fields, single conversation, object stats */
+  /** Response from openChannel — top-level fields, channel data, object stats */
   async openChannel(spaceId: string, channelId: string): Promise<OpenChannelResult> {
     const query = `
       query OpenChannel($spaceId: String!, $channelId: String!) {

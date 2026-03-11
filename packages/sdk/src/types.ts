@@ -243,7 +243,7 @@ export interface PromptOptions {
   responseSchema?: Record<string, unknown>;
   /** Effort level for the AI operation. Defaults to 'STANDARD'. */
   effort?: PromptEffort;
-  /** If true, the prompt won't be recorded in conversation history. Useful for transient operations like tab completion. */
+  /** If true, the prompt won't be recorded in interaction history. Useful for transient operations like tab completion. */
   ephemeral?: boolean;
   /** If true, mutation tools (create, update, delete) are disabled. Defaults to false. */
   readOnly?: boolean;
@@ -273,14 +273,14 @@ export interface FindObjectsOptions {
   objectIds?: string[];
   /** Sort order by modifiedAt. Default: 'desc' (most recent first). Only applies to structured filtering (no `prompt`). */
   order?: 'asc' | 'desc';
-  /** If true, the query won't be recorded in conversation history. Useful for responsive search. */
+  /** If true, the query won't be recorded in interaction history. Useful for responsive search. */
   ephemeral?: boolean;
 }
 
 export interface CreateObjectOptions {
   /** Object data fields. Include `id` for custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
   data: Record<string, unknown>;
-  /** If true, the operation won't be recorded in conversation history. */
+  /** If true, the operation won't be recorded in interaction history. */
   ephemeral?: boolean;
 }
 
@@ -289,7 +289,7 @@ export interface UpdateObjectOptions {
   data?: Record<string, unknown>;
   /** Natural language instruction for AI to modify content. */
   prompt?: string;
-  /** If true, the operation won't be recorded in conversation history. */
+  /** If true, the operation won't be recorded in interaction history. */
   ephemeral?: boolean;
 }
 

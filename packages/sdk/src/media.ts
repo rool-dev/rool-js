@@ -210,7 +210,7 @@ export class MediaClient {
 
   /**
    * Export a space as a zip archive containing data and media.
-   * The archive includes data.json with objects, relations, metadata, and conversations,
+   * The archive includes data.json with objects, relations, metadata, and channels,
    * plus a media/ folder with all media files.
    */
   async exportArchive(spaceId: string): Promise<Blob> {

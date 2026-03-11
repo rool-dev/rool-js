@@ -106,7 +106,7 @@ class ReactiveWatchImpl {
         where: this.#options.where,
         limit: this.#options.limit,
         order: this.#options.order,
-        ephemeral: true, // Don't pollute conversation history
+        ephemeral: true, // Don't pollute interaction history
       };
       const { objects } = await this.#channel.findObjects(findOptions);
       this.objects = objects;

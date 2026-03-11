@@ -3,7 +3,7 @@ import { type Command } from 'commander';
 import { type RoolClient, type RoolChannel } from '@rool-dev/sdk';
 import { getClient } from './client.js';
 import { formatMarkdown } from './format.js';
-import { DEFAULT_SPACE_NAME, DEFAULT_CONVERSATION_ID, type Environment } from './constants.js';
+import { DEFAULT_SPACE_NAME, DEFAULT_CHANNEL_ID, type Environment } from './constants.js';
 
 export function registerChat(program: Command): void {
   program
@@ -11,7 +11,7 @@ export function registerChat(program: Command): void {
     .description('Chat with a space (interactive if no prompt)')
     .argument('[prompt...]', 'prompt to send')
     .option('-s, --space <name>', 'space name', DEFAULT_SPACE_NAME)
-    .option('-c, --conversation <id>', 'conversation ID', DEFAULT_CONVERSATION_ID)
+    .option('-c, --channel <id>', 'channel ID', DEFAULT_CHANNEL_ID)
     .addHelpText('after', `
 Examples:
   # Chat with the default space
@@ -22,7 +22,7 @@ Examples:
 
   # Use a specific space
   $ rool chat -s "My Project" "Summarize the current state"`)
-    .action(async (promptWords: string[], opts: { space: string; conversation: string }, command: Command) => {
+    .action(async (promptWords: string[], opts: { space: string; channel: string }, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
       const prompt = promptWords.join(' ');
       const client = await getClient(env);
@@ -33,10 +33,10 @@ Examples:
 
       let channel: RoolChannel;
       if (spaceInfo) {
-        channel = await client.openChannel(spaceInfo.id, opts.conversation);
+        channel = await client.openChannel(spaceInfo.id, opts.channel);
       } else {
         const space = await client.createSpace(opts.space);
-        channel = await space.openChannel(opts.conversation);
+        channel = await space.openChannel(opts.channel);
       }
 
       if (prompt) {
@@ -72,7 +72,7 @@ async function sendPrompt(space: RoolChannel, prompt: string): Promise<void> {
     process.stdout.write(tool ? `[${tool.name}]` : 'Thinking...');
   };
 
-  space.on('conversationUpdated', onUpdate);
+  space.on('channelUpdated', onUpdate);
 
   try {
     const result = await space.prompt(prompt);
@@ -82,7 +82,7 @@ async function sendPrompt(space: RoolChannel, prompt: string): Promise<void> {
     clearStatusLine();
     throw err;
   } finally {
-    space.off('conversationUpdated', onUpdate);
+    space.off('channelUpdated', onUpdate);
   }
 }
 

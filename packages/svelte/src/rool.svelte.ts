@@ -196,14 +196,14 @@ class RoolImpl {
   }
 
   /**
-   * Rename a channel (conversation) in a space.
+   * Rename a channel in a space.
    */
   renameChannel(spaceId: string, channelId: string, name: string): Promise<void> {
     return this.#client.renameChannel(spaceId, channelId, name);
   }
 
   /**
-   * Delete a channel (conversation) from a space.
+   * Delete a channel from a space.
    */
   deleteChannel(spaceId: string, channelId: string): Promise<void> {
     return this.#client.deleteChannel(spaceId, channelId);

@@ -20,11 +20,11 @@ node_modules/@rool-dev/sdk/README.md     # The core SDK
 
 **RoolClient** - Authentication and space lifecycle. One per app.
 
-**ReactiveSpace** - The workspace. Contains objects and conversations.
+**ReactiveSpace** - The workspace. Contains objects and channels.
 - `space.collection({ where? })` - Reactive query returning `{ objects }`
 - `space.prompt(text)` - Invoke AI to create/modify objects
 - `space.checkpoint()` - Create undo point before mutations
-- `space.interactions` - Chat history for current conversation
+- `space.interactions` - Chat history for current channel
 
 **Objects** - Key-value records with `id` field. Created via `space.createObject()` or AI. References between objects are data fields whose values are object IDs.
 

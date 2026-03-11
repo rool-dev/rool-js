@@ -43,7 +43,7 @@ rool <command> [options]
 | Option | Description | Default | Used by |
 |--------|-------------|---------|---------|
 | `-s, --space <name>` | space name | `Rool CLI` | `chat`, `media upload` |
-| `-c, --conversation <id>` | conversation ID | `rool-dev` | `chat` |
+| `-c, --channel <id>` | channel ID | `rool-dev` | `chat` |
 | `-u, --url <url>` | API URL | `https://api.rool.dev` | `chat`, `media upload`, `space list`, `space create`, `space delete`, `app publish`, `app list`, `app unpublish`, `app slug`, `user`, `logout` |
 | `--svelte` | use Svelte template |  | `create` |
 | `--vanilla` | use vanilla TypeScript template |  | `create` |

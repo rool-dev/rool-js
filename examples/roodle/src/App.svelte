@@ -24,7 +24,7 @@
     chosen?: boolean; // true if this slot was finalized
   }
 
-  const CONVERSATION_ID = 'scheduling';
+  const CHANNEL_ID = 'scheduling';
 
   // State
   let currentSpace = $state<ReactiveChannel | null>(null);
@@ -126,7 +126,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     slotsCollection?.close();
 
     try {
-      currentSpace = await rool.openChannel(spaceId, CONVERSATION_ID);
+      currentSpace = await rool.openChannel(spaceId, CHANNEL_ID);
       eventCollection = currentSpace.watch({ where: { type: 'event' }, limit: 1 });
       slotsCollection = currentSpace.watch({ where: { type: 'slot' } });
     } catch (err) {
@@ -153,7 +153,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
       await space.setLinkAccess('editor');
 
       // Open a channel on the space
-      const channel = await rool.openChannel(space.id, CONVERSATION_ID);
+      const channel = await rool.openChannel(space.id, CHANNEL_ID);
       currentSpace = channel;
 
       // Set up reactive collections

@@ -19,7 +19,7 @@ node_modules/@rool-dev/sdk/README.md
 
 **RoolClient** - Authentication and space lifecycle. One per app.
 
-**RoolSpace** - The workspace. Contains objects and conversations.
+**RoolSpace** - The workspace. Contains objects and channels.
 - `space.prompt(text)` - Invoke AI to create/modify objects
 - `space.checkpoint()` - Create undo point before mutations
 - `space.on(event, handler)` - Subscribe to real-time events

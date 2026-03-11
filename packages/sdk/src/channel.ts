@@ -54,7 +54,7 @@ export interface ChannelConfig {
   schema: SpaceSchema;
   /** Space metadata */
   meta: Record<string, unknown>;
-  /** This channel's conversation data (undefined if new) */
+  /** This channel's data (undefined if new) */
   channel: Channel | undefined;
   /** Channel ID for this channel (required). */
   channelId: string;
@@ -74,7 +74,7 @@ export interface ChannelConfig {
  * open a second one.
  *
  * Objects are fetched on demand from the server; only schema, metadata,
- * and the channel's own conversation are cached locally. Object changes
+ * and the channel's own history are cached locally. Object changes
  * arrive via SSE semantic events and are emitted as SDK events.
  *
  * Features:
@@ -99,10 +99,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _subscriptionReady: Promise<void>;
   private logger: Logger;
 
-  // Local cache for bounded data (schema, metadata, own conversation, object IDs, stats)
+  // Local cache for bounded data (schema, metadata, own channel, object IDs, stats)
   private _meta: Record<string, unknown>;
   private _schema: SpaceSchema;
-  private _conversation: Channel | undefined;
+  private _channel: Channel | undefined;
   private _objectIds: string[];
   private _objectStats: Map<string, RoolObjectStat>;
 
@@ -131,7 +131,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     // Initialize local cache from server data
     this._meta = config.meta;
     this._schema = config.schema;
-    this._conversation = config.channel;
+    this._channel = config.channel;
     this._objectIds = config.objectIds;
     this._objectStats = new Map(Object.entries(config.objectStats));
 
@@ -202,14 +202,14 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   // ===========================================================================
-  // Conversation Access
+  // Channel History Access
   // ===========================================================================
 
   /**
-   * Get interactions for this channel's conversation.
+   * Get interactions for this channel.
    */
   getInteractions(): Interaction[] {
-    return this._conversation?.interactions ?? [];
+    return this._channel?.interactions ?? [];
   }
 
   // ===========================================================================
@@ -289,7 +289,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Clear checkpoint history for this conversation.
+   * Clear checkpoint history for this channel.
    */
   async clearHistory(): Promise<void> {
     await this.graphqlClient.clearCheckpointHistory(this._id, this._channelId);
@@ -327,7 +327,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @param options.limit - Maximum number of results to return (applies to structured filtering only; the AI controls its own result size).
    * @param options.objectIds - Scope search to specific object IDs. Constrains the candidate set in both structured and AI queries.
    * @param options.order - Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). Only applies to structured filtering (no `prompt`).
-   * @param options.ephemeral - If true, the query won't be recorded in conversation history.
+   * @param options.ephemeral - If true, the query won't be recorded in interaction history.
    * @returns The matching objects and a descriptive message.
    */
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
@@ -354,7 +354,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   /**
    * Create a new object with optional AI generation.
    * @param options.data - Object data fields (any key-value pairs). Optionally include `id` to use a custom ID. Use {{placeholder}} for AI-generated content. Fields prefixed with _ are hidden from AI.
-   * @param options.ephemeral - If true, the operation won't be recorded in conversation history.
+   * @param options.ephemeral - If true, the operation won't be recorded in interaction history.
    * @returns The created object (with AI-filled content) and message
    */
   async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
@@ -397,7 +397,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @param objectId - The ID of the object to update
    * @param options.data - Fields to add or update. Pass null or undefined to delete a field. Use {{placeholder}} for AI-generated content. Fields prefixed with _ are hidden from AI.
    * @param options.prompt - AI prompt for content editing (optional).
-   * @param options.ephemeral - If true, the operation won't be recorded in conversation history.
+   * @param options.ephemeral - If true, the operation won't be recorded in interaction history.
    * @returns The updated object (with AI-filled content) and message
    */
   async updateObject(
@@ -559,32 +559,32 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // ===========================================================================
 
   /**
-   * Get the system instruction for this channel's conversation.
+   * Get the system instruction for this channel.
    * Returns undefined if no system instruction is set.
    */
   getSystemInstruction(): string | undefined {
-    return this._conversation?.systemInstruction;
+    return this._channel?.systemInstruction;
   }
 
   /**
-   * Set the system instruction for this channel's conversation.
+   * Set the system instruction for this channel.
    * Pass null to clear the instruction.
    */
   async setSystemInstruction(instruction: string | null): Promise<void> {
     // Optimistic local update
-    if (!this._conversation) {
-      this._conversation = {
+    if (!this._channel) {
+      this._channel = {
         createdAt: Date.now(),
         createdBy: this._userId,
         interactions: [],
       };
     }
-    const previous = this._conversation;
+    const previous = this._channel;
     if (instruction === null) {
-      const { systemInstruction: _, ...rest } = this._conversation;
-      this._conversation = rest;
+      const { systemInstruction: _, ...rest } = this._channel;
+      this._channel = rest;
     } else {
-      this._conversation = { ...this._conversation, systemInstruction: instruction };
+      this._channel = { ...this._channel, systemInstruction: instruction };
     }
 
     // Emit event
@@ -598,7 +598,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       await this.graphqlClient.setSystemInstruction(this.id, this._channelId, instruction);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to set system instruction:', error);
-      this._conversation = previous;
+      this._channel = previous;
       throw error;
     }
   }
@@ -692,7 +692,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // ===========================================================================
 
   /**
-   * Rename this channel (conversation).
+   * Rename this channel.
    */
   async rename(newName: string): Promise<void> {
     await this.graphqlClient.renameChannel(this._id, this._channelId, newName);
@@ -847,7 +847,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       case 'channel_updated':
         // Only update if it's our channel
         if (event.channelId === this._channelId && event.channel) {
-          this._conversation = event.channel;
+          this._channel = event.channel;
           this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
         }
         break;
@@ -858,7 +858,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
           if (this._closed) return;
           this._meta = result.meta;
           this._schema = result.schema;
-          this._conversation = result.channel;
+          this._channel = result.channel;
           this._objectIds = result.objectIds;
           this._objectStats = new Map(Object.entries(result.objectStats));
           this.emit('reset', { source: changeSource });

@@ -5,7 +5,7 @@ const pkg = require('../package.json') as { version: string };
 
 export const VERSION = pkg.version;
 export const DEFAULT_SPACE_NAME = 'Rool CLI';
-export const DEFAULT_CONVERSATION_ID = 'rool-dev';
+export const DEFAULT_CHANNEL_ID = 'rool-dev';
 
 export type Environment = 'local' | 'dev' | 'prod';
 export const DEFAULT_ENV: Environment = 'prod';

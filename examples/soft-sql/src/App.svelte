@@ -7,7 +7,7 @@
   import Footer from './Footer.svelte';
   import EffortSelector from './EffortSelector.svelte';
 
-  const rool = createRool( { baseUrl: "http://localhost:1357/", authUrl: "https://api.dev.rool.dev/auth/"});
+  const rool = createRool();
   rool.init();
 
   let currentSpace = $state<ReactiveChannel | null>(null);
@@ -17,8 +17,8 @@
   let readOnly = $state(true);
   let effort = $state<PromptEffort>('STANDARD');
 
-  const CONVERSATION_ID = 'soft-sql';
-  const CONVERSATION_NAME = 'Soft SQL';
+  const CHANNEL_ID = 'soft-sql';
+  const CHANNEL_NAME = 'Soft SQL';
   const SYSTEM_INSTRUCTION = `Behave like an intelligent SQL interpreter. Respond with simple markdown tables. Translate the objects in the space to the implied structure in your responses.
 
 Only modify the space when the user explicitly uses mutation keywords (INSERT, UPDATE, DELETE, CREATE, DROP, ALTER and similar). For SELECT and other read operations, just return results.
@@ -42,11 +42,11 @@ If read-only mode is enabled and the user requests a mutation, respond with a re
 
     if (!spaceId) return;
 
-    // Open the space with a fixed conversation ID
-    currentSpace = await rool.openChannel(spaceId, CONVERSATION_ID);
+    // Open the space with a fixed channel ID
+    currentSpace = await rool.openChannel(spaceId, CHANNEL_ID);
 
-    // Rename the conversation (idempotent - safe to call even if already named)
-    await currentSpace.rename(CONVERSATION_NAME);
+    // Rename the channel (idempotent - safe to call even if already named)
+    await currentSpace.rename(CHANNEL_NAME);
 
     // Set the system instruction
     await currentSpace.setSystemInstruction(SYSTEM_INSTRUCTION);
