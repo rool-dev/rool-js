@@ -20,6 +20,7 @@ const packages = [
   'packages/sdk/package.json',
   'packages/cli/package.json',
   'packages/svelte/package.json',
+  'packages/mcp/package.json',
 ];
 
 const version = process.argv[2];

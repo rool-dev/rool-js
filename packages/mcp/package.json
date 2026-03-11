@@ -1,0 +1,50 @@
+{
+  "name": "@rool-dev/mcp",
+  "version": "0.2.0",
+  "description": "MCP server for the Rool platform — exposes Rool spaces, chat, objects, media, and app publishing as MCP tools",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "rool-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "rool",
+    "mcp",
+    "ai",
+    "agent",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "author": "Rool Limited <info@rool.dev> (https://rool.dev)",
+  "homepage": "https://docs.rool.dev/mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rool-dev/rool-js.git",
+    "directory": "packages/mcp"
+  },
+  "packageManager": "pnpm@10.17.1",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@rool-dev/sdk": "workspace:*",
+    "archiver": "^7.0.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/node": "^25.0.2",
+    "typescript": "^5.9.3"
+  }
+}
