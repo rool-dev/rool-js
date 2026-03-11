@@ -180,7 +180,7 @@ In collaborative scenarios, conflicting changes (modified by others since your c
 
 ### Hidden Fields
 
-Fields starting with `_` (e.g., `_ui`, `_cache`) are hidden from AI but otherwise behave like normal fields — they sync in real-time, persist to the server, support undo/redo, and are visible to all users of the Space. Use them for UI state, positions, or other data the AI shouldn't see or modify:
+Fields starting with `_` (e.g., `_ui`, `_cache`) are hidden from AI and ignored by the schema — you can add them to any object regardless of its collection definition. Otherwise they behave like normal fields: they sync in real-time, persist to the server, support undo/redo, and are visible to all users of the Space. Use them for UI state, positions, or other data the AI shouldn't see or modify:
 
 ```typescript
 await channel.createObject({
@@ -306,12 +306,12 @@ Returns a message (the AI's response) and the list of objects that were created 
 
 | Option | Description |
 |--------|-------------|
-| `objectIds` | Limit context to specific objects |
+| `objectIds` | Focus the AI on specific objects (given primary attention in context) |
 | `responseSchema` | Request structured JSON instead of text summary |
 | `effort` | Effort level: `'QUICK'`, `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | If true, don't record in interaction history (useful for tab completion) |
 | `readOnly` | If true, disable mutation tools (create, update, delete). Use for questions. |
-| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Uploaded to the media store via `uploadMedia()`. Resulting URLs are stored on the interaction's `attachments` field for UI rendering. **Currently only images are interpreted by the AI**; other file types are uploaded and stored but the AI cannot read their contents. |
+| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Uploaded to the media store via `uploadMedia()`. Resulting URLs are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot read their contents. |
 
 ### Effort Levels
 
@@ -320,7 +320,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 | `QUICK` | Fast, lightweight model. Best for simple questions. |
 | `STANDARD` | Default behavior with balanced capabilities. |
 | `REASONING` | Extended reasoning for complex tasks. |
-| `RESEARCH` | Pre-analysis and context gathering (reserved for future use). |
+| `RESEARCH` | Most thorough mode with deep analysis. Slowest and most credit-intensive. |
 
 ### Examples
 
