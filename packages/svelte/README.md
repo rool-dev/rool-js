@@ -367,6 +367,7 @@ import type {
   RoolSpace,
   RoolSpaceInfo,
   RoolObject,
+  RoolObjectStat,
   RoolUserRole,
   ConnectionState,
   ChannelInfo,

@@ -15,6 +15,7 @@ export type {
   RoolSpace,
   RoolSpaceInfo,
   RoolObject,
+  RoolObjectStat,
   RoolUserRole,
   ConnectionState,
   ChannelInfo,
@@ -28,4 +29,7 @@ export type {
   FieldDef,
   CollectionDef,
   SpaceSchema,
+  SpaceMember,
+  UserResult,
+  RoolClient,
 } from '@rool-dev/sdk';

@@ -29,6 +29,14 @@ class RoolImpl {
     this.#setupEventListeners();
   }
 
+  /**
+   * Access the underlying RoolClient for low-level API calls
+   * (e.g., graphql(), fetch()) not covered by the reactive wrapper.
+   */
+  get client(): RoolClient {
+    return this.#client;
+  }
+
   #setupEventListeners() {
     const onAuthStateChanged = (auth: boolean) => {
       this.authenticated = auth;
