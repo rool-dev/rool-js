@@ -51,6 +51,7 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.connectionState` | SSE connection state |
 | `rool.userStorage` | User storage (cross-device preferences) |
 | `channel.interactions` | Channel interactions (auto-updates) |
+| `channel.objectIds` | All object IDs in the space (auto-updates on create/delete) |
 | `watch.objects` | Objects matching a filter (auto-updates) |
 | `watch.loading` | Whether watch is loading |
 
@@ -145,7 +146,7 @@ channel.close();
 
 ### ReactiveChannel
 
-`openChannel` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions`:
+`openChannel` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions` and `objectIds`:
 
 ```svelte
 <script>

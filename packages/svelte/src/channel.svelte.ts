@@ -216,10 +216,12 @@ class ReactiveChannelImpl {
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
+  objectIds = $state<string[]>([]);
 
   constructor(channel: RoolChannel) {
     this.#channel = channel;
     this.interactions = channel.getInteractions();
+    this.objectIds = channel.getObjectIds();
 
     // Subscribe to channel updates
     const onChannelUpdated = () => {
@@ -228,8 +230,18 @@ class ReactiveChannelImpl {
     channel.on('channelUpdated', onChannelUpdated);
     this.#unsubscribers.push(() => channel.off('channelUpdated', onChannelUpdated));
 
+    // Subscribe to object events for objectIds
+    const refreshObjectIds = () => {
+      this.objectIds = channel.getObjectIds();
+    };
+    channel.on('objectCreated', refreshObjectIds);
+    this.#unsubscribers.push(() => channel.off('objectCreated', refreshObjectIds));
+    channel.on('objectDeleted', refreshObjectIds);
+    this.#unsubscribers.push(() => channel.off('objectDeleted', refreshObjectIds));
+
     const onReset = () => {
       this.interactions = channel.getInteractions();
+      this.objectIds = channel.getObjectIds();
     };
     channel.on('reset', onReset);
     this.#unsubscribers.push(() => channel.off('reset', onReset));
