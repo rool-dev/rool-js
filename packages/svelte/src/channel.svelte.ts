@@ -1,4 +1,4 @@
-import type { RoolChannel, RoolClient, Interaction, RoolObject, FindObjectsOptions, ConversationInfo } from '@rool-dev/sdk';
+import type { RoolChannel, RoolClient, Interaction, RoolObject, FindObjectsOptions, ChannelInfo } from '@rool-dev/sdk';
 
 /**
  * Options for creating a reactive watch.
@@ -221,12 +221,12 @@ class ReactiveChannelImpl {
     this.#channel = channel;
     this.interactions = channel.getInteractions();
 
-    // Subscribe to conversation updates
-    const onConversationUpdated = () => {
+    // Subscribe to channel updates
+    const onChannelUpdated = () => {
       this.interactions = channel.getInteractions();
     };
-    channel.on('conversationUpdated', onConversationUpdated);
-    this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
+    channel.on('channelUpdated', onChannelUpdated);
+    this.#unsubscribers.push(() => channel.off('channelUpdated', onChannelUpdated));
 
     const onReset = () => {
       this.interactions = channel.getInteractions();
@@ -240,7 +240,7 @@ class ReactiveChannelImpl {
   get name() { return this.#channel.name; }
   get role() { return this.#channel.role; }
   get userId() { return this.#channel.userId; }
-  get conversationId() { return this.#channel.conversationId; }
+  get channelId() { return this.#channel.channelId; }
   get isReadOnly() { return this.#channel.isReadOnly; }
   get linkAccess() { return this.#channel.linkAccess; }
 
@@ -277,7 +277,7 @@ class ReactiveChannelImpl {
   getMetadata(...args: Parameters<RoolChannel['getMetadata']>) { return this.#channel.getMetadata(...args); }
   getAllMetadata() { return this.#channel.getAllMetadata(); }
 
-  // Conversations
+  // Channel history
   getInteractions() { return this.#channel.getInteractions(); }
   getSystemInstruction() { return this.#channel.getSystemInstruction(); }
   setSystemInstruction(...args: Parameters<RoolChannel['setSystemInstruction']>) { return this.#channel.setSystemInstruction(...args); }
@@ -338,7 +338,7 @@ class ReactiveChannelListImpl {
   #unsubscribers: (() => void)[] = [];
 
   // Reactive state
-  list = $state<ConversationInfo[]>([]);
+  list = $state<ChannelInfo[]>([]);
   loading = $state(true);
 
   constructor(client: RoolClient, spaceId: string) {
@@ -352,7 +352,7 @@ class ReactiveChannelListImpl {
     this.refresh();
 
     // Listen for channel lifecycle events
-    const onChannelCreated = (spaceId: string, channel: ConversationInfo) => {
+    const onChannelCreated = (spaceId: string, channel: ChannelInfo) => {
       if (spaceId !== this.#spaceId) return;
       this.list = [...this.list, channel];
     };

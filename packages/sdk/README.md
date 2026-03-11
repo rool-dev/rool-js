@@ -8,7 +8,7 @@ Use Rool to programmatically instruct agents to generate content, research topic
 
 **Core primitives:**
 - **Spaces** — Containers for objects, schema, metadata, and channels
-- **Channels** — A space + conversationId pair. All object and AI operations go through a channel.
+- **Channels** — Named contexts within a space, each with independent interaction history. All object and AI operations go through a channel.
 - **Objects** — Key-value records with any fields you define. References between objects are data fields whose values are object IDs.
 - **AI operations** — Create, update, or query objects using natural language and `{{placeholders}}`
 
@@ -82,7 +82,7 @@ channel.close();
 
 ### Spaces and Channels
 
-A **space** is a container that holds objects, schema, metadata, and channels. A **channel** is a space + conversationId pair — it's the handle you use for all object and AI operations.
+A **space** is a container that holds objects, schema, metadata, and channels. A **channel** is a named context within a space — it's the handle you use for all object and AI operations. Each channel has its own interaction history.
 
 There are two main handles:
 - **`RoolSpace`** — Lightweight admin handle for user management, link access, channel management, and export. No real-time subscription.
@@ -95,15 +95,15 @@ await space.addUser(userId, 'editor');
 await space.setLinkAccess('viewer');
 
 // Open a channel for object and AI operations
-const channel = await client.openChannel('space-id', 'my-conversation');
+const channel = await client.openChannel('space-id', 'my-channel');
 await channel.prompt('Create some planets');
 
 // Or open a channel via the space handle
 const channel2 = await space.openChannel('research');
-await channel2.prompt('Analyze the data');  // Independent conversation
+await channel2.prompt('Analyze the data');  // Independent channel
 ```
 
-The `conversationId` is fixed when you open a channel and cannot be changed. To use a different conversation, open a new channel. Both channels share the same objects and schema — only the conversation history differs.
+The `channelId` is fixed when you open a channel and cannot be changed. To use a different channel, open a new one. Both channels share the same objects and schema — only the interaction history differs.
 
 ### Objects & References
 
@@ -309,7 +309,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 | `objectIds` | Limit context to specific objects |
 | `responseSchema` | Request structured JSON instead of text summary |
 | `effort` | Effort level: `'QUICK'`, `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'` |
-| `ephemeral` | If true, don't record in conversation history (useful for tab completion) |
+| `ephemeral` | If true, don't record in interaction history (useful for tab completion) |
 | `readOnly` | If true, disable mutation tools (create, update, delete). Use for questions. |
 | `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Uploaded to the media store via `uploadMedia()`. Resulting URLs are stored on the interaction's `attachments` field for UI rendering. **Currently only images are interpreted by the AI**; other file types are uploaded and stored but the AI cannot read their contents. |
 
@@ -382,7 +382,7 @@ console.log(result.categories, result.summary);
 ### Context Flow
 
 AI operations automatically receive context:
-- **Interaction history** — Previous interactions and their results from this channel's conversation
+- **Interaction history** — Previous interactions and their results from this channel
 - **Recently modified objects** — Objects created or changed recently
 - **Selected objects** — Objects passed via `objectIds` are given primary focus
 
@@ -496,20 +496,20 @@ const client = new RoolClient({
 |--------|-------------|
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List available spaces |
 | `openSpace(spaceId): Promise<RoolSpace>` | Open a space for admin operations (no real-time subscription) |
-| `openChannel(spaceId, conversationId): Promise<RoolChannel>` | Open a channel on a space with a specific conversation |
+| `openChannel(spaceId, channelId): Promise<RoolChannel>` | Open a channel on a space |
 | `createSpace(name): Promise<RoolSpace>` | Create a new space, returns admin handle |
 | `deleteSpace(id): Promise<void>` | Permanently delete a space (cannot be undone) |
 | `importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
 
 ### Channel Management
 
-Manage channels (conversations) within a space. Available on both the client and space handles:
+Manage channels within a space. Available on both the client and space handles:
 
 | Method | Description |
 |--------|-------------|
 | `client.renameChannel(spaceId, channelId, name): Promise<void>` | Rename a channel |
-| `client.deleteChannel(spaceId, channelId): Promise<void>` | Delete a channel and its history |
-| `space.getChannels(): ConversationInfo[]` | List channels (from cached snapshot) |
+| `client.deleteChannel(spaceId, channelId): Promise<void>` | Delete a channel and its interaction history |
+| `space.getChannels(): ChannelInfo[]` | List channels (from cached snapshot) |
 | `space.deleteChannel(channelId): Promise<void>` | Delete a channel |
 | `channel.rename(name): Promise<void>` | Rename the current channel |
 
@@ -568,7 +568,7 @@ client.on('authStateChanged', (authenticated: boolean) => void)
 client.on('spaceAdded', (space: RoolSpaceInfo) => void)      // Space created or access granted
 client.on('spaceRemoved', (spaceId: string) => void)         // Space deleted or access revoked
 client.on('spaceRenamed', (spaceId: string, newName: string) => void)
-client.on('channelCreated', (spaceId: string, channel: ConversationInfo) => void)
+client.on('channelCreated', (spaceId: string, channel: ChannelInfo) => void)
 client.on('channelRenamed', (spaceId: string, channelId: string, newName: string) => void)
 client.on('channelDeleted', (spaceId: string, channelId: string) => void)
 client.on('userStorageChanged', ({ key, value, source }: UserStorageChangedEvent) => void)
@@ -605,21 +605,21 @@ A space is a lightweight admin handle for space-level operations. It does not ha
 
 | Method | Description |
 |--------|-------------|
-| `openChannel(conversationId): Promise<RoolChannel>` | Open a channel on this space |
+| `openChannel(channelId): Promise<RoolChannel>` | Open a channel on this space |
 | `rename(newName): Promise<void>` | Rename this space |
 | `delete(): Promise<void>` | Permanently delete this space |
 | `listUsers(): Promise<SpaceMember[]>` | List users with access |
 | `addUser(userId, role): Promise<void>` | Add user to space |
 | `removeUser(userId): Promise<void>` | Remove user from space |
 | `setLinkAccess(linkAccess): Promise<void>` | Set URL sharing level |
-| `getChannels(): ConversationInfo[]` | List channels (from cached snapshot) |
+| `getChannels(): ChannelInfo[]` | List channels (from cached snapshot) |
 | `deleteChannel(channelId): Promise<void>` | Delete a channel |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
 | `refresh(): Promise<void>` | Refresh space data from server |
 
 ## RoolChannel API
 
-A channel is a space + conversationId pair. All object operations, AI prompts, and real-time sync go through a channel. The `conversationId` is fixed at open time — to use a different conversation, open a new channel.
+A channel is a named context within a space. All object operations, AI prompts, and real-time sync go through a channel. The `channelId` is fixed at open time — to use a different channel, open a new one.
 
 ### Properties
 
@@ -630,7 +630,7 @@ A channel is a space + conversationId pair. All object operations, AI prompts, a
 | `role: RoolUserRole` | User's role (`'owner' \| 'admin' \| 'editor' \| 'viewer'`) |
 | `linkAccess: LinkAccess` | URL sharing level (`'none' \| 'viewer' \| 'editor'`) |
 | `userId: string` | Current user's ID |
-| `conversationId: string` | Conversation ID (read-only, fixed at open time) |
+| `channelId: string` | Channel ID (read-only, fixed at open time) |
 | `isReadOnly: boolean` | True if viewer role |
 
 ### Lifecycle
@@ -638,7 +638,7 @@ A channel is a space + conversationId pair. All object operations, AI prompts, a
 | Method | Description |
 |--------|-------------|
 | `close(): void` | Clean up resources and stop receiving updates |
-| `rename(name): Promise<void>` | Rename this channel (conversation) |
+| `rename(name): Promise<void>` | Rename this channel |
 
 ### Object Operations
 
@@ -659,7 +659,7 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 | Option | Description |
 |--------|-------------|
 | `data` | Object data fields (required). Include `id` to use a custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
-| `ephemeral` | If true, the operation won't be recorded in conversation history. Useful for transient operations. |
+| `ephemeral` | If true, the operation won't be recorded in interaction history. Useful for transient operations. |
 
 #### updateObject Options
 
@@ -667,7 +667,7 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 |--------|-------------|
 | `data` | Fields to add or update. Pass `null`/`undefined` to delete a field. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
 | `prompt` | Natural language instruction for AI to modify content. |
-| `ephemeral` | If true, the operation won't be recorded in conversation history. Useful for transient operations. |
+| `ephemeral` | If true, the operation won't be recorded in interaction history. Useful for transient operations. |
 
 #### findObjects Options
 
@@ -684,7 +684,7 @@ Find objects using structured filters and/or natural language.
 | `limit` | Maximum number of results. |
 | `objectIds` | Scope to specific object IDs. Constrains the candidate set in both structured and AI queries. |
 | `order` | Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). |
-| `ephemeral` | If true, the query won't be recorded in conversation history. Useful for responsive search. |
+| `ephemeral` | If true, the query won't be recorded in interaction history. Useful for responsive search. |
 
 **Examples:**
 
@@ -818,7 +818,7 @@ Export and import space data as zip archives for backup, portability, or migrati
 
 | Method | Description |
 |--------|-------------|
-| `space.exportArchive(): Promise<Blob>` | Export objects, metadata, conversations, and media as a zip archive |
+| `space.exportArchive(): Promise<Blob>` | Export objects, metadata, channels, and media as a zip archive |
 | `client.importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
 
 **Export:**
@@ -835,7 +835,7 @@ const space = await client.importArchive('Imported Data', archiveBlob);
 const channel = await space.openChannel('main');
 ```
 
-The archive format bundles `data.json` (with objects, metadata, and conversations) and a `media/` folder containing all media files. Media URLs are rewritten to relative paths within the archive and restored on import.
+The archive format bundles `data.json` (with objects, metadata, and channels) and a `media/` folder containing all media files. Media URLs are rewritten to relative paths within the archive and restored on import.
 
 ### Channel Events
 
@@ -856,8 +856,8 @@ channel.on('objectDeleted', ({ objectId, source }) => void)
 // Space metadata
 channel.on('metadataUpdated', ({ metadata, source }) => void)
 
-// Conversation updated (fetch with getInteractions())
-channel.on('conversationUpdated', ({ conversationId, source }) => void)
+// Channel updated (fetch with getInteractions())
+channel.on('channelUpdated', ({ channelId, source }) => void)
 
 // Full state replacement (undo/redo, resync after error)
 channel.on('reset', ({ source }) => void)
@@ -884,13 +884,13 @@ try {
 
 ## Interaction History
 
-Each channel has a `conversationId` that identifies its conversation. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
+Each channel has a `channelId` that identifies it. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
 
 ### What the AI Receives
 
 AI operations (`prompt`, `createObject`, `updateObject`, `findObjects`) automatically receive:
 
-- **Interaction history** — Previous interactions and their results from this channel's conversation
+- **Interaction history** — Previous interactions and their results from this channel
 - **Recently modified objects** — Objects in the space recently created or changed
 - **Selected objects** — Objects passed via `objectIds` are given primary focus
 
@@ -899,24 +899,24 @@ This context flows automatically — no configuration needed. The AI sees enough
 ### Accessing History
 
 ```typescript
-// Get interactions for this channel's conversation
+// Get interactions for this channel
 const interactions = channel.getInteractions();
 // Returns: Interaction[]
 ```
 
-### Conversation Methods
+### Channel History Methods
 
 | Method | Description |
 |--------|-------------|
-| `getInteractions(): Interaction[]` | Get interactions for this channel's conversation |
-| `getSystemInstruction(): string \| undefined` | Get system instruction for this conversation |
-| `setSystemInstruction(instruction): Promise<void>` | Set system instruction for this conversation. Pass `null` to clear. |
+| `getInteractions(): Interaction[]` | Get interactions for this channel |
+| `getSystemInstruction(): string \| undefined` | Get system instruction for this channel |
+| `setSystemInstruction(instruction): Promise<void>` | Set system instruction for this channel. Pass `null` to clear. |
 
 Channel management (listing, renaming, deleting channels) is done via the client — see [Channel Management](#channel-management).
 
 ### System Instructions
 
-System instructions customize how the AI behaves within a conversation. The instruction persists across all prompts in that conversation.
+System instructions customize how the AI behaves within a channel. The instruction persists across all prompts in that channel.
 
 ```typescript
 // Make the AI behave like an SQL interpreter
@@ -943,19 +943,19 @@ System instructions are useful for:
 ### Listening for Updates
 
 ```typescript
-channel.on('conversationUpdated', ({ conversationId, source }) => {
-  // Conversation changed - refresh if needed
+channel.on('channelUpdated', ({ channelId, source }) => {
+  // Channel updated - refresh if needed
   const interactions = channel.getInteractions();
   renderInteractions(interactions);
 });
 ```
 
-### Multiple Conversations
+### Multiple Channels
 
-Each channel is bound to a single conversation. To work with multiple conversations on the same space, open multiple channels:
+Each channel has its own interaction history. To work with multiple independent histories on the same space, open multiple channels:
 
 ```typescript
-// Open two channels on the same space with different conversations
+// Open two channels on the same space
 const research = await client.openChannel('space-id', 'research');
 const main = await client.openChannel('space-id', 'main');
 
@@ -969,11 +969,11 @@ main.close();
 ```
 
 **Use cases:**
-- **Chat app with sidebar** — Each sidebar entry is a channel with a different conversationId
-- **Page refresh** — Store the conversationId in localStorage to resume the same conversation
-- **Collaborative conversations** — Share a conversationId between users to enable shared AI conversation history
+- **Chat app with sidebar** — Each sidebar entry is a channel with a different channelId
+- **Page refresh** — Store the channelId in localStorage to resume the same channel
+- **Collaborative channels** — Share a channelId between users to enable shared AI interaction history
 
-**Tip:** Use the user's id as conversationId to share context across tabs/devices, or a fixed string like `'shared'` to share context across all users.
+**Tip:** Use the user's id as channelId to share context across tabs/devices, or a fixed string like `'shared'` to share context across all users.
 
 Note: Interaction history is truncated to the most recent 50 entries to manage space size.
 
@@ -985,7 +985,7 @@ The `ai` field in interactions distinguishes AI-generated responses from synthet
 
 ### Tool Calls
 
-The `toolCalls` array captures what the AI agent did during execution. Use it to build responsive UIs that show progress while the agent works — the `conversationUpdated` event fires as each tool completes, letting you display status updates or hints in real-time.
+The `toolCalls` array captures what the AI agent did during execution. Use it to build responsive UIs that show progress while the agent works — the `channelUpdated` event fires as each tool completes, letting you display status updates or hints in real-time.
 
 ## Data Types
 
@@ -1036,21 +1036,21 @@ interface RoolObjectStat {
 }
 ```
 
-### Conversations
+### Channels
 
 ```typescript
-// Conversation container with metadata
-interface Conversation {
-  name?: string;                // Conversation name (optional)
-  createdAt: number;            // Timestamp when conversation was created
-  createdBy: string;            // User ID who created the conversation
+// Channel container with metadata
+interface Channel {
+  name?: string;                // Channel name (optional)
+  createdAt: number;            // Timestamp when channel was created
+  createdBy: string;            // User ID who created the channel
   createdByName?: string;       // Display name at time of creation
   systemInstruction?: string;   // Custom system instruction for AI
   interactions: Interaction[];  // Interaction history
 }
 
-// Conversation summary info (returned by client.getChannels)
-interface ConversationInfo {
+// Channel summary info (returned by client.getChannels)
+interface ChannelInfo {
   id: string;
   name: string | null;
   createdAt: number;
@@ -1059,6 +1059,8 @@ interface ConversationInfo {
   interactionCount: number;
 }
 ```
+
+Note: `Channel` and `ChannelInfo` are data types describing the stored channel metadata. The `Channel` interface is the wire format; `RoolChannel` is the live SDK class you interact with.
 
 ### Interaction Types
 
@@ -1108,7 +1110,7 @@ interface PromptOptions {
   objectIds?: string[];      // Scope to specific objects
   responseSchema?: Record<string, unknown>;
   effort?: PromptEffort;     // Effort level (default: 'STANDARD')
-  ephemeral?: boolean;       // Don't record in conversation history
+  ephemeral?: boolean;       // Don't record in interaction history
   readOnly?: boolean;        // Disable mutation tools (default: false)
   attachments?: Array<File | Blob | { data: string; contentType: string }>;  // Files to attach (uploaded to media store)
 }
@@ -1119,7 +1121,7 @@ interface PromptOptions {
 A Rool Space is a persistent, shared world model. Applications project different interaction patterns onto the same core primitives:
 
 - **Objects** store durable state, with references to other objects via data fields
-- **Channels** provide independent AI conversation contexts over shared objects
+- **Channels** provide independent AI interaction contexts over shared objects
 - **Events** describe what changed in real-time
 
 Below are a few representative patterns.
@@ -1133,7 +1135,7 @@ Below are a few representative patterns.
 **Pattern**
 - Interaction history syncs in real-time; UI renders entries as chat bubbles
 - Artifacts are persistent objects shared across all channels
-- Listen to `conversationUpdated` to update chat UI
+- Listen to `channelUpdated` event to update chat UI
 - Selecting objects defines the AI working set via `objectIds`
 
 ### Multi-User World / Text Adventure

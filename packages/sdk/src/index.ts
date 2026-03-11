@@ -28,8 +28,8 @@ export type {
   // Subscription event types (wire protocol)
   ClientEvent,
   ClientEventType,
-  SpaceEvent,
-  SpaceEventType,
+  ChannelEvent,
+  ChannelEventType,
   RoolEventSource,
 
   // User types
@@ -66,17 +66,16 @@ export type {
 
   // Event types (emitter)
   ChannelEvents,
-  SpaceEvents,
   ObjectCreatedEvent,
   ObjectUpdatedEvent,
   ObjectDeletedEvent,
   MetadataUpdatedEvent,
-  ConversationUpdatedEvent,
-  SpaceResetEvent,
+  ChannelUpdatedEvent,
+  ResetEvent,
 
-  // Conversation types
-  Conversation,
-  ConversationInfo,
+  // Channel types
+  Channel,
+  ChannelInfo,
   Interaction,
 
   // Config types

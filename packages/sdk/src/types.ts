@@ -95,9 +95,9 @@ export interface Interaction {
 }
 
 /**
- * A conversation container with metadata and interaction history.
+ * A channel container with metadata and interaction history.
  */
-export interface Conversation {
+export interface Channel {
   name?: string;
   createdAt: number;
   createdBy: string;
@@ -106,10 +106,11 @@ export interface Conversation {
   interactions: Interaction[];
 }
 
+
 /**
- * Conversation info for listing - summary without full interaction history.
+ * Channel info for listing - summary without full interaction history.
  */
-export interface ConversationInfo {
+export interface ChannelInfo {
   id: string;
   name: string | null;
   createdAt: number;
@@ -117,6 +118,7 @@ export interface ConversationInfo {
   createdByName: string | null;
   interactionCount: number;
 }
+
 
 // =============================================================================
 // Space Info & User Types
@@ -326,10 +328,10 @@ export interface ClientEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Space-level events (semantic content changes)
+// Channel-level subscription events (wire protocol)
 // -----------------------------------------------------------------------------
 
-export type SpaceEventType =
+export type ChannelEventType =
   | 'connected'
   | 'space_changed'
   | 'object_created'
@@ -337,11 +339,12 @@ export type SpaceEventType =
   | 'object_deleted'
   | 'schema_updated'
   | 'metadata_updated'
-  | 'conversation_updated'
-  | 'conversation_deleted';
+  | 'channel_updated'
+  | 'channel_deleted';
 
-export interface SpaceEvent {
-  type: SpaceEventType;
+
+export interface ChannelEvent {
+  type: ChannelEventType;
   spaceId: string;
   timestamp: number;
   source: RoolEventSource;
@@ -354,12 +357,13 @@ export interface SpaceEvent {
   schema?: SpaceSchema;
   // Metadata events
   metadata?: Record<string, unknown>;
-  // Conversation events
-  conversationId?: string;
-  conversation?: Conversation;
+  // Channel events
+  channelId?: string;
+  channel?: Channel;
   // Connected events
   serverVersion?: number;
 }
+
 
 // =============================================================================
 // Client Configuration
@@ -439,7 +443,7 @@ export interface RoolClientEvents {
   /** Emitted when a space is renamed (by any client) */
   spaceRenamed: (spaceId: string, newName: string) => void;
   /** Emitted when a channel is created in a space */
-  channelCreated: (spaceId: string, channel: ConversationInfo) => void;
+  channelCreated: (spaceId: string, channel: ChannelInfo) => void;
   /** Emitted when a channel is renamed */
   channelRenamed: (spaceId: string, channelId: string, newName: string) => void;
   /** Emitted when a channel is deleted */
@@ -490,14 +494,16 @@ export interface MetadataUpdatedEvent {
   source: ChangeSource;
 }
 
-export interface SpaceResetEvent {
+export interface ResetEvent {
   source: ChangeSource;
 }
 
-export interface ConversationUpdatedEvent {
-  conversationId: string;
+
+export interface ChannelUpdatedEvent {
+  channelId: string;
   source: ChangeSource;
 }
+
 
 /**
  * Channel-level events (content changes within a specific channel).
@@ -505,7 +511,7 @@ export interface ConversationUpdatedEvent {
  * Semantic events describe what changed:
  * - `objectCreated`, `objectUpdated`, `objectDeleted`: Object changes
  * - `metadataUpdated`: Space metadata changes
- * - `conversationUpdated`: Conversation interaction history changed
+ * - `channelUpdated`: Channel interaction history changed
  * - `reset`: Full state replacement (undo/redo, resync)
  *
  * Events fire for both local changes and remote changes (from other users or AI agents).
@@ -520,10 +526,10 @@ export interface ChannelEvents {
   objectDeleted: (event: ObjectDeletedEvent) => void;
   /** Space metadata was updated */
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
-  /** Conversation interaction history was updated */
-  conversationUpdated: (event: ConversationUpdatedEvent) => void;
+  /** Channel interaction history was updated */
+  channelUpdated: (event: ChannelUpdatedEvent) => void;
   /** Full state replacement (undo/redo, resync) */
-  reset: (event: SpaceResetEvent) => void;
+  reset: (event: ResetEvent) => void;
   /** Emitted when a sync error occurs and the channel resyncs from server */
   syncError: (error: Error) => void;
   /** Index signature for EventEmitter compatibility */
@@ -531,8 +537,6 @@ export interface ChannelEvents {
   [key: string]: (...args: any[]) => void;
 }
 
-/** @deprecated Use ChannelEvents instead */
-export type SpaceEvents = ChannelEvents;
 
 // =============================================================================
 // Auth Types

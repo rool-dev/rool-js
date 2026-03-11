@@ -58,13 +58,13 @@ Examples:
       // Find or create space by name
       const spaces = await client.listSpaces();
       const spaceInfo = spaces.find(s => s.name === opts.space);
-      const conversationId = generateEntityId();
+      const channelId = generateEntityId();
       let channel: RoolChannel;
       if (spaceInfo) {
-        channel = await client.openChannel(spaceInfo.id, conversationId);
+        channel = await client.openChannel(spaceInfo.id, channelId);
       } else {
         const space = await client.createSpace(opts.space);
-        channel = await space.openChannel(conversationId);
+        channel = await space.openChannel(channelId);
       }
 
       try {

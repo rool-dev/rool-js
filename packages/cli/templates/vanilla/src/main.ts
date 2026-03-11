@@ -150,13 +150,13 @@ async function main() {
   const spaces = await client.listSpaces();
   const existing = spaces.find((s) => s.name === APP_NAME);
 
-  const conversationId = generateEntityId();
+  const channelId = generateEntityId();
   let channel: RoolChannel;
   if (existing) {
-    channel = await client.openChannel(existing.id, conversationId);
+    channel = await client.openChannel(existing.id, channelId);
   } else {
     const space = await client.createSpace(APP_NAME);
-    channel = await space.openChannel(conversationId);
+    channel = await space.openChannel(channelId);
   }
 
   renderApp(channel);

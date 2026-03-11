@@ -50,7 +50,7 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.spacesError` | Error from loading spaces |
 | `rool.connectionState` | SSE connection state |
 | `rool.userStorage` | User storage (cross-device preferences) |
-| `channel.interactions` | Conversation interactions (auto-updates) |
+| `channel.interactions` | Channel interactions (auto-updates) |
 | `watch.objects` | Objects matching a filter (auto-updates) |
 | `watch.loading` | Whether watch is loading |
 
@@ -121,8 +121,8 @@ Reactive cross-device storage for user preferences. Synced from server on `init(
 ### Spaces & Channels
 
 ```typescript
-// Open a channel (space + conversation pair) — reactive, with SSE
-const channel = await rool.openChannel('space-id', 'my-conversation');
+// Open a channel — reactive, with SSE
+const channel = await rool.openChannel('space-id', 'my-channel');
 
 // Create a space, then open a channel on it
 const space = await rool.createSpace('My New Space');
@@ -257,7 +257,7 @@ articles.close()   // Stop listening for updates
 
 ### Reactive Channel List
 
-List channels (conversations) for a space with auto-updates:
+List channels for a space with auto-updates:
 
 ```svelte
 <script>
@@ -279,7 +279,7 @@ List channels (conversations) for a space with auto-updates:
 
 ```typescript
 // Reactive state
-channelList.list      // $state<ConversationInfo[]>
+channelList.list      // $state<ChannelInfo[]>
 channelList.loading   // $state<boolean>
 
 // Methods
@@ -309,7 +309,7 @@ All `RoolChannel` methods and properties are available on `ReactiveChannel`:
 channel.id
 channel.name
 channel.role
-channel.conversationId
+channel.channelId
 
 // Object operations
 await channel.getObject(id)
@@ -335,7 +335,7 @@ await channel.checkpoint('Before edit')
 await channel.undo()
 await channel.redo()
 
-// Conversations
+// Interaction history
 await channel.setSystemInstruction('You are helpful')
 channel.getInteractions()
 
@@ -368,7 +368,7 @@ import type {
   RoolObject,
   RoolUserRole,
   ConnectionState,
-  ConversationInfo,
+  ChannelInfo,
   Interaction,
   FindObjectsOptions,
   PromptOptions,

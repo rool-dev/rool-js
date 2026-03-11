@@ -226,19 +226,19 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Open a channel (space + conversation pair).
+   * Open a channel (space + channelId pair).
    * Loads the space data from the server and returns a RoolChannel instance.
    * The channel manages its own real-time subscription.
-   * If the conversation doesn't exist, the server creates it.
+   * If the channel doesn't exist, the server creates it.
    *
    * @param spaceId - The ID of the space
-   * @param conversationId - The conversation ID for this channel
+   * @param channelId - The channel ID
    */
-  async openChannel(spaceId: string, conversationId: string): Promise<RoolChannel> {
+  async openChannel(spaceId: string, channelId: string): Promise<RoolChannel> {
     // Ensure client subscription is active (for lifecycle events)
     void this.ensureSubscribed();
 
-    const result = await this.graphqlClient.openChannel(spaceId, conversationId);
+    const result = await this.graphqlClient.openChannel(spaceId, channelId);
 
     const channel = new RoolChannel({
       id: spaceId,
@@ -250,8 +250,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       objectStats: result.objectStats,
       schema: result.schema,
       meta: result.meta,
-      conversation: result.conversation,
-      conversationId,
+      channel: result.channel,
+      channelId,
       graphqlClient: this.graphqlClient,
       mediaClient: this.mediaClient,
       graphqlUrl: this.urls.graphql,
@@ -274,7 +274,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Returns a lightweight handle for user management, link access,
    * channel management, and export. Does not start a real-time subscription.
    *
-   * To work with objects and AI, call space.openChannel(conversationId).
+   * To work with objects and AI, call space.openChannel(channelId).
    */
   async openSpace(spaceId: string): Promise<RoolSpace> {
     const { name, role, linkAccess, channels } = await this.graphqlClient.openSpace(spaceId);
@@ -294,7 +294,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   /**
    * Create a new space.
    * Returns a RoolSpace handle for admin operations.
-   * Call space.openChannel(conversationId) to start working with objects.
+   * Call space.openChannel(channelId) to start working with objects.
    */
   async createSpace(name: string): Promise<RoolSpace> {
     // Ensure client subscription is active (for lifecycle events)
@@ -315,19 +315,19 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Rename a channel (conversation) in a space.
+   * Rename a channel in a space.
    * Lightweight — single GraphQL mutation, no subscription needed.
    */
   async renameChannel(spaceId: string, channelId: string, name: string): Promise<void> {
-    await this.graphqlClient.renameConversation(spaceId, channelId, name);
+    await this.graphqlClient.renameChannel(spaceId, channelId, name);
   }
 
   /**
-   * Delete a channel (conversation) from a space.
+   * Delete a channel from a space.
    * Lightweight — single GraphQL mutation, no subscription needed.
    */
   async deleteChannel(spaceId: string, channelId: string): Promise<void> {
-    await this.graphqlClient.deleteConversation(spaceId, channelId);
+    await this.graphqlClient.deleteChannel(spaceId, channelId);
   }
 
   /**

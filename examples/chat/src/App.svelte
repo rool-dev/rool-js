@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createRool, generateId, type ReactiveChannel, type ReactiveChannelList, type ConversationInfo } from '@rool-dev/svelte';
+  import { createRool, generateId, type ReactiveChannel, type ReactiveChannelList, type ChannelInfo } from '@rool-dev/svelte';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import Header from './Header.svelte';
@@ -92,7 +92,7 @@
     editingName = 'New Chat';
   }
 
-  function startEditing(conv: ConversationInfo, e: MouseEvent) {
+  function startEditing(conv: ChannelInfo, e: MouseEvent) {
     e.stopPropagation();
     editingChannelId = conv.id;
     editingName = conv.name ?? '';

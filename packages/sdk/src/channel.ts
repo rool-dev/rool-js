@@ -2,7 +2,7 @@ import { EventEmitter } from './event-emitter.js';
 import type { GraphQLClient } from './graphql.js';
 import type { MediaClient } from './media.js';
 import type { AuthManager } from './auth.js';
-import { SpaceSubscriptionManager } from './subscription.js';
+import { ChannelSubscriptionManager } from './subscription.js';
 import type { Logger } from './logger.js';
 import type {
   RoolObject,
@@ -16,9 +16,9 @@ import type {
   MediaInfo,
   MediaResponse,
   ChangeSource,
-  SpaceEvent,
+  ChannelEvent,
   Interaction,
-  Conversation,
+  Channel,
   LinkAccess,
   SpaceSchema,
   CollectionDef,
@@ -54,10 +54,10 @@ export interface ChannelConfig {
   schema: SpaceSchema;
   /** Space metadata */
   meta: Record<string, unknown>;
-  /** This channel's conversation (undefined if new) */
-  conversation: Conversation | undefined;
-  /** Conversation ID for this channel (required). */
-  conversationId: string;
+  /** This channel's conversation data (undefined if new) */
+  channel: Channel | undefined;
+  /** Channel ID for this channel (required). */
+  channelId: string;
   graphqlClient: GraphQLClient;
   mediaClient: MediaClient;
   graphqlUrl: string;
@@ -67,11 +67,11 @@ export interface ChannelConfig {
 }
 
 /**
- * A channel is a space + conversationId pair.
+ * A channel is a space + channelId pair.
  *
- * All object operations go through a channel. The conversationId is fixed
- * at open time and cannot be changed. To use a different conversation,
- * open a second channel.
+ * All object operations go through a channel. The channelId is fixed
+ * at open time and cannot be changed. To use a different channel,
+ * open a second one.
  *
  * Objects are fetched on demand from the server; only schema, metadata,
  * and the channel's own conversation are cached locally. Object changes
@@ -90,11 +90,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _role: RoolUserRole;
   private _linkAccess: LinkAccess;
   private _userId: string;
-  private _conversationId: string;
+  private _channelId: string;
   private _closed: boolean = false;
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
-  private subscriptionManager: SpaceSubscriptionManager;
+  private subscriptionManager: ChannelSubscriptionManager;
   private onCloseCallback: (spaceId: string) => void;
   private _subscriptionReady: Promise<void>;
   private logger: Logger;
@@ -102,7 +102,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // Local cache for bounded data (schema, metadata, own conversation, object IDs, stats)
   private _meta: Record<string, unknown>;
   private _schema: SpaceSchema;
-  private _conversation: Conversation | undefined;
+  private _conversation: Channel | undefined;
   private _objectIds: string[];
   private _objectStats: Map<string, RoolObjectStat>;
 
@@ -122,7 +122,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._linkAccess = config.linkAccess;
     this._userId = config.userId;
     this._emitterLogger = config.logger;
-    this._conversationId = config.conversationId;
+    this._channelId = config.channelId;
     this.graphqlClient = config.graphqlClient;
     this.mediaClient = config.mediaClient;
     this.logger = config.logger;
@@ -131,20 +131,20 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     // Initialize local cache from server data
     this._meta = config.meta;
     this._schema = config.schema;
-    this._conversation = config.conversation;
+    this._conversation = config.channel;
     this._objectIds = config.objectIds;
     this._objectStats = new Map(Object.entries(config.objectStats));
 
-    // Create space-level subscription
-    this.subscriptionManager = new SpaceSubscriptionManager({
+    // Create channel subscription
+    this.subscriptionManager = new ChannelSubscriptionManager({
       graphqlUrl: config.graphqlUrl,
       authManager: config.authManager,
       logger: this.logger,
       spaceId: this._id,
-      conversationId: this._conversationId,
-      onEvent: (event) => this.handleSpaceEvent(event),
+      channelId: this._channelId,
+      onEvent: (event) => this.handleChannelEvent(event),
       onConnectionStateChanged: () => {
-        // Space-level connection state (could emit events if needed)
+        // Channel connection state (could emit events if needed)
       },
       onError: (error) => {
         this.logger.error(`[RoolChannel ${this._id}] Subscription error:`, error);
@@ -190,11 +190,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Get the conversation ID for this channel.
+   * Get the channel ID for this channel.
    * Fixed at open time — cannot be changed.
    */
-  get conversationId(): string {
-    return this._conversationId;
+  get channelId(): string {
+    return this._channelId;
   }
 
   get isReadOnly(): boolean {
@@ -245,7 +245,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const result = await this.graphqlClient.checkpoint(
       this._id,
       label,
-      this._conversationId,
+      this._channelId,
     );
     return result.checkpointId;
   }
@@ -254,7 +254,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Check if undo is available.
    */
   async canUndo(): Promise<boolean> {
-    const status = await this.graphqlClient.checkpointStatus(this._id, this._conversationId);
+    const status = await this.graphqlClient.checkpointStatus(this._id, this._channelId);
     return status.canUndo;
   }
 
@@ -262,7 +262,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Check if redo is available.
    */
   async canRedo(): Promise<boolean> {
-    const status = await this.graphqlClient.checkpointStatus(this._id, this._conversationId);
+    const status = await this.graphqlClient.checkpointStatus(this._id, this._channelId);
     return status.canRedo;
   }
 
@@ -273,8 +273,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @returns true if undo was performed
    */
   async undo(): Promise<boolean> {
-    const result = await this.graphqlClient.undo(this._id, this._conversationId);
-    // Server broadcasts space_changed, which triggers reset event
+    const result = await this.graphqlClient.undo(this._id, this._channelId);
+    // Server broadcasts space_changed, which triggers a reset event
     return result.success;
   }
 
@@ -283,8 +283,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @returns true if redo was performed
    */
   async redo(): Promise<boolean> {
-    const result = await this.graphqlClient.redo(this._id, this._conversationId);
-    // Server broadcasts space_changed, which triggers reset event
+    const result = await this.graphqlClient.redo(this._id, this._channelId);
+    // Server broadcasts space_changed, which triggers a reset event
     return result.success;
   }
 
@@ -292,7 +292,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Clear checkpoint history for this conversation.
    */
   async clearHistory(): Promise<void> {
-    await this.graphqlClient.clearCheckpointHistory(this._id, this._conversationId);
+    await this.graphqlClient.clearCheckpointHistory(this._id, this._channelId);
   }
 
   // ===========================================================================
@@ -331,7 +331,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @returns The matching objects and a descriptive message.
    */
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
-    return this.graphqlClient.findObjects(this._id, options, this._conversationId);
+    return this.graphqlClient.findObjects(this._id, options, this._channelId);
   }
 
   /**
@@ -377,7 +377,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     try {
       // Await mutation — server processes AI placeholders before responding.
       // SSE events arrive during the await and are buffered via _deliverObject.
-      const { message } = await this.graphqlClient.createObject(this.id, dataWithId, this._conversationId, ephemeral);
+      const { message } = await this.graphqlClient.createObject(this.id, dataWithId, this._channelId, ephemeral);
       // Collect resolved object from buffer (or wait if not yet arrived)
       const object = await this._collectObject(objectId);
       return { object, message };
@@ -433,7 +433,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
 
     try {
-      const { message } = await this.graphqlClient.updateObject(this.id, objectId, this._conversationId, serverData, options.prompt, ephemeral);
+      const { message } = await this.graphqlClient.updateObject(this.id, objectId, this._channelId, serverData, options.prompt, ephemeral);
       const object = await this._collectObject(objectId);
       return { object, message };
     } catch (error) {
@@ -460,7 +460,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
 
     try {
-      await this.graphqlClient.deleteObjects(this.id, objectIds, this._conversationId);
+      await this.graphqlClient.deleteObjects(this.id, objectIds, this._channelId);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to delete objects:', error);
       for (const objectId of objectIds) {
@@ -500,7 +500,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._schema[name] = optimisticDef;
 
     try {
-      return await this.graphqlClient.createCollection(this._id, name, fields, this._conversationId);
+      return await this.graphqlClient.createCollection(this._id, name, fields, this._channelId);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to create collection:', error);
       delete this._schema[name];
@@ -524,7 +524,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._schema[name] = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
 
     try {
-      return await this.graphqlClient.alterCollection(this._id, name, fields, this._conversationId);
+      return await this.graphqlClient.alterCollection(this._id, name, fields, this._channelId);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to alter collection:', error);
       this._schema[name] = previous;
@@ -546,7 +546,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     delete this._schema[name];
 
     try {
-      await this.graphqlClient.dropCollection(this._id, name, this._conversationId);
+      await this.graphqlClient.dropCollection(this._id, name, this._channelId);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to drop collection:', error);
       this._schema[name] = previous;
@@ -588,14 +588,14 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
 
     // Emit event
-    this.emit('conversationUpdated', {
-      conversationId: this._conversationId,
+    this.emit('channelUpdated', {
+      channelId: this._channelId,
       source: 'local_user',
     });
 
     // Call server
     try {
-      await this.graphqlClient.setSystemInstruction(this.id, this._conversationId, instruction);
+      await this.graphqlClient.setSystemInstruction(this.id, this._channelId, instruction);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to set system instruction:', error);
       this._conversation = previous;
@@ -616,7 +616,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this.emit('metadataUpdated', { metadata: this._meta, source: 'local_user' });
 
     // Fire-and-forget server call
-    this.graphqlClient.setSpaceMeta(this.id, this._meta, this._conversationId)
+    this.graphqlClient.setSpaceMeta(this.id, this._meta, this._channelId)
       .catch((error) => {
         this.logger.error('[RoolChannel] Failed to set meta:', error);
       });
@@ -654,7 +654,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       );
     }
 
-    const result = await this.graphqlClient.prompt(this._id, prompt, this._conversationId, { ...rest, attachmentUrls });
+    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, { ...rest, attachmentUrls });
 
     // Collect modified objects — they arrive via SSE events during/after the mutation.
     // Try collecting from buffer first, then fetch any missing from server.
@@ -695,7 +695,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Rename this channel (conversation).
    */
   async rename(newName: string): Promise<void> {
-    await this.graphqlClient.renameConversation(this._id, this._conversationId, newName);
+    await this.graphqlClient.renameChannel(this._id, this._channelId, newName);
   }
 
   // ===========================================================================
@@ -800,10 +800,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // ===========================================================================
 
   /**
-   * Handle a space event from the subscription.
+   * Handle a channel event from the subscription.
    * @internal
    */
-  private handleSpaceEvent(event: SpaceEvent): void {
+  private handleChannelEvent(event: ChannelEvent): void {
     // Ignore events after close - the channel is being torn down
     if (this._closed) return;
 
@@ -844,21 +844,21 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
         }
         break;
 
-      case 'conversation_updated':
-        // Only update if it's our conversation
-        if (event.conversationId === this._conversationId && event.conversation) {
-          this._conversation = event.conversation;
-          this.emit('conversationUpdated', { conversationId: event.conversationId, source: changeSource });
+      case 'channel_updated':
+        // Only update if it's our channel
+        if (event.channelId === this._channelId && event.channel) {
+          this._conversation = event.channel;
+          this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
         }
         break;
 
       case 'space_changed':
         // Full reload needed (undo/redo, bulk operations)
-        void this.graphqlClient.openChannel(this._id, this._conversationId).then((result) => {
+        void this.graphqlClient.openChannel(this._id, this._channelId).then((result) => {
           if (this._closed) return;
           this._meta = result.meta;
           this._schema = result.schema;
-          this._conversation = result.conversation;
+          this._conversation = result.channel;
           this._objectIds = result.objectIds;
           this._objectStats = new Map(Object.entries(result.objectStats));
           this.emit('reset', { source: changeSource });

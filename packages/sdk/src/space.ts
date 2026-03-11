@@ -9,7 +9,7 @@ import type {
   RoolUserRole,
   LinkAccess,
   SpaceMember,
-  ConversationInfo,
+  ChannelInfo,
 } from './types.js';
 
 export interface SpaceConfig {
@@ -18,11 +18,11 @@ export interface SpaceConfig {
   role: RoolUserRole;
   linkAccess: LinkAccess;
   /** Initial channel summaries (for getChannels without a round-trip) */
-  channels: ConversationInfo[];
+  channels: ChannelInfo[];
   graphqlClient: GraphQLClient;
   mediaClient: MediaClient;
   /** Callback to open a channel via the client */
-  openChannelFn: (spaceId: string, conversationId: string) => Promise<RoolChannel>;
+  openChannelFn: (spaceId: string, channelId: string) => Promise<RoolChannel>;
 }
 
 /**
@@ -39,10 +39,10 @@ export class RoolSpace {
   private _name: string;
   private _role: RoolUserRole;
   private _linkAccess: LinkAccess;
-  private _channels: ConversationInfo[];
+  private _channels: ChannelInfo[];
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
-  private _openChannelFn: (spaceId: string, conversationId: string) => Promise<RoolChannel>;
+  private _openChannelFn: (spaceId: string, channelId: string) => Promise<RoolChannel>;
 
   constructor(config: SpaceConfig) {
     this._id = config.id;
@@ -69,11 +69,11 @@ export class RoolSpace {
   // ===========================================================================
 
   /**
-   * Open a channel on this space with a specific conversation.
-   * If the conversation doesn't exist, the server creates it.
+   * Open a channel on this space.
+   * If the channel doesn't exist, the server creates it.
    */
-  async openChannel(conversationId: string): Promise<RoolChannel> {
-    return this._openChannelFn(this._id, conversationId);
+  async openChannel(channelId: string): Promise<RoolChannel> {
+    return this._openChannelFn(this._id, channelId);
   }
 
   // ===========================================================================
@@ -144,15 +144,15 @@ export class RoolSpace {
    * Returns from cached snapshot (populated at open time).
    * Call refresh() to update from server.
    */
-  getChannels(): ConversationInfo[] {
+  getChannels(): ChannelInfo[] {
     return this._channels;
   }
 
   /**
-   * Delete a channel (conversation) from this space.
+   * Delete a channel from this space.
    */
   async deleteChannel(channelId: string): Promise<void> {
-    await this.graphqlClient.deleteConversation(this._id, channelId);
+    await this.graphqlClient.deleteChannel(this._id, channelId);
     this._channels = this._channels.filter(c => c.id !== channelId);
   }
 

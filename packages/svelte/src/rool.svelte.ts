@@ -117,11 +117,11 @@ class RoolImpl {
   }
 
   /**
-   * Open a channel (space + conversation pair).
+   * Open a channel (space + channelId pair).
    * Returns a ReactiveChannel with reactive `interactions`.
    */
-  async openChannel(spaceId: string, conversationId: string): Promise<ReactiveChannel> {
-    const channel = await this.#client.openChannel(spaceId, conversationId);
+  async openChannel(spaceId: string, channelId: string): Promise<ReactiveChannel> {
+    const channel = await this.#client.openChannel(spaceId, channelId);
     const reactiveChannel = wrapChannel(channel);
     this.#openChannels.add(reactiveChannel);
     return reactiveChannel;
