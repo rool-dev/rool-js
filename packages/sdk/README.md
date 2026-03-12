@@ -105,6 +105,10 @@ await channel2.prompt('Analyze the data');  // Independent channel
 
 The `channelId` is fixed when you open a channel and cannot be changed. To use a different channel, open a new one. Both channels share the same objects and schema — only the interaction history differs.
 
+**Channel ID constraints:**
+- 1–32 characters
+- Only alphanumeric characters, hyphens (`-`), and underscores (`_`)
+
 ### Objects & References
 
 **Objects** are plain key-value records. The `id` field is reserved; everything else is application-defined.

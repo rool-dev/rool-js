@@ -235,6 +235,10 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * @param channelId - The channel ID
    */
   async openChannel(spaceId: string, channelId: string): Promise<RoolChannel> {
+    if (!channelId || channelId.length > 32 || !/^[a-zA-Z0-9_-]+$/.test(channelId)) {
+      throw new Error('channelId must be 1–32 characters containing only alphanumeric characters, hyphens, and underscores');
+    }
+
     // Ensure client subscription is active (for lifecycle events)
     void this.ensureSubscribed();
 
