@@ -190,6 +190,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
+   * Get the channel's display name, or null if not set.
+   */
+  get channelName(): string | null {
+    return this._channel?.name ?? null;
+  }
+
+  /**
    * Get the channel ID for this channel.
    * Fixed at open time — cannot be changed.
    */

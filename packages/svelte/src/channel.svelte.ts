@@ -265,6 +265,7 @@ class ReactiveChannelImpl {
   get role() { return this.#channel.role; }
   get userId() { return this.#channel.userId; }
   get channelId() { return this.#channel.channelId; }
+  get channelName() { return this.#channel.channelName; }
   get isReadOnly() { return this.#channel.isReadOnly; }
   get linkAccess() { return this.#channel.linkAccess; }
 
