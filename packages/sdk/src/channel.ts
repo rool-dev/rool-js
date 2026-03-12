@@ -721,9 +721,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   /**
    * Fetch any URL, returning headers and a blob() method (like fetch Response).
    * Adds auth headers for backend media URLs, fetches external URLs via server proxy if CORS blocks.
+   * Pass `{ forceProxy: true }` to skip the direct fetch and go straight through the server proxy.
    */
-  async fetchMedia(url: string): Promise<MediaResponse> {
-    return this.mediaClient.fetch(this._id, url);
+  async fetchMedia(url: string, options?: { forceProxy?: boolean }): Promise<MediaResponse> {
+    return this.mediaClient.fetch(this._id, url, options);
   }
 
   /**

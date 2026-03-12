@@ -116,11 +116,14 @@ export class MediaClient {
    * For backend URLs: adds auth headers.
    * For external URLs: tries direct fetch first, falls back to server proxy if CORS blocks it.
    */
-  async fetch(spaceId: string, url: string): Promise<MediaResponse> {
+  async fetch(spaceId: string, url: string, options?: { forceProxy?: boolean }): Promise<MediaResponse> {
     let response: Response;
 
     if (this.isBackendUrl(url)) {
       response = await this.fetchWithAuth(url);
+    } else if (options?.forceProxy) {
+      // Skip direct fetch, go straight to proxy
+      response = await this.fetchViaProxy(spaceId, url);
     } else {
       // External URL: try direct fetch first
       try {

@@ -739,7 +739,7 @@ Media URLs in object fields are visible to AI. Both uploaded and AI-generated me
 | Method | Description |
 |--------|-------------|
 | `uploadMedia(file): Promise<string>` | Upload file, returns URL |
-| `fetchMedia(url): Promise<MediaResponse>` | Fetch any URL, returns headers and blob() method (adds auth for backend URLs, works for external URLs too) |
+| `fetchMedia(url, options?): Promise<MediaResponse>` | Fetch any URL, returns headers and blob() method (adds auth for backend URLs, works for external URLs too). Pass `{ forceProxy: true }` to skip the direct fetch and route through the server proxy immediately. |
 | `deleteMedia(url): Promise<void>` | Delete media file by URL |
 | `listMedia(): Promise<MediaInfo[]>` | List all media with metadata |
 
