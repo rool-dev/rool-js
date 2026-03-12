@@ -51,15 +51,27 @@ class ReactiveWatchImpl {
       const nowMatches = this.#matches(object);
 
       if (wasInCollection && nowMatches) {
-        // Update in place
+        // Update in place (merge to preserve fields from partial optimistic updates)
         const index = this.objects.findIndex((o) => o.id === objectId);
         if (index !== -1) {
-          this.objects[index] = object;
+          this.objects[index] = { ...this.objects[index], ...object };
         }
       } else if (wasInCollection && !nowMatches) {
-        // Remove from collection
-        this.objects = this.objects.filter((o) => o.id !== objectId);
-        this.#currentIds.delete(objectId);
+        // Check if the mismatch is due to missing keys (partial optimistic update)
+        // vs. genuinely changed values that no longer satisfy the filter.
+        const where = this.#options.where;
+        const isPartialUpdate = where && Object.keys(where).some((key) => !(key in object));
+        if (isPartialUpdate) {
+          // Partial update — merge onto existing object instead of removing
+          const index = this.objects.findIndex((o) => o.id === objectId);
+          if (index !== -1) {
+            this.objects[index] = { ...this.objects[index], ...object };
+          }
+        } else {
+          // Genuine mismatch — remove from collection
+          this.objects = this.objects.filter((o) => o.id !== objectId);
+          this.#currentIds.delete(objectId);
+        }
       } else if (!wasInCollection && nowMatches) {
         // Add to collection (re-fetch to respect limit/order)
         this.refresh();
