@@ -6,8 +6,12 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RoolSpaceInfo } from '../types.js';
+import type { Environment } from '../client.js';
 import { getClient } from '../client.js';
 import { jsonResult, textResult, withErrorHandling } from '../utils.js';
+
+const envParam = z.enum(['local', 'dev', 'prod']).optional()
+  .describe('Environment to target: "local", "dev", or "prod". Default: dev.');
 
 export function registerConversationTools(server: McpServer): void {
   // ─── List Conversations ──────────────────────────────────────────────
@@ -16,9 +20,10 @@ export function registerConversationTools(server: McpServer): void {
     'List all conversations in a Rool space with summary info.',
     {
       space: z.string().describe('Space name'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName }) => {
-      const client = await getClient();
+    withErrorHandling(async ({ space: spaceName, environment }: { space: string; environment?: Environment }) => {
+      const client = await getClient(environment);
       const spaces = await client.listSpaces();
       const info = spaces.find((s: RoolSpaceInfo) => s.name === spaceName);
 
@@ -45,9 +50,10 @@ export function registerConversationTools(server: McpServer): void {
       space: z.string().describe('Space name'),
       conversation_id: z.string().describe('ID of the conversation to rename'),
       name: z.string().describe('New name for the conversation'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName, conversation_id, name }) => {
-      const client = await getClient();
+    withErrorHandling(async ({ space: spaceName, conversation_id, name, environment }: { space: string; conversation_id: string; name: string; environment?: Environment }) => {
+      const client = await getClient(environment);
       const spaces = await client.listSpaces();
       const info = spaces.find((s: RoolSpaceInfo) => s.name === spaceName);
 
@@ -67,9 +73,10 @@ export function registerConversationTools(server: McpServer): void {
     {
       space: z.string().describe('Space name'),
       conversation_id: z.string().optional().describe('ID of the conversation to delete (defaults to current "mcp" conversation)'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName, conversation_id }) => {
-      const client = await getClient();
+    withErrorHandling(async ({ space: spaceName, conversation_id, environment }: { space: string; conversation_id?: string; environment?: Environment }) => {
+      const client = await getClient(environment);
       const spaces = await client.listSpaces();
       const info = spaces.find((s: RoolSpaceInfo) => s.name === spaceName);
 

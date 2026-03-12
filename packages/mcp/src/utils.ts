@@ -4,28 +4,33 @@
 // =============================================================================
 
 import type { RoolClient, RoolChannel, RoolSpaceInfo, CallToolResult } from './types.js';
+import type { Environment } from './client.js';
+import { getDefaultEnv } from './client.js';
 
 const DEFAULT_CHANNEL_ID = 'mcp';
 
 // =============================================================================
 // Channel Cache
 // Open channels are cached for the lifetime of the MCP server process.
-// This avoids reconnection overhead and preserves conversation context.
+// Cache keys include the environment to keep channels isolated per-env.
 // =============================================================================
 
 const openChannels = new Map<string, RoolChannel>();
 
 /**
  * Resolve a channel by space name — finds or creates the space, then opens
- * a channel on it (or returns cached).
+ * a channel on it (or returns cached). Environment-aware: channels from
+ * different environments are cached separately.
  */
 export async function resolveSpace(
   client: RoolClient,
   spaceName: string,
   conversationId?: string,
+  env?: Environment,
 ): Promise<RoolChannel> {
   const channelId = conversationId ?? DEFAULT_CHANNEL_ID;
-  const cacheKey = `${spaceName}::${channelId}`;
+  const envKey = env ?? getDefaultEnv();
+  const cacheKey = `${envKey}::${spaceName}::${channelId}`;
 
   const cached = openChannels.get(cacheKey);
   if (cached) return cached;
@@ -57,10 +62,13 @@ export function closeAllSpaces(): void {
 
 /**
  * Remove a space from the cache (e.g. after deletion).
+ * Matches all environments and channel IDs for the given space name.
  */
 export function evictSpaceByName(spaceName: string): void {
   for (const [key, channel] of openChannels.entries()) {
-    if (key.startsWith(`${spaceName}::`)) {
+    // Key format: env::spaceName::channelId
+    const parts = key.split('::');
+    if (parts[1] === spaceName) {
       channel.close();
       openChannels.delete(key);
     }

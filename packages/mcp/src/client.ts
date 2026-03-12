@@ -1,88 +1,93 @@
 // =============================================================================
-// Rool Client Singleton
-// Manages a single RoolClient instance with NodeAuthProvider for the MCP server.
+// Rool Client Pool
+// Manages RoolClient instances per environment for the MCP server.
 // Reuses credentials from ~/.config/rool/ (shared with the Rool CLI).
 // =============================================================================
 
 import { RoolClient } from '@rool-dev/sdk';
 import { NodeAuthProvider } from '@rool-dev/sdk/node';
 
-type Environment = 'local' | 'dev' | 'prod';
+export type Environment = 'local' | 'dev' | 'prod';
 
-const ENV_URLS: Record<Environment, { baseUrl: string; authUrl: string }> = {
+export const ENV_URLS: Record<Environment, { baseUrl: string; authUrl: string }> = {
   local: { baseUrl: 'http://localhost:1357', authUrl: 'https://api.dev.rool.dev/auth' },
   dev: { baseUrl: 'https://api.dev.rool.dev', authUrl: 'https://api.dev.rool.dev/auth' },
   prod: { baseUrl: 'https://api.rool.dev', authUrl: 'https://api.rool.dev/auth' },
 };
 
-let client: RoolClient | null = null;
-let clientKey: string | null = null;
+const VALID_ENVS = new Set<string>(Object.keys(ENV_URLS));
 
 /**
- * Resolve the API URLs from environment variables.
+ * Resolve the default environment from ROOL_ENV (fallback: 'dev').
+ */
+export function getDefaultEnv(): Environment {
+  const env = process.env.ROOL_ENV;
+  if (env && VALID_ENVS.has(env)) return env as Environment;
+  return 'dev';
+}
+
+// =============================================================================
+// Client Pool — one client per environment
+// =============================================================================
+
+const clients = new Map<string, RoolClient>();
+
+/**
+ * Resolve the API URLs for a given environment.
  *
  * Priority:
- *  1. ROOL_API_URL — custom base URL (auth URL derived as <baseUrl>/auth)
- *  2. ROOL_ENV — preset environment: local, dev, prod (default: prod)
+ *  1. ROOL_API_URL — custom base URL (auth URL derived as <baseUrl>/auth).
+ *     When set, the environment parameter is ignored.
+ *  2. Explicit environment parameter (local, dev, prod).
+ *  3. ROOL_ENV fallback, then 'dev'.
  */
-function resolveUrls(): { baseUrl: string; authUrl: string } {
+function resolveUrls(env?: Environment): { key: string; baseUrl: string; authUrl: string } {
   const customUrl = process.env.ROOL_API_URL;
   if (customUrl) {
     const baseUrl = customUrl.replace(/\/+$/, '');
-    return { baseUrl, authUrl: `${baseUrl}/auth` };
+    return { key: baseUrl, baseUrl, authUrl: `${baseUrl}/auth` };
   }
 
-  const env = process.env.ROOL_ENV as Environment | undefined;
-  if (env && env in ENV_URLS) return ENV_URLS[env];
-  return ENV_URLS.prod;
+  const resolved = env ?? getDefaultEnv();
+  const urls = ENV_URLS[resolved];
+  return { key: resolved, ...urls };
 }
 
 /**
- * Get or create the singleton RoolClient.
- * On first call, creates the client and checks authentication.
- * If not authenticated, triggers browser-based login.
+ * Get or create a RoolClient for the given environment.
+ * Clients are cached and reused across tool calls.
+ * If not authenticated, triggers browser-based login automatically.
  */
-export async function getClient(): Promise<RoolClient> {
-  const urls = resolveUrls();
-  const key = urls.baseUrl;
+export async function getClient(env?: Environment): Promise<RoolClient> {
+  const { key, baseUrl, authUrl } = resolveUrls(env);
 
-  if (client && clientKey === key) {
-    return client;
-  }
-
-  // Destroy previous client if configuration changed
-  if (client) {
-    client.destroy();
-    client = null;
-  }
+  const cached = clients.get(key);
+  if (cached) return cached;
 
   const authProvider = new NodeAuthProvider({
     credentialsPath: process.env.ROOL_CREDENTIALS_PATH || undefined,
   });
 
   const newClient = new RoolClient({
-    baseUrl: urls.baseUrl,
-    authUrl: urls.authUrl,
+    baseUrl,
+    authUrl,
     authProvider,
   });
 
   if (!await newClient.isAuthenticated()) {
-    // Attempt browser login — this will open the browser and wait for auth
     await newClient.login('Rool MCP');
   }
 
-  client = newClient;
-  clientKey = key;
-  return client;
+  clients.set(key, newClient);
+  return newClient;
 }
 
 /**
- * Destroy the singleton client. Called on server shutdown.
+ * Destroy all cached clients. Called on server shutdown.
  */
-export function destroyClient(): void {
-  if (client) {
-    client.destroy();
-    client = null;
-    clientKey = null;
+export function destroyAllClients(): void {
+  for (const c of clients.values()) {
+    c.destroy();
   }
+  clients.clear();
 }

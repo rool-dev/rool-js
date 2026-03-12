@@ -8,17 +8,23 @@ import * as path from 'node:path';
 import archiver from 'archiver';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Environment } from '../client.js';
 import { getClient } from '../client.js';
 import { jsonResult, textResult, withErrorHandling } from '../utils.js';
+
+const envParam = z.enum(['local', 'dev', 'prod']).optional()
+  .describe('Environment to target: "local", "dev", or "prod". Default: dev.');
 
 export function registerAppTools(server: McpServer): void {
   // ─── List Apps ───────────────────────────────────────────────────────
   server.tool(
     'rool_list_apps',
     'List all published Rool apps for the authenticated user.',
-    {},
-    withErrorHandling(async () => {
-      const client = await getClient();
+    {
+      environment: envParam,
+    },
+    withErrorHandling(async ({ environment }: { environment?: Environment }) => {
+      const client = await getClient(environment);
       const apps = await client.listApps();
 
       if (apps.length === 0) {
@@ -37,8 +43,9 @@ export function registerAppTools(server: McpServer): void {
       app_id: z.string().describe('URL-safe app identifier (alphanumeric, hyphens, underscores)'),
       dir_path: z.string().describe('Absolute path to the directory to publish'),
       name: z.string().optional().describe('Display name for the app (defaults to app_id)'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ app_id, dir_path, name }) => {
+    withErrorHandling(async ({ app_id, dir_path, name, environment }: { app_id: string; dir_path: string; name?: string; environment?: Environment }) => {
       const resolvedPath = path.resolve(dir_path);
 
       if (!fs.existsSync(resolvedPath)) {
@@ -58,7 +65,7 @@ export function registerAppTools(server: McpServer): void {
       const zipBuffer = await zipDirectory(resolvedPath);
       const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
 
-      const client = await getClient();
+      const client = await getClient(environment);
       const result = await client.publishApp(app_id.toLowerCase(), {
         name: name ?? app_id,
         bundle: blob,
@@ -80,9 +87,10 @@ export function registerAppTools(server: McpServer): void {
     'Unpublish a Rool app by its ID.',
     {
       app_id: z.string().describe('App identifier to unpublish'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ app_id }) => {
-      const client = await getClient();
+    withErrorHandling(async ({ app_id, environment }: { app_id: string; environment?: Environment }) => {
+      const client = await getClient(environment);
       const info = await client.getAppInfo(app_id.toLowerCase());
 
       if (!info) {

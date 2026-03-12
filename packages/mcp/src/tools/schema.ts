@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Environment } from '../client.js';
 import { getClient } from '../client.js';
 import { resolveSpace, jsonResult, textResult, withErrorHandling } from '../utils.js';
 
@@ -24,6 +25,9 @@ const fieldDefSchema = z.object({
   type: fieldTypeSchema.describe('Field type (e.g. { "kind": "string" }, { "kind": "ref" }, { "kind": "array", "inner": { "kind": "string" } })'),
 });
 
+const envParam = z.enum(['local', 'dev', 'prod']).optional()
+  .describe('Environment to target: "local", "dev", or "prod". Default: dev.');
+
 export function registerSchemaTools(server: McpServer): void {
   // ─── Get Schema ──────────────────────────────────────────────────────
   server.tool(
@@ -31,10 +35,11 @@ export function registerSchemaTools(server: McpServer): void {
     'Get the collection schema for a Rool space. Returns all collection definitions with their fields and types.',
     {
       space: z.string().describe('Space name'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName }) => {
-      const client = await getClient();
-      const channel = await resolveSpace(client, spaceName);
+    withErrorHandling(async ({ space: spaceName, environment }: { space: string; environment?: Environment }) => {
+      const client = await getClient(environment);
+      const channel = await resolveSpace(client, spaceName, undefined, environment);
       const schema = channel.getSchema();
 
       if (Object.keys(schema).length === 0) {
@@ -53,10 +58,11 @@ export function registerSchemaTools(server: McpServer): void {
       space: z.string().describe('Space name'),
       name: z.string().describe('Collection name (must start with a letter, alphanumeric/hyphens/underscores only)'),
       fields: z.array(fieldDefSchema).describe('Field definitions. Each field has a name and a type like { "kind": "string" }, { "kind": "number" }, { "kind": "boolean" }, { "kind": "ref" } (reference to another object), { "kind": "array" }, { "kind": "maybe", "inner": ... }, { "kind": "enum", "values": [...] }'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName, name, fields }) => {
-      const client = await getClient();
-      const channel = await resolveSpace(client, spaceName);
+    withErrorHandling(async ({ space: spaceName, name, fields, environment }: { space: string; name: string; fields: any[]; environment?: Environment }) => {
+      const client = await getClient(environment);
+      const channel = await resolveSpace(client, spaceName, undefined, environment);
       const collection = await channel.createCollection(name, fields as any);
       return jsonResult({ name, collection });
     }),
@@ -70,10 +76,11 @@ export function registerSchemaTools(server: McpServer): void {
       space: z.string().describe('Space name'),
       name: z.string().describe('Name of the collection to alter'),
       fields: z.array(fieldDefSchema).describe('New field definitions (replaces all existing fields)'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName, name, fields }) => {
-      const client = await getClient();
-      const channel = await resolveSpace(client, spaceName);
+    withErrorHandling(async ({ space: spaceName, name, fields, environment }: { space: string; name: string; fields: any[]; environment?: Environment }) => {
+      const client = await getClient(environment);
+      const channel = await resolveSpace(client, spaceName, undefined, environment);
       const collection = await channel.alterCollection(name, fields as any);
       return jsonResult({ name, collection });
     }),
@@ -86,10 +93,11 @@ export function registerSchemaTools(server: McpServer): void {
     {
       space: z.string().describe('Space name'),
       name: z.string().describe('Name of the collection to drop'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName, name }) => {
-      const client = await getClient();
-      const channel = await resolveSpace(client, spaceName);
+    withErrorHandling(async ({ space: spaceName, name, environment }: { space: string; name: string; environment?: Environment }) => {
+      const client = await getClient(environment);
+      const channel = await resolveSpace(client, spaceName, undefined, environment);
       await channel.dropCollection(name);
       return textResult(`Dropped collection: "${name}"`);
     }),

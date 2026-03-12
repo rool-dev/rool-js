@@ -7,8 +7,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Environment } from '../client.js';
 import { getClient } from '../client.js';
 import { resolveSpace, jsonResult, textResult, withErrorHandling } from '../utils.js';
+
+const envParam = z.enum(['local', 'dev', 'prod']).optional()
+  .describe('Environment to target: "local", "dev", or "prod". Default: dev.');
 
 export function registerMediaTools(server: McpServer): void {
   // ─── Upload Media ────────────────────────────────────────────────────
@@ -18,8 +22,9 @@ export function registerMediaTools(server: McpServer): void {
     {
       space: z.string().describe('Space name'),
       file_path: z.string().describe('Absolute path to the local file to upload'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName, file_path }) => {
+    withErrorHandling(async ({ space: spaceName, file_path, environment }: { space: string; file_path: string; environment?: Environment }) => {
       if (!fs.existsSync(file_path)) {
         return textResult(`File not found: ${file_path}`);
       }
@@ -29,8 +34,8 @@ export function registerMediaTools(server: McpServer): void {
         return textResult(`Not a file: ${file_path}`);
       }
 
-      const client = await getClient();
-      const space = await resolveSpace(client, spaceName);
+      const client = await getClient(environment);
+      const space = await resolveSpace(client, spaceName, undefined, environment);
 
       const fileBuffer = fs.readFileSync(file_path);
       const contentType = guessContentType(file_path);
@@ -53,10 +58,11 @@ export function registerMediaTools(server: McpServer): void {
     'List all media files in a Rool space.',
     {
       space: z.string().describe('Space name'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ space: spaceName }) => {
-      const client = await getClient();
-      const space = await resolveSpace(client, spaceName);
+    withErrorHandling(async ({ space: spaceName, environment }: { space: string; environment?: Environment }) => {
+      const client = await getClient(environment);
+      const space = await resolveSpace(client, spaceName, undefined, environment);
       const media = await space.listMedia();
 
       if (media.length === 0) {

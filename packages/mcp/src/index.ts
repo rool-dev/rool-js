@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { destroyClient } from './client.js';
+import { destroyAllClients } from './client.js';
 import { closeAllSpaces } from './utils.js';
 import { registerChatTools } from './tools/chat.js';
 import { registerSpaceTools } from './tools/spaces.js';
@@ -52,7 +52,7 @@ registerSchemaTools(server);
 
 function cleanup(): void {
   closeAllSpaces();
-  destroyClient();
+  destroyAllClients();
 }
 
 process.on('SIGINT', () => {

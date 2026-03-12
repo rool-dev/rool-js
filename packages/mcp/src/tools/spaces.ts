@@ -5,17 +5,23 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Environment } from '../client.js';
 import { getClient } from '../client.js';
 import { evictSpaceByName, jsonResult, textResult, withErrorHandling } from '../utils.js';
+
+const envParam = z.enum(['local', 'dev', 'prod']).optional()
+  .describe('Environment to target: "local", "dev", or "prod". Default: dev.');
 
 export function registerSpaceTools(server: McpServer): void {
   // ─── List Spaces ─────────────────────────────────────────────────────
   server.tool(
     'rool_list_spaces',
     'List all Rool spaces accessible to the authenticated user.',
-    {},
-    withErrorHandling(async () => {
-      const client = await getClient();
+    {
+      environment: envParam,
+    },
+    withErrorHandling(async ({ environment }: { environment?: Environment }) => {
+      const client = await getClient(environment);
       const spaces = await client.listSpaces();
 
       if (spaces.length === 0) {
@@ -38,9 +44,10 @@ export function registerSpaceTools(server: McpServer): void {
     'Create a new Rool space.',
     {
       name: z.string().describe('Name for the new space'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ name }) => {
-      const client = await getClient();
+    withErrorHandling(async ({ name, environment }: { name: string; environment?: Environment }) => {
+      const client = await getClient(environment);
       const space = await client.createSpace(name);
       return jsonResult({ id: space.id, name: space.name, role: space.role });
     }),
@@ -52,9 +59,10 @@ export function registerSpaceTools(server: McpServer): void {
     'Delete a Rool space by name. This cannot be undone.',
     {
       name: z.string().describe('Name of the space to delete'),
+      environment: envParam,
     },
-    withErrorHandling(async ({ name }) => {
-      const client = await getClient();
+    withErrorHandling(async ({ name, environment }: { name: string; environment?: Environment }) => {
+      const client = await getClient(environment);
       const spaces = await client.listSpaces();
       const info = spaces.find(s => s.name === name);
 
