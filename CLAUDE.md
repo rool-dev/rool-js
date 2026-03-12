@@ -9,6 +9,7 @@ Official TypeScript SDK and CLI for the Rool platform. This is a pnpm monorepo.
 | @rool-dev/sdk | `packages/sdk/` | TypeScript SDK |
 | @rool-dev/cli | `packages/cli/` | Command-line interface |
 | @rool-dev/svelte | `packages/svelte/` | Svelte wrapper |
+| @rool-dev/mcp | `packages/mcp/` | MCP server |
 
 ## Commands
 - `pnpm install` - Install all dependencies
@@ -18,9 +19,10 @@ Official TypeScript SDK and CLI for the Rool platform. This is a pnpm monorepo.
 ## Package-specific instructions
 - @packages/sdk/CLAUDE.md
 - @packages/cli/CLAUDE.md
+- @packages/mcp/CLAUDE.md
 
 ## Development
-The CLI depends on the SDK via `workspace:*`. Changes to the SDK are immediately available to the CLI during development.
+The CLI and MCP server depend on the SDK via `workspace:*`. Changes to the SDK are immediately available during development.
 
 ```bash
 pnpm install
