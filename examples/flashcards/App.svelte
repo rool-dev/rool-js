@@ -1,0 +1,281 @@
+<script lang="ts">
+  import type { ReactiveAppChannel, ReactiveWatch, RoolObject } from '@rool-dev/app';
+  import { fly } from 'svelte/transition';
+  import { calculateNextReview } from './sm2.js';
+  import Icon from '@iconify/svelte';
+  import FlashcardDisplay from './FlashcardDisplay.svelte';
+
+  interface Props {
+    channel: ReactiveAppChannel;
+  }
+
+  let { channel }: Props = $props();
+
+  interface Card extends RoolObject {
+    topic: string;
+    front: string;
+    back: string;
+    dueAt: number;
+    interval: number;
+    easeFactor: number;
+    reviewCount: number;
+  }
+
+  // State
+  let topicsCollection: ReactiveWatch | undefined = $state();
+  let cardsCollection: ReactiveWatch | undefined = $state();
+  let selectedTopicId = $state<string | null>(null);
+  let isLoading = $state(false);
+  let isGenerating = $state(false);
+  let newTopicName = $state('');
+  let showNewTopicForm = $state(false);
+
+  // Watch all topics
+  $effect(() => {
+    const w = channel.watch({ where: { type: 'topic' } });
+    topicsCollection = w;
+    return () => w.close();
+  });
+
+  // Derived state
+  let topics = $derived(topicsCollection?.objects ?? []);
+  let cards = $derived((cardsCollection?.objects ?? []) as Card[]);
+  let dueCards = $derived.by(() => {
+    const now = Date.now();
+    return cards
+      .filter((c) => !c.dueAt || c.dueAt <= now)
+      .sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
+  });
+  let currentCard = $derived(dueCards[0]);
+  let selectedTopic = $derived(topics.find((t) => t.id === selectedTopicId));
+  let collectionsLoading = $derived(!topicsCollection || topicsCollection.loading);
+
+  function selectTopic(topicId: string) {
+    cardsCollection?.close();
+    selectedTopicId = topicId;
+    cardsCollection = channel.watch({ where: { type: 'card', topic: topicId } });
+  }
+
+  function deselectTopic() {
+    cardsCollection?.close();
+    cardsCollection = undefined;
+    selectedTopicId = null;
+  }
+
+  async function createTopic() {
+    if (!newTopicName.trim() || isGenerating) return;
+
+    const topicName = newTopicName.trim();
+    isGenerating = true;
+    try {
+      await channel.checkpoint('Create topic');
+      const { object: topic } = await channel.createObject({ data: { type: 'topic', name: topicName } });
+      await channel.prompt(
+        `Generate 5 flashcards for "${topicName}". Cover different aspects of the topic. Set the topic field to "${topic.id}".`
+      );
+      selectTopic(topic.id);
+      newTopicName = '';
+      showNewTopicForm = false;
+    } catch (err) {
+      console.error('Failed to create topic:', err);
+    } finally {
+      isGenerating = false;
+    }
+  }
+
+  async function generateMoreCards() {
+    if (!selectedTopicId || !selectedTopic || isGenerating) return;
+
+    isGenerating = true;
+    try {
+      await channel.prompt(
+        `Generate 3 more flashcards for "${selectedTopic.name}". Make them different from existing cards. Set the topic field to "${selectedTopicId}".`
+      );
+    } catch (err) {
+      console.error('Failed to generate cards:', err);
+    } finally {
+      isGenerating = false;
+    }
+  }
+
+  async function submitReview(quality: number) {
+    if (!currentCard) return;
+
+    const card = currentCard;
+    const updated = calculateNextReview(quality, card);
+
+    isLoading = true;
+    try {
+      await channel.checkpoint('Review card');
+      await channel.updateObject(card.id, {
+        data: { ...updated, reviewCount: (card.reviewCount ?? 0) + 1 }
+      });
+    } catch (err) {
+      console.error('Failed to update card:', err);
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function dismissCard() {
+    if (!currentCard) return;
+
+    isLoading = true;
+    try {
+      await channel.checkpoint('Dismiss card');
+      await channel.deleteObjects([currentCard.id]);
+    } catch (err) {
+      console.error('Failed to dismiss card:', err);
+    } finally {
+      isLoading = false;
+    }
+  }
+</script>
+
+<!-- Reusable UI snippets -->
+{#snippet topicList(showSelected: boolean)}
+  {#if collectionsLoading}
+    <p class="text-sm text-slate-400 px-3 py-2">Loading...</p>
+  {:else if topics.length === 0}
+    <p class="text-sm text-slate-400 px-3 py-2">No topics yet</p>
+  {:else}
+    {#each topics as topic}
+      <button
+        class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors
+          {showSelected && selectedTopicId === topic.id
+            ? 'bg-violet-100 text-violet-700 font-medium'
+            : 'text-slate-600 hover:bg-slate-100'}"
+        onclick={() => selectTopic(topic.id)}
+      >
+        {topic.name}
+      </button>
+    {/each}
+  {/if}
+{/snippet}
+
+{#snippet newTopicForm(bgClass: string)}
+  {#if isGenerating && showNewTopicForm}
+    <div class="mt-4 p-4 text-center">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-500 mx-auto"></div>
+      <p class="text-sm text-slate-500 mt-2">Creating topic...</p>
+    </div>
+  {:else if showNewTopicForm}
+    <div class="mt-4 p-3 {bgClass} rounded-lg">
+      <input
+        type="text"
+        class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 focus:outline-none"
+        placeholder="Topic name..."
+        bind:value={newTopicName}
+        onkeydown={(e) => e.key === 'Enter' && createTopic()}
+      />
+      <div class="flex gap-2 mt-2">
+        <button
+          class="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-500 rounded-lg hover:bg-violet-600 disabled:opacity-50"
+          onclick={createTopic}
+          disabled={!newTopicName.trim()}
+        >
+          Create
+        </button>
+        <button
+          class="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-lg"
+          onclick={() => { showNewTopicForm = false; newTopicName = ''; }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  {:else}
+    <button
+      class="mt-4 w-full px-3 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
+      onclick={() => showNewTopicForm = true}
+    >
+      + New Topic
+    </button>
+  {/if}
+{/snippet}
+
+<!-- Main UI -->
+<div class="h-full bg-slate-50 flex overflow-hidden">
+  <!-- Desktop sidebar -->
+  <aside class="hidden md:flex md:w-64 bg-white border-r border-slate-200 p-4 flex-col">
+    <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Topics</h2>
+    <div class="flex-1 space-y-1 overflow-y-auto">
+      {@render topicList(true)}
+    </div>
+    {@render newTopicForm('bg-slate-50')}
+  </aside>
+
+  <!-- Main content area -->
+  <div class="flex-1 p-4 md:p-6 flex flex-col">
+    {#if selectedTopicId}
+      <!-- Topic header -->
+      <div class="mb-4 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <button
+            class="md:hidden p-1.5 -ml-1.5 text-slate-500 hover:text-slate-700"
+            onclick={deselectTopic}
+            aria-label="Back to topics"
+          >
+            <Icon icon="mdi:chevron-left" class="w-5 h-5" />
+          </button>
+          <h2 class="text-lg font-semibold text-slate-800 truncate">{selectedTopic?.name ?? ''}</h2>
+        </div>
+        <span class="text-sm text-slate-500 shrink-0">{dueCards.length} due</span>
+      </div>
+
+      <!-- Card review -->
+      {#if isGenerating}
+        <div class="flex-1 flex items-center justify-center">
+          <div class="text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-500 mx-auto mb-4"></div>
+            <p class="text-slate-500">Generating cards...</p>
+          </div>
+        </div>
+      {:else if currentCard}
+        <div class="flex-1 flex flex-col items-center justify-center">
+          {#key currentCard.id}
+            <div in:fly={{ x: 50, duration: 200 }}>
+              <FlashcardDisplay card={currentCard} {isLoading} onReview={submitReview} onDismiss={dismissCard} />
+            </div>
+          {/key}
+        </div>
+      {:else}
+        <div class="flex-1 flex flex-col items-center justify-center text-center">
+          <div class="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mb-6">
+            <Icon icon="mdi:check-circle-outline" class="w-8 h-8 text-violet-500" />
+          </div>
+          <h3 class="text-lg font-semibold text-slate-700 mb-2">All caught up!</h3>
+          <p class="text-slate-500 text-sm mb-6">No cards are due right now.</p>
+          <button
+            class="px-6 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-violet-500 to-purple-500 rounded-lg hover:from-violet-400 hover:to-purple-400 transition-all disabled:opacity-50"
+            onclick={generateMoreCards}
+            disabled={isGenerating}
+          >
+            Generate more cards
+          </button>
+        </div>
+      {/if}
+    {:else}
+      <!-- No topic selected -->
+      <div class="flex-1 flex flex-col">
+        <!-- Mobile: topic list -->
+        <div class="md:hidden flex-1 flex flex-col">
+          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Topics</h2>
+          <div class="flex-1 space-y-1 overflow-y-auto">
+            {@render topicList(false)}
+          </div>
+          {@render newTopicForm('bg-slate-100')}
+        </div>
+
+        <!-- Desktop: placeholder -->
+        <div class="hidden md:flex flex-1 flex-col items-center justify-center text-center">
+          <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-6">
+            <Icon icon="mdi:cards-outline" class="w-8 h-8 text-slate-400" />
+          </div>
+          <h2 class="text-lg font-semibold text-slate-700 mb-2">Select a topic</h2>
+          <p class="text-slate-500 text-sm">Choose a topic from the sidebar or create a new one</p>
+        </div>
+      </div>
+    {/if}
+  </div>
+</div>

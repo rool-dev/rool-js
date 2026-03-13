@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { RoolObject } from '@rool-dev/svelte';
+  import type { RoolObject } from '@rool-dev/app';
 
   interface Card extends RoolObject {
     front: string;

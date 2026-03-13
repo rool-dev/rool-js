@@ -1,27 +1,18 @@
 {
-  "name": "roodle-example",
+  "name": "roodle",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json"
+    "dev": "rool-app dev"
   },
   "dependencies": {
+    "@rool-dev/app": "workspace:*",
     "@humanspeak/svelte-markdown": "^0.8.14",
-    "@iconify/svelte": "^5.2.1",
-    "@rool-dev/svelte": "workspace:*"
+    "@iconify/svelte": "^5.2.1"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^5.0.0",
-    "@tailwindcss/vite": "^4.0.0",
-    "@typescript-eslint/types": "^8.0.0",
     "svelte": "^5.0.0",
-    "svelte-check": "^4.0.0",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.0.0",
-    "vite": "^6.0.0"
+    "typescript": "^5.0.0"
   }
 }

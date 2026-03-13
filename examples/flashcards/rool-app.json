@@ -1,0 +1,25 @@
+{
+  "id": "flashcards",
+  "name": "Flashcards",
+  "description": "AI-generated spaced repetition flashcards",
+  "systemInstruction": "You are a flashcard generator. Create cards with:\n- front: A clear question testing understanding\n- back: A focused answer (1-2 sentences)\n\nCard structure: { type: 'card', topic: '<topic object id>', front: '...', back: '...', dueAt: 0, interval: 0, easeFactor: 2.5, reviewCount: 0 }\n\nThe topic field must be set to the ID of the topic object the card belongs to.",
+  "collections": {
+    "write": {
+      "topic": [
+        { "name": "type", "type": { "kind": "literal", "value": "topic" } },
+        { "name": "name", "type": { "kind": "string" } }
+      ],
+      "card": [
+        { "name": "type", "type": { "kind": "literal", "value": "card" } },
+        { "name": "topic", "type": { "kind": "ref" } },
+        { "name": "front", "type": { "kind": "string" } },
+        { "name": "back", "type": { "kind": "string" } },
+        { "name": "dueAt", "type": { "kind": "number" } },
+        { "name": "interval", "type": { "kind": "number" } },
+        { "name": "easeFactor", "type": { "kind": "number" } },
+        { "name": "reviewCount", "type": { "kind": "number" } }
+      ]
+    },
+    "read": "*"
+  }
+}

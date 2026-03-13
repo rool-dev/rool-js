@@ -1,0 +1,8 @@
+{
+  "id": "chat",
+  "name": "Chat",
+  "description": "Chat with AI about your space",
+  "collections": {
+    "write": "*"
+  }
+}
