@@ -55,11 +55,12 @@ Examples:
         process.exit(1);
       }
 
-      // Check for index.html
-      const indexPath = path.join(resolvedPath, 'index.html');
-      if (!fs.existsSync(indexPath)) {
-        console.error(`No index.html found in ${resolvedPath}`);
-        console.error('The directory must contain an index.html file at the root.');
+      // Check for index.html (standalone) or rool-app.json (app bundle)
+      const hasIndex = fs.existsSync(path.join(resolvedPath, 'index.html'));
+      const hasAppManifest = fs.existsSync(path.join(resolvedPath, 'rool-app.json'));
+      if (!hasIndex && !hasAppManifest) {
+        console.error(`No index.html or rool-app.json found in ${resolvedPath}`);
+        console.error('The directory must contain an index.html or rool-app.json at the root.');
         process.exit(1);
       }
 

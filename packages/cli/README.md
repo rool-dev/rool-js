@@ -18,8 +18,8 @@ rool <command> [options]
 
 | Command | Description |
 |---------|-------------|
+| `create [name]` | Create a new Rool app |
 | `chat [prompt]` | Chat with a space (interactive if no prompt) |
-| `create <name>` | Create a new Rool app |
 | `media upload <file>` | Upload a file to a space and create an object with the media URL |
 | `space list` | List all spaces |
 | `space create <name>` | Create a new space |
@@ -45,8 +45,6 @@ rool <command> [options]
 | `-s, --space <name>` | space name | `Rool CLI` | `chat`, `media upload` |
 | `-c, --channel <id>` | channel ID | `rool-dev` | `chat` |
 | `-u, --url <url>` | API URL | `https://api.rool.dev` | `chat`, `media upload`, `space list`, `space create`, `space delete`, `app publish`, `app list`, `app unpublish`, `app slug`, `user`, `logout` |
-| `--svelte` | use Svelte template |  | `create` |
-| `--vanilla` | use vanilla TypeScript template |  | `create` |
 | `-m, --message <text>` | optional comment/description |  | `media upload` |
 | `-y, --yes` | skip confirmation prompt |  | `space delete` |
 | `-n, --name <name>` | app display name (defaults to app-id) |  | `app publish` |
@@ -54,6 +52,9 @@ rool <command> [options]
 ### Examples
 
 ```bash
+# Create a new app
+rool create my-app
+
 # Chat with the default space
 rool chat "What is the capital of France?"
 
@@ -63,14 +64,6 @@ rool chat
 # Use a specific space
 rool chat -s "My Project" "Summarize the current state"
 
-# Create a Svelte app
-rool create --svelte my-app
-
-# Create a vanilla TypeScript app
-rool create --vanilla my-app
-
-# Using npx
-npx @rool-dev/cli create --svelte my-app
 
 # Upload a file
 rool media upload photo.jpg

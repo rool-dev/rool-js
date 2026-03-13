@@ -17,11 +17,11 @@ When you're ready to build your first Rool app, scaffold a new project with the 
 
 ```bash
 npm install -g @rool-dev/cli
-rool create --svelte my-app
+rool create my-app
 cd my-app && npm install && npm run dev
 ```
 
-For detailed API documentation, read the [SDK docs](/sdk/) or point your coding agent at them.
+For detailed API documentation, read the [App docs](/app/) or point your coding agent at them.
 
 ## Demo Apps
 
@@ -42,9 +42,15 @@ The web application for managing your spaces. Create, explore, and collaborate o
 
 [Open Console](https://console.rool.dev)
 
+### App
+
+Build sandboxed apps that run inside Rool Spaces. Svelte 5 components hosted in iframes with a reactive channel bridge.
+
+[Read App Docs](/app/)
+
 ### SDK
 
-Build your own applications using Rool Spaces with the TypeScript SDK.
+Integrate Rool Spaces with other apps using the TypeScript SDK.
 
 [Read SDK Docs](/sdk/)
 
@@ -53,6 +59,7 @@ Build your own applications using Rool Spaces with the TypeScript SDK.
 Reactive Svelte 5 bindings for the SDK using native runes.
 
 [Read Svelte Docs](/svelte/)
+
 
 ### CLI
 

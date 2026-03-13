@@ -10,8 +10,7 @@
     "rool": "./dist/index.js"
   },
   "files": [
-    "dist",
-    "templates"
+    "dist"
   ],
   "scripts": {
     "build": "tsc",
@@ -42,6 +41,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@rool-dev/app": "workspace:*",
     "@rool-dev/sdk": "workspace:*",
     "archiver": "^7.0.1",
     "commander": "^14.0.3",

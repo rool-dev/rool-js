@@ -2,6 +2,8 @@
 
 Svelte 5 bindings for Rool Spaces. Adds reactive state to the SDK using `$state` runes.
 
+> **Building a new Rool app?** Start with [`@rool-dev/app`](/app/) — it includes a reactive channel and handles hosting for you. This package is for integrating Rool into an existing Svelte application that manages its own auth, routing, and build setup.
+
 **Requires Svelte 5.** For core concepts (objects, references, AI placeholders, undo/redo), see the [SDK documentation](../sdk/README.md).
 
 ## Installation

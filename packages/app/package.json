@@ -1,0 +1,75 @@
+{
+  "name": "@rool-dev/app",
+  "version": "0.3.0",
+  "description": "Svelte-first app SDK for Rool — reactive channel over iframe bridge",
+  "packageManager": "pnpm@10.17.1",
+  "type": "module",
+  "svelte": "./dist/index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "svelte": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "default": "./dist/host.js"
+    }
+  },
+  "bin": {
+    "rool-app": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "svelte-package -i src -o dist && chmod +x dist/cli/index.js && vite build -c build/vite.config.js",
+    "build:host-shell": "vite build -c build/vite.config.js",
+    "dev": "svelte-package -i src -o dist --watch",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://docs.rool.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rool-dev/rool-js.git",
+    "directory": "packages/app"
+  },
+  "keywords": [
+    "rool",
+    "app",
+    "svelte",
+    "iframe",
+    "sandbox",
+    "postmessage"
+  ],
+  "author": {
+    "name": "Rool Limited",
+    "email": "info@rool.dev",
+    "url": "https://rool.dev"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  },
+  "dependencies": {
+    "@rool-dev/sdk": "workspace:*",
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "@tailwindcss/vite": "^4.1.18",
+    "tailwindcss": "^4.1.18",
+    "vite": "^6.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/package": "^2.0.0",
+    "@types/node": "^25.4.0",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.0.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -2,6 +2,8 @@
 
 The TypeScript SDK for Rool, a persistent and collaborative environment for organizing objects.
 
+> **Building a new Rool app?** Start with [`@rool-dev/app`](/app/) — it handles hosting, dev server, and gives you a reactive Svelte channel out of the box. This SDK is for advanced use cases: integrating Rool into an existing application, building Node.js scripts, or working outside the app sandbox.
+
 Rool enables you to build applications where AI operates on a structured world model rather than a text conversation. The context for all AI operations is the full object graph, allowing the system to reason about, update, and expand the state of your application directly.
 
 Use Rool to programmatically instruct agents to generate content, research topics, or reorganize data. The client manages authentication, real-time synchronization, and media storage, supporting both single-user and multi-user workflows.

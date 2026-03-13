@@ -1,12 +1,12 @@
 import { Command } from 'commander';
 import { VERSION, DEFAULT_ENV, type Environment } from './constants.js';
 import { registerChat } from './chat.js';
-import { registerCreate } from './create.js';
 import { registerMedia } from './media.js';
 import { registerSpace } from './space.js';
 import { registerApp } from './app.js';
 import { registerUser } from './user.js';
 import { registerLogout } from './logout.js';
+import { registerCreate } from './create.js';
 
 function validateEnv(value: string): Environment {
   if (value !== 'local' && value !== 'dev' && value !== 'prod') {
@@ -25,12 +25,12 @@ export function createProgram(): Command {
     .option('-e, --env <environment>', 'target environment (local, dev, prod)', validateEnv, DEFAULT_ENV);
 
   registerChat(program);
-  registerCreate(program);
   registerMedia(program);
   registerSpace(program);
   registerApp(program);
   registerUser(program);
   registerLogout(program);
+  registerCreate(program);
 
   return program;
 }
