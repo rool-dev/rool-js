@@ -67,7 +67,6 @@ export class DevHostController {
   env: Environment;
   publishedApps: PublishedAppInfo[] = [];
   installedAppIds: string[] = [];
-  activeTab: string = 'local';
   sidebarCollapsed: boolean = false;
 
   // --- Per-tab state (imperative, not rendered directly) ---
@@ -279,9 +278,8 @@ export class DevHostController {
       const ch = await this.client.openChannel(this.currentSpaceId, appId);
       this.channels[appId] = ch;
 
-      // Step 2: add the tab, flush DOM, bind bridge
+      // Step 2: add the card, flush DOM, bind bridge
       this.installedAppIds = [...this.installedAppIds, appId];
-      this.activeTab = appId;
       this._onChange();
       await this._tick();
       this._bindBridge(appId);
@@ -294,19 +292,17 @@ export class DevHostController {
     } catch (e) {
       console.error(`Failed to install app ${appId}:`, e);
       this.installedAppIds = this.installedAppIds.filter((id) => id !== appId);
-      this.activeTab = 'local';
       this._onChange();
     }
   }
 
   /**
    * Uninstall an app from the current space.
-   * Deletes the channel and removes the tab.
+   * Deletes the channel and removes the card.
    */
   removeApp(appId: string): void {
     this._destroyTab(appId);
     this.installedAppIds = this.installedAppIds.filter((id) => id !== appId);
-    if (this.activeTab === appId) this.activeTab = 'local';
     this._onChange();
 
     // Delete the channel in the background (fire-and-forget)
@@ -315,15 +311,6 @@ export class DevHostController {
         console.error(`Failed to delete channel for app ${appId}:`, e);
       });
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tab selection
-  // ---------------------------------------------------------------------------
-
-  selectTab(tabId: string): void {
-    this.activeTab = tabId;
-    this._onChange();
   }
 
   // ---------------------------------------------------------------------------
@@ -339,7 +326,6 @@ export class DevHostController {
     this.spaces = [];
     this.publishedApps = [];
     this.installedAppIds = [];
-    this.activeTab = 'local';
     this._onChange();
     await this.boot();
   }

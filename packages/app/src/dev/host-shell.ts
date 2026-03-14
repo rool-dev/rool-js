@@ -8,10 +8,11 @@
 import { mount } from 'svelte';
 import HostShell from './HostShell.svelte';
 import css from './app.css?inline';
+import gridstackCss from 'gridstack/dist/gridstack.css?inline';
 
-// Inject Tailwind CSS into the document
+// Inject Tailwind + GridStack CSS into the document
 const style = document.createElement('style');
-style.textContent = css;
+style.textContent = css + '\n' + gridstackCss;
 document.head.appendChild(style);
 
 const root = document.getElementById('rool-host')!;

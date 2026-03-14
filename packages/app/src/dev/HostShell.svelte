@@ -6,7 +6,7 @@
   import type { RoolSpaceInfo, PublishedAppInfo } from '@rool-dev/sdk';
   import type { Environment } from '../manifest.js';
   import Sidebar from './Sidebar.svelte';
-  import TabBar from './TabBar.svelte';
+  import AppGrid from './AppGrid.svelte';
 
   // Props injected from the mount entry
   interface Props {
@@ -22,8 +22,6 @@
   // Controller + reactive state mirror
   // ---------------------------------------------------------------------------
 
-  // Svelte $state mirrors of controller fields — the controller calls onChange()
-  // to trigger a sync, and we copy its fields into reactive variables.
   let spaces: RoolSpaceInfo[] = $state([]);
   let currentSpaceId: string | null = $state(null);
   let statusText: string = $state('Initializing...');
@@ -33,7 +31,6 @@
   let env: Environment = $state('prod');
   let publishedApps: PublishedAppInfo[] = $state([]);
   let installedAppIds: string[] = $state([]);
-  let activeTab: string = $state('local');
   let tabs: AppTab[] = $state([]);
 
   // UI-only state (not in controller)
@@ -55,7 +52,6 @@
     env = controller.env;
     publishedApps = controller.publishedApps;
     installedAppIds = controller.installedAppIds;
-    activeTab = controller.activeTab;
     tabs = controller.tabs;
   }
 
@@ -66,19 +62,6 @@
 
   // Initial sync
   syncState();
-
-  // ---------------------------------------------------------------------------
-  // Svelte action: register iframe with controller
-  // ---------------------------------------------------------------------------
-
-  function registerIframe(el: HTMLIFrameElement, tabId: string) {
-    controller.registerIframe(tabId, el);
-    return {
-      destroy() {
-        controller.unregisterIframe(tabId);
-      }
-    };
-  }
 
   // ---------------------------------------------------------------------------
   // Bootstrap
@@ -113,33 +96,15 @@
 
 <!-- Main area -->
 <div class="flex-1 min-w-0 flex flex-col">
-  <!-- Tab bar (always shown when not in placeholder state, so user can install apps via +) -->
-  {#if !placeholderText}
-    <TabBar
+  {#if placeholderText}
+    <div class="flex items-center justify-center h-full text-slate-400 text-sm">{placeholderText}</div>
+  {:else}
+    <AppGrid
+      {controller}
       {tabs}
-      {activeTab}
       {uninstalledApps}
-      onSelectTab={(id) => controller.selectTab(id)}
-      onRemoveApp={(id) => controller.removeApp(id)}
       onInstallApp={(id) => controller.installApp(id)}
+      onRemoveApp={(id) => controller.removeApp(id)}
     />
   {/if}
-
-  <!-- App frames -->
-  <div class="flex-1 min-h-0 relative">
-    {#if placeholderText}
-      <div class="flex items-center justify-center h-full text-slate-400 text-sm">{placeholderText}</div>
-    {:else}
-      {#each tabs as tab (tab.id)}
-        <iframe
-          use:registerIframe={tab.id}
-          class="w-full h-full border-0 absolute inset-0"
-          class:hidden={activeTab !== tab.id}
-          src={tab.url}
-          sandbox="allow-scripts allow-same-origin"
-          title={tab.name}
-        ></iframe>
-      {/each}
-    {/if}
-  </div>
 </div>
