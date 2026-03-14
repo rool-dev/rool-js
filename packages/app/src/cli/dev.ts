@@ -13,6 +13,8 @@ import tailwindcss from '@tailwindcss/vite';
 import { readFileSync, existsSync, watch } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import type { ManifestResult } from '../manifest.js';
+import { readManifest, getSvelteAliases } from './vite-utils.js';
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -20,53 +22,6 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HOST_SHELL_JS_PATH = resolve(__dirname, '../dev/host-shell.js');
-
-// ---------------------------------------------------------------------------
-// Manifest
-// ---------------------------------------------------------------------------
-
-interface AppManifest {
-  id: string;
-  name: string;
-  description?: string;
-  systemInstruction?: string | null;
-  collections?: {
-    write?: Record<string, { name: string; type: Record<string, unknown> }[]> | '*';
-    read?: Record<string, { name: string; type: Record<string, unknown> }[]> | '*';
-  };
-  [key: string]: unknown;
-}
-
-interface ManifestResult {
-  manifest: AppManifest | null;
-  error: string | null;
-}
-
-function readManifest(root: string): ManifestResult {
-  const path = resolve(root, 'rool-app.json');
-  if (!existsSync(path)) {
-    return { manifest: null, error: 'rool-app.json not found' };
-  }
-  let raw: string;
-  try {
-    raw = readFileSync(path, 'utf-8');
-  } catch (e) {
-    return { manifest: null, error: `Cannot read rool-app.json: ${e instanceof Error ? e.message : String(e)}` };
-  }
-  let parsed: AppManifest;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { manifest: null, error: 'rool-app.json contains invalid JSON' };
-  }
-  const missing: string[] = [];
-  if (!parsed.id) missing.push('id');
-  if (!parsed.name) missing.push('name');
-  if (missing.length > 0) {
-    return { manifest: null, error: `rool-app.json missing required fields: ${missing.join(', ')}` };
-  }
-  return { manifest: parsed, error: null };
-}
 
 // ---------------------------------------------------------------------------
 // HTML generation
@@ -103,50 +58,6 @@ function generateHostHtml(result: ManifestResult): string {
   <script type="module" src="/__rool-host/host-shell.js"></script>
 </body>
 </html>`;
-}
-
-// ---------------------------------------------------------------------------
-// Svelte resolution
-// ---------------------------------------------------------------------------
-
-/**
- * Builds resolve.alias entries that map every `svelte` and `svelte/*` import
- * to the exact file in the CLI's own svelte copy.  This ensures the compiler
- * (loaded from the CLI) and the browser runtime always use the same svelte
- * instance — even when the app lives outside the monorepo.
- *
- * Works for both Vite's esbuild pre-bundler and the Rollup transform phase
- * because resolve.alias applies to both.
- */
-function getSvelteAliases(): { find: RegExp; replacement: string }[] {
-  const svelteDir = dirname(fileURLToPath(import.meta.resolve('svelte/package.json')));
-  const pkg = JSON.parse(readFileSync(resolve(svelteDir, 'package.json'), 'utf-8'));
-  const aliases: { find: RegExp; replacement: string }[] = [];
-
-  for (const [exportPath, conditions] of Object.entries(pkg.exports as Record<string, unknown>)) {
-    const file = pickExport(conditions, ['svelte', 'browser', 'default']);
-    if (!file) continue;
-    const specifier = exportPath === '.' ? 'svelte' : 'svelte' + exportPath.slice(1);
-    aliases.push({
-      find: new RegExp(`^${specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
-      replacement: resolve(svelteDir, file),
-    });
-  }
-
-  return aliases;
-}
-
-/** Walk a conditional exports value, picking the first matching condition. */
-function pickExport(value: unknown, conditions: string[]): string | null {
-  if (typeof value === 'string') return value;
-  if (typeof value !== 'object' || value === null) return null;
-  for (const c of conditions) {
-    if (c in (value as Record<string, unknown>)) {
-      const r = pickExport((value as Record<string, unknown>)[c], conditions);
-      if (r) return r;
-    }
-  }
-  return null;
 }
 
 // ---------------------------------------------------------------------------

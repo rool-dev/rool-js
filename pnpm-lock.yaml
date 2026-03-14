@@ -102,6 +102,9 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@6.4.1(@types/node@25.4.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+      archiver:
+        specifier: ^7.0.1
+        version: 7.0.1
       tailwindcss:
         specifier: ^4.1.18
         version: 4.1.18
@@ -112,6 +115,9 @@ importers:
       '@sveltejs/package':
         specifier: ^2.0.0
         version: 2.5.7(svelte@5.49.1)(typescript@5.9.3)
+      '@types/archiver':
+        specifier: ^7.0.0
+        version: 7.0.0
       '@types/node':
         specifier: ^25.4.0
         version: 25.4.0

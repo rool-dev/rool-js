@@ -62,11 +62,13 @@
     "@rool-dev/sdk": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "@tailwindcss/vite": "^4.1.18",
+    "archiver": "^7.0.1",
     "tailwindcss": "^4.1.18",
     "vite": "^6.0.0"
   },
   "devDependencies": {
     "@sveltejs/package": "^2.0.0",
+    "@types/archiver": "^7.0.0",
     "@types/node": "^25.4.0",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",

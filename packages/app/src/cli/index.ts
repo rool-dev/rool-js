@@ -10,11 +10,15 @@ switch (command) {
   case 'init':
     await import('./init.js');
     break;
+  case 'publish':
+    await import('./publish.js');
+    break;
   default:
     console.log(`Usage: rool-app <command>
 
 Commands:
-  init   Create a new app project
-  dev    Start the dev server`);
+  init      Create a new app project
+  dev       Start the dev server
+  publish   Build and publish the app`);
     process.exit(command ? 1 : 0);
 }
