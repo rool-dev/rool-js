@@ -68,6 +68,9 @@ export class DevHostController {
   publishedApps: PublishedAppInfo[] = [];
   installedAppIds: string[] = [];
   sidebarCollapsed: boolean = false;
+  publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = 'idle';
+  publishMessage: string | null = null;
+  publishUrl: string | null = null;
 
   // --- Per-tab state (imperative, not rendered directly) ---
   private channels: Record<string, RoolChannel> = {};
@@ -310,6 +313,74 @@ export class DevHostController {
       this.client.deleteChannel(this.currentSpaceId, appId).catch((e) => {
         console.error(`Failed to delete channel for app ${appId}:`, e);
       });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Publishing
+  // ---------------------------------------------------------------------------
+
+  async publish(): Promise<void> {
+    if (!this.manifest) {
+      this.publishState = 'error';
+      this.publishMessage = 'No valid manifest found';
+      this._onChange();
+      return;
+    }
+
+    this.publishState = 'building';
+    this.publishMessage = null;
+    this.publishUrl = null;
+    this._onChange();
+
+    try {
+      // Step 1: trigger server-side Vite build + zip
+      const buildRes = await fetch('/__rool-host/publish', { method: 'POST' });
+      if (!buildRes.ok) {
+        const body = await buildRes.json().catch(() => ({ error: 'Build failed' }));
+        throw new Error(body.error || 'Build failed');
+      }
+
+      const zipBlob = await buildRes.blob();
+
+      // Step 2: publish via SDK
+      this.publishState = 'uploading';
+      this._onChange();
+
+      const result = await this.client.publishApp(this.manifest.id, {
+        name: this.manifest.name,
+        bundle: zipBlob,
+        spa: false,
+      });
+
+      // Step 3: update published apps list
+      const existingIdx = this.publishedApps.findIndex((a) => a.appId === result.appId);
+      if (existingIdx >= 0) {
+        this.publishedApps = [
+          ...this.publishedApps.slice(0, existingIdx),
+          result,
+          ...this.publishedApps.slice(existingIdx + 1),
+        ];
+      } else {
+        this.publishedApps = [...this.publishedApps, result];
+      }
+
+      this.publishState = 'done';
+      this.publishUrl = result.url;
+      this._onChange();
+
+      // Auto-clear success state after 5 seconds
+      setTimeout(() => {
+        if (this.publishState === 'done') {
+          this.publishState = 'idle';
+          this.publishUrl = null;
+          this._onChange();
+        }
+      }, 5000);
+    } catch (e) {
+      this.publishState = 'error';
+      this.publishMessage = e instanceof Error ? e.message : String(e);
+      this._onChange();
     }
   }
 

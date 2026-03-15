@@ -17,7 +17,8 @@
     "./host": {
       "types": "./dist/host.d.ts",
       "default": "./dist/host.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "rool-app": "./dist/cli/index.js"

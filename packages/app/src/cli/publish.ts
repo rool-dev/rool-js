@@ -116,15 +116,11 @@ function parseArgs(): { env: Environment } {
 }
 
 // ---------------------------------------------------------------------------
-// Main
+// Build + Zip (reusable by both CLI and dev server)
 // ---------------------------------------------------------------------------
 
-async function publish() {
-  const cwd = process.cwd();
-  const { env } = parseArgs();
+export async function buildAndZip(cwd: string): Promise<{ zipBuffer: Buffer; totalSize: number }> {
   const manifest = readManifestOrExit(cwd);
-
-  console.log(`\n  Building ${manifest.name}...\n`);
 
   // Resolve packages from the CLI's own node_modules
   const tailwindPkgDir = dirname(fileURLToPath(import.meta.resolve('tailwindcss/package.json')));
@@ -156,13 +152,14 @@ async function publish() {
       svelte(),
       roolAppBuildPlugin(cwd, tailwindCssPath),
     ],
+    logLevel: 'warn',
   });
 
   // Copy rool-app.json into dist
   copyFileSync(resolve(cwd, 'rool-app.json'), resolve(outDir, 'rool-app.json'));
 
   // Write index.html (Vite build doesn't generate one from virtual entry)
-  const assets = readdirSync(resolve(outDir, 'assets') ).filter(f => f.endsWith('.js') || f.endsWith('.css'));
+  const assets = readdirSync(resolve(outDir, 'assets')).filter(f => f.endsWith('.js') || f.endsWith('.css'));
   const jsFiles = assets.filter(f => f.endsWith('.js'));
   const cssFiles = assets.filter(f => f.endsWith('.css'));
 
@@ -194,11 +191,24 @@ ${jsFiles.map(f => `  <script type="module" src="/assets/${f}"></script>`).join(
   }
   walkDir(outDir);
 
-  console.log(`\n  Build complete — ${formatBytes(totalSize)}\n`);
-
   // Zip
-  console.log(`  Packaging...`);
   const zipBuffer = await zipDirectory(outDir);
+
+  return { zipBuffer, totalSize };
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function publish() {
+  const cwd = process.cwd();
+  const { env } = parseArgs();
+  const manifest = readManifestOrExit(cwd);
+
+  console.log(`\n  Building ${manifest.name}...\n`);
+  const { zipBuffer, totalSize } = await buildAndZip(cwd);
+  console.log(`\n  Build complete — ${formatBytes(totalSize)}`);
   console.log(`  Bundle: ${formatBytes(zipBuffer.length)}\n`);
 
   // Authenticate

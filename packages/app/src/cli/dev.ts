@@ -138,12 +138,29 @@ function roolAppPlugin(root: string, tailwindCssPath: string): Plugin {
   };
 }
 
-function roolHostPlugin(state: { current: ManifestResult }, hostShellJs: string): Plugin {
+function roolHostPlugin(state: { current: ManifestResult }, hostShellJs: string, cwd: string): Plugin {
   return {
     name: 'rool-app-host',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
+      server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/__rool-host')) return next();
+
+        // Build + zip endpoint for in-browser publishing
+        if (req.url === '/__rool-host/publish' && req.method === 'POST') {
+          try {
+            const { buildAndZip } = await import('./publish.js');
+            const { zipBuffer, totalSize } = await buildAndZip(cwd);
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('X-Total-Size', String(totalSize));
+            res.end(zipBuffer);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: msg }));
+          }
+          return;
+        }
 
         if (req.url === '/__rool-host/host-shell.js') {
           res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
@@ -243,7 +260,7 @@ async function main() {
       tailwindcss(),
       svelte(),
       roolAppPlugin(cwd, tailwindCssPath),
-      roolHostPlugin(state, hostShellJs),
+      roolHostPlugin(state, hostShellJs, cwd),
     ],
   });
 

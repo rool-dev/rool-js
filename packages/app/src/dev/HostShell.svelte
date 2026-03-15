@@ -32,6 +32,9 @@
   let publishedApps: PublishedAppInfo[] = $state([]);
   let installedAppIds: string[] = $state([]);
   let tabs: AppTab[] = $state([]);
+  let publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = $state('idle');
+  let publishMessage: string | null = $state(null);
+  let publishUrl: string | null = $state(null);
 
   // UI-only state (not in controller)
   let dropdownOpen: boolean = $state(false);
@@ -53,6 +56,9 @@
     publishedApps = controller.publishedApps;
     installedAppIds = controller.installedAppIds;
     tabs = controller.tabs;
+    publishState = controller.publishState;
+    publishMessage = controller.publishMessage;
+    publishUrl = controller.publishUrl;
   }
 
   // Derived: published apps not yet installed (excluding the local dev app)
@@ -91,6 +97,9 @@
   {statusText}
   {statusState}
   {sidebarCollapsed}
+  {publishState}
+  {publishMessage}
+  {publishUrl}
   bind:dropdownOpen
 />
 

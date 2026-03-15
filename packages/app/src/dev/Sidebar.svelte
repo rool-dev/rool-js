@@ -15,6 +15,9 @@
     statusText: string;
     statusState: 'ok' | 'loading' | 'off';
     sidebarCollapsed: boolean;
+    publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error';
+    publishMessage: string | null;
+    publishUrl: string | null;
     dropdownOpen: boolean;
   }
 
@@ -28,6 +31,9 @@
     statusText,
     statusState,
     sidebarCollapsed,
+    publishState,
+    publishMessage,
+    publishUrl,
     dropdownOpen = $bindable(),
   }: Props = $props();
 
@@ -201,6 +207,49 @@
         {statusText}
       </div>
     </div>
+
+    <!-- Publish -->
+    {#if manifest}
+      <div class="px-4 py-3 border-b border-slate-100">
+        <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Publish</div>
+        <button
+          class="w-full py-1.5 px-3 text-[12px] font-medium rounded-md transition-colors
+            {publishState === 'building' || publishState === 'uploading'
+              ? 'bg-indigo-100 text-indigo-400 cursor-wait'
+              : publishState === 'done'
+                ? 'bg-green-50 text-green-600 border border-green-200'
+                : publishState === 'error'
+                  ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                  : 'bg-indigo-500 text-white hover:bg-indigo-600'}"
+          onclick={() => controller.publish()}
+          disabled={publishState === 'building' || publishState === 'uploading'}
+        >
+          {#if publishState === 'building'}
+            Building...
+          {:else if publishState === 'uploading'}
+            Publishing...
+          {:else if publishState === 'done'}
+            Published
+          {:else if publishState === 'error'}
+            Retry Publish
+          {:else}
+            Publish to {env}
+          {/if}
+        </button>
+        {#if publishState === 'done' && publishUrl}
+          <a
+            href={publishUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block text-[11px] text-indigo-500 hover:text-indigo-600 mt-1.5 truncate"
+          >
+            {publishUrl}
+          </a>
+        {:else if publishState === 'error' && publishMessage}
+          <div class="text-[11px] text-red-500 mt-1.5">{publishMessage}</div>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Footer -->
     <div class="px-4 py-3 mt-auto flex items-center justify-between">
