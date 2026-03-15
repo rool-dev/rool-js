@@ -70,6 +70,7 @@ export type {
   ObjectUpdatedEvent,
   ObjectDeletedEvent,
   MetadataUpdatedEvent,
+  SchemaUpdatedEvent,
   ChannelUpdatedEvent,
   ResetEvent,
 

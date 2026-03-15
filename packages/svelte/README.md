@@ -54,6 +54,7 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.userStorage` | User storage (cross-device preferences) |
 | `channel.interactions` | Channel interactions (auto-updates) |
 | `channel.objectIds` | All object IDs in the space (auto-updates on create/delete) |
+| `channel.collections` | Collection names from the schema (auto-updates) |
 | `watch.objects` | Objects matching a filter (auto-updates) |
 | `watch.loading` | Whether watch is loading |
 

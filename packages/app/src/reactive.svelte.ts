@@ -203,6 +203,7 @@ class ReactiveAppChannelImpl {
   // Reactive state
   interactions = $state<Interaction[]>([]);
   objectIds = $state<string[]>([]);
+  collections = $state<string[]>([]);
 
   #unsubscribers: (() => void)[] = [];
 
@@ -212,6 +213,7 @@ class ReactiveAppChannelImpl {
     // Load initial data
     channel.getInteractions().then((list) => { this.interactions = list; });
     channel.getObjectIds().then((ids) => { this.objectIds = ids; });
+    this.collections = Object.keys(channel.getSchema());
 
     // Subscribe to channel updates → refresh interactions
     const onChannelUpdated = () => {
@@ -229,10 +231,18 @@ class ReactiveAppChannelImpl {
     channel.on('objectDeleted', refreshObjectIds);
     this.#unsubscribers.push(() => channel.off('objectDeleted', refreshObjectIds));
 
+    // Subscribe to schema updates → refresh collections
+    const onSchemaUpdated = () => {
+      this.collections = Object.keys(channel.getSchema());
+    };
+    channel.on('schemaUpdated', onSchemaUpdated);
+    this.#unsubscribers.push(() => channel.off('schemaUpdated', onSchemaUpdated));
+
     // Full resets
     const onReset = () => {
       channel.getInteractions().then((list) => { this.interactions = list; });
       channel.getObjectIds().then((ids) => { this.objectIds = ids; });
+      this.collections = Object.keys(channel.getSchema());
     };
     channel.on('reset', onReset);
     this.#unsubscribers.push(() => channel.off('reset', onReset));

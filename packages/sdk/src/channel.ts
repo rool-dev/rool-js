@@ -842,6 +842,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       case 'schema_updated':
         if (event.schema) {
           this._schema = event.schema;
+          this.emit('schemaUpdated', { schema: this._schema, source: changeSource });
         }
         break;
 

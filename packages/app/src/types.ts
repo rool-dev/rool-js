@@ -109,6 +109,7 @@ export interface AppChannelEvents {
   objectUpdated: { objectId: string; object: RoolObject; source: ChangeSource };
   objectDeleted: { objectId: string; source: ChangeSource };
   metadataUpdated: { metadata: Record<string, unknown>; source: ChangeSource };
+  schemaUpdated: { schema: SpaceSchema; source: ChangeSource };
   channelUpdated: { channelId: string; source: ChangeSource };
   reset: { source: ChangeSource };
   syncError: Error;

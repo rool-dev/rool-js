@@ -496,6 +496,11 @@ export interface MetadataUpdatedEvent {
   source: ChangeSource;
 }
 
+export interface SchemaUpdatedEvent {
+  schema: SpaceSchema;
+  source: ChangeSource;
+}
+
 export interface ResetEvent {
   source: ChangeSource;
 }
@@ -528,6 +533,8 @@ export interface ChannelEvents {
   objectDeleted: (event: ObjectDeletedEvent) => void;
   /** Space metadata was updated */
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
+  /** Collection schema was updated */
+  schemaUpdated: (event: SchemaUpdatedEvent) => void;
   /** Channel interaction history was updated */
   channelUpdated: (event: ChannelUpdatedEvent) => void;
   /** Full state replacement (undo/redo, resync) */

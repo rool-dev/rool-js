@@ -34,6 +34,7 @@ const FORWARDED_EVENTS = [
   'objectUpdated',
   'objectDeleted',
   'metadataUpdated',
+  'schemaUpdated',
   'channelUpdated',
   'reset',
   'syncError',

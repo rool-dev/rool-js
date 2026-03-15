@@ -135,13 +135,17 @@ export class AppChannel {
 
     if (event.data.type === 'rool:event') {
       const msg = event.data as BridgeEvent;
-      this._emit(msg.name, msg.data);
 
-      // Keep local caches up to date
+      // Update local caches before emitting so listeners see fresh data
       if (msg.name === 'metadataUpdated') {
         const payload = msg.data as { metadata: Record<string, unknown> };
         this._metadata = payload.metadata;
+      } else if (msg.name === 'schemaUpdated') {
+        const payload = msg.data as { schema: Record<string, unknown> };
+        this._schema = payload.schema as SpaceSchema;
       }
+
+      this._emit(msg.name, msg.data);
       return;
     }
   };

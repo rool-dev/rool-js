@@ -118,6 +118,7 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 |----------|------|-------------|
 | `interactions` | `Interaction[]` | Channel interaction history (auto-updates) |
 | `objectIds` | `string[]` | All object IDs in the space (auto-updates on create/delete) |
+| `collections` | `string[]` | Collection names from the schema (auto-updates) |
 
 ### Properties
 

@@ -874,6 +874,9 @@ channel.on('objectDeleted', ({ objectId, source }) => void)
 // Space metadata
 channel.on('metadataUpdated', ({ metadata, source }) => void)
 
+// Collection schema changed
+channel.on('schemaUpdated', ({ schema, source }) => void)
+
 // Channel updated (fetch with getInteractions())
 channel.on('channelUpdated', ({ channelId, source }) => void)
 
