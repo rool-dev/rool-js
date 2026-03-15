@@ -105,6 +105,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _channel: Channel | undefined;
   private _objectIds: string[];
   private _objectStats: Map<string, RoolObjectStat>;
+  private _hasConnected = false;
 
   // Object collection: tracks pending local mutations for dedup
   // Maps objectId → optimistic object data (for create/update) or null (for delete)
@@ -818,6 +819,23 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const changeSource: ChangeSource = event.source === 'agent' ? 'remote_agent' : 'remote_user';
 
     switch (event.type) {
+      case 'connected':
+        // On reconnection, do a full reload to catch up on missed events.
+        // Skip on initial connection — data was already fetched by openChannel.
+        if (this._hasConnected) {
+          void this.graphqlClient.openChannel(this._id, this._channelId).then((result) => {
+            if (this._closed) return;
+            this._meta = result.meta;
+            this._schema = result.schema;
+            this._channel = result.channel;
+            this._objectIds = result.objectIds;
+            this._objectStats = new Map(Object.entries(result.objectStats));
+            this.emit('reset', { source: 'system' });
+          });
+        }
+        this._hasConnected = true;
+        break;
+
       case 'object_created':
         if (event.objectId && event.object) {
           if (event.objectStat) this._objectStats.set(event.objectId, event.objectStat);

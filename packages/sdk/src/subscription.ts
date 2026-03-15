@@ -11,6 +11,7 @@ import type { Logger } from './logger.js';
 const INITIAL_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 const RECONNECT_MULTIPLIER = 2;
+const HEARTBEAT_TIMEOUT = 45_000; // Server sends heartbeats every 30s; reconnect if none arrives within 45s
 
 // =============================================================================
 // Client Subscription Manager
@@ -35,6 +36,7 @@ export class ClientSubscriptionManager {
   private isIntentionalClose = false;
   private _isSubscribed = false;
   private logger: Logger;
+  private heartbeatTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: ClientSubscriptionConfig) {
     this.config = config;
@@ -55,6 +57,7 @@ export class ClientSubscriptionManager {
   unsubscribeFromEvents(): void {
     this.isIntentionalClose = true;
     this.cancelReconnect();
+    this.clearHeartbeatTimeout();
     this.disconnect();
   }
 
@@ -93,6 +96,7 @@ export class ClientSubscriptionManager {
         {
           next: (result) => {
             this.reconnectDelay = INITIAL_RECONNECT_DELAY;
+            this.resetHeartbeat();
 
             if (result.data?.clientEvents) {
               try {
@@ -179,6 +183,25 @@ export class ClientSubscriptionManager {
     }
   }
 
+  private resetHeartbeat(): void {
+    this.clearHeartbeatTimeout();
+    this.heartbeatTimeoutId = setTimeout(() => {
+      this.heartbeatTimeoutId = null;
+      if (this.isIntentionalClose) return;
+      this.logger.info('[RoolClient] Heartbeat timeout, forcing reconnect');
+      this.disconnect();
+      this.reconnectDelay = INITIAL_RECONNECT_DELAY;
+      void this.connect();
+    }, HEARTBEAT_TIMEOUT);
+  }
+
+  private clearHeartbeatTimeout(): void {
+    if (this.heartbeatTimeoutId !== null) {
+      clearTimeout(this.heartbeatTimeoutId);
+      this.heartbeatTimeoutId = null;
+    }
+  }
+
   private parseClientEvent(raw: Record<string, unknown>): ClientEvent | null {
     const type = raw.type as ClientEvent["type"];
     const timestamp = raw.timestamp as number;
@@ -243,6 +266,7 @@ export class ChannelSubscriptionManager {
   private _isSubscribed = false;
   private _initialConnectPromise: { resolve: () => void; reject: (e: Error) => void } | null = null;
   private logger: Logger;
+  private heartbeatTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: ChannelSubscriptionConfig) {
     this.config = config;
@@ -272,6 +296,7 @@ export class ChannelSubscriptionManager {
   unsubscribeFromEvents(): void {
     this.isIntentionalClose = true;
     this.cancelReconnect();
+    this.clearHeartbeatTimeout();
     this.disconnect();
   }
 
@@ -321,6 +346,7 @@ export class ChannelSubscriptionManager {
         {
           next: (result) => {
             this.reconnectDelay = INITIAL_RECONNECT_DELAY;
+            this.resetHeartbeat();
 
             if (result.data?.channelEvents) {
               try {
@@ -420,6 +446,25 @@ export class ChannelSubscriptionManager {
     if (this.reconnectTimeoutId !== null) {
       clearTimeout(this.reconnectTimeoutId);
       this.reconnectTimeoutId = null;
+    }
+  }
+
+  private resetHeartbeat(): void {
+    this.clearHeartbeatTimeout();
+    this.heartbeatTimeoutId = setTimeout(() => {
+      this.heartbeatTimeoutId = null;
+      if (this.isIntentionalClose) return;
+      this.logger.info(`[RoolChannel] Heartbeat timeout, forcing reconnect for space ${this.config.spaceId}`);
+      this.disconnect();
+      this.reconnectDelay = INITIAL_RECONNECT_DELAY;
+      void this.connect();
+    }, HEARTBEAT_TIMEOUT);
+  }
+
+  private clearHeartbeatTimeout(): void {
+    if (this.heartbeatTimeoutId !== null) {
+      clearTimeout(this.heartbeatTimeoutId);
+      this.heartbeatTimeoutId = null;
     }
   }
 
