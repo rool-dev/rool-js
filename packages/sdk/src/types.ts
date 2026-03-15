@@ -265,6 +265,8 @@ export interface PromptOptions {
 export interface FindObjectsOptions {
   /** Exact-match field filter (e.g. `{ type: 'article' }`). No operators or placeholders — values must match literally. When combined with `prompt`, constrains which objects the AI can see. */
   where?: Record<string, unknown>;
+  /** Filter by collection name. Only returns objects whose shape matches the named collection. */
+  collection?: string;
   /** Natural language query. Triggers AI evaluation (uses credits). When combined with `where`/`objectIds`, the AI only sees the pre-filtered set. */
   prompt?: string;
   /** Maximum number of results. Only applies to structured filtering (no `prompt`); the AI controls its own result size. */

@@ -7,6 +7,8 @@ import type { RoolChannel, RoolClient, Interaction, RoolObject, FindObjectsOptio
 export interface WatchOptions {
   /** Field requirements for exact matching */
   where?: Record<string, unknown>;
+  /** Filter by collection name. Only returns objects whose shape matches the named collection. */
+  collection?: string;
   /** Maximum number of objects */
   limit?: number;
   /** Sort order by modifiedAt: 'asc' or 'desc' (default: 'desc') */
@@ -99,6 +101,9 @@ class ReactiveWatchImpl {
    * Check if an object matches the `where` filter.
    */
   #matches(object: RoolObject): boolean {
+    // Collection membership is shape-based and resolved server-side — can't match locally
+    if (this.#options.collection) return true;
+
     const where = this.#options.where;
     if (!where) return true;
 
@@ -116,6 +121,7 @@ class ReactiveWatchImpl {
     try {
       const findOptions: FindObjectsOptions = {
         where: this.#options.where,
+        collection: this.#options.collection,
         limit: this.#options.limit,
         order: this.#options.order,
         ephemeral: true, // Don't pollute interaction history

@@ -484,8 +484,8 @@ export class GraphQLClient {
     channelId: string,
   ): Promise<{ objects: RoolObject[]; message: string }> {
     const query = `
-      query FindObjects($spaceId: String!, $where: String, $prompt: String, $limit: Int, $objectIds: [String!], $order: String, $channelId: String!, $ephemeral: Boolean) {
-        findObjects(spaceId: $spaceId, where: $where, prompt: $prompt, limit: $limit, objectIds: $objectIds, order: $order, channelId: $channelId, ephemeral: $ephemeral) {
+      query FindObjects($spaceId: String!, $where: String, $collection: String, $prompt: String, $limit: Int, $objectIds: [String!], $order: String, $channelId: String!, $ephemeral: Boolean) {
+        findObjects(spaceId: $spaceId, where: $where, collection: $collection, prompt: $prompt, limit: $limit, objectIds: $objectIds, order: $order, channelId: $channelId, ephemeral: $ephemeral) {
           objects
           message
         }
@@ -496,6 +496,7 @@ export class GraphQLClient {
     }>(query, {
       spaceId,
       where: options.where ? JSON.stringify(options.where) : undefined,
+      collection: options.collection,
       prompt: options.prompt,
       limit: options.limit,
       objectIds: options.objectIds ?? [],

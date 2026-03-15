@@ -78,6 +78,7 @@ export interface PromptOptions {
 
 export interface FindObjectsOptions {
   where?: Record<string, unknown>;
+  collection?: string;
   prompt?: string;
   limit?: number;
   objectIds?: string[];

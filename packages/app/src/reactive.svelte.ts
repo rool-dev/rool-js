@@ -23,6 +23,7 @@ import type {
 
 export interface WatchOptions {
   where?: Record<string, unknown>;
+  collection?: string;
   limit?: number;
   order?: 'asc' | 'desc';
 }
@@ -94,6 +95,9 @@ class ReactiveWatchImpl {
   }
 
   #matches(object: RoolObject): boolean {
+    // Collection membership is shape-based and resolved server-side — can't match locally
+    if (this.#options.collection) return true;
+
     const where = this.#options.where;
     if (!where) return true;
     for (const [key, value] of Object.entries(where)) {
@@ -107,6 +111,7 @@ class ReactiveWatchImpl {
     try {
       const { objects } = await this.#channel.findObjects({
         where: this.#options.where,
+        collection: this.#options.collection,
         limit: this.#options.limit,
         order: this.#options.order,
         ephemeral: true,

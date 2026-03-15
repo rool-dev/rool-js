@@ -116,17 +116,17 @@ The `channelId` is fixed when you open a channel and cannot be changed. To use a
 **Objects** are plain key-value records. The `id` field is reserved; everything else is application-defined.
 
 ```typescript
-{ id: 'abc123', type: 'article', title: 'Hello World', status: 'draft' }
+{ id: 'abc123', title: 'Hello World', status: 'draft' }
 ```
 
 **References** between objects are data fields whose values are object IDs. The system detects these statistically — any string field whose value matches an existing object ID is recognized as a reference.
 
 ```typescript
 // A planet references a star via the 'orbits' field
-{ id: 'earth', type: 'planet', name: 'Earth', orbits: 'sun-01' }
+{ id: 'earth', name: 'Earth', orbits: 'sun-01' }
 
 // An array of references
-{ id: 'team-a', type: 'team', name: 'Alpha', members: ['user-1', 'user-2', 'user-3'] }
+{ id: 'team-a', name: 'Alpha', members: ['user-1', 'user-2', 'user-3'] }
 ```
 
 References are just data — no special API is needed to create or remove them. Set a field to an object ID to create a reference; clear it to remove it.
@@ -139,7 +139,6 @@ Use `{{description}}` in field values to have AI generate content:
 // Create with AI-generated content
 await channel.createObject({
   data: {
-    type: 'article',
     headline: '{{catchy headline about coffee}}',
     body: '{{informative paragraph}}'
   }
@@ -235,7 +234,7 @@ await channel.createObject({ data: { id: 'article-42', title: 'The Meaning of Li
 ```typescript
 // Fire-and-forget: create and reference without waiting
 const id = RoolClient.generateId();
-channel.createObject({ data: { id, type: 'note', text: '{{expand this idea}}' } });
+channel.createObject({ data: { id, text: '{{expand this idea}}' } });
 channel.updateObject(parentId, { data: { notes: [...existingNotes, id] } }); // Add reference immediately
 ```
 
@@ -680,12 +679,14 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 Find objects using structured filters and/or natural language.
 
 - **`where` only** — exact-match filtering, no AI, no credits.
+- **`collection` only** — filter by collection name (shape-based matching), no AI, no credits.
 - **`prompt` only** — AI-powered semantic query over all objects.
 - **`where` + `prompt`** — `where` (and `objectIds`) narrow the data set first, then the AI queries within the constrained set.
 
 | Option | Description |
 |--------|-------------|
-| `where` | Exact-match field filter (e.g. `{ type: 'article' }`). Values must match literally — no operators or `{{placeholders}}`. When combined with `prompt`, constrains which objects the AI can see. |
+| `where` | Exact-match field filter (e.g. `{ status: 'published' }`). Values must match literally — no operators or `{{placeholders}}`. When combined with `prompt`, constrains which objects the AI can see. |
+| `collection` | Filter by collection name. Only returns objects whose shape matches the named collection. |
 | `prompt` | Natural language query. Triggers AI evaluation (uses credits). |
 | `limit` | Maximum number of results. |
 | `objectIds` | Scope to specific object IDs. Constrains the candidate set in both structured and AI queries. |
@@ -695,9 +696,20 @@ Find objects using structured filters and/or natural language.
 **Examples:**
 
 ```typescript
+// Filter by collection (no AI, no credits)
+const { objects } = await channel.findObjects({
+  collection: 'article'
+});
+
 // Exact field matching (no AI, no credits)
 const { objects } = await channel.findObjects({
-  where: { type: 'article', status: 'published' }
+  where: { status: 'published' }
+});
+
+// Combine collection and field filters
+const { objects } = await channel.findObjects({
+  collection: 'article',
+  where: { status: 'published' }
 });
 
 // Pure natural language query (AI interprets)
@@ -705,9 +717,9 @@ const { objects, message } = await channel.findObjects({
   prompt: 'articles about space exploration published this year'
 });
 
-// Combined: where narrows the data, prompt queries within it
+// Combined: collection + where narrow the data, prompt queries within it
 const { objects } = await channel.findObjects({
-  where: { type: 'article' },
+  collection: 'article',
   prompt: 'that discuss climate solutions positively',
   limit: 10
 });

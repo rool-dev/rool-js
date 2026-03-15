@@ -222,7 +222,7 @@ Create auto-updating watches of objects filtered by field values:
   async function open(spaceId) {
     channel = await rool.openChannel(spaceId, 'main');
     // Create a reactive watch of all objects where type === 'article'
-    articles = channel.watch({ where: { type: 'article' } });
+    articles = channel.watch({ collection: 'article' });
   }
 </script>
 
@@ -244,7 +244,8 @@ Watches automatically re-fetch when objects matching the filter are created, upd
 ```typescript
 // Watch options (same as findObjects, but no AI prompt)
 const articles = channel.watch({
-  where: { type: 'article', status: 'published' },
+  collection: 'article',
+  where: { status: 'published' },
   order: 'desc',  // by modifiedAt (default)
   limit: 20,
 });
@@ -316,10 +317,10 @@ channel.channelId
 
 // Object operations
 await channel.getObject(id)
-await channel.createObject({ data: { type: 'note', text: 'Hello' } })
+await channel.createObject({ data: { text: 'Hello' } })
 await channel.updateObject(id, { data: { text: 'Updated' } })
 await channel.deleteObjects([id])
-await channel.findObjects({ where: { type: 'note' } })
+await channel.findObjects({ collection: 'note' })
 
 // AI
 await channel.prompt('Summarize everything')

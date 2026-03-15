@@ -135,8 +135,9 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 
 ```typescript
 await channel.getObject(id)
-await channel.findObjects({ where: { type: 'note' } })
-await channel.createObject({ data: { type: 'note', text: '{{expand this}}' } })
+await channel.findObjects({ collection: 'note' })
+await channel.findObjects({ collection: 'note', where: { status: 'active' } })
+await channel.createObject({ data: { text: '{{expand this}}' } })
 await channel.updateObject(id, { data: { text: 'Updated' } })
 await channel.updateObject(id, { prompt: 'Make it shorter' })
 await channel.deleteObjects([id])
@@ -220,7 +221,7 @@ Auto-updating filtered object list:
 
 ```svelte
 <script>
-  const tasks = channel.watch({ where: { type: 'task' } });
+  const tasks = channel.watch({ collection: 'task' });
 </script>
 
 {#each tasks.objects as task}
