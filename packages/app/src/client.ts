@@ -143,6 +143,15 @@ export class AppChannel {
       } else if (msg.name === 'schemaUpdated') {
         const payload = msg.data as { schema: Record<string, unknown> };
         this._schema = payload.schema as SpaceSchema;
+      } else if (msg.name === 'reset') {
+        // Full reload happened on the host — refresh cached schema and metadata
+        Promise.all([
+          this._call('getSchema'),
+          this._call('getAllMetadata'),
+        ]).then(([schema, metadata]) => {
+          this._schema = schema as SpaceSchema;
+          this._metadata = metadata as Record<string, unknown>;
+        });
       }
 
       this._emit(msg.name, msg.data);
