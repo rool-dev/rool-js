@@ -65,7 +65,9 @@
       <div class="flex items-start justify-between mb-1">
         {#if manifest}
           <div class="flex items-center gap-2 min-w-0">
-            <span class="material-icons text-xl text-slate-500 shrink-0">{manifest.icon}</span>
+            {#if manifest.icon}
+              <img src="/{manifest.icon}" alt="" class="w-6 h-6 shrink-0 rounded" />
+            {/if}
             <div class="min-w-0">
               <div class="font-semibold text-base text-slate-800 leading-tight">{manifest.name}</div>
               <div class="text-[11px] text-slate-400 font-mono mt-0.5">{manifest.id}</div>

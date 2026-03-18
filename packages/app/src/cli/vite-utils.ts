@@ -34,7 +34,6 @@ export function readManifest(root: string): ManifestResult {
   if (!parsed.id) missing.push('id');
   if (!parsed.name) missing.push('name');
   if (typeof parsed.public !== 'boolean') missing.push('public');
-  if (!parsed.icon) missing.push('icon');
   if (!parsed.collections || typeof parsed.collections !== 'object') missing.push('collections');
   if (missing.length > 0) {
     return { manifest: null, error: `rool-app.json missing required fields: ${missing.join(', ')}` };

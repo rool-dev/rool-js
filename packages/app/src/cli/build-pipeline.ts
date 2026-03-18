@@ -113,6 +113,14 @@ export async function buildApp(cwd: string, manifest: AppManifest): Promise<{ ou
   // Copy rool-app.json into dist
   copyFileSync(resolve(cwd, 'rool-app.json'), resolve(outDir, 'rool-app.json'));
 
+  // Copy icon file into dist if specified
+  if (manifest.icon) {
+    const iconSrc = resolve(cwd, manifest.icon);
+    if (existsSync(iconSrc)) {
+      copyFileSync(iconSrc, resolve(outDir, manifest.icon));
+    }
+  }
+
   // Write index.html (Vite build doesn't generate one from virtual entry)
   const assets = readdirSync(resolve(outDir, 'assets')).filter(f => f.endsWith('.js') || f.endsWith('.css'));
   const jsFiles = assets.filter(f => f.endsWith('.js'));

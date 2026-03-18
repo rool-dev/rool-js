@@ -23,7 +23,7 @@ export interface AppManifest {
   id: string;
   name: string;
   public: boolean;
-  icon: string;
+  icon?: string;
   collections: ManifestCollections;
   description?: string;
   systemInstruction?: string | null;

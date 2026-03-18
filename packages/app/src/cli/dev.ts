@@ -48,7 +48,6 @@ function generateHostHtml(result: ManifestResult): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${manifest?.name ? escapeHtml(manifest.name) + ' \u2014 ' : ''}App Dev Host</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons&display=swap">
   <script type="module" src="/@vite/client"></script>
 </head>
 <body style="height:100%;margin:0">

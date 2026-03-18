@@ -29,7 +29,7 @@ This opens a dev host at `/__rool-host/` that loads your app in a sandboxed ifra
   "id": "my-app",
   "name": "My App",
   "public": false,
-  "icon": "widgets",
+  "icon": "icon.png",
   "description": "What this app does",
   "collections": {
     "write": {
@@ -49,7 +49,7 @@ This opens a dev host at `/__rool-host/` that loads your app in a sandboxed ifra
 | `id` | Yes | Unique identifier (lowercase, hyphens) |
 | `name` | Yes | Display name |
 | `public` | Yes | Whether the app is listed in the public app directory |
-| `icon` | Yes | [Material Icons](https://fonts.google.com/icons) name (e.g. `"widgets"`, `"edit_note"`, `"science"`) |
+| `icon` | No | Path to an icon image file relative to the project root (e.g. `"icon.png"`) |
 | `description` | No | Short description |
 | `collections` | Yes | Collection access declarations — can be `{}` (see below) |
 | `systemInstruction` | No | Default system instruction for the AI channel |

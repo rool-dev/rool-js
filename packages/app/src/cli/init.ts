@@ -39,7 +39,6 @@ function init() {
     id: appId,
     name: appName,
     public: false,
-    icon: 'widgets',
     collections: {},
   };
 
