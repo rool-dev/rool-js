@@ -1,0 +1,15 @@
+{
+  "id": "snake",
+  "name": "Snake",
+  "public": true,
+  "icon": "icon.svg",
+  "collections": {
+    "write": {
+      "highscores": [
+        { "name": "userId", "type": { "kind": "string" } },
+        { "name": "score", "type": { "kind": "number" } },
+        { "name": "date", "type": { "kind": "string" } }
+      ]
+    }
+  }
+}
