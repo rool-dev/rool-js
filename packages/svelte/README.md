@@ -367,6 +367,8 @@ import type { Rool, ReactiveChannel, ReactiveObject, ReactiveWatch, WatchOptions
 
 // Re-exported from @rool-dev/sdk
 import type {
+  RoolClient,
+  RoolClientConfig,
   RoolChannel,
   RoolSpace,
   RoolSpaceInfo,
@@ -375,6 +377,7 @@ import type {
   RoolUserRole,
   ConnectionState,
   ChannelInfo,
+  CurrentUser,
   Interaction,
   FindObjectsOptions,
   PromptOptions,
@@ -384,6 +387,10 @@ import type {
   FieldDef,
   CollectionDef,
   SpaceSchema,
+  SpaceMember,
+  UserResult,
+  PublishedAppInfo,
+  AppManifest,
 } from '@rool-dev/svelte';
 ```
 
