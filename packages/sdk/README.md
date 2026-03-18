@@ -1006,7 +1006,7 @@ The `ai` field in interactions distinguishes AI-generated responses from synthet
 
 ### Tool Calls
 
-The `toolCalls` array captures what the AI agent did during execution. Use it to build responsive UIs that show progress while the agent works — the `channelUpdated` event fires as each tool completes, letting you display status updates or hints in real-time.
+The `toolCalls` array captures what the AI agent did during execution. Use it to build responsive UIs that show progress while the agent works — the `channelUpdated` event fires when each tool starts and completes. A tool call without a `result` is still running; once `result` is present, the tool has finished.
 
 ## Data Types
 
@@ -1089,7 +1089,7 @@ Note: `Channel` and `ChannelInfo` are data types describing the stored channel m
 interface ToolCall {
   name: string;      // Tool name (e.g., "create_object", "update_object", "search_web")
   input: unknown;    // Arguments passed to the tool
-  result: string;    // Truncated result (max 500 chars)
+  result?: string;   // Truncated result (absent while tool is running)
 }
 
 interface Interaction {

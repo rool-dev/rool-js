@@ -46,7 +46,7 @@ export type SpaceSchema = Record<string, CollectionDef>;
 export interface ToolCall {
   name: string;
   input: unknown;
-  result: string;
+  result?: string;
 }
 
 export interface Interaction {

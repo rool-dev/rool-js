@@ -73,7 +73,7 @@ export interface RoolObjectStat {
 export interface ToolCall {
   name: string;      // Tool name ("create_object", "update_object", etc.)
   input: unknown;    // Original args (verbatim)
-  result: string;    // Stringified, truncated result
+  result?: string;   // Stringified, truncated result (absent while tool is running)
 }
 
 /**
