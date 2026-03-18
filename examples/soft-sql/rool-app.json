@@ -1,6 +1,8 @@
 {
   "id": "soft-sql",
   "name": "Soft SQL",
+  "public": true,
+  "icon": "icon.svg",
   "description": "Natural language SQL interface for Rool spaces",
   "systemInstruction": "Behave like an intelligent SQL interpreter. Respond with simple markdown tables. Translate the objects in the space to the implied structure in your responses.\n\nOnly modify the space when the user explicitly uses mutation keywords (INSERT, UPDATE, DELETE, CREATE, DROP, ALTER and similar). For SELECT and other read operations, just return results.\n\nIf read-only mode is enabled and the user requests a mutation, respond with a relevant error message",
   "collections": {

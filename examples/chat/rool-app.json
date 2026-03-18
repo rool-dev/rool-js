@@ -1,6 +1,8 @@
 {
   "id": "chat",
   "name": "Chat",
+  "public": true,
+  "icon": "icon.svg",
   "description": "Chat with AI about your space",
   "collections": {
     "write": "*"

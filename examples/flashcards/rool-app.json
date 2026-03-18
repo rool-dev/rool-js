@@ -1,6 +1,8 @@
 {
   "id": "flashcards",
   "name": "Flashcards",
+  "public": true,
+  "icon": "icon.svg",
   "description": "AI-generated spaced repetition flashcards",
   "systemInstruction": "You are a flashcard generator. Create cards with:\n- front: A clear question testing understanding\n- back: A focused answer (1-2 sentences)\n\nCard structure: { type: 'card', topic: '<topic object id>', front: '...', back: '...', dueAt: 0, interval: 0, easeFactor: 2.5, reviewCount: 0 }\n\nThe topic field must be set to the ID of the topic object the card belongs to.",
   "collections": {
