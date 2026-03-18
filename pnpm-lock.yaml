@@ -72,6 +72,19 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  examples/snake:
+    dependencies:
+      '@rool-dev/app':
+        specifier: workspace:*
+        version: link:../../packages/app
+    devDependencies:
+      svelte:
+        specifier: ^5.0.0
+        version: 5.49.1
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   examples/soft-sql:
     dependencies:
       '@humanspeak/svelte-markdown':
