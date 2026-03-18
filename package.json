@@ -16,8 +16,8 @@
     "release": "node scripts/release.js"
   },
   "devDependencies": {
-    "astro": "^5.2.5",
-    "@astrojs/starlight": "^0.32.2",
+    "@astrojs/starlight": "^0.32.6",
+    "astro": "^5.18.1",
     "sharp": "^0.33.5"
   },
   "repository": {

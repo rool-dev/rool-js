@@ -7,12 +7,12 @@
     "dev": "rool-app dev"
   },
   "dependencies": {
-    "@rool-dev/app": "workspace:*",
-    "@humanspeak/svelte-markdown": "^0.8.14",
-    "@iconify/svelte": "^5.2.1"
+    "@humanspeak/svelte-markdown": "^0.8.17",
+    "@iconify/svelte": "^5.2.1",
+    "@rool-dev/app": "workspace:*"
   },
   "devDependencies": {
-    "svelte": "^5.0.0",
-    "typescript": "^5.0.0"
+    "svelte": "^5.54.0",
+    "typescript": "^5.9.3"
   }
 }

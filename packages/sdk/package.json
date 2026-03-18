@@ -57,7 +57,7 @@
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
-    "@types/node": "^25.1.0",
+    "@types/node": "^25.5.0",
     "chai": "^6.2.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
