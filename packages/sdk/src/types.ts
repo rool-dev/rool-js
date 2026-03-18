@@ -227,6 +227,8 @@ export interface AppManifest {
   public: boolean;
   /** Optional app description */
   description?: string;
+  /** Optional system instruction for the AI agent */
+  systemInstruction?: string | null;
 }
 
 /**
