@@ -64,9 +64,12 @@
     <div class="px-4 pt-4 pb-3 border-b border-slate-100">
       <div class="flex items-start justify-between mb-1">
         {#if manifest}
-          <div class="min-w-0">
-            <div class="font-semibold text-base text-slate-800 leading-tight">{manifest.name}</div>
-            <div class="text-[11px] text-slate-400 font-mono mt-0.5">{manifest.id}</div>
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="material-icons text-xl text-slate-500 shrink-0">{manifest.icon}</span>
+            <div class="min-w-0">
+              <div class="font-semibold text-base text-slate-800 leading-tight">{manifest.name}</div>
+              <div class="text-[11px] text-slate-400 font-mono mt-0.5">{manifest.id}</div>
+            </div>
           </div>
         {:else}
           <div class="min-w-0">
@@ -81,6 +84,13 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
       </div>
+      {#if manifest}
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium {manifest.public ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}">
+            {manifest.public ? 'Public' : 'Private'}
+          </span>
+        </div>
+      {/if}
       {#if manifest?.description}
         <div class="text-xs text-slate-500 leading-snug mt-1">{manifest.description}</div>
       {/if}

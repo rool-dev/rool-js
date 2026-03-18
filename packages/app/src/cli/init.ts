@@ -38,6 +38,9 @@ function init() {
   const manifest = {
     id: appId,
     name: appName,
+    public: false,
+    icon: 'widgets',
+    collections: {},
   };
 
   const appSvelte = `<script lang="ts">
@@ -118,4 +121,4 @@ npx rool-app dev
 `);
 }
 
-init();
+export { init };

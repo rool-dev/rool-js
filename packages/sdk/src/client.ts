@@ -399,7 +399,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * https://{appId}.rool.app/
    *
    * @param appId - URL-safe identifier (alphanumeric, hyphens, underscores; case-insensitive, lowercased by server)
-   * @param options - App name, bundle (zip file), and optional SPA flag
+   * @param options - Bundle zip file (must include index.html and rool-app.json)
    */
   async publishApp(appId: string, options: PublishAppOptions): Promise<PublishedAppInfo> {
     return this.appsClient.publish(appId, options);

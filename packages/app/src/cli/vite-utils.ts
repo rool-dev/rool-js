@@ -33,6 +33,9 @@ export function readManifest(root: string): ManifestResult {
   const missing: string[] = [];
   if (!parsed.id) missing.push('id');
   if (!parsed.name) missing.push('name');
+  if (typeof parsed.public !== 'boolean') missing.push('public');
+  if (!parsed.icon) missing.push('icon');
+  if (!parsed.collections || typeof parsed.collections !== 'object') missing.push('collections');
   if (missing.length > 0) {
     return { manifest: null, error: `rool-app.json missing required fields: ${missing.join(', ')}` };
   }
@@ -49,8 +52,13 @@ export function readManifestOrExit(root: string): AppManifest {
     process.exit(1);
   }
   const parsed = JSON.parse(readFileSync(path, 'utf-8'));
-  if (!parsed.id || !parsed.name) {
-    console.error('rool-app.json missing required fields: id, name');
+  const missing: string[] = [];
+  if (!parsed.id) missing.push('id');
+  if (!parsed.name) missing.push('name');
+  if (typeof parsed.public !== 'boolean') missing.push('public');
+  if (!parsed.icon) missing.push('icon');
+  if (missing.length > 0) {
+    console.error(`rool-app.json missing required fields: ${missing.join(', ')}`);
     process.exit(1);
   }
   return parsed;
@@ -95,4 +103,14 @@ function pickExport(value: unknown, conditions: string[]): string | null {
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Formatting
+// ---------------------------------------------------------------------------
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

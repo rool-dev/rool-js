@@ -142,9 +142,6 @@ importers:
       '@rool-dev/sdk':
         specifier: workspace:*
         version: link:../sdk
-      archiver:
-        specifier: ^7.0.1
-        version: 7.0.1
       commander:
         specifier: ^14.0.3
         version: 14.0.3
@@ -155,9 +152,6 @@ importers:
         specifier: ^7.3.0
         version: 7.3.0(marked@15.0.12)
     devDependencies:
-      '@types/archiver':
-        specifier: ^7.0.0
-        version: 7.0.0
       '@types/marked-terminal':
         specifier: ^6.1.1
         version: 6.1.1

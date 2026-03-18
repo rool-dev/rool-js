@@ -5,7 +5,7 @@ Build sandboxed apps that run inside Rool Spaces. An app is a Svelte 5 component
 Apps are small, standardized, and easy to generate. An app project is just two files:
 
 - **`App.svelte`** — Your UI component (receives a reactive channel as a prop)
-- **`rool-app.json`** — Manifest with id, name, and collection access
+- **`rool-app.json`** — Manifest with id, name, icon, visibility, and collection access
 
 Everything else (Vite config, entry point, HTML, Tailwind CSS) is provided by the CLI.
 
@@ -28,6 +28,8 @@ This opens a dev host at `/__rool-host/` that loads your app in a sandboxed ifra
 {
   "id": "my-app",
   "name": "My App",
+  "public": false,
+  "icon": "widgets",
   "description": "What this app does",
   "collections": {
     "write": {
@@ -46,8 +48,10 @@ This opens a dev host at `/__rool-host/` that loads your app in a sandboxed ifra
 |-------|----------|-------------|
 | `id` | Yes | Unique identifier (lowercase, hyphens) |
 | `name` | Yes | Display name |
+| `public` | Yes | Whether the app is listed in the public app directory |
+| `icon` | Yes | [Material Icons](https://fonts.google.com/icons) name (e.g. `"widgets"`, `"edit_note"`, `"science"`) |
 | `description` | No | Short description |
-| `collections` | No | Collection access declarations (see below) |
+| `collections` | Yes | Collection access declarations — can be `{}` (see below) |
 | `systemInstruction` | No | Default system instruction for the AI channel |
 
 ### Collection Access
@@ -274,6 +278,8 @@ The bridge protocol:
 |---------|-------------|
 | `rool-app init [name]` | Scaffold a new app project |
 | `rool-app dev` | Start the dev server with host shell |
+| `rool-app build` | Build the app |
+| `rool-app publish` | Build and publish the app |
 
 ## Exported Types
 

@@ -6,7 +6,6 @@ import { registerSpace } from './space.js';
 import { registerApp } from './app.js';
 import { registerUser } from './user.js';
 import { registerLogout } from './logout.js';
-import { registerCreate } from './create.js';
 
 function validateEnv(value: string): Environment {
   if (value !== 'local' && value !== 'dev' && value !== 'prod') {
@@ -30,7 +29,6 @@ export function createProgram(): Command {
   registerApp(program);
   registerUser(program);
   registerLogout(program);
-  registerCreate(program);
 
   return program;
 }

@@ -22,9 +22,11 @@ export interface ManifestCollections {
 export interface AppManifest {
   id: string;
   name: string;
+  public: boolean;
+  icon: string;
+  collections: ManifestCollections;
   description?: string;
   systemInstruction?: string | null;
-  collections?: ManifestCollections;
   [key: string]: unknown;
 }
 
@@ -37,7 +39,7 @@ export interface ManifestResult {
 // Environment config
 // ---------------------------------------------------------------------------
 
-export type Environment = 'dev' | 'prod';
+export type Environment = 'local' | 'dev' | 'prod';
 
 export interface EnvironmentConfig {
   baseUrl: string;
@@ -47,6 +49,7 @@ export interface EnvironmentConfig {
 }
 
 export const ENV_URLS: Record<Environment, EnvironmentConfig> = {
+  local: { baseUrl: 'http://localhost:1357', authUrl: 'https://api.dev.rool.dev/auth', label: 'localhost:1357', appsDomain: 'dev.rool.app' },
   dev: { baseUrl: 'https://api.dev.rool.dev', authUrl: 'https://api.dev.rool.dev/auth', label: 'api.dev.rool.dev', appsDomain: 'dev.rool.app' },
   prod: { baseUrl: 'https://api.rool.dev', authUrl: 'https://api.rool.dev/auth', label: 'api.rool.dev', appsDomain: 'rool.app' },
 };

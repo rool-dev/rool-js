@@ -1,96 +1,72 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import archiver from 'archiver';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { resolve, dirname } from 'node:path';
 import { type Command } from 'commander';
 import { getClient } from './client.js';
 import { formatBytes } from './format.js';
 import { type Environment } from './constants.js';
 
-async function zipDirectory(dirPath: string): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    const chunks: Buffer[] = [];
+/**
+ * Spawn a rool-app CLI command, forwarding the --env flag.
+ */
+function spawnRoolApp(command: string, args: string[], env: Environment): void {
+  const require = createRequire(import.meta.url);
+  const appPkg = require.resolve('@rool-dev/app/package.json');
+  const bin = resolve(dirname(appPkg), 'dist/cli/index.js');
 
-    archive.on('data', (chunk: Buffer) => chunks.push(chunk));
-    archive.on('end', () => resolve(Buffer.concat(chunks)));
-    archive.on('error', reject);
+  const fullArgs = [command, ...args];
+  if (env !== 'prod') {
+    fullArgs.push('--env', env);
+  }
 
-    archive.directory(dirPath, false);
-    archive.finalize();
+  const result = spawnSync(process.execPath, [bin, ...fullArgs], {
+    stdio: 'inherit',
+    cwd: process.cwd(),
   });
+  process.exit(result.status ?? 1);
 }
 
 export function registerApp(program: Command): void {
   const app = program
     .command('app')
-    .description('Publish and manage apps');
+    .description('Create, develop, build, publish, and manage apps');
+
+  app
+    .command('create')
+    .description('Create a new Rool app')
+    .argument('[name]', 'app name (creates subdirectory)')
+    .action((name: string | undefined, _opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      spawnRoolApp('init', name ? [name] : [], env);
+    });
+
+  app
+    .command('dev')
+    .description('Start the dev server')
+    .action((_opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      spawnRoolApp('dev', [], env);
+    });
+
+  app
+    .command('build')
+    .description('Build the app')
+    .action((_opts: object, command: Command) => {
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      spawnRoolApp('build', [], env);
+    });
 
   app
     .command('publish')
-    .description('Publish a directory as an app')
-    .argument('<app-id>', 'unique app identifier')
-    .argument('<path>', 'directory to publish')
-    .option('-n, --name <name>', 'app display name (defaults to app-id)')
-    .option('--no-spa', 'disable SPA routing (404s will not serve index.html)')
-    .addHelpText('after', `
-Examples:
-  # Publish a directory as an app
-  $ rool app publish my-app ./dist
-
-  # Publish with a custom name
-  $ rool app publish my-app ./dist -n "My App"`)
-    .action(async (rawAppId: string, dirPath: string, opts: { name?: string; spa: boolean }, command: Command) => {
-      const appId = rawAppId.toLowerCase();
+    .description('Build and publish the app')
+    .action((_opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
-      // Validate directory exists
-      const resolvedPath = path.resolve(dirPath);
-      if (!fs.existsSync(resolvedPath)) {
-        console.error(`Directory not found: ${resolvedPath}`);
-        process.exit(1);
-      }
-
-      const stat = fs.statSync(resolvedPath);
-      if (!stat.isDirectory()) {
-        console.error(`Not a directory: ${resolvedPath}`);
-        process.exit(1);
-      }
-
-      // Check for index.html (standalone) or rool-app.json (app bundle)
-      const hasIndex = fs.existsSync(path.join(resolvedPath, 'index.html'));
-      const hasAppManifest = fs.existsSync(path.join(resolvedPath, 'rool-app.json'));
-      if (!hasIndex && !hasAppManifest) {
-        console.error(`No index.html or rool-app.json found in ${resolvedPath}`);
-        console.error('The directory must contain an index.html or rool-app.json at the root.');
-        process.exit(1);
-      }
-
-      console.log(`Packaging ${resolvedPath}...`);
-      const zipBuffer = await zipDirectory(resolvedPath);
-      console.log(`Bundle size: ${formatBytes(zipBuffer.length)}`);
-
-      const client = await getClient(env);
-      try {
-        console.log(`Publishing ${appId}...`);
-        const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
-        const result = await client.publishApp(appId, { name: opts.name ?? appId, bundle: blob, spa: opts.spa });
-
-        console.log('');
-        console.log(`Published: ${result.name}`);
-        console.log(`URL: ${result.url}`);
-        console.log(`Size: ${formatBytes(result.sizeBytes)}`);
-        console.log(`SPA routing: ${result.spa ? 'enabled' : 'disabled'}`);
-      } finally {
-        client.destroy();
-      }
+      spawnRoolApp('publish', [], env);
     });
 
   app
     .command('list')
     .description('List published apps')
-    .addHelpText('after', `
-Examples:
-  # List published apps
-  $ rool app list`)
     .action(async (_opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
       const client = await getClient(env);
@@ -107,7 +83,6 @@ Examples:
             console.log(`    Name: ${a.name}`);
             console.log(`    URL: ${a.url}`);
             console.log(`    Size: ${formatBytes(a.sizeBytes)}`);
-            console.log(`    SPA: ${a.spa ? 'yes' : 'no'}`);
             console.log(`    Updated: ${new Date(a.updatedAt).toLocaleString()}`);
             console.log('');
           }
@@ -121,10 +96,6 @@ Examples:
     .command('unpublish')
     .description('Unpublish an app')
     .argument('<app-id>', 'app to unpublish')
-    .addHelpText('after', `
-Examples:
-  # Unpublish an app
-  $ rool app unpublish my-app`)
     .action(async (rawAppId: string, _opts: object, command: Command) => {
       const appId = rawAppId.toLowerCase();
       const { env } = command.optsWithGlobals() as { env: Environment };
@@ -147,13 +118,6 @@ Examples:
     .command('slug')
     .description('Show or set your user slug')
     .argument('[new-slug]', 'new slug to set')
-    .addHelpText('after', `
-Examples:
-  # Show your user slug
-  $ rool app slug
-
-  # Set your user slug
-  $ rool app slug my-slug`)
     .action(async (newSlug: string | undefined, _opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
       const client = await getClient(env);

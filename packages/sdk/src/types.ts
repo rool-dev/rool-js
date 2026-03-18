@@ -197,12 +197,8 @@ export interface MediaResponse {
  * Options for publishing an app.
  */
 export interface PublishAppOptions {
-  /** Display name for the app */
-  name: string;
-  /** Zip bundle containing the app files (must include index.html at root) */
+  /** Zip bundle containing the app files (must include index.html and rool-app.json at root) */
   bundle: File | Blob;
-  /** Enable SPA routing (404s serve index.html). Defaults to true. */
-  spa?: boolean;
 }
 
 /**
@@ -215,8 +211,6 @@ export interface PublishedAppInfo {
   name: string;
   /** Public URL where the app is accessible */
   url: string;
-  /** Whether SPA routing is enabled */
-  spa: boolean;
   /** Bundle size in bytes */
   sizeBytes: number;
   /** ISO timestamp of creation */

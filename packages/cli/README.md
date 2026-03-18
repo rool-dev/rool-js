@@ -18,16 +18,18 @@ rool <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `create [name]` | Create a new Rool app |
+| `app create [name]` | Create a new Rool app |
+| `app dev` | Start the dev server |
+| `app build` | Build the app |
+| `app publish` | Build and publish the app |
+| `app list` | List published apps |
+| `app unpublish <app-id>` | Unpublish an app |
+| `app slug [new-slug]` | Show or set your user slug |
 | `chat [prompt]` | Chat with a space (interactive if no prompt) |
 | `media upload <file>` | Upload a file to a space and create an object with the media URL |
 | `space list` | List all spaces |
 | `space create <name>` | Create a new space |
 | `space delete <name>` | Delete a space |
-| `app publish <app-id> <path>` | Publish a directory as an app |
-| `app list` | List published apps |
-| `app unpublish <app-id>` | Unpublish an app |
-| `app slug [new-slug]` | Show or set your user slug |
 | `user` | Show current user info |
 | `logout` | Log out |
 
@@ -35,6 +37,7 @@ rool <command> [options]
 
 | Option | Description |
 |--------|-------------|
+| `-e, --env <environment>` | Target environment (`local`, `dev`, `prod`) |
 | `-V, --version` | Show version number |
 | `-h, --help` | Show help for any command |
 
@@ -44,16 +47,35 @@ rool <command> [options]
 |--------|-------------|---------|---------|
 | `-s, --space <name>` | space name | `Rool CLI` | `chat`, `media upload` |
 | `-c, --channel <id>` | channel ID | `rool-dev` | `chat` |
-| `-u, --url <url>` | API URL | `https://api.rool.dev` | `chat`, `media upload`, `space list`, `space create`, `space delete`, `app publish`, `app list`, `app unpublish`, `app slug`, `user`, `logout` |
 | `-m, --message <text>` | optional comment/description |  | `media upload` |
 | `-y, --yes` | skip confirmation prompt |  | `space delete` |
-| `-n, --name <name>` | app display name (defaults to app-id) |  | `app publish` |
 
 ### Examples
 
 ```bash
 # Create a new app
-rool create my-app
+rool app create my-app
+
+# Start the dev server
+rool app dev
+
+# Build the app
+rool app build
+
+# Build and publish the app
+rool app publish
+
+# List published apps
+rool app list
+
+# Unpublish an app
+rool app unpublish my-app
+
+# Show your user slug
+rool app slug
+
+# Set your user slug
+rool app slug my-slug
 
 # Chat with the default space
 rool chat "What is the capital of France?"
@@ -63,7 +85,6 @@ rool chat
 
 # Use a specific space
 rool chat -s "My Project" "Summarize the current state"
-
 
 # Upload a file
 rool media upload photo.jpg
@@ -85,24 +106,6 @@ rool space delete "Old Project"
 
 # Delete without confirmation
 rool space delete "Old Project" -y
-
-# Publish a directory as an app
-rool app publish my-app ./dist
-
-# Publish with a custom name
-rool app publish my-app ./dist -n "My App"
-
-# List published apps
-rool app list
-
-# Unpublish an app
-rool app unpublish my-app
-
-# Show your user slug
-rool app slug
-
-# Set your user slug
-rool app slug my-slug
 
 # Show user info
 rool user

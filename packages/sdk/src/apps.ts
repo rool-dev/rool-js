@@ -67,7 +67,7 @@ export class AppsClient {
   /**
    * Publish or update an app.
    * @param appId - URL-safe identifier for the app
-   * @param options - App name, bundle (zip file), and optional SPA flag
+   * @param options - Bundle zip file (must include index.html and rool-app.json)
    */
   async publish(appId: string, options: PublishAppOptions): Promise<PublishedAppInfo> {
     const tokens = await this.config.authManager.getTokens();
@@ -77,10 +77,6 @@ export class AppsClient {
 
     const formData = new FormData();
     formData.append('bundle', options.bundle);
-    formData.append('name', options.name);
-    if (options.spa !== undefined) {
-      formData.append('spa', String(options.spa));
-    }
 
     const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
       method: 'POST',

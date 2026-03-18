@@ -348,9 +348,7 @@ export class DevHostController {
       this._onChange();
 
       const result = await this.client.publishApp(this.manifest.id, {
-        name: this.manifest.name,
         bundle: zipBlob,
-        spa: false,
       });
 
       // Step 3: update published apps list
@@ -504,26 +502,24 @@ export class DevHostController {
       await channel.setSystemInstruction(targetInstruction);
     }
 
-    if (manifest.collections) {
-      const currentSchema = channel.getSchema();
-      const syncCollections = async (colls: Record<string, { name: string; type: Record<string, unknown> }[]>) => {
-        for (const [name, fields] of Object.entries(colls)) {
-          if (name in currentSchema) {
-            await channel.alterCollection(name, fields as any);
-          } else {
-            await channel.createCollection(name, fields as any);
-          }
+    const currentSchema = channel.getSchema();
+    const syncCollections = async (colls: Record<string, { name: string; type: Record<string, unknown> }[]>) => {
+      for (const [name, fields] of Object.entries(colls)) {
+        if (name in currentSchema) {
+          await channel.alterCollection(name, fields as any);
+        } else {
+          await channel.createCollection(name, fields as any);
         }
-      };
-      const { write: w, read: r } = manifest.collections;
-      if (w && w !== '*') await syncCollections(w);
-      if (r && r !== '*') await syncCollections(r);
-    }
+      }
+    };
+    const { write: w, read: r } = manifest.collections;
+    if (w && w !== '*') await syncCollections(w);
+    if (r && r !== '*') await syncCollections(r);
   }
 
   private _getSavedEnv(): Environment {
     const saved = storageGet('rool-devhost:env');
-    if (saved === 'dev' || saved === 'prod') return saved;
+    if (saved === 'local' || saved === 'dev' || saved === 'prod') return saved;
     return 'prod';
   }
 }

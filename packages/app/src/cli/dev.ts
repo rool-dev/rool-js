@@ -48,6 +48,7 @@ function generateHostHtml(result: ManifestResult): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${manifest?.name ? escapeHtml(manifest.name) + ' \u2014 ' : ''}App Dev Host</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons&display=swap">
   <script type="module" src="/@vite/client"></script>
 </head>
 <body style="height:100%;margin:0">
@@ -148,8 +149,11 @@ function roolHostPlugin(state: { current: ManifestResult }, hostShellJs: string,
         // Build + zip endpoint for in-browser publishing
         if (req.url === '/__rool-host/publish' && req.method === 'POST') {
           try {
-            const { buildAndZip } = await import('./publish.js');
-            const { zipBuffer, totalSize } = await buildAndZip(cwd);
+            const { buildApp, zipDirectory } = await import('./build-pipeline.js');
+            const { readManifestOrExit } = await import('./vite-utils.js');
+            const manifest = readManifestOrExit(cwd);
+            const { outDir, totalSize } = await buildApp(cwd, manifest);
+            const zipBuffer = await zipDirectory(outDir);
             res.setHeader('Content-Type', 'application/zip');
             res.setHeader('X-Total-Size', String(totalSize));
             res.end(zipBuffer);
@@ -217,7 +221,7 @@ function watchManifest(root: string, state: { current: ManifestResult }, server:
 // Main
 // ---------------------------------------------------------------------------
 
-async function main() {
+export async function dev() {
   const cwd = process.cwd();
   const state = { current: readManifest(cwd) };
 
@@ -274,7 +278,3 @@ async function main() {
   watchManifest(cwd, state, server);
 }
 
-main().catch((err) => {
-  console.error('Failed to start dev server:', err);
-  process.exit(1);
-});
