@@ -78,6 +78,7 @@ export type {
   Channel,
   ChannelInfo,
   Interaction,
+  InteractionStatus,
 
   // Config types
   RoolClientConfig,

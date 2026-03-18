@@ -296,6 +296,7 @@ import type {
   FieldDef,
   FieldType,
   Interaction,
+  InteractionStatus,
   ToolCall,
   PromptOptions,
   PromptEffort,

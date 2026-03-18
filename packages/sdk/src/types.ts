@@ -77,6 +77,15 @@ export interface ToolCall {
 }
 
 /**
+ * Interaction lifecycle status.
+ * - `pending` — Created, work not started yet
+ * - `streaming` — Final text response being generated (`output` contains partial text)
+ * - `done` — Finished successfully
+ * - `error` — Finished with an error
+ */
+export type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
+
+/**
  * An interaction entry - combines request and response in a single record.
  */
 export interface Interaction {
@@ -87,6 +96,7 @@ export interface Interaction {
   operation: 'prompt' | 'createObject' | 'updateObject' | 'deleteObjects';
   input: string;
   output: string | null;
+  status: InteractionStatus;
   ai: boolean;
   modifiedObjectIds: string[];
   toolCalls: ToolCall[];

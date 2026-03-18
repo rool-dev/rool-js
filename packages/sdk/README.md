@@ -1092,6 +1092,8 @@ interface ToolCall {
   result?: string;   // Truncated result (absent while tool is running)
 }
 
+type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
+
 interface Interaction {
   id: string;                    // Unique ID for this interaction
   timestamp: number;
@@ -1099,7 +1101,8 @@ interface Interaction {
   userName?: string | null;      // Display name at time of interaction
   operation: 'prompt' | 'createObject' | 'updateObject' | 'deleteObjects';
   input: string;                 // What the user did: prompt text or action description
-  output: string | null;         // Result: AI response or confirmation message (null while in-progress)
+  output: string | null;         // AI response or confirmation message (may be partial when streaming)
+  status: InteractionStatus;     // Lifecycle status (pending → streaming → done/error)
   ai: boolean;                   // Whether AI was invoked (vs synthetic confirmation)
   modifiedObjectIds: string[];   // Objects affected by this interaction
   toolCalls: ToolCall[];         // Tools called during this interaction (for AI prompts)

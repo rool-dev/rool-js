@@ -49,6 +49,8 @@ export interface ToolCall {
   result?: string;
 }
 
+export type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
+
 export interface Interaction {
   id: string;
   timestamp: number;
@@ -57,6 +59,7 @@ export interface Interaction {
   operation: 'prompt' | 'createObject' | 'updateObject' | 'deleteObjects';
   input: string;
   output: string | null;
+  status: InteractionStatus;
   ai: boolean;
   modifiedObjectIds: string[];
   toolCalls: ToolCall[];
