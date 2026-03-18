@@ -71,7 +71,7 @@ export async function publish() {
     bundle: blob,
   });
 
-  console.log(`\n  Published: ${result.name}`);
+  console.log(`\n  Published: ${result.manifest.name}`);
   console.log(`  URL: ${result.url}`);
   console.log(`  Size: ${formatBytes(result.sizeBytes)}\n`);
 

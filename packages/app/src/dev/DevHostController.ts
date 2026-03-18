@@ -125,7 +125,7 @@ export class DevHostController {
         if (!app) return null;
         return {
           id: app.appId,
-          name: app.name,
+          name: app.manifest.name,
           url: `https://${app.appId}.${ENV_URLS[this.env].appsDomain}`,
           isLocal: false,
         } as AppTab;

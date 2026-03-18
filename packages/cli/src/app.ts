@@ -80,7 +80,7 @@ export function registerApp(program: Command): void {
           console.log('');
           for (const a of apps) {
             console.log(`  ${a.appId}`);
-            console.log(`    Name: ${a.name}`);
+            console.log(`    Name: ${a.manifest.name}`);
             console.log(`    URL: ${a.url}`);
             console.log(`    Size: ${formatBytes(a.sizeBytes)}`);
             console.log(`    Updated: ${new Date(a.updatedAt).toLocaleString()}`);

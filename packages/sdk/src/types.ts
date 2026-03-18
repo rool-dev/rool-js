@@ -212,13 +212,31 @@ export interface PublishAppOptions {
 }
 
 /**
+ * App manifest from rool-app.json, stored with each published app.
+ */
+export interface AppManifest {
+  /** App identifier (lowercase, hyphens) */
+  id: string;
+  /** Display name */
+  name: string;
+  /** Optional icon identifier */
+  icon?: string;
+  /** Collection access declarations */
+  collections: Record<string, unknown>;
+  /** Whether the app is publicly listed */
+  public: boolean;
+  /** Optional app description */
+  description?: string;
+}
+
+/**
  * Info about a published app.
  */
 export interface PublishedAppInfo {
   /** App identifier (URL-safe) */
   appId: string;
-  /** Display name */
-  name: string;
+  /** App manifest from rool-app.json */
+  manifest: AppManifest;
   /** Public URL where the app is accessible */
   url: string;
   /** Bundle size in bytes */

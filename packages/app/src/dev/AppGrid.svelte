@@ -207,7 +207,7 @@
                 type="button"
                 onclick={() => { addMenuOpen = false; onInstallApp(app.appId); }}
               >
-                <span class="font-medium">{app.name}</span>
+                <span class="font-medium">{app.manifest.name}</span>
                 <span class="text-[10px] text-slate-400 font-mono ml-auto">{app.appId}</span>
               </button>
             {/each}
