@@ -568,6 +568,7 @@ Publish, manage, and discover apps. See [`@rool-dev/app`](/app/) for building ap
 | `listApps(): Promise<PublishedAppInfo[]>` | List your own published apps |
 | `getAppInfo(appId): Promise<PublishedAppInfo \| null>` | Get info for a specific app |
 | `findApps(options?): Promise<PublishedAppInfo[]>` | Search public apps. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
+| `installApp(spaceId, appId, channelId?): Promise<string>` | Install an app into a space. Creates/updates a channel with the app's manifest settings (name, system instruction, collections). Returns the channel ID. Defaults `channelId` to `appId`. |
 
 ### Utilities
 
@@ -649,6 +650,7 @@ A channel is a named context within a space. All object operations, AI prompts, 
 | `userId: string` | Current user's ID |
 | `channelId: string` | Channel ID (read-only, fixed at open time) |
 | `isReadOnly: boolean` | True if viewer role |
+| `appUrl: string \| null` | URL of the installed app, or null if this is a plain channel |
 
 ### Lifecycle
 
@@ -1079,6 +1081,7 @@ interface Channel {
   createdBy: string;            // User ID who created the channel
   createdByName?: string;       // Display name at time of creation
   systemInstruction?: string;   // Custom system instruction for AI
+  appUrl?: string;              // URL of installed app (set by installApp)
   interactions: Interaction[];  // Interaction history
 }
 
@@ -1090,6 +1093,7 @@ interface ChannelInfo {
   createdBy: string;
   createdByName: string | null;
   interactionCount: number;
+  appUrl: string | null;        // URL of installed app, or null
 }
 ```
 

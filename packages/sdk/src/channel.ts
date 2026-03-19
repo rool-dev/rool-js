@@ -209,6 +209,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this._role === 'viewer';
   }
 
+  /**
+   * Get the app URL if this channel was created via installApp, or null.
+   */
+  get appUrl(): string | null {
+    return this._channel?.appUrl ?? null;
+  }
+
   // ===========================================================================
   // Channel History Access
   // ===========================================================================

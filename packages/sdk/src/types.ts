@@ -113,6 +113,8 @@ export interface Channel {
   createdBy: string;
   createdByName?: string;
   systemInstruction?: string;
+  /** URL of the installed app, if this channel was created via installApp. */
+  appUrl?: string;
   interactions: Interaction[];
 }
 
@@ -127,6 +129,8 @@ export interface ChannelInfo {
   createdBy: string;
   createdByName: string | null;
   interactionCount: number;
+  /** URL of the installed app, or null if this is a plain channel. */
+  appUrl: string | null;
 }
 
 
@@ -361,6 +365,7 @@ export interface ClientEvent {
   channelCreatedAt?: number;  // Present on channel_created events
   channelCreatedBy?: string;  // Present on channel_created events
   channelCreatedByName?: string;  // Present on channel_created events
+  channelAppUrl?: string | null;  // Present on channel_created events
 }
 
 // -----------------------------------------------------------------------------

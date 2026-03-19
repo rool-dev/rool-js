@@ -121,12 +121,12 @@ export class DevHostController {
     };
     const appTabs: AppTab[] = this.installedAppIds
       .map((id) => {
-        const app = this.publishedApps.find((a) => a.appId === id);
-        if (!app) return null;
+        const ch = this.channels[id];
+        if (!ch?.appUrl) return null;
         return {
-          id: app.appId,
-          name: app.manifest.name,
-          url: `https://${app.appId}.${ENV_URLS[this.env].appsDomain}`,
+          id,
+          name: ch.channelName ?? id,
+          url: ch.appUrl,
           isLocal: false,
         } as AppTab;
       })
@@ -219,24 +219,18 @@ export class DevHostController {
       // Apply manifest settings to the local channel
       await this._syncManifest(localChannel, this.manifest);
 
-      // Discover installed apps: space channels whose ID matches a published app
+      // Discover installed apps: channels with an appUrl
       const space = await this.client.openSpace(spaceId);
       const spaceChannels = space.getChannels();
-      const publishedAppIds = new Set(this.publishedApps.map((a) => a.appId));
       this.installedAppIds = spaceChannels
-        .map((ch) => ch.id)
-        .filter((id) => publishedAppIds.has(id) && id !== this.channelId);
+        .filter((ch) => ch.appUrl && ch.id !== this.channelId)
+        .map((ch) => ch.id);
 
-      // Open channels for each installed app and sync their manifests
+      // Open channels for each installed app (server already applied manifest)
       for (const appId of this.installedAppIds) {
         try {
           const ch = await this.client.openChannel(spaceId, appId);
           this.channels[appId] = ch;
-
-          const remoteManifest = await this._fetchRemoteManifest(appId);
-          if (remoteManifest) {
-            await this._syncManifest(ch, remoteManifest);
-          }
         } catch (e) {
           console.error(`Failed to open channel for app ${appId}:`, e);
         }
@@ -277,21 +271,18 @@ export class DevHostController {
     if (this.installedAppIds.includes(appId)) return;
 
     try {
-      // Step 1: open channel (creates it on server == install)
-      const ch = await this.client.openChannel(this.currentSpaceId, appId);
+      // Step 1: install app (server applies manifest: name, systemInstruction, collections)
+      const channelId = await this.client.installApp(this.currentSpaceId, appId);
+
+      // Step 2: open channel for live subscription
+      const ch = await this.client.openChannel(this.currentSpaceId, channelId);
       this.channels[appId] = ch;
 
-      // Step 2: add the card, flush DOM, bind bridge
+      // Step 3: add the card, flush DOM, bind bridge
       this.installedAppIds = [...this.installedAppIds, appId];
       this._onChange();
       await this._tick();
       this._bindBridge(appId);
-
-      // Step 3: fetch and apply the published app's manifest
-      const remoteManifest = await this._fetchRemoteManifest(appId);
-      if (remoteManifest) {
-        await this._syncManifest(ch, remoteManifest);
-      }
     } catch (e) {
       console.error(`Failed to install app ${appId}:`, e);
       this.installedAppIds = this.installedAppIds.filter((id) => id !== appId);
@@ -467,22 +458,6 @@ export class DevHostController {
     this.bridgeHosts = {};
     this.channels = {};
     this.iframeEls = {};
-  }
-
-  /**
-   * Fetch `rool-app.json` from a published app's URL.
-   * Returns null if the fetch fails (app might not have a manifest).
-   */
-  private async _fetchRemoteManifest(appId: string): Promise<AppManifest | null> {
-    const domain = ENV_URLS[this.env].appsDomain;
-    const url = `https://${appId}.${domain}/rool-app.json`;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
   }
 
   /**

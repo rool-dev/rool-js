@@ -436,6 +436,20 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return this.graphqlClient.findApps(options);
   }
 
+  /**
+   * Install an app into a space.
+   * Creates (or updates) a channel with the app's name, URL, system instruction,
+   * and collections from the published app manifest.
+   *
+   * @param spaceId - The space to install the app into
+   * @param appId - The published app ID
+   * @param channelId - Channel ID for the app (defaults to appId)
+   * @returns The channel ID
+   */
+  async installApp(spaceId: string, appId: string, channelId?: string): Promise<string> {
+    return this.graphqlClient.installApp(spaceId, appId, channelId ?? appId);
+  }
+
   // ===========================================================================
   // User Storage (server-side localStorage equivalent)
   // ===========================================================================
@@ -649,6 +663,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
           createdBy: event.channelCreatedBy ?? '',
           createdByName: event.channelCreatedByName ?? null,
           interactionCount: 0,
+          appUrl: event.channelAppUrl ?? null,
         });
         break;
 

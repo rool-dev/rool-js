@@ -390,6 +390,7 @@ import type {
   SpaceMember,
   UserResult,
   PublishedAppInfo,
+  PublishAppOptions,
   AppManifest,
   FindAppsOptions,
 } from '@rool-dev/svelte';

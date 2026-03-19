@@ -33,6 +33,7 @@ export type {
   UserResult,
   RoolClient,
   PublishedAppInfo,
+  PublishAppOptions,
   AppManifest,
   FindAppsOptions,
 } from '@rool-dev/sdk';

@@ -102,6 +102,7 @@ export class GraphQLClient {
             createdBy
             createdByName
             interactionCount
+            appUrl
           }
         }
       }
@@ -599,6 +600,20 @@ export class GraphQLClient {
       limit: options?.limit,
     });
     return response.findApps;
+  }
+
+  async installApp(spaceId: string, appId: string, channelId: string): Promise<string> {
+    const mutation = `
+      mutation InstallApp($spaceId: String!, $appId: String!, $channelId: String!) {
+        installApp(spaceId: $spaceId, appId: $appId, channelId: $channelId)
+      }
+    `;
+    const result = await this.request<{ installApp: string }>(mutation, {
+      spaceId,
+      appId,
+      channelId,
+    });
+    return result.installApp;
   }
 
   async setUserStorage(key: string, value: unknown): Promise<void> {

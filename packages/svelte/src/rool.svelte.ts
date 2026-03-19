@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindAppsOptions, type PublishedAppInfo } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindAppsOptions, type PublishedAppInfo, type PublishAppOptions } from '@rool-dev/sdk';
 import { wrapChannel, createChannelList, type ReactiveChannel, type ReactiveChannelList } from './channel.svelte.js';
 
 /**
@@ -223,6 +223,43 @@ class RoolImpl {
    */
   findApps(options?: FindAppsOptions): Promise<PublishedAppInfo[]> {
     return this.#client.findApps(options);
+  }
+
+  /**
+   * Install an app into a space.
+   * Creates/updates a channel with the app's manifest settings.
+   * Returns the channel ID.
+   */
+  installApp(spaceId: string, appId: string, channelId?: string): Promise<string> {
+    return this.#client.installApp(spaceId, appId, channelId);
+  }
+
+  /**
+   * Publish or update an app.
+   */
+  publishApp(appId: string, options: PublishAppOptions): Promise<PublishedAppInfo> {
+    return this.#client.publishApp(appId, options);
+  }
+
+  /**
+   * Unpublish an app.
+   */
+  unpublishApp(appId: string): Promise<void> {
+    return this.#client.unpublishApp(appId);
+  }
+
+  /**
+   * List the current user's published apps.
+   */
+  listApps(): Promise<PublishedAppInfo[]> {
+    return this.#client.listApps();
+  }
+
+  /**
+   * Get info for a specific published app.
+   */
+  getAppInfo(appId: string): Promise<PublishedAppInfo | null> {
+    return this.#client.getAppInfo(appId);
   }
 
   /**
