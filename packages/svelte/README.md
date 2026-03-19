@@ -391,6 +391,7 @@ import type {
   UserResult,
   PublishedAppInfo,
   AppManifest,
+  FindAppsOptions,
 } from '@rool-dev/svelte';
 ```
 

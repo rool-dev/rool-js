@@ -49,6 +49,7 @@ export type {
   PublishAppOptions,
   PublishedAppInfo,
   AppManifest,
+  FindAppsOptions,
 
   // Schema types
   FieldType,

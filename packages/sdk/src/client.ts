@@ -24,6 +24,7 @@ import type {
   ConnectionState,
   PublishedAppInfo,
   PublishAppOptions,
+  FindAppsOptions,
 } from './types.js';
 
 type ResolvedUrls = {
@@ -425,6 +426,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async getAppInfo(appId: string): Promise<PublishedAppInfo | null> {
     return this.appsClient.get(appId);
+  }
+
+  /**
+   * Search for public apps. With a query, performs semantic search.
+   * Without a query, returns all public apps sorted by most recently updated.
+   */
+  async findApps(options?: FindAppsOptions): Promise<PublishedAppInfo[]> {
+    return this.graphqlClient.findApps(options);
   }
 
   // ===========================================================================

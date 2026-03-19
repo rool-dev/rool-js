@@ -34,4 +34,5 @@ export type {
   RoolClient,
   PublishedAppInfo,
   AppManifest,
+  FindAppsOptions,
 } from '@rool-dev/sdk';

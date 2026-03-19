@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindAppsOptions, type PublishedAppInfo } from '@rool-dev/sdk';
 import { wrapChannel, createChannelList, type ReactiveChannel, type ReactiveChannelList } from './channel.svelte.js';
 
 /**
@@ -215,6 +215,14 @@ class RoolImpl {
    */
   deleteChannel(spaceId: string, channelId: string): Promise<void> {
     return this.#client.deleteChannel(spaceId, channelId);
+  }
+
+  /**
+   * Search for public apps. With a query, performs semantic search.
+   * Without a query, returns all public apps sorted by most recently updated.
+   */
+  findApps(options?: FindAppsOptions): Promise<PublishedAppInfo[]> {
+    return this.#client.findApps(options);
   }
 
   /**

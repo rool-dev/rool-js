@@ -557,6 +557,18 @@ client.on('userStorageChanged', ({ key, value, source }) => {
 });
 ```
 
+### Apps
+
+Publish, manage, and discover apps. See [`@rool-dev/app`](/app/) for building apps.
+
+| Method | Description |
+|--------|-------------|
+| `publishApp(appId, options): Promise<PublishedAppInfo>` | Publish or update an app (`options.bundle`: zip with `index.html` and `rool-app.json`) |
+| `unpublishApp(appId): Promise<void>` | Unpublish an app |
+| `listApps(): Promise<PublishedAppInfo[]>` | List your own published apps |
+| `getAppInfo(appId): Promise<PublishedAppInfo \| null>` | Get info for a specific app |
+| `findApps(options?): Promise<PublishedAppInfo[]>` | Search public apps. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
+
 ### Utilities
 
 | Method | Description |

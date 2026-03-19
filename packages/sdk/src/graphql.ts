@@ -19,6 +19,8 @@ import type {
   ChannelInfo,
   Channel,
   SpaceSchema,
+  PublishedAppInfo,
+  FindAppsOptions,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 
@@ -577,6 +579,26 @@ export class GraphQLClient {
       }
     `;
     await this.request(mutation, { slug });
+  }
+
+  async findApps(options?: FindAppsOptions): Promise<PublishedAppInfo[]> {
+    const query = `
+      query FindApps($query: String, $limit: Int) {
+        findApps(query: $query, limit: $limit) {
+          appId
+          manifest
+          url
+          sizeBytes
+          createdAt
+          updatedAt
+        }
+      }
+    `;
+    const response = await this.request<{ findApps: PublishedAppInfo[] }>(query, {
+      query: options?.query,
+      limit: options?.limit,
+    });
+    return response.findApps;
   }
 
   async setUserStorage(key: string, value: unknown): Promise<void> {

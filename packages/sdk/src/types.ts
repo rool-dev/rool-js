@@ -232,6 +232,16 @@ export interface AppManifest {
 }
 
 /**
+ * Options for finding/searching public apps.
+ */
+export interface FindAppsOptions {
+  /** Natural language search query for semantic app discovery. Omit to browse all public apps. */
+  query?: string;
+  /** Maximum number of results (default: 20, max: 100) */
+  limit?: number;
+}
+
+/**
  * Info about a published app.
  */
 export interface PublishedAppInfo {
