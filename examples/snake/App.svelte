@@ -31,7 +31,6 @@
 
   let canvas: HTMLCanvasElement;
   let interval: ReturnType<typeof setInterval> | null = null;
-  let touchStart: Point | null = null;
 
   function spawnFood(): Point {
     let pos: Point;
@@ -218,25 +217,9 @@
     }
   }
 
-  function handleTouchStart(e: TouchEvent) {
-    const t = e.touches[0];
-    touchStart = { x: t.clientX, y: t.clientY };
-  }
-
-  function handleTouchEnd(e: TouchEvent) {
-    if (!touchStart || !running) return;
-
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStart.x;
-    const dy = t.clientY - touchStart.y;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) { touchStart = null; return; }
-
-    const newDir: Dir = Math.abs(dx) > Math.abs(dy)
-      ? (dx > 0 ? 'right' : 'left')
-      : (dy > 0 ? 'down' : 'up');
-
+  function steer(newDir: Dir) {
+    if (!running) return;
     if (OPPOSITE[newDir] !== dir) nextDir = newDir;
-    touchStart = null;
   }
 
   onMount(() => {
@@ -249,9 +232,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="h-full flex flex-col items-center justify-center gap-4 p-4 bg-slate-950 select-none"
-  ontouchstart={handleTouchStart}
-  ontouchend={handleTouchEnd}
+  class="h-full flex flex-col items-center justify-center gap-4 p-6 bg-slate-950 select-none"
   role="application"
 >
   <div class="flex items-center gap-8 text-sm font-mono">
@@ -263,8 +244,23 @@
     bind:this={canvas}
     width={WIDTH}
     height={HEIGHT}
-    class="border border-slate-700 rounded-lg"
+    class="border border-slate-700 rounded-lg touch-none"
   ></canvas>
+
+  {#if running}
+    {@const btnClass = "h-11 bg-slate-800 active:bg-slate-600 rounded-lg text-slate-400 text-lg font-bold cursor-pointer select-none touch-manipulation"}
+    <div class="grid grid-cols-3 gap-1.5 w-36">
+      <div></div>
+      <button class={btnClass} onclick={() => steer('up')}>&#9650;</button>
+      <div></div>
+      <button class={btnClass} onclick={() => steer('left')}>&#9664;</button>
+      <div></div>
+      <button class={btnClass} onclick={() => steer('right')}>&#9654;</button>
+      <div></div>
+      <button class={btnClass} onclick={() => steer('down')}>&#9660;</button>
+      <div></div>
+    </div>
+  {/if}
 
   {#if !running}
     <button
@@ -273,7 +269,7 @@
     >
       {over ? 'Play Again' : 'Start Game'}
     </button>
-    <p class="text-slate-600 text-xs">Arrow keys or WASD &middot; Space to start &middot; Swipe on mobile</p>
+    <p class="text-slate-600 text-xs">Arrow keys or WASD &middot; Space to start</p>
   {/if}
 
   {#if highScores.length > 0}
