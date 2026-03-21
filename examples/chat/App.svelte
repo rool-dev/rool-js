@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ReactiveAppChannel } from '@rool-dev/app';
+  import type { ReactiveAppChannel, ReactiveAppConversationHandle } from '@rool-dev/app';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import EffortSelector, { type PromptEffort } from './EffortSelector.svelte';
@@ -10,13 +10,80 @@
 
   let { channel }: Props = $props();
 
+  // ---------------------------------------------------------------------------
+  // Conversation management
+  // ---------------------------------------------------------------------------
+
+  let activeId = $state('default');
+  let activeHandle: ReactiveAppConversationHandle | null = $state(null);
+  let sidebarOpen = $state(false);
+
+  // Create/cleanup reactive conversation handle when active ID changes
+  $effect(() => {
+    const handle = channel.conversation(activeId);
+    activeHandle = handle;
+    return () => handle.close();
+  });
+
+  let currentInteractions = $derived(activeHandle?.interactions ?? []);
+
+  function displayName(conv: { id: string; name: string | null }): string {
+    return conv.name || (conv.id === 'default' ? 'Chat' : 'Untitled');
+  }
+
+  function newChat() {
+    activeId = Math.random().toString(36).slice(2, 8);
+    sidebarOpen = false;
+  }
+
+  function selectConversation(id: string) {
+    activeId = id;
+    sidebarOpen = false;
+  }
+
+  async function deleteConversation(id: string) {
+    await channel.deleteConversation(id);
+    if (activeId === id) activeId = 'default';
+  }
+
+  // Inline rename
+  let editingId = $state<string | null>(null);
+  let editingName = $state('');
+
+  function startRename(id: string, name: string | null) {
+    editingId = id;
+    editingName = name ?? '';
+  }
+
+  async function commitRename() {
+    if (!editingId) return;
+    const name = editingName.trim();
+    if (name) {
+      if (editingId === activeId && activeHandle) {
+        await activeHandle.rename(name);
+      } else {
+        const h = channel.conversation(editingId);
+        await h.rename(name);
+        h.close();
+      }
+    }
+    editingId = null;
+  }
+
+  function autofocus(el: HTMLElement) {
+    el.focus();
+    if (el instanceof HTMLInputElement) el.select();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chat
+  // ---------------------------------------------------------------------------
+
   let isSending = $state(false);
   let messageInput = $state('');
   let effort = $state<PromptEffort>('STANDARD');
   let messagesContainer: HTMLElement | undefined = $state();
   let inputElement: HTMLTextAreaElement | undefined = $state();
-
-  let currentInteractions = $derived(channel.interactions ?? []);
 
   function resizeTextarea() {
     if (!inputElement) return;
@@ -34,7 +101,6 @@
   });
 
   function handleKeydown(e: KeyboardEvent) {
-    // On touch devices (coarse pointer), don't submit on Enter - no easy Shift access
     const isTouch = window.matchMedia('(pointer: coarse)').matches;
     if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
       e.preventDefault();
@@ -43,7 +109,7 @@
   }
 
   async function sendMessage() {
-    if (!messageInput.trim() || isSending) return;
+    if (!messageInput.trim() || isSending || !activeHandle) return;
 
     const text = messageInput.trim();
     messageInput = '';
@@ -52,7 +118,7 @@
 
     try {
       const effortOption = effort === 'STANDARD' ? undefined : effort;
-      await channel.prompt(text, { effort: effortOption });
+      await activeHandle.prompt(text, { effort: effortOption });
     } catch (err) {
       console.error('Failed to send message:', err);
     } finally {
@@ -61,8 +127,89 @@
   }
 </script>
 
-<div class="h-full bg-slate-50 flex flex-col overflow-hidden">
-  <div class="flex-1 flex flex-col min-h-0 relative">
+<div class="h-full flex overflow-hidden">
+  <!-- Mobile backdrop -->
+  {#if sidebarOpen}
+    <button
+      class="fixed inset-0 bg-black/20 z-10 md:hidden"
+      onclick={() => sidebarOpen = false}
+      aria-label="Close sidebar"
+    ></button>
+  {/if}
+
+  <!-- Sidebar -->
+  <div class="
+    w-72 bg-white border-r border-slate-200 flex flex-col shrink-0
+    fixed inset-y-0 left-0 z-20 transition-transform duration-200
+    md:relative md:translate-x-0
+    {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+  ">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+      <span class="font-semibold text-slate-700 text-sm">Conversations</span>
+      <button
+        class="p-1 rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-slate-100 transition-colors"
+        onclick={newChat}
+        title="New conversation"
+      >
+        <Icon icon="mdi:plus" class="w-5 h-5" />
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-auto py-1">
+      {#each channel.conversations as conv (conv.id)}
+        <div
+          class="group flex items-center gap-1 mx-2 my-0.5 px-3 py-2 rounded-lg cursor-pointer transition-colors
+            {activeId === conv.id
+              ? 'bg-indigo-50 text-indigo-700'
+              : 'text-slate-600 hover:bg-slate-50'}"
+        >
+          {#if editingId === conv.id}
+            <input
+              class="flex-1 text-sm bg-white border border-indigo-300 rounded px-2 py-0.5 outline-none min-w-0"
+              bind:value={editingName}
+              onkeydown={(e) => {
+                if (e.key === 'Enter') commitRename();
+                if (e.key === 'Escape') { editingId = null; }
+              }}
+              onblur={commitRename}
+              use:autofocus
+            />
+          {:else}
+            <button
+              class="flex-1 text-left text-sm truncate min-w-0"
+              onclick={() => selectConversation(conv.id)}
+              ondblclick={() => startRename(conv.id, conv.name)}
+            >
+              {displayName(conv)}
+            </button>
+            {#if conv.id !== 'default'}
+              <button
+                class="p-0.5 rounded text-slate-400 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all shrink-0"
+                onclick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
+                title="Delete conversation"
+              >
+                <Icon icon="mdi:close" class="w-3.5 h-3.5" />
+              </button>
+            {/if}
+          {/if}
+        </div>
+      {:else}
+        <p class="px-4 py-8 text-sm text-slate-400 text-center">No conversations yet</p>
+      {/each}
+    </div>
+  </div>
+
+  <!-- Main chat area -->
+  <div class="flex-1 flex flex-col min-h-0 relative bg-slate-50">
+    <!-- Mobile menu button -->
+    <button
+      class="absolute top-3 left-3 z-10 p-1.5 rounded-lg bg-white/80 backdrop-blur border border-slate-200 text-slate-500 hover:text-slate-700 md:hidden"
+      onclick={() => sidebarOpen = true}
+      aria-label="Open sidebar"
+    >
+      <Icon icon="mdi:menu" class="w-5 h-5" />
+    </button>
+
     <!-- Messages -->
     <div class="flex-1 overflow-auto min-h-0 p-4 pb-24 space-y-4" bind:this={messagesContainer}>
       {#if currentInteractions.length === 0}

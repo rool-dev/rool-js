@@ -26,6 +26,7 @@ export interface BridgeableChannel {
   getAllMetadata(): Record<string, unknown>;
   on(event: string, handler: (...args: unknown[]) => void): void;
   off(event: string, handler: (...args: unknown[]) => void): void;
+  conversation(conversationId: string): unknown;
 }
 
 // Channel events to forward to the app
@@ -36,6 +37,7 @@ const FORWARDED_EVENTS = [
   'metadataUpdated',
   'schemaUpdated',
   'channelUpdated',
+  'conversationUpdated',
   'reset',
   'syncError',
 ] as const;
@@ -55,8 +57,11 @@ const ALLOWED_METHODS = new Set([
   'alterCollection',
   'dropCollection',
   'getInteractions',
+  'getConversations',
   'getSystemInstruction',
   'setSystemInstruction',
+  'deleteConversation',
+  'renameConversation',
   'setMetadata',
   'getMetadata',
   'getAllMetadata',
@@ -68,6 +73,28 @@ const ALLOWED_METHODS = new Set([
   'redo',
   'clearHistory',
 ]);
+
+// Methods that can be dispatched to a ConversationHandle when conversationId is present
+const CONVERSATION_METHODS = new Set([
+  'getInteractions',
+  'getSystemInstruction',
+  'setSystemInstruction',
+  'renameConversation',
+  'findObjects',
+  'createObject',
+  'updateObject',
+  'deleteObjects',
+  'prompt',
+  'createCollection',
+  'alterCollection',
+  'dropCollection',
+  'setMetadata',
+]);
+
+// Wire method names that differ on ConversationHandle
+const CONVERSATION_METHOD_MAP: Record<string, string> = {
+  'renameConversation': 'rename',
+};
 
 export interface BridgeHostOptions {
   /** The real channel to proxy calls to */
@@ -144,7 +171,7 @@ export class BridgeHost {
   };
 
   private async _handleRequest(req: BridgeRequest): Promise<void> {
-    const { id, method, args } = req;
+    const { id, method, args, conversationId } = req;
 
     if (!ALLOWED_METHODS.has(method)) {
       this._postToApp({
@@ -156,12 +183,21 @@ export class BridgeHost {
     }
 
     try {
-      // Get the method from the channel (cast for dynamic dispatch)
-      const fn = (this.channel as unknown as Record<string, unknown>)[method];
+      // Determine the target: conversation handle or channel
+      let target: unknown = this.channel;
+      let methodName = method;
+
+      if (conversationId !== undefined && CONVERSATION_METHODS.has(method)) {
+        target = this.channel.conversation(conversationId);
+        methodName = CONVERSATION_METHOD_MAP[method] ?? method;
+      }
+
+      // Get the method from the target (cast for dynamic dispatch)
+      const fn = (target as Record<string, unknown>)[methodName];
       let result: unknown;
 
       if (typeof fn === 'function') {
-        result = fn.apply(this.channel, args);
+        result = fn.apply(target, args);
         // Await if it returns a promise
         if (result instanceof Promise) {
           result = await result;

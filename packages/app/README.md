@@ -123,6 +123,7 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 | `interactions` | `Interaction[]` | Channel interaction history (auto-updates) |
 | `objectIds` | `string[]` | All object IDs in the space (auto-updates on create/delete) |
 | `collections` | `string[]` | Collection names from the schema (auto-updates) |
+| `conversations` | `ConversationInfo[]` | Conversations in this channel (auto-updates on create/delete/rename) |
 
 ### Properties
 
@@ -197,13 +198,53 @@ channel.getMetadata('viewport')
 channel.getAllMetadata()
 ```
 
-### Interaction History
+### Interaction History & Conversations
 
 ```typescript
 channel.getInteractions()
 channel.getSystemInstruction()
 await channel.setSystemInstruction('Respond in haiku')
+
+// List all conversations in this channel
+channel.getConversations()
+
+// Delete or rename a conversation
+await channel.deleteConversation('old-thread')
+await channel.renameConversation('Research')
 ```
+
+### Conversation Handles
+
+For apps that need multiple independent interaction threads (e.g., chat with multiple threads), use `channel.conversation()` to get a reactive handle scoped to a specific conversation:
+
+```svelte
+<script>
+  const thread = channel.conversation('thread-42');
+</script>
+
+<!-- thread.interactions is reactive $state — auto-updates via SSE -->
+{#each thread.interactions as interaction}
+  <div>{interaction.output}</div>
+{/each}
+
+<button onclick={() => thread.prompt('Hello')}>Send</button>
+```
+
+```typescript
+// Reactive state
+thread.interactions   // $state<Interaction[]> — auto-updates
+
+// All conversation-scoped methods
+await thread.prompt('Hello');
+await thread.createObject({ data: { text: 'Hello' } });
+await thread.setSystemInstruction('Respond in haiku');
+await thread.rename('Research Thread');
+
+// Cleanup
+thread.close();   // Stop listening for updates
+```
+
+Conversations are auto-created on first interaction — no explicit create step needed. All conversations share one bridge connection. See the [SDK docs](../sdk/README.md#conversations) for full details.
 
 ### Events
 
@@ -213,6 +254,7 @@ channel.on('objectUpdated', ({ objectId, object, source }) => { ... })
 channel.on('objectDeleted', ({ objectId, source }) => { ... })
 channel.on('metadataUpdated', ({ metadata, source }) => { ... })
 channel.on('channelUpdated', ({ channelId, source }) => { ... })
+channel.on('conversationUpdated', ({ conversationId, channelId, source }) => { ... })
 channel.on('reset', ({ source }) => { ... })
 ```
 
@@ -286,6 +328,7 @@ The bridge protocol:
 ```typescript
 import type {
   ReactiveAppChannel,
+  ReactiveAppConversationHandle,
   ReactiveObject,
   ReactiveWatch,
   WatchOptions,
@@ -297,6 +340,7 @@ import type {
   FieldType,
   Interaction,
   InteractionStatus,
+  ConversationInfo,
   ToolCall,
   PromptOptions,
   PromptEffort,

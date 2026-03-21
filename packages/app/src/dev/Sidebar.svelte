@@ -168,7 +168,13 @@
       <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Environment</div>
       <div class="flex rounded-md border border-slate-200 overflow-hidden">
         <button
-          class="flex-1 py-1.5 text-[11px] font-medium transition-colors {env === 'dev' ? 'bg-indigo-50 text-indigo-600 border-r border-slate-200' : 'text-slate-500 hover:bg-slate-50 border-r border-slate-200'}"
+          class="flex-1 py-1.5 text-[11px] font-medium transition-colors border-r border-slate-200 {env === 'local' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'}"
+          onclick={() => controller.switchEnv('local')}
+        >
+          Local
+        </button>
+        <button
+          class="flex-1 py-1.5 text-[11px] font-medium transition-colors border-r border-slate-200 {env === 'dev' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'}"
           onclick={() => controller.switchEnv('dev')}
         >
           Dev

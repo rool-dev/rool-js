@@ -55,6 +55,8 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `channel.interactions` | Channel interactions (auto-updates) |
 | `channel.objectIds` | All object IDs in the space (auto-updates on create/delete) |
 | `channel.collections` | Collection names from the schema (auto-updates) |
+| `channel.conversations` | Conversations in this channel (auto-updates on create/delete/rename) |
+| `thread.interactions` | Interactions for a specific conversation (auto-updates) |
 | `watch.objects` | Objects matching a filter (auto-updates) |
 | `watch.loading` | Whether watch is loading |
 
@@ -125,8 +127,11 @@ Reactive cross-device storage for user preferences. Synced from server on `init(
 ### Spaces & Channels
 
 ```typescript
-// Open a channel — reactive, with SSE
+// Open a channel — reactive, with SSE (default conversation)
 const channel = await rool.openChannel('space-id', 'my-channel');
+
+// Open a channel with a specific conversation
+const channel = await rool.openChannel('space-id', 'my-channel', 'thread-1');
 
 // Create a space, then open a channel on it
 const space = await rool.createSpace('My New Space');
@@ -292,6 +297,48 @@ channelList.refresh() // Manual re-fetch
 channelList.close()   // Stop listening for updates
 ```
 
+### Reactive Conversation Handle
+
+For apps with multiple independent interaction threads (e.g., chat with threads), use `channel.conversation()` to get a handle with reactive interactions:
+
+```svelte
+<script>
+  let channel = $state(null);
+  let thread = $state(null);
+
+  async function openThread(spaceId, threadId) {
+    channel = await rool.openChannel(spaceId, 'main');
+    thread = channel.conversation(threadId);
+  }
+</script>
+
+{#if thread}
+  {#each thread.interactions as interaction}
+    <div>{interaction.output}</div>
+  {/each}
+
+  <button onclick={() => thread.prompt('Hello')}>Send</button>
+{/if}
+```
+
+```typescript
+// Reactive state
+thread.interactions   // $state<Interaction[]> — auto-updates via SSE
+
+// All conversation-scoped methods
+await thread.prompt('Hello')
+await thread.createObject({ data: { text: 'Note' } })
+await thread.setSystemInstruction('Respond in haiku')
+await thread.rename('Research Thread')
+thread.getInteractions()      // Manual read
+thread.getSystemInstruction()
+
+// Cleanup
+thread.close()   // Stop listening for updates
+```
+
+Conversations are auto-created on first interaction. All conversations share one SSE connection per channel.
+
 ### Channel Management
 
 ```typescript
@@ -340,9 +387,18 @@ await channel.checkpoint('Before edit')
 await channel.undo()
 await channel.redo()
 
-// Interaction history
+// Interaction history & conversations
 await channel.setSystemInstruction('You are helpful')
 channel.getInteractions()
+channel.getConversations()
+await channel.deleteConversation('old-thread')
+await channel.renameConversation('Research')
+
+// Conversation handles (reactive interactions for specific conversations)
+const thread = channel.conversation('thread-42');
+await thread.prompt('Hello');        // Uses thread-42's interaction history
+// thread.interactions is reactive $state — auto-updates via SSE
+thread.close();                      // Stop listening when done
 
 // Channel admin
 await channel.rename('New Name')
@@ -363,7 +419,7 @@ const id = generateId();
 
 ```typescript
 // Package types
-import type { Rool, ReactiveChannel, ReactiveObject, ReactiveWatch, WatchOptions, ReactiveChannelList } from '@rool-dev/svelte';
+import type { Rool, ReactiveChannel, ReactiveConversationHandle, ReactiveObject, ReactiveWatch, WatchOptions, ReactiveChannelList } from '@rool-dev/svelte';
 
 // Re-exported from @rool-dev/sdk
 import type {
@@ -377,6 +433,8 @@ import type {
   RoolUserRole,
   ConnectionState,
   ChannelInfo,
+  Conversation,
+  ConversationInfo,
   CurrentUser,
   Interaction,
   FindObjectsOptions,

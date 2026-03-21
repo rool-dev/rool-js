@@ -19,6 +19,7 @@ import type {
   ChannelEvent,
   Interaction,
   Channel,
+  ConversationInfo,
   LinkAccess,
   SpaceSchema,
   CollectionDef,
@@ -91,6 +92,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _linkAccess: LinkAccess;
   private _userId: string;
   private _channelId: string;
+  private _conversationId: string;
   private _closed: boolean = false;
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
@@ -124,6 +126,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._userId = config.userId;
     this._emitterLogger = config.logger;
     this._channelId = config.channelId;
+    this._conversationId = 'default';
     this.graphqlClient = config.graphqlClient;
     this.mediaClient = config.mediaClient;
     this.logger = config.logger;
@@ -205,6 +208,14 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this._channelId;
   }
 
+  /**
+   * Get the conversation ID for this channel.
+   * Defaults to 'default' for most apps.
+   */
+  get conversationId(): string {
+    return this._conversationId;
+  }
+
   get isReadOnly(): boolean {
     return this._role === 'viewer';
   }
@@ -221,10 +232,68 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // ===========================================================================
 
   /**
-   * Get interactions for this channel.
+   * Get interactions for the current conversation.
    */
   getInteractions(): Interaction[] {
-    return this._channel?.interactions ?? [];
+    return this._getInteractionsImpl(this._conversationId);
+  }
+
+  /** @internal */
+  _getInteractionsImpl(conversationId: string): Interaction[] {
+    return this._channel?.conversations[conversationId]?.interactions ?? [];
+  }
+
+  /**
+   * Get all conversations in this channel.
+   * Returns summary info (no full interaction data) for each conversation.
+   */
+  getConversations(): ConversationInfo[] {
+    if (!this._channel) return [];
+    return Object.entries(this._channel.conversations).map(([id, conv]) => ({
+      id,
+      name: conv.name ?? null,
+      systemInstruction: conv.systemInstruction ?? null,
+      createdAt: conv.createdAt,
+      createdBy: conv.createdBy,
+      interactionCount: conv.interactions.length,
+    }));
+  }
+
+  /**
+   * Delete a conversation from this channel.
+   * Cannot delete the conversation you are currently using.
+   */
+  async deleteConversation(conversationId: string): Promise<void> {
+    if (conversationId === this._conversationId) {
+      throw new Error('Cannot delete the active conversation');
+    }
+    await this.graphqlClient.deleteConversation(this._id, this._channelId, conversationId);
+
+    // Optimistic local update — remove from cache and emit event
+    // in case the server doesn't send a conversation_updated event for deletes
+    if (this._channel?.conversations[conversationId]) {
+      delete this._channel.conversations[conversationId];
+      this.emit('conversationUpdated', {
+        conversationId,
+        channelId: this._channelId,
+        source: 'local_user',
+      });
+    }
+  }
+
+  // ===========================================================================
+  // Conversations
+  // ===========================================================================
+
+  /**
+   * Get a handle for a specific conversation within this channel.
+   * The handle scopes AI and mutation operations to that conversation's
+   * interaction history, while sharing the channel's single SSE connection.
+   *
+   * Conversations are auto-created on first interaction — no explicit create needed.
+   */
+  conversation(conversationId: string): ConversationHandle {
+    return new ConversationHandle(this, conversationId);
   }
 
   // ===========================================================================
@@ -346,7 +415,12 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @returns The matching objects and a descriptive message.
    */
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
-    return this.graphqlClient.findObjects(this._id, options, this._channelId);
+    return this._findObjectsImpl(options, this._conversationId);
+  }
+
+  /** @internal */
+  _findObjectsImpl(options: FindObjectsOptions, conversationId: string): Promise<{ objects: RoolObject[]; message: string }> {
+    return this.graphqlClient.findObjects(this._id, options, this._channelId, conversationId);
   }
 
   /**
@@ -373,6 +447,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @returns The created object (with AI-filled content) and message
    */
   async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._createObjectImpl(options, this._conversationId);
+  }
+
+  /** @internal */
+  async _createObjectImpl(options: CreateObjectOptions, conversationId: string): Promise<{ object: RoolObject; message: string }> {
     const { data, ephemeral } = options;
 
     // Use data.id if provided (string), otherwise generate
@@ -392,7 +471,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     try {
       // Await mutation — server processes AI placeholders before responding.
       // SSE events arrive during the await and are buffered via _deliverObject.
-      const { message } = await this.graphqlClient.createObject(this.id, dataWithId, this._channelId, ephemeral);
+      const { message } = await this.graphqlClient.createObject(this.id, dataWithId, this._channelId, conversationId, ephemeral);
       // Collect resolved object from buffer (or wait if not yet arrived)
       const object = await this._collectObject(objectId);
       return { object, message };
@@ -418,6 +497,15 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   async updateObject(
     objectId: string,
     options: UpdateObjectOptions
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this._updateObjectImpl(objectId, options, this._conversationId);
+  }
+
+  /** @internal */
+  async _updateObjectImpl(
+    objectId: string,
+    options: UpdateObjectOptions,
+    conversationId: string,
   ): Promise<{ object: RoolObject; message: string }> {
     const { data, ephemeral } = options;
 
@@ -448,7 +536,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
 
     try {
-      const { message } = await this.graphqlClient.updateObject(this.id, objectId, this._channelId, serverData, options.prompt, ephemeral);
+      const { message } = await this.graphqlClient.updateObject(this.id, objectId, this._channelId, conversationId, serverData, options.prompt, ephemeral);
       const object = await this._collectObject(objectId);
       return { object, message };
     } catch (error) {
@@ -466,6 +554,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Other objects that reference deleted objects via data fields will retain stale ref values.
    */
   async deleteObjects(objectIds: string[]): Promise<void> {
+    return this._deleteObjectsImpl(objectIds, this._conversationId);
+  }
+
+  /** @internal */
+  async _deleteObjectsImpl(objectIds: string[], conversationId: string): Promise<void> {
     if (objectIds.length === 0) return;
 
     // Track for dedup and emit optimistic events
@@ -475,7 +568,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
 
     try {
-      await this.graphqlClient.deleteObjects(this.id, objectIds, this._channelId);
+      await this.graphqlClient.deleteObjects(this.id, objectIds, this._channelId, conversationId);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to delete objects:', error);
       for (const objectId of objectIds) {
@@ -506,6 +599,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @returns The created CollectionDef
    */
   async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    return this._createCollectionImpl(name, fields, this._conversationId);
+  }
+
+  /** @internal */
+  async _createCollectionImpl(name: string, fields: FieldDef[], conversationId: string): Promise<CollectionDef> {
     if (this._schema[name]) {
       throw new Error(`Collection "${name}" already exists`);
     }
@@ -515,7 +613,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._schema[name] = optimisticDef;
 
     try {
-      return await this.graphqlClient.createCollection(this._id, name, fields, this._channelId);
+      return await this.graphqlClient.createCollection(this._id, name, fields, this._channelId, conversationId);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to create collection:', error);
       delete this._schema[name];
@@ -530,6 +628,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @returns The updated CollectionDef
    */
   async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    return this._alterCollectionImpl(name, fields, this._conversationId);
+  }
+
+  /** @internal */
+  async _alterCollectionImpl(name: string, fields: FieldDef[], conversationId: string): Promise<CollectionDef> {
     if (!this._schema[name]) {
       throw new Error(`Collection "${name}" not found`);
     }
@@ -539,7 +642,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._schema[name] = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
 
     try {
-      return await this.graphqlClient.alterCollection(this._id, name, fields, this._channelId);
+      return await this.graphqlClient.alterCollection(this._id, name, fields, this._channelId, conversationId);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to alter collection:', error);
       this._schema[name] = previous;
@@ -552,6 +655,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @param name - Name of the collection to drop
    */
   async dropCollection(name: string): Promise<void> {
+    return this._dropCollectionImpl(name, this._conversationId);
+  }
+
+  /** @internal */
+  async _dropCollectionImpl(name: string, conversationId: string): Promise<void> {
     if (!this._schema[name]) {
       throw new Error(`Collection "${name}" not found`);
     }
@@ -561,7 +669,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     delete this._schema[name];
 
     try {
-      await this.graphqlClient.dropCollection(this._id, name, this._channelId);
+      await this.graphqlClient.dropCollection(this._id, name, this._channelId, conversationId);
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to drop collection:', error);
       this._schema[name] = previous;
@@ -574,47 +682,106 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // ===========================================================================
 
   /**
-   * Get the system instruction for this channel.
+   * Get the system instruction for the current conversation.
    * Returns undefined if no system instruction is set.
    */
   getSystemInstruction(): string | undefined {
-    return this._channel?.systemInstruction;
+    return this._getSystemInstructionImpl(this._conversationId);
+  }
+
+  /** @internal */
+  _getSystemInstructionImpl(conversationId: string): string | undefined {
+    return this._channel?.conversations[conversationId]?.systemInstruction;
   }
 
   /**
-   * Set the system instruction for this channel.
+   * Set the system instruction for the current conversation.
    * Pass null to clear the instruction.
    */
   async setSystemInstruction(instruction: string | null): Promise<void> {
+    return this._setSystemInstructionImpl(instruction, this._conversationId);
+  }
+
+  /** @internal */
+  async _setSystemInstructionImpl(instruction: string | null, conversationId: string): Promise<void> {
     // Optimistic local update
+    this._ensureConversationImpl(conversationId);
+    const conv = this._channel!.conversations[conversationId];
+    const previousInstruction = conv.systemInstruction;
+    if (instruction === null) {
+      delete conv.systemInstruction;
+    } else {
+      conv.systemInstruction = instruction;
+    }
+
+    // Emit events for backward compat and new API
+    this.emit('conversationUpdated', {
+      conversationId,
+      channelId: this._channelId,
+      source: 'local_user',
+    });
+    if (conversationId === this._conversationId) {
+      this.emit('channelUpdated', {
+        channelId: this._channelId,
+        source: 'local_user',
+      });
+    }
+
+    // Call server
+    try {
+      await this.graphqlClient.updateConversation(
+        this._id,
+        this._channelId,
+        conversationId,
+        { systemInstruction: instruction },
+      );
+    } catch (error) {
+      this.logger.error('[RoolChannel] Failed to set system instruction:', error);
+      // Rollback
+      if (previousInstruction === undefined) {
+        delete conv.systemInstruction;
+      } else {
+        conv.systemInstruction = previousInstruction;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Rename the current conversation.
+   */
+  async renameConversation(name: string): Promise<void> {
+    return this._renameConversationImpl(name, this._conversationId);
+  }
+
+  /** @internal */
+  async _renameConversationImpl(name: string, conversationId: string): Promise<void> {
+    await this.graphqlClient.updateConversation(
+      this._id,
+      this._channelId,
+      conversationId,
+      { name },
+    );
+  }
+
+  /**
+   * Ensure a conversation exists in the local channel cache.
+   * @internal
+   */
+  _ensureConversationImpl(conversationId: string): void {
     if (!this._channel) {
       this._channel = {
         createdAt: Date.now(),
         createdBy: this._userId,
-        interactions: [],
+        conversations: {},
       };
     }
-    const previous = this._channel;
-    if (instruction === null) {
-      const { systemInstruction: _, ...rest } = this._channel;
-      this._channel = rest;
-    } else {
-      this._channel = { ...this._channel, systemInstruction: instruction };
-    }
-
-    // Emit event
-    this.emit('channelUpdated', {
-      channelId: this._channelId,
-      source: 'local_user',
-    });
-
-    // Call server
-    try {
-      await this.graphqlClient.setSystemInstruction(this.id, this._channelId, instruction);
-    } catch (error) {
-      this.logger.error('[RoolChannel] Failed to set system instruction:', error);
-      this._channel = previous;
-      throw error;
+    if (!this._channel.conversations[conversationId]) {
+      this._channel.conversations[conversationId] = {
+        createdAt: Date.now(),
+        createdBy: this._userId,
+        interactions: [],
+      };
     }
   }
 
@@ -627,11 +794,16 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Metadata is stored in meta and hidden from AI operations.
    */
   setMetadata(key: string, value: unknown): void {
+    this._setMetadataImpl(key, value, this._conversationId);
+  }
+
+  /** @internal */
+  _setMetadataImpl(key: string, value: unknown, conversationId: string): void {
     this._meta[key] = value;
     this.emit('metadataUpdated', { metadata: this._meta, source: 'local_user' });
 
     // Fire-and-forget server call
-    this.graphqlClient.setSpaceMeta(this.id, this._meta, this._channelId)
+    this.graphqlClient.setSpaceMeta(this.id, this._meta, this._channelId, conversationId)
       .catch((error) => {
         this.logger.error('[RoolChannel] Failed to set meta:', error);
       });
@@ -660,6 +832,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @returns The message from the AI and the list of objects that were created or modified
    */
   async prompt(prompt: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
+    return this._promptImpl(prompt, options, this._conversationId);
+  }
+
+  /** @internal */
+  async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
     // Upload attachments via media endpoint, then send URLs to the server
     const { attachments, ...rest } = options ?? {};
     let attachmentUrls: string[] | undefined;
@@ -669,7 +846,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       );
     }
 
-    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, { ...rest, attachmentUrls });
+    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls });
 
     // Collect modified objects — they arrive via SSE events during/after the mutation.
     // Try collecting from buffer first, then fetch any missing from server.
@@ -879,10 +1056,43 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
         break;
 
       case 'channel_updated':
-        // Only update if it's our channel
+        // Only update if it's our channel — channel_updated is now metadata-only (name, appUrl)
         if (event.channelId === this._channelId && event.channel) {
           this._channel = event.channel;
           this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
+        }
+        break;
+
+      case 'conversation_updated':
+        // Only update if it's our channel
+        if (event.channelId === this._channelId && event.conversationId) {
+          if (!this._channel) {
+            this._channel = {
+              createdAt: Date.now(),
+              createdBy: this._userId,
+              conversations: {},
+            };
+          }
+
+          if (event.conversation) {
+            // Update or create conversation in local cache
+            this._channel.conversations[event.conversationId] = event.conversation;
+          } else {
+            // Conversation was deleted
+            delete this._channel.conversations[event.conversationId];
+          }
+
+          // Emit the new conversationUpdated event
+          this.emit('conversationUpdated', {
+            conversationId: event.conversationId,
+            channelId: event.channelId,
+            source: changeSource,
+          });
+
+          // Backward compat: also emit channelUpdated when the active conversation updates
+          if (event.conversationId === this._conversationId) {
+            this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
+          }
         }
         break;
 
@@ -978,5 +1188,118 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       // Remote event
       this.emit('objectDeleted', { objectId, source });
     }
+  }
+}
+
+// =============================================================================
+// ConversationHandle — Scoped proxy for a specific conversation
+// =============================================================================
+
+/**
+ * A lightweight handle for a specific conversation within a channel.
+ *
+ * Scopes AI and mutation operations to a particular conversation's interaction
+ * history, while sharing the channel's single SSE connection and object state.
+ *
+ * Obtain via `channel.conversation('thread-id')`.
+ * Conversations are auto-created on first interaction.
+ */
+export class ConversationHandle {
+  /** @internal */
+  private _channel: RoolChannel;
+  private _conversationId: string;
+
+  /** @internal */
+  constructor(channel: RoolChannel, conversationId: string) {
+    this._channel = channel;
+    this._conversationId = conversationId;
+  }
+
+  /** The conversation ID this handle is scoped to. */
+  get conversationId(): string { return this._conversationId; }
+
+  // ---------------------------------------------------------------------------
+  // Conversation History
+  // ---------------------------------------------------------------------------
+
+  /** Get interactions for this conversation. */
+  getInteractions(): Interaction[] {
+    return this._channel._getInteractionsImpl(this._conversationId);
+  }
+
+  /** Get the system instruction for this conversation. */
+  getSystemInstruction(): string | undefined {
+    return this._channel._getSystemInstructionImpl(this._conversationId);
+  }
+
+  /** Set the system instruction for this conversation. Pass null to clear. */
+  async setSystemInstruction(instruction: string | null): Promise<void> {
+    return this._channel._setSystemInstructionImpl(instruction, this._conversationId);
+  }
+
+  /** Rename this conversation. */
+  async rename(name: string): Promise<void> {
+    return this._channel._renameConversationImpl(name, this._conversationId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Object Operations (scoped to this conversation's interaction history)
+  // ---------------------------------------------------------------------------
+
+  /** Find objects using structured filters and/or natural language. */
+  async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
+    return this._channel._findObjectsImpl(options, this._conversationId);
+  }
+
+  /** Create a new object. */
+  async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._channel._createObjectImpl(options, this._conversationId);
+  }
+
+  /** Update an existing object. */
+  async updateObject(objectId: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._channel._updateObjectImpl(objectId, options, this._conversationId);
+  }
+
+  /** Delete objects by IDs. */
+  async deleteObjects(objectIds: string[]): Promise<void> {
+    return this._channel._deleteObjectsImpl(objectIds, this._conversationId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI
+  // ---------------------------------------------------------------------------
+
+  /** Send a prompt to the AI agent, scoped to this conversation's history. */
+  async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
+    return this._channel._promptImpl(text, options, this._conversationId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Schema (scoped to this conversation's interaction history)
+  // ---------------------------------------------------------------------------
+
+  /** Create a new collection schema. */
+  async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    return this._channel._createCollectionImpl(name, fields, this._conversationId);
+  }
+
+  /** Alter an existing collection schema. */
+  async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    return this._channel._alterCollectionImpl(name, fields, this._conversationId);
+  }
+
+  /** Drop a collection schema. */
+  async dropCollection(name: string): Promise<void> {
+    return this._channel._dropCollectionImpl(name, this._conversationId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Metadata (scoped to this conversation's interaction history)
+  // ---------------------------------------------------------------------------
+
+  /** Set a space-level metadata value. */
+  setMetadata(key: string, value: unknown): void {
+    return this._channel._setMetadataImpl(key, value, this._conversationId);
   }
 }

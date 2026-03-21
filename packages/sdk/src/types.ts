@@ -105,17 +105,39 @@ export interface Interaction {
 }
 
 /**
- * A channel container with metadata and interaction history.
+ * A conversation within a channel — holds interaction history and optional system instruction.
+ */
+export interface Conversation {
+  name?: string;
+  systemInstruction?: string;
+  createdAt: number;
+  createdBy: string;
+  interactions: Interaction[];
+}
+
+/**
+ * Summary info for a conversation (returned by openChannel, no full interaction data).
+ */
+export interface ConversationInfo {
+  id: string;
+  name: string | null;
+  systemInstruction: string | null;
+  createdAt: number;
+  createdBy: string;
+  interactionCount: number;
+}
+
+/**
+ * A channel container with metadata and conversations.
  */
 export interface Channel {
   name?: string;
   createdAt: number;
   createdBy: string;
   createdByName?: string;
-  systemInstruction?: string;
   /** URL of the installed app, if this channel was created via installApp. */
   appUrl?: string;
-  interactions: Interaction[];
+  conversations: Record<string, Conversation>;
 }
 
 
@@ -381,7 +403,8 @@ export type ChannelEventType =
   | 'schema_updated'
   | 'metadata_updated'
   | 'channel_updated'
-  | 'channel_deleted';
+  | 'channel_deleted'
+  | 'conversation_updated';
 
 
 export interface ChannelEvent {
@@ -401,6 +424,9 @@ export interface ChannelEvent {
   // Channel events
   channelId?: string;
   channel?: Channel;
+  // Conversation events
+  conversationId?: string;
+  conversation?: Conversation;
   // Connected events
   serverVersion?: number;
 }
@@ -550,6 +576,11 @@ export interface ChannelUpdatedEvent {
   source: ChangeSource;
 }
 
+export interface ConversationUpdatedEvent {
+  conversationId: string;
+  channelId: string;
+  source: ChangeSource;
+}
 
 /**
  * Channel-level events (content changes within a specific channel).
@@ -557,7 +588,8 @@ export interface ChannelUpdatedEvent {
  * Semantic events describe what changed:
  * - `objectCreated`, `objectUpdated`, `objectDeleted`: Object changes
  * - `metadataUpdated`: Space metadata changes
- * - `channelUpdated`: Channel interaction history changed
+ * - `channelUpdated`: Channel metadata changed (name, appUrl)
+ * - `conversationUpdated`: Conversation interaction history changed
  * - `reset`: Full state replacement (undo/redo, resync)
  *
  * Events fire for both local changes and remote changes (from other users or AI agents).
@@ -574,8 +606,10 @@ export interface ChannelEvents {
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Collection schema was updated */
   schemaUpdated: (event: SchemaUpdatedEvent) => void;
-  /** Channel interaction history was updated */
+  /** Channel metadata was updated (name, appUrl) */
   channelUpdated: (event: ChannelUpdatedEvent) => void;
+  /** Conversation interaction history was updated */
+  conversationUpdated: (event: ConversationUpdatedEvent) => void;
   /** Full state replacement (undo/redo, resync) */
   reset: (event: ResetEvent) => void;
   /** Emitted when a sync error occurs and the channel resyncs from server */

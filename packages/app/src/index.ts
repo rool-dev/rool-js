@@ -7,7 +7,7 @@
 
 // Public API — reactive channel
 export { initApp } from './reactive.svelte.js';
-export type { ReactiveAppChannel, ReactiveObject, ReactiveWatch, WatchOptions } from './reactive.svelte.js';
+export type { ReactiveAppChannel, ReactiveAppConversationHandle, ReactiveObject, ReactiveWatch, WatchOptions } from './reactive.svelte.js';
 
 // Types
 export type {
@@ -19,6 +19,7 @@ export type {
   FieldType,
   Interaction,
   InteractionStatus,
+  ConversationInfo,
   ToolCall,
   PromptOptions,
   PromptEffort,

@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, RoolObject, RoolObjectStat, SpaceSchema, Channel } from './types.js';
+import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, RoolObject, RoolObjectStat, SpaceSchema, Channel, Conversation } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 
@@ -492,6 +492,8 @@ export class ChannelSubscriptionManager {
         return { type, spaceId, timestamp, source, metadata: raw.metadata as Record<string, unknown> };
       case 'channel_updated':
         return { type, spaceId, timestamp, source, channelId: raw.channelId as string, channel: raw.channel as Channel };
+      case 'conversation_updated':
+        return { type, spaceId, timestamp, source, channelId: raw.channelId as string, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
       case 'channel_deleted':
         return { type, spaceId, timestamp, source, channelId: raw.channelId as string };
       default:

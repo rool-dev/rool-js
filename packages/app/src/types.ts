@@ -107,6 +107,15 @@ export type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'syst
 export type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
 export type LinkAccess = 'none' | 'viewer' | 'editor';
 
+export interface ConversationInfo {
+  id: string;
+  name: string | null;
+  systemInstruction: string | null;
+  createdAt: number;
+  createdBy: string;
+  interactionCount: number;
+}
+
 export interface AppChannelEvents {
   objectCreated: { objectId: string; object: RoolObject; source: ChangeSource };
   objectUpdated: { objectId: string; object: RoolObject; source: ChangeSource };
@@ -114,6 +123,7 @@ export interface AppChannelEvents {
   metadataUpdated: { metadata: Record<string, unknown>; source: ChangeSource };
   schemaUpdated: { schema: SpaceSchema; source: ChangeSource };
   channelUpdated: { channelId: string; source: ChangeSource };
+  conversationUpdated: { conversationId: string; channelId: string; source: ChangeSource };
   reset: { source: ChangeSource };
   syncError: Error;
 }

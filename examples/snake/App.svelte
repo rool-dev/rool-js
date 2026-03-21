@@ -224,8 +224,7 @@
   }
 
   function handleTouchEnd(e: TouchEvent) {
-    if (!touchStart) return;
-    if (!running) { start(); touchStart = null; return; }
+    if (!touchStart || !running) return;
 
     const t = e.changedTouches[0];
     const dx = t.clientX - touchStart.x;

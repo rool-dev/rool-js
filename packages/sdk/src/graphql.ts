@@ -197,29 +197,31 @@ export class GraphQLClient {
   // These require channelId for AI context
   // ===========================================================================
 
-  async setSpaceMeta(spaceId: string, meta: Record<string, unknown>, channelId: string): Promise<void> {
+  async setSpaceMeta(spaceId: string, meta: Record<string, unknown>, channelId: string, conversationId: string): Promise<void> {
     const mutation = `
-      mutation SetSpaceMeta($id: String!, $meta: String!, $channelId: String!) {
-        setSpaceMeta(id: $id, meta: $meta, channelId: $channelId)
+      mutation SetSpaceMeta($id: String!, $meta: String!, $channelId: String!, $conversationId: String!) {
+        setSpaceMeta(id: $id, meta: $meta, channelId: $channelId, conversationId: $conversationId)
       }
     `;
     await this.request(mutation, {
       id: spaceId,
       meta: JSON.stringify(meta),
       channelId,
+      conversationId,
     });
   }
 
-  async deleteObjects(spaceId: string, ids: string[], channelId: string): Promise<void> {
+  async deleteObjects(spaceId: string, ids: string[], channelId: string, conversationId: string): Promise<void> {
     const mutation = `
-      mutation DeleteObjects($spaceId: String!, $ids: [String!]!, $channelId: String!) {
-        deleteObjects(spaceId: $spaceId, ids: $ids, channelId: $channelId)
+      mutation DeleteObjects($spaceId: String!, $ids: [String!]!, $channelId: String!, $conversationId: String!) {
+        deleteObjects(spaceId: $spaceId, ids: $ids, channelId: $channelId, conversationId: $conversationId)
       }
     `;
     await this.request(mutation, {
       spaceId,
       ids,
       channelId,
+      conversationId,
     });
   }
 
@@ -248,16 +250,36 @@ export class GraphQLClient {
     });
   }
 
-  async setSystemInstruction(spaceId: string, channelId: string, instruction: string | null): Promise<void> {
+  async updateConversation(
+    spaceId: string,
+    channelId: string,
+    conversationId: string,
+    options: { name?: string; systemInstruction?: string | null },
+  ): Promise<void> {
     const mutation = `
-      mutation UpdateChannel($spaceId: String!, $channelId: String!, $systemInstruction: String) {
-        updateChannel(spaceId: $spaceId, channelId: $channelId, systemInstruction: $systemInstruction)
+      mutation UpdateConversation($spaceId: String!, $channelId: String!, $conversationId: String!, $name: String, $systemInstruction: String) {
+        updateConversation(spaceId: $spaceId, channelId: $channelId, conversationId: $conversationId, name: $name, systemInstruction: $systemInstruction)
       }
     `;
     await this.request(mutation, {
       spaceId,
       channelId,
-      systemInstruction: instruction,
+      conversationId,
+      name: options.name,
+      systemInstruction: options.systemInstruction,
+    });
+  }
+
+  async deleteConversation(spaceId: string, channelId: string, conversationId: string): Promise<void> {
+    const mutation = `
+      mutation DeleteConversation($spaceId: String!, $channelId: String!, $conversationId: String!) {
+        deleteConversation(spaceId: $spaceId, channelId: $channelId, conversationId: $conversationId)
+      }
+    `;
+    await this.request(mutation, {
+      spaceId,
+      channelId,
+      conversationId,
     });
   }
 
@@ -357,10 +379,11 @@ export class GraphQLClient {
     name: string,
     fields: FieldDef[],
     channelId: string,
+    conversationId: string,
   ): Promise<CollectionDef> {
     const mutation = `
-      mutation CreateCollection($spaceId: String!, $name: String!, $fields: String!, $channelId: String!) {
-        createCollection(spaceId: $spaceId, name: $name, fields: $fields, channelId: $channelId)
+      mutation CreateCollection($spaceId: String!, $name: String!, $fields: String!, $channelId: String!, $conversationId: String!) {
+        createCollection(spaceId: $spaceId, name: $name, fields: $fields, channelId: $channelId, conversationId: $conversationId)
       }
     `;
     const result = await this.request<{ createCollection: string }>(mutation, {
@@ -368,6 +391,7 @@ export class GraphQLClient {
       name,
       fields: JSON.stringify(fields),
       channelId,
+      conversationId,
     });
     const parsed = JSON.parse(result.createCollection);
     return parsed[name] as CollectionDef;
@@ -378,10 +402,11 @@ export class GraphQLClient {
     name: string,
     fields: FieldDef[],
     channelId: string,
+    conversationId: string,
   ): Promise<CollectionDef> {
     const mutation = `
-      mutation AlterCollection($spaceId: String!, $name: String!, $fields: String!, $channelId: String!) {
-        alterCollection(spaceId: $spaceId, name: $name, fields: $fields, channelId: $channelId)
+      mutation AlterCollection($spaceId: String!, $name: String!, $fields: String!, $channelId: String!, $conversationId: String!) {
+        alterCollection(spaceId: $spaceId, name: $name, fields: $fields, channelId: $channelId, conversationId: $conversationId)
       }
     `;
     const result = await this.request<{ alterCollection: string }>(mutation, {
@@ -389,6 +414,7 @@ export class GraphQLClient {
       name,
       fields: JSON.stringify(fields),
       channelId,
+      conversationId,
     });
     const parsed = JSON.parse(result.alterCollection);
     return parsed[name] as CollectionDef;
@@ -398,16 +424,18 @@ export class GraphQLClient {
     spaceId: string,
     name: string,
     channelId: string,
+    conversationId: string,
   ): Promise<void> {
     const mutation = `
-      mutation DropCollection($spaceId: String!, $name: String!, $channelId: String!) {
-        dropCollection(spaceId: $spaceId, name: $name, channelId: $channelId)
+      mutation DropCollection($spaceId: String!, $name: String!, $channelId: String!, $conversationId: String!) {
+        dropCollection(spaceId: $spaceId, name: $name, channelId: $channelId, conversationId: $conversationId)
       }
     `;
     await this.request(mutation, {
       spaceId,
       name,
       channelId,
+      conversationId,
     });
   }
 
@@ -419,11 +447,12 @@ export class GraphQLClient {
     spaceId: string,
     data: Record<string, unknown>,
     channelId: string,
+    conversationId: string,
     ephemeral?: boolean,
   ): Promise<{ objectId: string; message: string }> {
     const mutation = `
-      mutation CreateObject($spaceId: String!, $data: String!, $channelId: String!, $ephemeral: Boolean) {
-        createObject(spaceId: $spaceId, data: $data, channelId: $channelId, ephemeral: $ephemeral) {
+      mutation CreateObject($spaceId: String!, $data: String!, $channelId: String!, $conversationId: String!, $ephemeral: Boolean) {
+        createObject(spaceId: $spaceId, data: $data, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral) {
           objectId
           message
         }
@@ -433,6 +462,7 @@ export class GraphQLClient {
       spaceId,
       data: JSON.stringify(data),
       channelId,
+      conversationId,
       ephemeral,
     });
     return result.createObject;
@@ -442,13 +472,14 @@ export class GraphQLClient {
     spaceId: string,
     id: string,
     channelId: string,
+    conversationId: string,
     data?: Record<string, unknown>,
     prompt?: string,
     ephemeral?: boolean,
   ): Promise<{ objectId: string; message: string }> {
     const mutation = `
-      mutation UpdateObject($spaceId: String!, $id: String!, $data: String, $prompt: String, $channelId: String!, $ephemeral: Boolean) {
-        updateObject(spaceId: $spaceId, id: $id, data: $data, prompt: $prompt, channelId: $channelId, ephemeral: $ephemeral) {
+      mutation UpdateObject($spaceId: String!, $id: String!, $data: String, $prompt: String, $channelId: String!, $conversationId: String!, $ephemeral: Boolean) {
+        updateObject(spaceId: $spaceId, id: $id, data: $data, prompt: $prompt, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral) {
           objectId
           message
         }
@@ -460,6 +491,7 @@ export class GraphQLClient {
       data: data ? JSON.stringify(data) : undefined,
       prompt,
       channelId,
+      conversationId,
       ephemeral,
     });
     return result.updateObject;
@@ -485,10 +517,11 @@ export class GraphQLClient {
     spaceId: string,
     options: FindObjectsOptions,
     channelId: string,
+    conversationId: string,
   ): Promise<{ objects: RoolObject[]; message: string }> {
     const query = `
-      query FindObjects($spaceId: String!, $where: String, $collection: String, $prompt: String, $limit: Int, $objectIds: [String!], $order: String, $channelId: String!, $ephemeral: Boolean) {
-        findObjects(spaceId: $spaceId, where: $where, collection: $collection, prompt: $prompt, limit: $limit, objectIds: $objectIds, order: $order, channelId: $channelId, ephemeral: $ephemeral) {
+      query FindObjects($spaceId: String!, $where: String, $collection: String, $prompt: String, $limit: Int, $objectIds: [String!], $order: String, $channelId: String!, $conversationId: String!, $ephemeral: Boolean) {
+        findObjects(spaceId: $spaceId, where: $where, collection: $collection, prompt: $prompt, limit: $limit, objectIds: $objectIds, order: $order, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral) {
           objects
           message
         }
@@ -505,6 +538,7 @@ export class GraphQLClient {
       objectIds: options.objectIds ?? [],
       order: options.order,
       channelId,
+      conversationId,
       ephemeral: options.ephemeral,
     });
     return {
@@ -521,11 +555,12 @@ export class GraphQLClient {
     spaceId: string,
     prompt: string,
     channelId: string,
+    conversationId: string,
     options: Omit<PromptOptions, 'attachments'> & { attachmentUrls?: string[] } = {}
   ): Promise<{ message: string; modifiedObjectIds: string[] }> {
     const mutation = `
-      mutation Prompt($spaceId: String!, $prompt: String!, $objectIds: [String!], $responseSchema: JSON, $channelId: String!, $effort: PromptEffort, $ephemeral: Boolean, $readOnly: Boolean, $attachments: [String!]) {
-        prompt(spaceId: $spaceId, prompt: $prompt, objectIds: $objectIds, responseSchema: $responseSchema, channelId: $channelId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments) {
+      mutation Prompt($spaceId: String!, $prompt: String!, $objectIds: [String!], $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort, $ephemeral: Boolean, $readOnly: Boolean, $attachments: [String!]) {
+        prompt(spaceId: $spaceId, prompt: $prompt, objectIds: $objectIds, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments) {
           message
           modifiedObjectIds
         }
@@ -539,6 +574,7 @@ export class GraphQLClient {
       objectIds: options.objectIds ?? [],
       responseSchema: options.responseSchema,
       channelId,
+      conversationId,
       effort: options.effort,
       ephemeral: options.ephemeral,
       readOnly: options.readOnly,

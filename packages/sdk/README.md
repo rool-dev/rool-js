@@ -10,7 +10,8 @@ Use Rool to programmatically instruct agents to generate content, research topic
 
 **Core primitives:**
 - **Spaces** — Containers for objects, schema, metadata, and channels
-- **Channels** — Named contexts within a space, each with independent interaction history. All object and AI operations go through a channel.
+- **Channels** — Named contexts within a space. All object and AI operations go through a channel.
+- **Conversations** — Independent interaction histories within a channel. Most apps use a single `'default'` conversation; multi-conversation apps (e.g., chat with multiple threads) can open additional ones.
 - **Objects** — Key-value records with any fields you define. References between objects are data fields whose values are object IDs.
 - **AI operations** — Create, update, or query objects using natural language and `{{placeholders}}`
 
@@ -84,7 +85,7 @@ channel.close();
 
 ### Spaces and Channels
 
-A **space** is a container that holds objects, schema, metadata, and channels. A **channel** is a named context within a space — it's the handle you use for all object and AI operations. Each channel has its own interaction history.
+A **space** is a container that holds objects, schema, metadata, and channels. A **channel** is a named context within a space — it's the handle you use for all object and AI operations. Each channel contains one or more **conversations**, each with independent interaction history.
 
 There are two main handles:
 - **`RoolSpace`** — Lightweight admin handle for user management, link access, channel management, and export. No real-time subscription.
@@ -110,6 +111,40 @@ The `channelId` is fixed when you open a channel and cannot be changed. To use a
 **Channel ID constraints:**
 - 1–32 characters
 - Only alphanumeric characters, hyphens (`-`), and underscores (`_`)
+
+### Conversations
+
+A **conversation** is a named interaction history within a channel. By default, all operations use the `'default'` conversation — most apps never need to think about conversations at all.
+
+For apps that need multiple independent interaction threads (e.g., a chat sidebar with multiple threads), use `channel.conversation()` to get a handle scoped to a specific conversation:
+
+```typescript
+// Default conversation — most apps use this
+const channel = await client.openChannel('space-id', 'main');
+await channel.prompt('Hello');  // Uses 'default' conversation
+
+// Conversation handle — for multi-thread UIs
+const thread = channel.conversation('thread-42');
+await thread.prompt('Hello');  // Uses 'thread-42' conversation
+thread.getInteractions();      // Interactions for thread-42 only
+```
+
+Each conversation has its own interaction history and optional system instruction. Conversations are auto-created on first interaction — no explicit create step needed. The 50-message cap applies per conversation. All conversations share one SSE connection per channel.
+
+```typescript
+// System instructions are per-conversation
+const thread = channel.conversation('research');
+await thread.setSystemInstruction('Respond in haiku');
+
+// List all conversations in this channel
+const conversations = channel.getConversations();
+
+// Delete a conversation (cannot delete 'default')
+await channel.deleteConversation('old-thread');
+
+// Rename a conversation
+await thread.rename('Research Thread');
+```
 
 ### Objects & References
 
@@ -658,6 +693,7 @@ A channel is a named context within a space. All object operations, AI prompts, 
 |--------|-------------|
 | `close(): void` | Clean up resources and stop receiving updates |
 | `rename(name): Promise<void>` | Rename this channel |
+| `conversation(conversationId): ConversationHandle` | Get a handle scoped to a specific conversation (see [Conversations](#conversations)) |
 
 ### Object Operations
 
@@ -891,8 +927,11 @@ channel.on('metadataUpdated', ({ metadata, source }) => void)
 // Collection schema changed
 channel.on('schemaUpdated', ({ schema, source }) => void)
 
-// Channel updated (fetch with getInteractions())
+// Channel metadata updated (name, appUrl)
 channel.on('channelUpdated', ({ channelId, source }) => void)
+
+// Conversation interaction history updated
+channel.on('conversationUpdated', ({ conversationId, channelId, source }) => void)
 
 // Full state replacement (undo/redo, resync after error)
 channel.on('reset', ({ source }) => void)
@@ -919,13 +958,13 @@ try {
 
 ## Interaction History
 
-Each channel has a `channelId` that identifies it. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
+Each channel contains one or more conversations, each with its own interaction history. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
 
 ### What the AI Receives
 
 AI operations (`prompt`, `createObject`, `updateObject`, `findObjects`) automatically receive:
 
-- **Interaction history** — Previous interactions and their results from this channel
+- **Interaction history** — Previous interactions and their results from the current conversation
 - **Recently modified objects** — Objects in the space recently created or changed
 - **Selected objects** — Objects passed via `objectIds` are given primary focus
 
@@ -934,24 +973,27 @@ This context flows automatically — no configuration needed. The AI sees enough
 ### Accessing History
 
 ```typescript
-// Get interactions for this channel
+// Get interactions for the current conversation
 const interactions = channel.getInteractions();
 // Returns: Interaction[]
 ```
 
-### Channel History Methods
+### Conversation History Methods
 
 | Method | Description |
 |--------|-------------|
-| `getInteractions(): Interaction[]` | Get interactions for this channel |
-| `getSystemInstruction(): string \| undefined` | Get system instruction for this channel |
-| `setSystemInstruction(instruction): Promise<void>` | Set system instruction for this channel. Pass `null` to clear. |
+| `getInteractions(): Interaction[]` | Get interactions for the default conversation |
+| `getSystemInstruction(): string \| undefined` | Get system instruction for the default conversation |
+| `setSystemInstruction(instruction): Promise<void>` | Set system instruction for the default conversation. Pass `null` to clear. |
+| `getConversations(): ConversationInfo[]` | List all conversations in this channel |
+| `deleteConversation(conversationId): Promise<void>` | Delete a conversation (cannot delete `'default'`) |
+| `renameConversation(name): Promise<void>` | Rename the default conversation |
 
 Channel management (listing, renaming, deleting channels) is done via the client — see [Channel Management](#channel-management).
 
 ### System Instructions
 
-System instructions customize how the AI behaves within a channel. The instruction persists across all prompts in that channel.
+System instructions customize how the AI behaves within a conversation. The instruction persists across all prompts in that conversation.
 
 ```typescript
 // Make the AI behave like an SQL interpreter
@@ -978,19 +1020,25 @@ System instructions are useful for:
 ### Listening for Updates
 
 ```typescript
+// Listen for conversation updates (interaction history changes)
+channel.on('conversationUpdated', ({ conversationId, channelId, source }) => {
+  const interactions = channel.getInteractions();
+  renderInteractions(interactions);
+});
+
+// channelUpdated also fires for the active conversation (backward compat)
 channel.on('channelUpdated', ({ channelId, source }) => {
-  // Channel updated - refresh if needed
   const interactions = channel.getInteractions();
   renderInteractions(interactions);
 });
 ```
 
-### Multiple Channels
+### Multiple Channels and Conversations
 
-Each channel has its own interaction history. To work with multiple independent histories on the same space, open multiple channels:
+Each channel contains conversations with independent interaction history. For most apps, a single channel with the default conversation is sufficient. For multi-thread UIs, use conversation handles within one channel:
 
 ```typescript
-// Open two channels on the same space
+// Multiple channels on the same space
 const research = await client.openChannel('space-id', 'research');
 const main = await client.openChannel('space-id', 'main');
 
@@ -998,19 +1046,27 @@ const main = await client.openChannel('space-id', 'main');
 await research.prompt("Analyze this data");
 await main.prompt("Summarize findings");
 
+// Multiple conversations within one channel (shared SSE connection)
+const channel = await client.openChannel('space-id', 'main');
+const thread1 = channel.conversation('thread-1');
+const thread2 = channel.conversation('thread-2');
+
+await thread1.prompt("Research topic A");
+await thread2.prompt("Research topic B");
+
 // Close when done
 research.close();
 main.close();
 ```
 
 **Use cases:**
-- **Chat app with sidebar** — Each sidebar entry is a channel with a different channelId
-- **Page refresh** — Store the channelId in localStorage to resume the same channel
+- **Chat app with sidebar** — Each sidebar entry is a conversation handle within the same channel
+- **Page refresh** — Store the channelId and conversationId in localStorage to resume
 - **Collaborative channels** — Share a channelId between users to enable shared AI interaction history
 
-**Tip:** Use the user's id as channelId to share context across tabs/devices, or a fixed string like `'shared'` to share context across all users.
+**Tip:** Use the user's id as conversationId to give each user their own interaction history within a shared channel.
 
-Note: Interaction history is truncated to the most recent 50 entries to manage space size.
+Note: Interaction history is truncated to the most recent 50 entries per conversation.
 
 ### The ai Field
 
@@ -1020,7 +1076,7 @@ The `ai` field in interactions distinguishes AI-generated responses from synthet
 
 ### Tool Calls
 
-The `toolCalls` array captures what the AI agent did during execution. Use it to build responsive UIs that show progress while the agent works — the `channelUpdated` event fires when each tool starts and completes. A tool call without a `result` is still running; once `result` is present, the tool has finished.
+The `toolCalls` array captures what the AI agent did during execution. Use it to build responsive UIs that show progress while the agent works — the `conversationUpdated` event fires when each tool starts and completes. A tool call without a `result` is still running; once `result` is present, the tool has finished.
 
 ## Data Types
 
@@ -1071,18 +1127,36 @@ interface RoolObjectStat {
 }
 ```
 
-### Channels
+### Channels and Conversations
 
 ```typescript
-// Channel container with metadata
+// Conversation — holds interaction history and optional system instruction
+interface Conversation {
+  name?: string;                  // Conversation name (optional)
+  systemInstruction?: string;     // Custom system instruction for AI
+  createdAt: number;              // Timestamp when conversation was created
+  createdBy: string;              // User ID who created the conversation
+  interactions: Interaction[];    // Interaction history
+}
+
+// Conversation summary info (returned by channel.getConversations())
+interface ConversationInfo {
+  id: string;
+  name: string | null;
+  systemInstruction: string | null;
+  createdAt: number;
+  createdBy: string;
+  interactionCount: number;
+}
+
+// Channel container with metadata and conversations
 interface Channel {
   name?: string;                // Channel name (optional)
   createdAt: number;            // Timestamp when channel was created
   createdBy: string;            // User ID who created the channel
   createdByName?: string;       // Display name at time of creation
-  systemInstruction?: string;   // Custom system instruction for AI
   appUrl?: string;              // URL of installed app (set by installApp)
-  interactions: Interaction[];  // Interaction history
+  conversations: Record<string, Conversation>;  // Keyed by conversation ID
 }
 
 // Channel summary info (returned by client.getChannels)

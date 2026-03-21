@@ -11,6 +11,8 @@ export interface BridgeRequest {
   id: string;
   method: string;
   args: unknown[];
+  /** When present, the host dispatches to channel.conversation(conversationId) */
+  conversationId?: string;
 }
 
 /** Host → App: result of a channel method call */

@@ -1,4 +1,4 @@
-import type { RoolChannel, RoolClient, Interaction, RoolObject, FindObjectsOptions, ChannelInfo } from '@rool-dev/sdk';
+import type { RoolChannel, RoolClient, Interaction, RoolObject, FindObjectsOptions, ChannelInfo, ConversationInfo, ConversationHandle, ConversationUpdatedEvent } from '@rool-dev/sdk';
 
 /**
  * Options for creating a reactive watch.
@@ -223,6 +223,84 @@ class ReactiveObjectImpl {
 
 export type ReactiveObject = ReactiveObjectImpl;
 
+// ---------------------------------------------------------------------------
+// ReactiveConversationHandle
+// ---------------------------------------------------------------------------
+
+/**
+ * A reactive conversation handle that auto-updates interactions when the
+ * conversation changes. Wraps the SDK's ConversationHandle with $state.
+ *
+ * Call `close()` when done to stop listening for updates.
+ */
+class ReactiveConversationHandleImpl {
+  #handle: ConversationHandle;
+  #conversationId: string;
+  #unsubscribers: (() => void)[] = [];
+
+  // Reactive state
+  interactions = $state<Interaction[]>([]);
+
+  constructor(channel: RoolChannel, conversationId: string) {
+    this.#conversationId = conversationId;
+    this.#handle = channel.conversation(conversationId);
+
+    // Initial load
+    this.interactions = this.#handle.getInteractions();
+
+    // Listen for updates to this conversation
+    const onConversationUpdated = (event: ConversationUpdatedEvent) => {
+      if (event.conversationId === this.#conversationId) {
+        this.interactions = this.#handle.getInteractions();
+      }
+    };
+    channel.on('conversationUpdated', onConversationUpdated);
+    this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
+
+    // Handle full resets
+    const onReset = () => {
+      this.interactions = this.#handle.getInteractions();
+    };
+    channel.on('reset', onReset);
+    this.#unsubscribers.push(() => channel.off('reset', onReset));
+  }
+
+  get conversationId(): string { return this.#conversationId; }
+
+  // Conversation history
+  getInteractions() { return this.#handle.getInteractions(); }
+  getSystemInstruction() { return this.#handle.getSystemInstruction(); }
+  setSystemInstruction(...args: Parameters<ConversationHandle['setSystemInstruction']>) { return this.#handle.setSystemInstruction(...args); }
+  rename(...args: Parameters<ConversationHandle['rename']>) { return this.#handle.rename(...args); }
+
+  // Object operations
+  findObjects(...args: Parameters<ConversationHandle['findObjects']>) { return this.#handle.findObjects(...args); }
+  createObject(...args: Parameters<ConversationHandle['createObject']>) { return this.#handle.createObject(...args); }
+  updateObject(...args: Parameters<ConversationHandle['updateObject']>) { return this.#handle.updateObject(...args); }
+  deleteObjects(...args: Parameters<ConversationHandle['deleteObjects']>) { return this.#handle.deleteObjects(...args); }
+
+  // AI
+  prompt(...args: Parameters<ConversationHandle['prompt']>) { return this.#handle.prompt(...args); }
+
+  // Schema
+  createCollection(...args: Parameters<ConversationHandle['createCollection']>) { return this.#handle.createCollection(...args); }
+  alterCollection(...args: Parameters<ConversationHandle['alterCollection']>) { return this.#handle.alterCollection(...args); }
+  dropCollection(...args: Parameters<ConversationHandle['dropCollection']>) { return this.#handle.dropCollection(...args); }
+
+  // Metadata
+  setMetadata(...args: Parameters<ConversationHandle['setMetadata']>) { return this.#handle.setMetadata(...args); }
+
+  /**
+   * Stop listening for updates and clean up.
+   */
+  close(): void {
+    for (const unsub of this.#unsubscribers) unsub();
+    this.#unsubscribers.length = 0;
+  }
+}
+
+export type ReactiveConversationHandle = ReactiveConversationHandleImpl;
+
 /**
  * Minimal wrapper that adds reactive `interactions` to RoolChannel.
  * All other properties and methods are proxied to the underlying channel.
@@ -236,19 +314,28 @@ class ReactiveChannelImpl {
   interactions = $state<Interaction[]>([]);
   objectIds = $state<string[]>([]);
   collections = $state<string[]>([]);
+  conversations = $state<ConversationInfo[]>([]);
 
   constructor(channel: RoolChannel) {
     this.#channel = channel;
     this.interactions = channel.getInteractions();
     this.objectIds = channel.getObjectIds();
     this.collections = Object.keys(channel.getSchema());
+    this.conversations = channel.getConversations();
 
-    // Subscribe to channel updates
+    // Subscribe to channel updates → refresh interactions
     const onChannelUpdated = () => {
       this.interactions = channel.getInteractions();
     };
     channel.on('channelUpdated', onChannelUpdated);
     this.#unsubscribers.push(() => channel.off('channelUpdated', onChannelUpdated));
+
+    // Subscribe to conversation updates → refresh conversations
+    const onConversationUpdated = () => {
+      this.conversations = channel.getConversations();
+    };
+    channel.on('conversationUpdated', onConversationUpdated);
+    this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
 
     // Subscribe to object events for objectIds
     const refreshObjectIds = () => {
@@ -270,6 +357,7 @@ class ReactiveChannelImpl {
       this.interactions = channel.getInteractions();
       this.objectIds = channel.getObjectIds();
       this.collections = Object.keys(channel.getSchema());
+      this.conversations = channel.getConversations();
     };
     channel.on('reset', onReset);
     this.#unsubscribers.push(() => channel.off('reset', onReset));
@@ -284,6 +372,7 @@ class ReactiveChannelImpl {
   get channelName() { return this.#channel.channelName; }
   get isReadOnly() { return this.#channel.isReadOnly; }
   get linkAccess() { return this.#channel.linkAccess; }
+  get appUrl() { return this.#channel.appUrl; }
 
   // Proxy all methods
   close() {
@@ -322,6 +411,9 @@ class ReactiveChannelImpl {
   getInteractions() { return this.#channel.getInteractions(); }
   getSystemInstruction() { return this.#channel.getSystemInstruction(); }
   setSystemInstruction(...args: Parameters<RoolChannel['setSystemInstruction']>) { return this.#channel.setSystemInstruction(...args); }
+  getConversations() { return this.#channel.getConversations(); }
+  deleteConversation(...args: Parameters<RoolChannel['deleteConversation']>) { return this.#channel.deleteConversation(...args); }
+  renameConversation(...args: Parameters<RoolChannel['renameConversation']>) { return this.#channel.renameConversation(...args); }
 
   // Schema
   getSchema() { return this.#channel.getSchema(); }
@@ -337,6 +429,12 @@ class ReactiveChannelImpl {
 
   // Channel admin
   rename(...args: Parameters<RoolChannel['rename']>) { return this.#channel.rename(...args); }
+
+  // Conversations
+  conversation(conversationId: string): ReactiveConversationHandle {
+    if (this.#closed) throw new Error('Cannot create reactive conversation: channel is closed');
+    return new ReactiveConversationHandleImpl(this.#channel, conversationId);
+  }
 
   // Events
   on(...args: Parameters<RoolChannel['on']>) { return this.#channel.on(...args); }

@@ -6,7 +6,7 @@ export { wrapChannel } from './channel.svelte.js';
 
 // Types
 export type { Rool } from './rool.svelte.js';
-export type { ReactiveChannel, ReactiveObject, ReactiveWatch, ReactiveChannelList, WatchOptions } from './channel.svelte.js';
+export type { ReactiveChannel, ReactiveConversationHandle, ReactiveObject, ReactiveWatch, ReactiveChannelList, WatchOptions } from './channel.svelte.js';
 
 // Re-export SDK types for convenience
 export type {
@@ -19,6 +19,8 @@ export type {
   RoolUserRole,
   ConnectionState,
   ChannelInfo,
+  Conversation,
+  ConversationInfo,
   CurrentUser,
   Interaction,
   FindObjectsOptions,

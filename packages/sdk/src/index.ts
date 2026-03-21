@@ -7,7 +7,7 @@
 export { RoolClient } from './client.js';
 
 // Channel class
-export { RoolChannel, generateEntityId } from './channel.js';
+export { RoolChannel, ConversationHandle, generateEntityId } from './channel.js';
 
 // Space class
 export { RoolSpace } from './space.js';
@@ -67,6 +67,7 @@ export type {
   ConnectionState,
 
   // Event types (emitter)
+  ChangeSource,
   ChannelEvents,
   ObjectCreatedEvent,
   ObjectUpdatedEvent,
@@ -74,11 +75,14 @@ export type {
   MetadataUpdatedEvent,
   SchemaUpdatedEvent,
   ChannelUpdatedEvent,
+  ConversationUpdatedEvent,
   ResetEvent,
 
   // Channel types
   Channel,
   ChannelInfo,
+  Conversation,
+  ConversationInfo,
   Interaction,
   InteractionStatus,
 

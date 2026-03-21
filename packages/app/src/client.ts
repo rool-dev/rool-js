@@ -14,6 +14,7 @@ import type {
   CollectionDef,
   FieldDef,
   Interaction,
+  ConversationInfo,
   PromptOptions,
   FindObjectsOptions,
   CreateObjectOptions,
@@ -106,13 +107,21 @@ export class AppChannel {
   // ---------------------------------------------------------------------------
 
   private _call(method: string, ...args: unknown[]): Promise<unknown> {
+    return this._callScoped(method, args);
+  }
+
+  /**
+   * Send a bridge request, optionally scoped to a conversation.
+   * Used internally by AppChannel (no conversationId) and by AppConversationHandle.
+   * @internal
+   */
+  _callScoped(method: string, args: unknown[], conversationId?: string): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const id = nextRequestId();
       this._pending.set(id, { resolve, reject });
-      window.parent.postMessage(
-        { type: 'rool:request', id, method, args },
-        '*',
-      );
+      const msg: Record<string, unknown> = { type: 'rool:request', id, method, args };
+      if (conversationId !== undefined) msg.conversationId = conversationId;
+      window.parent.postMessage(msg, '*');
     });
   }
 
@@ -230,6 +239,29 @@ export class AppChannel {
     await this._call('setSystemInstruction', instruction);
   }
 
+  async getConversations(): Promise<ConversationInfo[]> {
+    return this._call('getConversations') as Promise<ConversationInfo[]>;
+  }
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    await this._call('deleteConversation', conversationId);
+  }
+
+  async renameConversation(name: string): Promise<void> {
+    await this._call('renameConversation', name);
+  }
+
+  // Conversations
+
+  /**
+   * Get a handle for a specific conversation within this channel.
+   * Scopes AI and mutation operations to that conversation's interaction history.
+   * Conversations are auto-created on first interaction.
+   */
+  conversation(conversationId: string): AppConversationHandle {
+    return new AppConversationHandle(this, conversationId);
+  }
+
   // Metadata
 
   async setMetadata(key: string, value: unknown): Promise<void> {
@@ -286,6 +318,95 @@ export class AppChannel {
     }
     this._pending.clear();
     this._listeners.clear();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AppConversationHandle
+// ---------------------------------------------------------------------------
+
+/**
+ * A conversation handle for the app bridge.
+ * Mirrors the SDK's ConversationHandle API over postMessage.
+ *
+ * Scopes AI and mutation operations to a specific conversation's
+ * interaction history, while sharing the channel's bridge connection.
+ *
+ * Obtain via `channel.conversation('thread-id')`.
+ */
+export class AppConversationHandle {
+  private _channel: AppChannel;
+  private _conversationId: string;
+
+  /** @internal */
+  constructor(channel: AppChannel, conversationId: string) {
+    this._channel = channel;
+    this._conversationId = conversationId;
+  }
+
+  /** The conversation ID this handle is scoped to. */
+  get conversationId(): string { return this._conversationId; }
+
+  // Conversation history
+
+  async getInteractions(): Promise<Interaction[]> {
+    return this._channel._callScoped('getInteractions', [], this._conversationId) as Promise<Interaction[]>;
+  }
+
+  async getSystemInstruction(): Promise<string | undefined> {
+    return this._channel._callScoped('getSystemInstruction', [], this._conversationId) as Promise<string | undefined>;
+  }
+
+  async setSystemInstruction(instruction: string | null): Promise<void> {
+    await this._channel._callScoped('setSystemInstruction', [instruction], this._conversationId);
+  }
+
+  async rename(name: string): Promise<void> {
+    await this._channel._callScoped('renameConversation', [name], this._conversationId);
+  }
+
+  // Object operations
+
+  async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
+    return this._channel._callScoped('findObjects', [options], this._conversationId) as Promise<{ objects: RoolObject[]; message: string }>;
+  }
+
+  async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._channel._callScoped('createObject', [options], this._conversationId) as Promise<{ object: RoolObject; message: string }>;
+  }
+
+  async updateObject(objectId: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._channel._callScoped('updateObject', [objectId, options], this._conversationId) as Promise<{ object: RoolObject; message: string }>;
+  }
+
+  async deleteObjects(objectIds: string[]): Promise<void> {
+    await this._channel._callScoped('deleteObjects', [objectIds], this._conversationId);
+  }
+
+  // AI
+
+  async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
+    return this._channel._callScoped('prompt', [text, options], this._conversationId) as Promise<{ message: string; objects: RoolObject[] }>;
+  }
+
+  // Schema
+
+  async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    return this._channel._callScoped('createCollection', [name, fields], this._conversationId) as Promise<CollectionDef>;
+  }
+
+  async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    return this._channel._callScoped('alterCollection', [name, fields], this._conversationId) as Promise<CollectionDef>;
+  }
+
+  async dropCollection(name: string): Promise<void> {
+    await this._channel._callScoped('dropCollection', [name], this._conversationId);
+  }
+
+  // Metadata
+
+  async setMetadata(key: string, value: unknown): Promise<void> {
+    await this._channel._callScoped('setMetadata', [key, value], this._conversationId);
   }
 }
 

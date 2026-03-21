@@ -6,11 +6,12 @@
  * The underlying transport is the postMessage bridge, not the SDK directly.
  */
 
-import { AppChannel } from './client.js';
+import { AppChannel, AppConversationHandle } from './client.js';
 import type {
   RoolObject,
   FieldDef,
   Interaction,
+  ConversationInfo,
   PromptOptions,
   FindObjectsOptions,
   CreateObjectOptions,
@@ -204,6 +205,7 @@ class ReactiveAppChannelImpl {
   interactions = $state<Interaction[]>([]);
   objectIds = $state<string[]>([]);
   collections = $state<string[]>([]);
+  conversations = $state<ConversationInfo[]>([]);
 
   #unsubscribers: (() => void)[] = [];
 
@@ -213,6 +215,7 @@ class ReactiveAppChannelImpl {
     // Load initial data
     channel.getInteractions().then((list) => { this.interactions = list; });
     channel.getObjectIds().then((ids) => { this.objectIds = ids; });
+    channel.getConversations().then((list) => { this.conversations = list; });
     this.collections = Object.keys(channel.getSchema());
 
     // Subscribe to channel updates → refresh interactions
@@ -221,6 +224,13 @@ class ReactiveAppChannelImpl {
     };
     channel.on('channelUpdated', onChannelUpdated);
     this.#unsubscribers.push(() => channel.off('channelUpdated', onChannelUpdated));
+
+    // Subscribe to conversation updates → refresh conversations
+    const onConversationUpdated = () => {
+      channel.getConversations().then((list) => { this.conversations = list; });
+    };
+    channel.on('conversationUpdated', onConversationUpdated);
+    this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
 
     // Subscribe to object events → refresh objectIds
     const refreshObjectIds = () => {
@@ -242,6 +252,7 @@ class ReactiveAppChannelImpl {
     const onReset = () => {
       channel.getInteractions().then((list) => { this.interactions = list; });
       channel.getObjectIds().then((ids) => { this.objectIds = ids; });
+      channel.getConversations().then((list) => { this.conversations = list; });
       this.collections = Object.keys(channel.getSchema());
     };
     channel.on('reset', onReset);
@@ -286,12 +297,21 @@ class ReactiveAppChannelImpl {
   getInteractions() { return this.#channel.getInteractions(); }
   getSystemInstruction() { return this.#channel.getSystemInstruction(); }
   setSystemInstruction(instruction: string | null) { return this.#channel.setSystemInstruction(instruction); }
+  getConversations() { return this.#channel.getConversations(); }
+  deleteConversation(conversationId: string) { return this.#channel.deleteConversation(conversationId); }
+  renameConversation(name: string) { return this.#channel.renameConversation(name); }
 
   // Schema
   getSchema() { return this.#channel.getSchema(); }
   createCollection(name: string, fields: FieldDef[]) { return this.#channel.createCollection(name, fields); }
   alterCollection(name: string, fields: FieldDef[]) { return this.#channel.alterCollection(name, fields); }
   dropCollection(name: string) { return this.#channel.dropCollection(name); }
+
+  // Conversations
+  conversation(conversationId: string): ReactiveAppConversationHandle {
+    if (this.#closed) throw new Error('Cannot create reactive conversation: channel is closed');
+    return new ReactiveAppConversationHandleImpl(this.#channel, conversationId);
+  }
 
   // Events
   on(...args: Parameters<AppChannel['on']>) { return this.#channel.on(...args); }
@@ -320,6 +340,85 @@ class ReactiveAppChannelImpl {
 }
 
 export type ReactiveAppChannel = ReactiveAppChannelImpl;
+
+// ---------------------------------------------------------------------------
+// ReactiveAppConversationHandle
+// ---------------------------------------------------------------------------
+
+/**
+ * A reactive conversation handle for the app bridge.
+ * Wraps AppConversationHandle with $state interactions that auto-update
+ * when the conversation changes via SSE events.
+ *
+ * Call `close()` when done to stop listening for updates.
+ */
+class ReactiveAppConversationHandleImpl {
+  #handle: AppConversationHandle;
+  #conversationId: string;
+  #unsubscribers: (() => void)[] = [];
+
+  // Reactive state
+  interactions = $state<Interaction[]>([]);
+
+  constructor(channel: AppChannel, conversationId: string) {
+    this.#conversationId = conversationId;
+    this.#handle = channel.conversation(conversationId);
+
+    // Initial load
+    this.#handle.getInteractions().then((list) => { this.interactions = list; });
+
+    // Listen for updates to this conversation
+    const onConversationUpdated = ({ conversationId: cid }: { conversationId: string }) => {
+      if (cid === this.#conversationId) {
+        this.#handle.getInteractions().then((list) => { this.interactions = list; });
+      }
+    };
+    channel.on('conversationUpdated', onConversationUpdated);
+    this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
+
+    // Handle full resets
+    const onReset = () => {
+      this.#handle.getInteractions().then((list) => { this.interactions = list; });
+    };
+    channel.on('reset', onReset);
+    this.#unsubscribers.push(() => channel.off('reset', onReset));
+  }
+
+  get conversationId(): string { return this.#conversationId; }
+
+  // Conversation history
+  getInteractions() { return this.#handle.getInteractions(); }
+  getSystemInstruction() { return this.#handle.getSystemInstruction(); }
+  setSystemInstruction(instruction: string | null) { return this.#handle.setSystemInstruction(instruction); }
+  rename(name: string) { return this.#handle.rename(name); }
+
+  // Object operations
+  findObjects(options: FindObjectsOptions) { return this.#handle.findObjects(options); }
+  createObject(options: CreateObjectOptions) { return this.#handle.createObject(options); }
+  updateObject(objectId: string, options: UpdateObjectOptions) { return this.#handle.updateObject(objectId, options); }
+  deleteObjects(objectIds: string[]) { return this.#handle.deleteObjects(objectIds); }
+
+  // AI
+  prompt(text: string, options?: PromptOptions) { return this.#handle.prompt(text, options); }
+
+  // Schema
+  createCollection(name: string, fields: FieldDef[]) { return this.#handle.createCollection(name, fields); }
+  alterCollection(name: string, fields: FieldDef[]) { return this.#handle.alterCollection(name, fields); }
+  dropCollection(name: string) { return this.#handle.dropCollection(name); }
+
+  // Metadata
+  setMetadata(key: string, value: unknown) { return this.#handle.setMetadata(key, value); }
+
+  /**
+   * Stop listening for updates and clean up.
+   */
+  close(): void {
+    for (const unsub of this.#unsubscribers) unsub();
+    this.#unsubscribers.length = 0;
+  }
+}
+
+export type ReactiveAppConversationHandle = ReactiveAppConversationHandleImpl;
 
 // ---------------------------------------------------------------------------
 // initApp (reactive version)
