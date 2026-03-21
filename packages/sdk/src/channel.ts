@@ -756,12 +756,38 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   /** @internal */
   async _renameConversationImpl(name: string, conversationId: string): Promise<void> {
-    await this.graphqlClient.updateConversation(
-      this._id,
-      this._channelId,
+    // Optimistic local update
+    this._ensureConversationImpl(conversationId);
+    const conv = this._channel!.conversations[conversationId];
+    const previousName = conv.name;
+    conv.name = name;
+
+    this.emit('conversationUpdated', {
       conversationId,
-      { name },
-    );
+      channelId: this._channelId,
+      source: 'local_user',
+    });
+    if (conversationId === this._conversationId) {
+      this.emit('channelUpdated', {
+        channelId: this._channelId,
+        source: 'local_user',
+      });
+    }
+
+    // Call server
+    try {
+      await this.graphqlClient.updateConversation(
+        this._id,
+        this._channelId,
+        conversationId,
+        { name },
+      );
+    } catch (error) {
+      this.logger.error('[RoolChannel] Failed to rename conversation:', error);
+      // Rollback
+      conv.name = previousName;
+      throw error;
+    }
   }
 
   /**
@@ -887,7 +913,24 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Rename this channel.
    */
   async rename(newName: string): Promise<void> {
-    await this.graphqlClient.renameChannel(this._id, this._channelId, newName);
+    // Optimistic local update
+    const previousName = this._channel?.name;
+    if (this._channel) {
+      this._channel.name = newName;
+    }
+    this.emit('channelUpdated', { channelId: this._channelId, source: 'local_user' });
+
+    // Call server
+    try {
+      await this.graphqlClient.renameChannel(this._id, this._channelId, newName);
+    } catch (error) {
+      this.logger.error('[RoolChannel] Failed to rename channel:', error);
+      // Rollback
+      if (this._channel) {
+        this._channel.name = previousName;
+      }
+      throw error;
+    }
   }
 
   // ===========================================================================
@@ -1058,8 +1101,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       case 'channel_updated':
         // Only update if it's our channel — channel_updated is now metadata-only (name, appUrl)
         if (event.channelId === this._channelId && event.channel) {
+          const changed = JSON.stringify(this._channel) !== JSON.stringify(event.channel);
           this._channel = event.channel;
-          this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
+          if (changed) {
+            this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
+          }
         }
         break;
 
@@ -1074,6 +1120,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
             };
           }
 
+          const prev = this._channel.conversations[event.conversationId];
           if (event.conversation) {
             // Update or create conversation in local cache
             this._channel.conversations[event.conversationId] = event.conversation;
@@ -1081,6 +1128,9 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
             // Conversation was deleted
             delete this._channel.conversations[event.conversationId];
           }
+
+          // Skip emit if data is unchanged (e.g. echo of our own optimistic update)
+          if (JSON.stringify(prev) === JSON.stringify(event.conversation)) break;
 
           // Emit the new conversationUpdated event
           this.emit('conversationUpdated', {
