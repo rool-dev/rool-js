@@ -448,11 +448,12 @@ export class GraphQLClient {
     data: Record<string, unknown>,
     channelId: string,
     conversationId: string,
+    interactionId: string,
     ephemeral?: boolean,
   ): Promise<{ objectId: string; message: string }> {
     const mutation = `
-      mutation CreateObject($spaceId: String!, $data: String!, $channelId: String!, $conversationId: String!, $ephemeral: Boolean) {
-        createObject(spaceId: $spaceId, data: $data, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral) {
+      mutation CreateObject($spaceId: String!, $data: String!, $channelId: String!, $conversationId: String!, $ephemeral: Boolean, $interactionId: String!) {
+        createObject(spaceId: $spaceId, data: $data, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral, interactionId: $interactionId) {
           objectId
           message
         }
@@ -464,6 +465,7 @@ export class GraphQLClient {
       channelId,
       conversationId,
       ephemeral,
+      interactionId,
     });
     return result.createObject;
   }
@@ -473,13 +475,14 @@ export class GraphQLClient {
     id: string,
     channelId: string,
     conversationId: string,
+    interactionId: string,
     data?: Record<string, unknown>,
     prompt?: string,
     ephemeral?: boolean,
   ): Promise<{ objectId: string; message: string }> {
     const mutation = `
-      mutation UpdateObject($spaceId: String!, $id: String!, $data: String, $prompt: String, $channelId: String!, $conversationId: String!, $ephemeral: Boolean) {
-        updateObject(spaceId: $spaceId, id: $id, data: $data, prompt: $prompt, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral) {
+      mutation UpdateObject($spaceId: String!, $id: String!, $data: String, $prompt: String, $channelId: String!, $conversationId: String!, $ephemeral: Boolean, $interactionId: String!) {
+        updateObject(spaceId: $spaceId, id: $id, data: $data, prompt: $prompt, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral, interactionId: $interactionId) {
           objectId
           message
         }
@@ -493,6 +496,7 @@ export class GraphQLClient {
       channelId,
       conversationId,
       ephemeral,
+      interactionId,
     });
     return result.updateObject;
   }
@@ -556,11 +560,11 @@ export class GraphQLClient {
     prompt: string,
     channelId: string,
     conversationId: string,
-    options: Omit<PromptOptions, 'attachments'> & { attachmentUrls?: string[] } = {}
+    options: Omit<PromptOptions, 'attachments'> & { attachmentUrls?: string[]; interactionId: string }
   ): Promise<{ message: string; modifiedObjectIds: string[] }> {
     const mutation = `
-      mutation Prompt($spaceId: String!, $prompt: String!, $objectIds: [String!], $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort, $ephemeral: Boolean, $readOnly: Boolean, $attachments: [String!]) {
-        prompt(spaceId: $spaceId, prompt: $prompt, objectIds: $objectIds, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments) {
+      mutation Prompt($spaceId: String!, $prompt: String!, $objectIds: [String!], $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort, $ephemeral: Boolean, $readOnly: Boolean, $attachments: [String!], $interactionId: String!) {
+        prompt(spaceId: $spaceId, prompt: $prompt, objectIds: $objectIds, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId) {
           message
           modifiedObjectIds
         }
@@ -579,6 +583,7 @@ export class GraphQLClient {
       ephemeral: options.ephemeral,
       readOnly: options.readOnly,
       attachments: options.attachmentUrls,
+      interactionId: options.interactionId,
     });
     return response.prompt;
   }

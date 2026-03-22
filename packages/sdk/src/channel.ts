@@ -471,7 +471,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     try {
       // Await mutation — server processes AI placeholders before responding.
       // SSE events arrive during the await and are buffered via _deliverObject.
-      const { message } = await this.graphqlClient.createObject(this.id, dataWithId, this._channelId, conversationId, ephemeral);
+      const interactionId = generateEntityId();
+      const { message } = await this.graphqlClient.createObject(this.id, dataWithId, this._channelId, conversationId, interactionId, ephemeral);
       // Collect resolved object from buffer (or wait if not yet arrived)
       const object = await this._collectObject(objectId);
       return { object, message };
@@ -536,7 +537,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
 
     try {
-      const { message } = await this.graphqlClient.updateObject(this.id, objectId, this._channelId, conversationId, serverData, options.prompt, ephemeral);
+      const interactionId = generateEntityId();
+      const { message } = await this.graphqlClient.updateObject(this.id, objectId, this._channelId, conversationId, interactionId, serverData, options.prompt, ephemeral);
       const object = await this._collectObject(objectId);
       return { object, message };
     } catch (error) {
@@ -872,7 +874,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       );
     }
 
-    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls });
+    const interactionId = generateEntityId();
+    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls, interactionId });
 
     // Collect modified objects — they arrive via SSE events during/after the mutation.
     // Try collecting from buffer first, then fetch any missing from server.
