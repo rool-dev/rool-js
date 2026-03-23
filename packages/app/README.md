@@ -1,8 +1,10 @@
 # Rool App
 
-Build sandboxed apps that run inside Rool Spaces. An app is a Svelte 5 component hosted in an iframe, communicating with the host via a postMessage bridge.
+An app is an extension that adds features to a Rool Space. Apps are Svelte 5 components hosted in sandboxed iframes, communicating with the host via a postMessage bridge. Each app gets a reactive channel as its interface to the Space's objects, schema, AI, and real-time events.
 
-Apps are small, standardized, and easy to generate. An app project is just two files:
+Developers build apps to create custom experiences on top of a Space — productivity tools, dashboards, data views, games, or anything else. Multiple apps can be installed into the same Space, letting users and teams assemble an AI-powered interface that fits exactly how they work.
+
+An app project is just two files:
 
 - **`App.svelte`** — Your UI component (receives a reactive channel as a prop)
 - **`rool-app.json`** — Manifest with id, name, icon, visibility, and collection access
@@ -110,9 +112,55 @@ The `collections` field declares what collections the app works with, grouped by
 
 The component can import other `.svelte` components and `.ts` files — standard Svelte/TypeScript conventions apply. Tailwind CSS v4 is available out of the box. Add an `app.css` file to include custom styles.
 
+### Example: Task List
+
+A complete app that lets users add tasks, mark them done, and ask the AI to generate tasks from a description. The `watch` primitive keeps the list in sync with the Space in real-time.
+
+```svelte
+<script lang="ts">
+  import type { ReactiveAppChannel } from '@rool-dev/app';
+
+  interface Props { channel: ReactiveAppChannel }
+  let { channel }: Props = $props();
+
+  const tasks = channel.watch({ collection: 'task' });
+
+  let input = $state('');
+
+  async function addTask() {
+    if (!input.trim()) return;
+    await channel.createObject({ data: { title: input, done: false } });
+    input = '';
+  }
+
+  async function generate() {
+    if (!input.trim()) return;
+    await channel.prompt(`Create tasks for: ${input}`);
+    input = '';
+  }
+</script>
+
+<div class="flex gap-2 mb-4">
+  <input bind:value={input} placeholder="New task or describe what you need…"
+    class="flex-1 border rounded px-2 py-1" onkeydown={(e) => e.key === 'Enter' && addTask()} />
+  <button onclick={addTask} class="px-3 py-1 bg-blue-600 text-white rounded">Add</button>
+  <button onclick={generate} class="px-3 py-1 bg-violet-600 text-white rounded">AI Generate</button>
+</div>
+
+{#each tasks.objects as task (task.id)}
+  <label class="flex items-center gap-2 py-1">
+    <input type="checkbox" checked={task.done}
+      onchange={() => channel.updateObject(task.id, { data: { done: !task.done } })} />
+    <span class:line-through={task.done}>{task.title}</span>
+  </label>
+{/each}
+```
+
+This example covers the main patterns you'll use in most apps: `watch` for a live query, `createObject` for direct mutations, `updateObject` for edits, and `prompt` to let the AI create or modify objects on the user's behalf.
+
 ## ReactiveAppChannel
 
-The channel is the app's interface to the host Space. It mirrors the `@rool-dev/svelte` ReactiveChannel API over a postMessage bridge.
+The channel is the app's interface to the host Space — objects, schema, AI, metadata, undo/redo, and real-time events.
 
 ### Reactive State
 
@@ -139,18 +187,66 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 
 ### Object Operations
 
+Objects are plain key/value records. `id` is reserved; everything else is application-defined. References between objects are data fields whose values are object IDs.
+
+| Method | Description |
+|--------|-------------|
+| `getObject(id)` | Get object data, or undefined if not found |
+| `findObjects(options)` | Find objects using filters and/or natural language (see below) |
+| `getObjectIds(options?)` | Get all object IDs. Options: `{ limit?, order? }` |
+| `createObject(options)` | Create a new object. Returns `{ object, message }` |
+| `updateObject(id, options)` | Update an existing object. Returns `{ object, message }` |
+| `deleteObjects(ids)` | Delete objects by ID |
+| `stat(id)` | Get audit info (modifiedAt, modifiedBy) from local cache |
+
+#### createObject / updateObject
+
 ```typescript
-await channel.getObject(id)
-await channel.findObjects({ collection: 'note' })
-await channel.findObjects({ collection: 'note', where: { status: 'active' } })
-await channel.createObject({ data: { text: '{{expand this}}' } })
-await channel.updateObject(id, { data: { text: 'Updated' } })
-await channel.updateObject(id, { prompt: 'Make it shorter' })
-await channel.deleteObjects([id])
-channel.getObjectIds({ limit: 10, order: 'desc' })
+// Create with literal data
+await channel.createObject({ data: { title: 'Hello', status: 'draft' } })
+
+// Use {{placeholders}} for AI-generated content
+await channel.createObject({ data: { headline: '{{catchy headline about coffee}}' } })
+
+// Update fields directly
+await channel.updateObject(id, { data: { status: 'published' } })
+
+// Update via AI instruction
+await channel.updateObject(id, { prompt: 'Make it shorter and more casual' })
+
+// Delete a field by setting it to null
+await channel.updateObject(id, { data: { subtitle: null } })
 ```
 
-See the [SDK docs](../sdk/README.md) for full details on object operations, `{{placeholder}}` syntax, and `findObjects` options.
+Placeholders are resolved by the AI during the mutation and replaced with concrete values. The `{{...}}` syntax is never stored.
+
+**createObject options:** `data` (required, include `id` for a custom ID), `ephemeral`.
+**updateObject options:** `data`, `prompt`, `ephemeral`.
+
+#### findObjects
+
+- **`where` only** — exact-match filtering, no AI, no credits
+- **`collection` only** — filter by collection name, no AI, no credits
+- **`prompt` only** — AI-powered semantic query over all objects
+- **`where` + `prompt`** — `where` narrows the set first, then AI queries within it
+
+```typescript
+await channel.findObjects({ collection: 'note' })
+await channel.findObjects({ where: { status: 'active' } })
+await channel.findObjects({ collection: 'note', where: { status: 'active' } })
+await channel.findObjects({ prompt: 'notes about climate solutions' })
+await channel.findObjects({ collection: 'note', prompt: 'most urgent', limit: 5 })
+```
+
+Options: `where`, `collection`, `prompt`, `limit`, `objectIds`, `order` (`'asc'` | `'desc'`), `ephemeral`.
+
+#### Hidden Fields
+
+Fields starting with `_` (e.g., `_ui`) are hidden from AI and ignored by the schema. Use them for UI state, positions, or other data the AI shouldn't see:
+
+```typescript
+await channel.createObject({ data: { title: 'Note', _ui: { x: 100, y: 200 } } })
+```
 
 ### AI
 
@@ -166,6 +262,9 @@ const { message } = await channel.prompt('Summarize', { readOnly: true, effort: 
 | `effort` | `'QUICK'`, `'STANDARD'`, `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | Don't record in interaction history |
 | `readOnly` | Disable mutation tools |
+| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`) |
+
+The AI automatically receives interaction history, recently modified objects, and any objects passed via `objectIds` as context.
 
 ### Schema
 
@@ -244,7 +343,7 @@ await thread.rename('Research Thread');
 thread.close();   // Stop listening for updates
 ```
 
-Conversations are auto-created on first interaction — no explicit create step needed. All conversations share one bridge connection. See the [SDK docs](../sdk/README.md#conversations) for full details.
+Conversations are auto-created on first interaction — no explicit create step needed. All conversations share one bridge connection. The 50-message cap applies per conversation.
 
 ### Events
 

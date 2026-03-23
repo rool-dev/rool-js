@@ -17,7 +17,6 @@ export interface SpaceConfig {
   name: string;
   role: RoolUserRole;
   linkAccess: LinkAccess;
-  /** Initial channel summaries (for getChannels without a round-trip) */
   channels: ChannelInfo[];
   graphqlClient: GraphQLClient;
   mediaClient: MediaClient;

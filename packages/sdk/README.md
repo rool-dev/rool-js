@@ -4,18 +4,13 @@ The TypeScript SDK for Rool, a persistent and collaborative environment for orga
 
 > **Building a new Rool app?** Start with [`@rool-dev/app`](/app/) — it handles hosting, dev server, and gives you a reactive Svelte channel out of the box. This SDK is for advanced use cases: integrating Rool into an existing application, building Node.js scripts, or working outside the app sandbox.
 
-Rool enables you to build applications where AI operates on a structured world model rather than a text conversation. The context for all AI operations is the full object graph, allowing the system to reason about, update, and expand the state of your application directly.
+The SDK manages authentication, real-time synchronization, and media storage. Core primitives:
 
-Use Rool to programmatically instruct agents to generate content, research topics, or reorganize data. The client manages authentication, real-time synchronization, and media storage, supporting both single-user and multi-user workflows.
-
-**Core primitives:**
 - **Spaces** — Containers for objects, schema, metadata, and channels
 - **Channels** — Named contexts within a space. All object and AI operations go through a channel.
-- **Conversations** — Independent interaction histories within a channel. Most apps use a single `'default'` conversation; multi-conversation apps (e.g., chat with multiple threads) can open additional ones.
+- **Conversations** — Independent interaction histories within a channel.
 - **Objects** — Key-value records with any fields you define. References between objects are data fields whose values are object IDs.
 - **AI operations** — Create, update, or query objects using natural language and `{{placeholders}}`
-
-See [Patterns & Examples](#patterns--examples) for what you can build.
 
 ## Installation
 
@@ -958,25 +953,7 @@ try {
 
 ## Interaction History
 
-Each channel contains one or more conversations, each with its own interaction history. The history records all meaningful interactions (prompts, object mutations) as self-contained entries, each capturing the request and its result. History is stored in the space data itself and syncs in real-time to all clients.
-
-### What the AI Receives
-
-AI operations (`prompt`, `createObject`, `updateObject`, `findObjects`) automatically receive:
-
-- **Interaction history** — Previous interactions and their results from the current conversation
-- **Recently modified objects** — Objects in the space recently created or changed
-- **Selected objects** — Objects passed via `objectIds` are given primary focus
-
-This context flows automatically — no configuration needed. The AI sees enough history to maintain coherent interactions while respecting the `_`-prefixed field hiding rules.
-
-### Accessing History
-
-```typescript
-// Get interactions for the current conversation
-const interactions = channel.getInteractions();
-// Returns: Interaction[]
-```
+Each channel contains one or more conversations, each with its own interaction history. History is stored in the space data and syncs in real-time. Truncated to the most recent 50 entries per conversation.
 
 ### Conversation History Methods
 
@@ -991,83 +968,6 @@ const interactions = channel.getInteractions();
 
 Channel management (listing, renaming, deleting channels) is done via the client — see [Channel Management](#channel-management).
 
-### System Instructions
-
-System instructions customize how the AI behaves within a conversation. The instruction persists across all prompts in that conversation.
-
-```typescript
-// Make the AI behave like an SQL interpreter
-await channel.setSystemInstruction(
-  'Behave like an intelligent SQL interpreter. Respond with simple markdown tables. ' +
-  'Translate the objects in the space to the implied structure in your responses.'
-);
-
-// Now prompts are interpreted as SQL-like queries
-const { message } = await channel.prompt('SELECT task, due_date FROM tasks ORDER BY due_date');
-// Returns a markdown table of tasks, even if no "tasks" objects exist -
-// the AI infers actual tasks from the space content
-
-// Clear the instruction to return to default behavior
-await channel.setSystemInstruction(null);
-```
-
-System instructions are useful for:
-- Defining response formats (tables, JSON, specific templates)
-- Setting a persona or expertise area
-- Constraining the AI to specific operations
-- Creating domain-specific interfaces over your space data
-
-### Listening for Updates
-
-```typescript
-// Listen for conversation updates (interaction history changes)
-channel.on('conversationUpdated', ({ conversationId, channelId, source }) => {
-  const interactions = channel.getInteractions();
-  renderInteractions(interactions);
-});
-
-// channelUpdated also fires for the active conversation (backward compat)
-channel.on('channelUpdated', ({ channelId, source }) => {
-  const interactions = channel.getInteractions();
-  renderInteractions(interactions);
-});
-```
-
-### Multiple Channels and Conversations
-
-Each channel contains conversations with independent interaction history. For most apps, a single channel with the default conversation is sufficient. For multi-thread UIs, use conversation handles within one channel:
-
-```typescript
-// Multiple channels on the same space
-const research = await client.openChannel('space-id', 'research');
-const main = await client.openChannel('space-id', 'main');
-
-// Each has independent history
-await research.prompt("Analyze this data");
-await main.prompt("Summarize findings");
-
-// Multiple conversations within one channel (shared SSE connection)
-const channel = await client.openChannel('space-id', 'main');
-const thread1 = channel.conversation('thread-1');
-const thread2 = channel.conversation('thread-2');
-
-await thread1.prompt("Research topic A");
-await thread2.prompt("Research topic B");
-
-// Close when done
-research.close();
-main.close();
-```
-
-**Use cases:**
-- **Chat app with sidebar** — Each sidebar entry is a conversation handle within the same channel
-- **Page refresh** — Store the channelId and conversationId in localStorage to resume
-- **Collaborative channels** — Share a channelId between users to enable shared AI interaction history
-
-**Tip:** Use the user's id as conversationId to give each user their own interaction history within a shared channel.
-
-Note: Interaction history is truncated to the most recent 50 entries per conversation.
-
 ### The ai Field
 
 The `ai` field in interactions distinguishes AI-generated responses from synthetic confirmations:
@@ -1076,7 +976,7 @@ The `ai` field in interactions distinguishes AI-generated responses from synthet
 
 ### Tool Calls
 
-The `toolCalls` array captures what the AI agent did during execution. Use it to build responsive UIs that show progress while the agent works — the `conversationUpdated` event fires when each tool starts and completes. A tool call without a `result` is still running; once `result` is present, the tool has finished.
+The `toolCalls` array captures what the AI agent did during execution. The `conversationUpdated` event fires when each tool starts and completes. A tool call without a `result` is still running; once `result` is present, the tool has finished.
 
 ## Data Types
 
@@ -1229,58 +1129,6 @@ interface PromptOptions {
   attachments?: Array<File | Blob | { data: string; contentType: string }>;  // Files to attach (uploaded to media store)
 }
 ```
-
-## Patterns & Examples
-
-A Rool Space is a persistent, shared world model. Applications project different interaction patterns onto the same core primitives:
-
-- **Objects** store durable state, with references to other objects via data fields
-- **Channels** provide independent AI interaction contexts over shared objects
-- **Events** describe what changed in real-time
-
-Below are a few representative patterns.
-
-### Chat With Generated Artifacts
-
-- **Space**: documents, notes, images, tasks as objects
-- **Channels**: each chat thread is a separate channel on the same space
-- **UI**: renders interactions from `getInteractions()` as chat; derives artifact lists from object events
-
-**Pattern**
-- Interaction history syncs in real-time; UI renders entries as chat bubbles
-- Artifacts are persistent objects shared across all channels
-- Listen to `channelUpdated` event to update chat UI
-- Selecting objects defines the AI working set via `objectIds`
-
-### Multi-User World / Text Adventure
-
-- **Space**: rooms, items, NPCs, players as objects
-- **References**: navigation, containment, location via data fields
-- **Channel**: player commands and narrative continuity
-
-**Pattern**
-- The space is the shared world state
-- Objects can be created dynamically as the world expands
-- AI generates descriptions and events using `{{placeholders}}`
-
-### Collaborative Knowledge Graph
-
-- **Space**: concepts, sources, hypotheses as objects
-- **References**: semantic connections between objects via data fields
-- **Channel**: exploratory analysis and questioning
-
-**Pattern**
-- Graph structure lives in object data fields containing other object IDs
-- AI operates on selected subgraphs via `objectIds`
-- Analysis results are stored; reasoning steps are transient
-
-### Common Design Invariants
-
-- Durable content lives in space objects
-- References between objects are data fields whose values are object IDs
-- Interaction history lives in channels (persistent, synced, truncated to 50 entries)
-- UI state lives in the client, space metadata, or `_`-prefixed fields
-- AI focus is controlled by object selection, not by replaying history
 
 ## License
 
