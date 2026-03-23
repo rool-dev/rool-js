@@ -369,26 +369,89 @@ export type RoolEventSource = 'user' | 'agent';
 
 export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'space_access_changed' | 'user_storage_changed' | 'channel_created' | 'channel_renamed' | 'channel_deleted';
 
-export interface ClientEvent {
-  type: ClientEventType;
-  spaceId?: string;  // Present on space and channel events
+interface ClientEventBase {
   timestamp: number;
-  name?: string;  // Present on space_created, space_renamed, space_access_changed, channel_created, channel_renamed events
-  ownerId?: string;  // Present on space_created, space_access_changed events
-  size?: number;  // Present on space_created, space_access_changed events
-  createdAt?: string;  // Present on space_created, space_access_changed events
-  updatedAt?: string;  // Present on space_created, space_access_changed events
-  role?: string;  // Present on space_created, space_access_changed events ('none' = access revoked)
-  linkAccess?: string;  // Present on space_access_changed events
-  key?: string;   // Present on user_storage_changed events
-  value?: unknown; // Present on user_storage_changed events
-  serverVersion?: string;  // Present on connected events
-  channelId?: string;  // Present on channel_created, channel_renamed, channel_deleted events
-  channelCreatedAt?: number;  // Present on channel_created events
-  channelCreatedBy?: string;  // Present on channel_created events
-  channelCreatedByName?: string;  // Present on channel_created events
-  channelAppUrl?: string | null;  // Present on channel_created events
 }
+
+export interface ConnectedClientEvent extends ClientEventBase {
+  type: 'connected';
+  serverVersion: string;
+}
+
+export interface SpaceCreatedClientEvent extends ClientEventBase {
+  type: 'space_created';
+  spaceId: string;
+  name: string;
+  ownerId?: string;
+  size?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  role?: string;
+}
+
+export interface SpaceDeletedClientEvent extends ClientEventBase {
+  type: 'space_deleted';
+  spaceId: string;
+}
+
+export interface SpaceRenamedClientEvent extends ClientEventBase {
+  type: 'space_renamed';
+  spaceId: string;
+  name: string;
+}
+
+export interface SpaceAccessChangedClientEvent extends ClientEventBase {
+  type: 'space_access_changed';
+  spaceId: string;
+  name: string;
+  ownerId: string;
+  size: number;
+  createdAt: string;
+  updatedAt: string;
+  role: string;
+  linkAccess: string;
+}
+
+export interface UserStorageChangedClientEvent extends ClientEventBase {
+  type: 'user_storage_changed';
+  key: string;
+  value: unknown;
+}
+
+export interface ChannelCreatedClientEvent extends ClientEventBase {
+  type: 'channel_created';
+  spaceId: string;
+  channelId: string;
+  name?: string;
+  channelCreatedAt?: number;
+  channelCreatedBy?: string;
+  channelCreatedByName?: string;
+  channelAppUrl?: string | null;
+}
+
+export interface ChannelRenamedClientEvent extends ClientEventBase {
+  type: 'channel_renamed';
+  spaceId: string;
+  channelId: string;
+  name: string;
+}
+
+export interface ChannelDeletedClientEvent extends ClientEventBase {
+  type: 'channel_deleted';
+  spaceId: string;
+  channelId: string;
+}
+
+export type ClientEvent =
+  | ConnectedClientEvent
+  | SpaceCreatedClientEvent
+  | SpaceDeletedClientEvent
+  | SpaceRenamedClientEvent
+  | SpaceAccessChangedClientEvent
+  | UserStorageChangedClientEvent
+  | ChannelCreatedClientEvent
+  | ChannelRenamedClientEvent
+  | ChannelDeletedClientEvent;
 
 // -----------------------------------------------------------------------------
 // Channel-level subscription events (wire protocol)

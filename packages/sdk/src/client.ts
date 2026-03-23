@@ -613,8 +613,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     switch (event.type) {
       case 'space_created':
         this.emit('spaceAdded', {
-          id: event.spaceId!,
-          name: event.name ?? event.spaceId!,
+          id: event.spaceId,
+          name: event.name,
           role: (event.role as RoolUserRole) ?? 'owner',
           ownerId: event.ownerId ?? '',
           size: event.size ?? 0,
@@ -625,39 +625,37 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
         break;
 
       case 'space_deleted':
-        this.emit('spaceRemoved', event.spaceId!);
+        this.emit('spaceRemoved', event.spaceId);
         break;
 
       case 'space_renamed':
-        this.emit('spaceRenamed', event.spaceId!, event.name ?? event.spaceId!);
+        this.emit('spaceRenamed', event.spaceId, event.name);
         break;
 
       case 'space_access_changed':
         if (event.role === 'none') {
-          // Access revoked - remove from list
-          this.emit('spaceRemoved', event.spaceId!);
+          this.emit('spaceRemoved', event.spaceId);
         } else {
-          // Access granted or changed - add/update in list
           this.emit('spaceAdded', {
-            id: event.spaceId!,
-            name: event.name!,
+            id: event.spaceId,
+            name: event.name,
             role: event.role as RoolUserRole,
-            ownerId: event.ownerId!,
-            size: event.size!,
-            createdAt: event.createdAt!,
-            updatedAt: event.updatedAt!,
-            linkAccess: (event.linkAccess as LinkAccess) ?? 'none',
+            ownerId: event.ownerId,
+            size: event.size,
+            createdAt: event.createdAt,
+            updatedAt: event.updatedAt,
+            linkAccess: event.linkAccess as LinkAccess,
           });
         }
         break;
 
       case 'user_storage_changed':
-        this.handleUserStorageChanged(event.key!, event.value);
+        this.handleUserStorageChanged(event.key, event.value);
         break;
 
       case 'channel_created':
-        this.emit('channelCreated', event.spaceId!, {
-          id: event.channelId!,
+        this.emit('channelCreated', event.spaceId, {
+          id: event.channelId,
           name: event.name ?? null,
           createdAt: event.channelCreatedAt ?? Date.now(),
           createdBy: event.channelCreatedBy ?? '',
@@ -668,11 +666,11 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
         break;
 
       case 'channel_renamed':
-        this.emit('channelRenamed', event.spaceId!, event.channelId!, event.name ?? '');
+        this.emit('channelRenamed', event.spaceId, event.channelId, event.name);
         break;
 
       case 'channel_deleted':
-        this.emit('channelDeleted', event.spaceId!, event.channelId!);
+        this.emit('channelDeleted', event.spaceId, event.channelId);
         break;
     }
   }

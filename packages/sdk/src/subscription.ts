@@ -212,23 +212,38 @@ export class ClientSubscriptionManager {
       case 'connected':
         return { type, timestamp, serverVersion: raw.serverVersion as string };
       case 'space_created':
+        return {
+          type, timestamp, spaceId: raw.spaceId as string, name: raw.name as string,
+          ownerId: raw.ownerId as string | undefined, size: raw.size as number | undefined,
+          createdAt: raw.createdAt as string | undefined, updatedAt: raw.updatedAt as string | undefined,
+          role: raw.role as string | undefined,
+        };
       case 'space_renamed':
-        return { type, spaceId: raw.spaceId as string, timestamp, name: raw.name as string };
+        return { type, timestamp, spaceId: raw.spaceId as string, name: raw.name as string };
       case 'space_deleted':
-        return { type, spaceId: raw.spaceId as string, timestamp };
+        return { type, timestamp, spaceId: raw.spaceId as string };
+      case 'space_access_changed':
+        return {
+          type, timestamp, spaceId: raw.spaceId as string, name: raw.name as string,
+          ownerId: raw.ownerId as string, size: raw.size as number,
+          createdAt: raw.createdAt as string, updatedAt: raw.updatedAt as string,
+          role: raw.role as string, linkAccess: raw.linkAccess as string,
+        };
       case 'user_storage_changed':
         return { type, timestamp, key: raw.key as string, value: raw.value };
       case 'channel_created':
         return {
-          type, spaceId: raw.spaceId as string, timestamp,
-          channelId: raw.channelId as string, name: raw.name as string,
-          channelCreatedAt: raw.createdAt as number, channelCreatedBy: raw.createdBy as string,
+          type, timestamp, spaceId: raw.spaceId as string,
+          channelId: raw.channelId as string, name: raw.name as string | undefined,
+          channelCreatedAt: raw.createdAt as number | undefined,
+          channelCreatedBy: raw.createdBy as string | undefined,
           channelCreatedByName: raw.createdByName as string | undefined,
+          channelAppUrl: raw.appUrl as string | undefined,
         };
       case 'channel_renamed':
-        return { type, spaceId: raw.spaceId as string, timestamp, channelId: raw.channelId as string, name: raw.name as string };
+        return { type, timestamp, spaceId: raw.spaceId as string, channelId: raw.channelId as string, name: raw.name as string };
       case 'channel_deleted':
-        return { type, spaceId: raw.spaceId as string, timestamp, channelId: raw.channelId as string };
+        return { type, timestamp, spaceId: raw.spaceId as string, channelId: raw.channelId as string };
       default:
         this.logger.warn('[RoolClient] Unknown client event type:', type);
         return null;
