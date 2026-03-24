@@ -4,11 +4,17 @@
  * Scaffolds a new app project in the current directory or a named subdirectory.
  */
 
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
 import { resolve, basename, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function getAppSdkVersion(): string {
+  const pkgPath = resolve(__dirname, '../../package.json');
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+  return pkg.version;
+}
 
 function toId(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
@@ -33,8 +39,6 @@ function init() {
     process.exit(1);
   }
 
-  // Resolve the path to @rool-dev/app for a local link
-  const appPkgDir = resolve(__dirname, '../..');
   const manifest = {
     id: appId,
     name: appName,
@@ -69,7 +73,7 @@ function init() {
       dev: 'rool-app dev',
     },
     dependencies: {
-      '@rool-dev/app': `link:${appPkgDir}`,
+      '@rool-dev/app': `^${getAppSdkVersion()}`,
     },
     devDependencies: {
       svelte: '^5.0.0',

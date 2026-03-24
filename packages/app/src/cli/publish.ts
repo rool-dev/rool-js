@@ -11,7 +11,7 @@ import { NodeAuthProvider } from '@rool-dev/sdk/node';
 import type { Environment } from '../manifest.js';
 import { ENV_URLS } from '../manifest.js';
 import { readManifestOrExit, formatBytes } from './vite-utils.js';
-import { buildApp, zipDirectory } from './build-pipeline.js';
+import { buildApp, zipProject } from './build-pipeline.js';
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -46,8 +46,8 @@ export async function publish() {
   const manifest = readManifestOrExit(cwd);
 
   console.log(`\n  Building ${manifest.name}...\n`);
-  const { outDir, totalSize } = await buildApp(cwd, manifest);
-  const zipBuffer = await zipDirectory(outDir);
+  const { totalSize } = await buildApp(cwd, manifest);
+  const zipBuffer = await zipProject(cwd);
   console.log(`\n  Build complete — ${formatBytes(totalSize)}`);
   console.log(`  Bundle: ${formatBytes(zipBuffer.length)}\n`);
 

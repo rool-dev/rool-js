@@ -161,8 +161,10 @@ ${jsFiles.map(f => `  <script type="module" src="/assets/${f}"></script>`).join(
 // Zip
 // ---------------------------------------------------------------------------
 
-/** Zip a directory into a Buffer. */
-export function zipDirectory(dirPath: string): Promise<Buffer> {
+const ZIP_EXCLUDE = ['node_modules/**', '.git/**'];
+
+/** Zip the project directory into a Buffer, excluding node_modules and .git. */
+export function zipProject(projectDir: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const archive = archiver('zip', { zlib: { level: 9 } });
     const chunks: Buffer[] = [];
@@ -171,7 +173,7 @@ export function zipDirectory(dirPath: string): Promise<Buffer> {
     archive.on('end', () => resolve(Buffer.concat(chunks)));
     archive.on('error', reject);
 
-    archive.directory(dirPath, false);
+    archive.glob('**/*', { cwd: projectDir, ignore: ZIP_EXCLUDE, dot: false });
     archive.finalize();
   });
 }

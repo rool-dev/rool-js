@@ -148,11 +148,11 @@ function roolHostPlugin(state: { current: ManifestResult }, hostShellJs: string,
         // Build + zip endpoint for in-browser publishing
         if (req.url === '/__rool-host/publish' && req.method === 'POST') {
           try {
-            const { buildApp, zipDirectory } = await import('./build-pipeline.js');
+            const { buildApp, zipProject } = await import('./build-pipeline.js');
             const { readManifestOrExit } = await import('./vite-utils.js');
             const manifest = readManifestOrExit(cwd);
-            const { outDir, totalSize } = await buildApp(cwd, manifest);
-            const zipBuffer = await zipDirectory(outDir);
+            const { totalSize } = await buildApp(cwd, manifest);
+            const zipBuffer = await zipProject(cwd);
             res.setHeader('Content-Type', 'application/zip');
             res.setHeader('X-Total-Size', String(totalSize));
             res.end(zipBuffer);
