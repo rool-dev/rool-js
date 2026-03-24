@@ -420,9 +420,25 @@ export class AppConversationHandle {
  * Sends `rool:ready` to the host and waits for `rool:init` with channel metadata.
  * Returns an `AppChannel` that mirrors the RoolChannel API over postMessage.
  *
+ * If the app is opened directly (not in an iframe), redirects to the Rool
+ * console with `?openApp={appId}` so the user can install or navigate to it.
+ *
  * @param timeout - How long to wait for the handshake (ms). Default: 10000.
  */
 export function initApp(timeout = 10000): Promise<AppChannel> {
+  // Deep link: if not in an iframe, redirect to the Rool console
+  if (window.self === window.top) {
+    const host = window.location.hostname;
+    const dot = host.indexOf('.');
+    if (dot > 0) {
+      const appId = host.slice(0, dot);
+      const domain = host.slice(dot + 1);
+      window.location.href = `https://${domain}/?openApp=${appId}`;
+    }
+    // Never resolve — the redirect will unload the page
+    return new Promise<AppChannel>(() => {});
+  }
+
   return new Promise<AppChannel>((resolve, reject) => {
     const timer = setTimeout(() => {
       window.removeEventListener('message', onMessage);
