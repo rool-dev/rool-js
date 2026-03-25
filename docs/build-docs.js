@@ -57,9 +57,9 @@ writeFileSync(`${contentDir}/cli.md`, transform(cliReadme, 'Rool CLI', 'packages
 const svelteReadme = readFileSync(`${root}/packages/svelte/README.md`, 'utf-8');
 writeFileSync(`${contentDir}/svelte.md`, transform(svelteReadme, 'Rool Svelte', 'packages/svelte'));
 
-// App README → app.md (will be at /app/)
-const appReadme = readFileSync(`${root}/packages/app/README.md`, 'utf-8');
-writeFileSync(`${contentDir}/app.md`, transform(appReadme, 'Rool App', 'packages/app'));
+// Extension README → extension.md (will be at /extension/)
+const extensionReadme = readFileSync(`${root}/packages/extension/README.md`, 'utf-8');
+writeFileSync(`${contentDir}/extension.md`, transform(extensionReadme, 'Rool Extension', 'packages/extension'));
 
 // Generate llms.txt from index.md (strip frontmatter, fix relative links)
 const indexMd = readFileSync(`${contentDir}/index.md`, 'utf-8');

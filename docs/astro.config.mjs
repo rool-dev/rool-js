@@ -20,7 +20,7 @@ export default defineConfig({
           label: 'Products',
           items: [
             { label: 'Console', link: '/console/' },
-            { label: 'App', link: '/app/' },
+            { label: 'Extension', link: '/extension/' },
             { label: 'SDK', link: '/sdk/' },
             { label: 'Svelte', link: '/svelte/' },
             { label: 'CLI', link: '/cli/' },
