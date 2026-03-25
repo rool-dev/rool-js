@@ -973,10 +973,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       : (this._getActiveLeafImpl(conversationId) ?? null);
 
     const interactionId = generateEntityId();
-    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls, interactionId, parentInteractionId });
 
-    // Update active leaf to the new interaction
+    // Optimistically set active leaf before the server call.
     this._activeLeaves.set(conversationId, interactionId);
+    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls, interactionId, parentInteractionId });
 
     // Collect modified objects — they arrive via SSE events during/after the mutation.
     // Try collecting from buffer first, then fetch any missing from server.
