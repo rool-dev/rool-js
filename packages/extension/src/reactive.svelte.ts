@@ -1,14 +1,17 @@
 /**
- * Reactive Svelte wrapper around Channel (bridge client).
+ * Extension channel — bridge client with Svelte 5 reactivity.
  *
- * Mirrors the @rool-dev/svelte ReactiveChannel API: same $state properties,
- * same methods, same reactive primitives (object(), watch()).
- * The underlying transport is the postMessage bridge, not the SDK.
+ * Handles the postMessage bridge to the host and provides reactive $state
+ * properties, matching the @rool-dev/svelte ReactiveChannel API.
  */
 
-import { Channel, ConversationHandle } from './client.js';
+import type { BridgeInit, BridgeResponse, BridgeEvent, BridgeUser } from './protocol.js';
+import { isBridgeMessage } from './protocol.js';
 import type {
   RoolObject,
+  RoolObjectStat,
+  SpaceSchema,
+  CollectionDef,
   FieldDef,
   Interaction,
   ConversationInfo,
@@ -16,7 +19,22 @@ import type {
   FindObjectsOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  RoolUserRole,
+  LinkAccess,
+  ChannelEvents,
 } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+let _nextId = 0;
+function nextRequestId(): string {
+  return `req-${++_nextId}-${Date.now().toString(36)}`;
+}
+
+type EventName = keyof ChannelEvents;
+type EventCallback = (...args: unknown[]) => void;
 
 // ---------------------------------------------------------------------------
 // WatchOptions
@@ -34,7 +52,7 @@ export interface WatchOptions {
 // ---------------------------------------------------------------------------
 
 class ReactiveWatchImpl {
-  #channel: Channel;
+  #channel: ReactiveChannelImpl;
   #options: WatchOptions;
   #unsubscribers: (() => void)[] = [];
   #currentIds = new Set<string>();
@@ -42,7 +60,7 @@ class ReactiveWatchImpl {
   objects = $state<RoolObject[]>([]);
   loading = $state(true);
 
-  constructor(channel: Channel, options: WatchOptions) {
+  constructor(channel: ReactiveChannelImpl, options: WatchOptions) {
     this.#channel = channel;
     this.#options = options;
     this.#setup();
@@ -137,14 +155,14 @@ export type ReactiveWatch = ReactiveWatchImpl;
 // ---------------------------------------------------------------------------
 
 class ReactiveObjectImpl {
-  #channel: Channel;
+  #channel: ReactiveChannelImpl;
   #objectId: string;
   #unsubscribers: (() => void)[] = [];
 
   data = $state<RoolObject | undefined>(undefined);
   loading = $state(true);
 
-  constructor(channel: Channel, objectId: string) {
+  constructor(channel: ReactiveChannelImpl, objectId: string) {
     this.#channel = channel;
     this.#objectId = objectId;
     this.#setup();
@@ -198,8 +216,22 @@ export type ReactiveObject = ReactiveObjectImpl;
 // ---------------------------------------------------------------------------
 
 class ReactiveChannelImpl {
-  #channel: Channel;
+  private _pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private _listeners = new Map<string, Set<EventCallback>>();
+  private _schema: SpaceSchema;
+  private _metadata: Record<string, unknown>;
+  #unsubscribers: (() => void)[] = [];
   #closed = false;
+
+  // Metadata from handshake
+  readonly channelId: string;
+  readonly spaceId: string;
+  readonly spaceName: string;
+  readonly role: RoolUserRole;
+  readonly linkAccess: LinkAccess;
+  readonly userId: string;
+  /** Current user info (id, name, email). */
+  readonly user: BridgeUser;
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
@@ -207,138 +239,357 @@ class ReactiveChannelImpl {
   collections = $state<string[]>([]);
   conversations = $state<ConversationInfo[]>([]);
 
-  #unsubscribers: (() => void)[] = [];
+  constructor(init: BridgeInit) {
+    this.channelId = init.channelId;
+    this.spaceId = init.spaceId;
+    this.spaceName = init.spaceName;
+    this.role = init.role as RoolUserRole;
+    this.linkAccess = init.linkAccess as LinkAccess;
+    this.userId = init.userId;
+    this.user = init.user;
+    this._schema = init.schema as SpaceSchema;
+    this._metadata = init.metadata;
 
-  constructor(channel: Channel) {
-    this.#channel = channel;
+    window.addEventListener('message', this._onMessage);
 
     // Load initial data
-    channel.getInteractions().then((list) => { this.interactions = list; });
-    channel.getObjectIds().then((ids) => { this.objectIds = ids; });
-    channel.getConversations().then((list) => { this.conversations = list; });
-    this.collections = Object.keys(channel.getSchema());
+    this.getInteractions().then((list) => { this.interactions = list; });
+    this._call('getObjectIds').then((ids) => { this.objectIds = ids as string[]; });
+    this.getConversations().then((list) => { this.conversations = list; });
+    this.collections = Object.keys(this._schema);
 
     // Subscribe to channel updates → refresh interactions
     const onChannelUpdated = () => {
-      channel.getInteractions().then((list) => { this.interactions = list; });
+      this.getInteractions().then((list) => { this.interactions = list; });
     };
-    channel.on('channelUpdated', onChannelUpdated);
-    this.#unsubscribers.push(() => channel.off('channelUpdated', onChannelUpdated));
+    this.on('channelUpdated', onChannelUpdated);
+    this.#unsubscribers.push(() => this.off('channelUpdated', onChannelUpdated));
 
     // Subscribe to conversation updates → refresh conversations
     const onConversationUpdated = () => {
-      channel.getConversations().then((list) => { this.conversations = list; });
+      this.getConversations().then((list) => { this.conversations = list; });
     };
-    channel.on('conversationUpdated', onConversationUpdated);
-    this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
+    this.on('conversationUpdated', onConversationUpdated);
+    this.#unsubscribers.push(() => this.off('conversationUpdated', onConversationUpdated));
 
     // Subscribe to object events → refresh objectIds
     const refreshObjectIds = () => {
-      channel.getObjectIds().then((ids) => { this.objectIds = ids; });
+      this._call('getObjectIds').then((ids) => { this.objectIds = ids as string[]; });
     };
-    channel.on('objectCreated', refreshObjectIds);
-    this.#unsubscribers.push(() => channel.off('objectCreated', refreshObjectIds));
-    channel.on('objectDeleted', refreshObjectIds);
-    this.#unsubscribers.push(() => channel.off('objectDeleted', refreshObjectIds));
+    this.on('objectCreated', refreshObjectIds);
+    this.#unsubscribers.push(() => this.off('objectCreated', refreshObjectIds));
+    this.on('objectDeleted', refreshObjectIds);
+    this.#unsubscribers.push(() => this.off('objectDeleted', refreshObjectIds));
 
     // Subscribe to schema updates → refresh collections
     const onSchemaUpdated = () => {
-      this.collections = Object.keys(channel.getSchema());
+      this.collections = Object.keys(this._schema);
     };
-    channel.on('schemaUpdated', onSchemaUpdated);
-    this.#unsubscribers.push(() => channel.off('schemaUpdated', onSchemaUpdated));
+    this.on('schemaUpdated', onSchemaUpdated);
+    this.#unsubscribers.push(() => this.off('schemaUpdated', onSchemaUpdated));
 
     // Full resets
     const onReset = () => {
-      channel.getInteractions().then((list) => { this.interactions = list; });
-      channel.getObjectIds().then((ids) => { this.objectIds = ids; });
-      channel.getConversations().then((list) => { this.conversations = list; });
-      this.collections = Object.keys(channel.getSchema());
+      this.getInteractions().then((list) => { this.interactions = list; });
+      this._call('getObjectIds').then((ids) => { this.objectIds = ids as string[]; });
+      this.getConversations().then((list) => { this.conversations = list; });
+      this.collections = Object.keys(this._schema);
     };
-    channel.on('reset', onReset);
-    this.#unsubscribers.push(() => channel.off('reset', onReset));
+    this.on('reset', onReset);
+    this.#unsubscribers.push(() => this.off('reset', onReset));
   }
 
-  // Proxied properties
-  get channelId() { return this.#channel.channelId; }
-  get spaceId() { return this.#channel.spaceId; }
-  get spaceName() { return this.#channel.spaceName; }
-  get role() { return this.#channel.role; }
-  get linkAccess() { return this.#channel.linkAccess; }
-  get userId() { return this.#channel.userId; }
-  get isReadOnly() { return this.#channel.isReadOnly; }
+  get isReadOnly(): boolean {
+    return this.role === 'viewer';
+  }
 
+  // ---------------------------------------------------------------------------
+  // Event emitter
+  // ---------------------------------------------------------------------------
+
+  on<E extends EventName>(event: E, callback: (data: ChannelEvents[E]) => void): void {
+    let set = this._listeners.get(event);
+    if (!set) {
+      set = new Set();
+      this._listeners.set(event, set);
+    }
+    set.add(callback as EventCallback);
+  }
+
+  off<E extends EventName>(event: E, callback: (data: ChannelEvents[E]) => void): void {
+    this._listeners.get(event)?.delete(callback as EventCallback);
+  }
+
+  private _emit(event: string, data: unknown): void {
+    const set = this._listeners.get(event);
+    if (set) {
+      for (const cb of set) {
+        try {
+          cb(data);
+        } catch (e) {
+          console.error(`[Channel] Error in ${event} listener:`, e);
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // postMessage transport
+  // ---------------------------------------------------------------------------
+
+  private _call(method: string, ...args: unknown[]): Promise<unknown> {
+    return this._callScoped(method, args);
+  }
+
+  /**
+   * Send a bridge request, optionally scoped to a conversation.
+   * @internal
+   */
+  _callScoped(method: string, args: unknown[], conversationId?: string): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const id = nextRequestId();
+      this._pending.set(id, { resolve, reject });
+      const msg: Record<string, unknown> = { type: 'rool:request', id, method, args };
+      if (conversationId !== undefined) msg.conversationId = conversationId;
+      window.parent.postMessage(msg, '*');
+    });
+  }
+
+  private _onMessage = (event: MessageEvent): void => {
+    if (!isBridgeMessage(event.data)) return;
+
+    if (event.data.type === 'rool:response') {
+      const msg = event.data as BridgeResponse;
+      const pending = this._pending.get(msg.id);
+      if (pending) {
+        this._pending.delete(msg.id);
+        if (msg.error) {
+          pending.reject(new Error(msg.error));
+        } else {
+          pending.resolve(msg.result);
+        }
+      }
+      return;
+    }
+
+    if (event.data.type === 'rool:event') {
+      const msg = event.data as BridgeEvent;
+
+      // Update local caches before emitting so listeners see fresh data
+      if (msg.name === 'metadataUpdated') {
+        const payload = msg.data as { metadata: Record<string, unknown> };
+        this._metadata = payload.metadata;
+      } else if (msg.name === 'schemaUpdated') {
+        const payload = msg.data as { schema: Record<string, unknown> };
+        this._schema = payload.schema as SpaceSchema;
+      } else if (msg.name === 'reset') {
+        // Full reload happened on the host — refresh cached schema and metadata
+        Promise.all([
+          this._call('getSchema'),
+          this._call('getAllMetadata'),
+        ]).then(([schema, metadata]) => {
+          this._schema = schema as SpaceSchema;
+          this._metadata = metadata as Record<string, unknown>;
+        });
+      }
+
+      this._emit(msg.name, msg.data);
+      return;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // Object operations
-  getObject(objectId: string) { return this.#channel.getObject(objectId); }
-  stat(objectId: string) { return this.#channel.stat(objectId); }
-  findObjects(options: FindObjectsOptions) { return this.#channel.findObjects(options); }
-  getObjectIds(options?: { limit?: number; order?: 'asc' | 'desc' }) { return this.#channel.getObjectIds(options); }
-  createObject(options: CreateObjectOptions) { return this.#channel.createObject(options); }
-  updateObject(objectId: string, options: UpdateObjectOptions) { return this.#channel.updateObject(objectId, options); }
-  deleteObjects(objectIds: string[]) { return this.#channel.deleteObjects(objectIds); }
+  // ---------------------------------------------------------------------------
 
-  // AI
-  prompt(text: string, options?: PromptOptions) { return this.#channel.prompt(text, options); }
+  async getObject(objectId: string): Promise<RoolObject | undefined> {
+    return this._call('getObject', objectId) as Promise<RoolObject | undefined>;
+  }
 
-  // Undo/redo
-  checkpoint(label?: string) { return this.#channel.checkpoint(label); }
-  canUndo() { return this.#channel.canUndo(); }
-  canRedo() { return this.#channel.canRedo(); }
-  undo() { return this.#channel.undo(); }
-  redo() { return this.#channel.redo(); }
-  clearHistory() { return this.#channel.clearHistory(); }
+  async stat(objectId: string): Promise<RoolObjectStat | undefined> {
+    return this._call('stat', objectId) as Promise<RoolObjectStat | undefined>;
+  }
 
-  // Metadata
-  setMetadata(key: string, value: unknown) { return this.#channel.setMetadata(key, value); }
-  getMetadata(key: string) { return this.#channel.getMetadata(key); }
-  getAllMetadata() { return this.#channel.getAllMetadata(); }
+  async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
+    return this._call('findObjects', options) as Promise<{ objects: RoolObject[]; message: string }>;
+  }
 
-  // History
-  getInteractions() { return this.#channel.getInteractions(); }
-  getTree() { return this.#channel.getTree(); }
-  getActiveLeafId() { return this.#channel.getActiveLeafId(); }
-  setActiveLeaf(interactionId: string) { return this.#channel.setActiveLeaf(interactionId); }
-  getSystemInstruction() { return this.#channel.getSystemInstruction(); }
-  setSystemInstruction(instruction: string | null) { return this.#channel.setSystemInstruction(instruction); }
-  getConversations() { return this.#channel.getConversations(); }
-  deleteConversation(conversationId: string) { return this.#channel.deleteConversation(conversationId); }
-  renameConversation(name: string) { return this.#channel.renameConversation(name); }
+  async getObjectIds(options?: { limit?: number; order?: 'asc' | 'desc' }): Promise<string[]> {
+    return this._call('getObjectIds', options) as Promise<string[]>;
+  }
 
+  async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._call('createObject', options) as Promise<{ object: RoolObject; message: string }>;
+  }
+
+  async updateObject(objectId: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._call('updateObject', objectId, options) as Promise<{ object: RoolObject; message: string }>;
+  }
+
+  async deleteObjects(objectIds: string[]): Promise<void> {
+    await this._call('deleteObjects', objectIds);
+  }
+
+  // ---------------------------------------------------------------------------
   // Schema
-  getSchema() { return this.#channel.getSchema(); }
-  createCollection(name: string, fields: FieldDef[]) { return this.#channel.createCollection(name, fields); }
-  alterCollection(name: string, fields: FieldDef[]) { return this.#channel.alterCollection(name, fields); }
-  dropCollection(name: string) { return this.#channel.dropCollection(name); }
+  // ---------------------------------------------------------------------------
 
+  getSchema(): SpaceSchema {
+    return this._schema;
+  }
+
+  async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    const result = await this._call('createCollection', name, fields) as CollectionDef;
+    this._schema[name] = result;
+    return result;
+  }
+
+  async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    const result = await this._call('alterCollection', name, fields) as CollectionDef;
+    this._schema[name] = result;
+    return result;
+  }
+
+  async dropCollection(name: string): Promise<void> {
+    await this._call('dropCollection', name);
+    delete this._schema[name];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Interactions & system instruction
+  // ---------------------------------------------------------------------------
+
+  async getInteractions(): Promise<Interaction[]> {
+    return this._call('getInteractions') as Promise<Interaction[]>;
+  }
+
+  async getTree(): Promise<Record<string, Interaction>> {
+    return this._call('getTree') as Promise<Record<string, Interaction>>;
+  }
+
+  async getActiveLeafId(): Promise<string | undefined> {
+    return this._call('getActiveLeafId') as Promise<string | undefined>;
+  }
+
+  async setActiveLeaf(interactionId: string): Promise<void> {
+    await this._call('setActiveLeaf', interactionId);
+  }
+
+  async getSystemInstruction(): Promise<string | undefined> {
+    return this._call('getSystemInstruction') as Promise<string | undefined>;
+  }
+
+  async setSystemInstruction(instruction: string | null): Promise<void> {
+    await this._call('setSystemInstruction', instruction);
+  }
+
+  async getConversations(): Promise<ConversationInfo[]> {
+    return this._call('getConversations') as Promise<ConversationInfo[]>;
+  }
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    await this._call('deleteConversation', conversationId);
+  }
+
+  async renameConversation(name: string): Promise<void> {
+    await this._call('renameConversation', name);
+  }
+
+  // ---------------------------------------------------------------------------
   // Conversations
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get a reactive handle for a specific conversation within this channel.
+   * Scopes AI and mutation operations to that conversation's interaction history.
+   * Conversations are auto-created on first interaction.
+   */
   conversation(conversationId: string): ReactiveConversationHandle {
     if (this.#closed) throw new Error('Cannot create reactive conversation: channel is closed');
-    return new ReactiveConversationHandleImpl(this.#channel, conversationId);
+    return new ReactiveConversationHandleImpl(this, conversationId);
   }
 
-  // Events
-  on(...args: Parameters<Channel['on']>) { return this.#channel.on(...args); }
-  off(...args: Parameters<Channel['off']>) { return this.#channel.off(...args); }
+  // ---------------------------------------------------------------------------
+  // Metadata
+  // ---------------------------------------------------------------------------
 
+  async setMetadata(key: string, value: unknown): Promise<void> {
+    await this._call('setMetadata', key, value);
+    this._metadata[key] = value;
+  }
+
+  getMetadata(key: string): unknown {
+    return this._metadata[key];
+  }
+
+  getAllMetadata(): Record<string, unknown> {
+    return { ...this._metadata };
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI
+  // ---------------------------------------------------------------------------
+
+  async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
+    return this._call('prompt', text, options) as Promise<{ message: string; objects: RoolObject[] }>;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Undo/redo
+  // ---------------------------------------------------------------------------
+
+  async checkpoint(label?: string): Promise<string> {
+    return this._call('checkpoint', label) as Promise<string>;
+  }
+
+  async canUndo(): Promise<boolean> {
+    return this._call('canUndo') as Promise<boolean>;
+  }
+
+  async canRedo(): Promise<boolean> {
+    return this._call('canRedo') as Promise<boolean>;
+  }
+
+  async undo(): Promise<boolean> {
+    return this._call('undo') as Promise<boolean>;
+  }
+
+  async redo(): Promise<boolean> {
+    return this._call('redo') as Promise<boolean>;
+  }
+
+  async clearHistory(): Promise<void> {
+    await this._call('clearHistory');
+  }
+
+  // ---------------------------------------------------------------------------
   // Reactive primitives
+  // ---------------------------------------------------------------------------
 
   object(objectId: string): ReactiveObject {
     if (this.#closed) throw new Error('Cannot create reactive object: channel is closed');
-    return new ReactiveObjectImpl(this.#channel, objectId);
+    return new ReactiveObjectImpl(this, objectId);
   }
 
   watch(options: WatchOptions): ReactiveWatch {
     if (this.#closed) throw new Error('Cannot create reactive watch: channel is closed');
-    return new ReactiveWatchImpl(this.#channel, options);
+    return new ReactiveWatchImpl(this, options);
   }
 
+  // ---------------------------------------------------------------------------
   // Cleanup
+  // ---------------------------------------------------------------------------
 
   destroy(): void {
     this.#closed = true;
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;
-    this.#channel.destroy();
+    window.removeEventListener('message', this._onMessage);
+    for (const { reject } of this._pending.values()) {
+      reject(new Error('Channel destroyed'));
+    }
+    this._pending.clear();
+    this._listeners.clear();
   }
 }
 
@@ -350,30 +601,30 @@ export type ReactiveChannel = ReactiveChannelImpl;
 
 /**
  * A reactive conversation handle for the extension bridge.
- * Wraps ConversationHandle with $state interactions that auto-update
- * when the conversation changes via SSE events.
+ * Scopes AI and mutation operations to a specific conversation's
+ * interaction history, while sharing the channel's bridge connection.
  *
  * Call `close()` when done to stop listening for updates.
  */
 class ReactiveConversationHandleImpl {
-  #handle: ConversationHandle;
+  #channel: ReactiveChannelImpl;
   #conversationId: string;
   #unsubscribers: (() => void)[] = [];
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
 
-  constructor(channel: Channel, conversationId: string) {
+  constructor(channel: ReactiveChannelImpl, conversationId: string) {
+    this.#channel = channel;
     this.#conversationId = conversationId;
-    this.#handle = channel.conversation(conversationId);
 
     // Initial load
-    this.#handle.getInteractions().then((list) => { this.interactions = list; });
+    this.getInteractions().then((list) => { this.interactions = list; });
 
     // Listen for updates to this conversation
     const onConversationUpdated = ({ conversationId: cid }: { conversationId: string }) => {
       if (cid === this.#conversationId) {
-        this.#handle.getInteractions().then((list) => { this.interactions = list; });
+        this.getInteractions().then((list) => { this.interactions = list; });
       }
     };
     channel.on('conversationUpdated', onConversationUpdated);
@@ -381,7 +632,7 @@ class ReactiveConversationHandleImpl {
 
     // Handle full resets
     const onReset = () => {
-      this.#handle.getInteractions().then((list) => { this.interactions = list; });
+      this.getInteractions().then((list) => { this.interactions = list; });
     };
     channel.on('reset', onReset);
     this.#unsubscribers.push(() => channel.off('reset', onReset));
@@ -390,30 +641,78 @@ class ReactiveConversationHandleImpl {
   get conversationId(): string { return this.#conversationId; }
 
   // Conversation history
-  getInteractions() { return this.#handle.getInteractions(); }
-  getTree() { return this.#handle.getTree(); }
-  getActiveLeafId() { return this.#handle.getActiveLeafId(); }
-  setActiveLeaf(interactionId: string) { return this.#handle.setActiveLeaf(interactionId); }
-  getSystemInstruction() { return this.#handle.getSystemInstruction(); }
-  setSystemInstruction(instruction: string | null) { return this.#handle.setSystemInstruction(instruction); }
-  rename(name: string) { return this.#handle.rename(name); }
+
+  async getInteractions(): Promise<Interaction[]> {
+    return this.#channel._callScoped('getInteractions', [], this.#conversationId) as Promise<Interaction[]>;
+  }
+
+  async getTree(): Promise<Record<string, Interaction>> {
+    return this.#channel._callScoped('getTree', [], this.#conversationId) as Promise<Record<string, Interaction>>;
+  }
+
+  async getActiveLeafId(): Promise<string | undefined> {
+    return this.#channel._callScoped('getActiveLeafId', [], this.#conversationId) as Promise<string | undefined>;
+  }
+
+  async setActiveLeaf(interactionId: string): Promise<void> {
+    await this.#channel._callScoped('setActiveLeaf', [interactionId], this.#conversationId);
+  }
+
+  async getSystemInstruction(): Promise<string | undefined> {
+    return this.#channel._callScoped('getSystemInstruction', [], this.#conversationId) as Promise<string | undefined>;
+  }
+
+  async setSystemInstruction(instruction: string | null): Promise<void> {
+    await this.#channel._callScoped('setSystemInstruction', [instruction], this.#conversationId);
+  }
+
+  async rename(name: string): Promise<void> {
+    await this.#channel._callScoped('renameConversation', [name], this.#conversationId);
+  }
 
   // Object operations
-  findObjects(options: FindObjectsOptions) { return this.#handle.findObjects(options); }
-  createObject(options: CreateObjectOptions) { return this.#handle.createObject(options); }
-  updateObject(objectId: string, options: UpdateObjectOptions) { return this.#handle.updateObject(objectId, options); }
-  deleteObjects(objectIds: string[]) { return this.#handle.deleteObjects(objectIds); }
+
+  async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
+    return this.#channel._callScoped('findObjects', [options], this.#conversationId) as Promise<{ objects: RoolObject[]; message: string }>;
+  }
+
+  async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this.#channel._callScoped('createObject', [options], this.#conversationId) as Promise<{ object: RoolObject; message: string }>;
+  }
+
+  async updateObject(objectId: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this.#channel._callScoped('updateObject', [objectId, options], this.#conversationId) as Promise<{ object: RoolObject; message: string }>;
+  }
+
+  async deleteObjects(objectIds: string[]): Promise<void> {
+    await this.#channel._callScoped('deleteObjects', [objectIds], this.#conversationId);
+  }
 
   // AI
-  prompt(text: string, options?: PromptOptions) { return this.#handle.prompt(text, options); }
+
+  async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
+    return this.#channel._callScoped('prompt', [text, options], this.#conversationId) as Promise<{ message: string; objects: RoolObject[] }>;
+  }
 
   // Schema
-  createCollection(name: string, fields: FieldDef[]) { return this.#handle.createCollection(name, fields); }
-  alterCollection(name: string, fields: FieldDef[]) { return this.#handle.alterCollection(name, fields); }
-  dropCollection(name: string) { return this.#handle.dropCollection(name); }
+
+  async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    return this.#channel._callScoped('createCollection', [name, fields], this.#conversationId) as Promise<CollectionDef>;
+  }
+
+  async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
+    return this.#channel._callScoped('alterCollection', [name, fields], this.#conversationId) as Promise<CollectionDef>;
+  }
+
+  async dropCollection(name: string): Promise<void> {
+    await this.#channel._callScoped('dropCollection', [name], this.#conversationId);
+  }
 
   // Metadata
-  setMetadata(key: string, value: unknown) { return this.#handle.setMetadata(key, value); }
+
+  async setMetadata(key: string, value: unknown): Promise<void> {
+    await this.#channel._callScoped('setMetadata', [key, value], this.#conversationId);
+  }
 
   /**
    * Stop listening for updates and clean up.
@@ -427,10 +726,8 @@ class ReactiveConversationHandleImpl {
 export type ReactiveConversationHandle = ReactiveConversationHandleImpl;
 
 // ---------------------------------------------------------------------------
-// initExtension (reactive version)
+// initExtension
 // ---------------------------------------------------------------------------
-
-import { initExtension as initBridge } from './client.js';
 
 /**
  * Initialize the extension and return a reactive channel.
@@ -438,8 +735,44 @@ import { initExtension as initBridge } from './client.js';
  * Sends `rool:ready` to the host, waits for the handshake, and returns
  * a reactive channel with $state properties (interactions, objectIds)
  * and reactive primitives (object(), watch()).
+ *
+ * If the extension is opened directly (not in an iframe), redirects to the Rool
+ * console with `?openExtension={extensionId}` so the user can install or navigate to it.
+ *
+ * @param timeout - How long to wait for the handshake (ms). Default: 10000.
  */
-export async function initExtension(timeout?: number): Promise<ReactiveChannel> {
-  const bridge = await initBridge(timeout);
-  return new ReactiveChannelImpl(bridge);
+export function initExtension(timeout = 10000): Promise<ReactiveChannel> {
+  // Deep link: if not in an iframe, redirect to the Rool console
+  if (window.self === window.top) {
+    const host = window.location.hostname;
+    const dot = host.indexOf('.');
+    if (dot > 0) {
+      const extensionId = host.slice(0, dot);
+      const domain = host.slice(dot + 1);
+      window.location.href = `https://${domain}/?openExtension=${extensionId}`;
+    }
+    // Never resolve — the redirect will unload the page
+    return new Promise<ReactiveChannel>(() => {});
+  }
+
+  return new Promise<ReactiveChannel>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onMessage);
+      reject(new Error('Extension handshake timed out — is this running inside a Rool host?'));
+    }, timeout);
+
+    function onMessage(event: MessageEvent): void {
+      if (!isBridgeMessage(event.data) || event.data.type !== 'rool:init') return;
+
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+
+      resolve(new ReactiveChannelImpl(event.data as BridgeInit));
+    }
+
+    window.addEventListener('message', onMessage);
+
+    // Signal to the host that we're ready
+    window.parent.postMessage({ type: 'rool:ready' }, '*');
+  });
 }

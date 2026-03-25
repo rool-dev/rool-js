@@ -13,6 +13,7 @@
 import { RoolClient } from '@rool-dev/sdk';
 import type { RoolSpaceInfo, RoolChannel, PublishedExtensionInfo } from '@rool-dev/sdk';
 import { createBridgeHost, type BridgeHost } from '../host.js';
+import type { BridgeUser } from '../protocol.js';
 import type { Manifest, Environment } from '../manifest.js';
 import { ENV_URLS } from '../manifest.js';
 
@@ -426,11 +427,16 @@ export class DevHostController {
   // Private helpers
   // ---------------------------------------------------------------------------
 
+  private get _bridgeUser(): BridgeUser {
+    const cu = this.client.currentUser!; // Always available after boot() authenticates
+    return { id: cu.id, name: cu.name, email: cu.email };
+  }
+
   private _bindBridge(tabId: string): void {
     const el = this.iframeEls[tabId];
     const ch = this.channels[tabId];
     if (el && ch && !this.bridgeHosts[tabId]) {
-      this.bridgeHosts[tabId] = createBridgeHost({ channel: ch, iframe: el });
+      this.bridgeHosts[tabId] = createBridgeHost({ channel: ch, iframe: el, user: this._bridgeUser });
     }
   }
 

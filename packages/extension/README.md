@@ -183,6 +183,7 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 | `role` | `RoolUserRole` | User's role (`owner`, `admin`, `editor`, `viewer`) |
 | `linkAccess` | `LinkAccess` | URL sharing level |
 | `userId` | `string` | Current user's ID |
+| `user` | `BridgeUser` | Current user info (`{ id, name, email }`) |
 | `isReadOnly` | `boolean` | True if viewer role |
 
 ### Object Operations
@@ -409,9 +410,19 @@ Extensions run in a sandboxed iframe (`allow-scripts allow-same-origin`). The ho
 
 The bridge protocol:
 1. Extension sends `rool:ready`
-2. Host responds with `rool:init` (channel metadata, schema, space info)
+2. Host responds with `rool:init` (channel metadata, schema, space info, user identity)
 3. Extension calls channel methods → `rool:request` → host executes → `rool:response`
 4. Host pushes real-time events → `rool:event` → extension updates reactive state
+
+When creating a bridge host, pass `user` so the extension can display the current user's name:
+
+```typescript
+const host = createBridgeHost({
+  channel,
+  iframe,
+  user: { id: currentUser.id, name: currentUser.name, email: currentUser.email },
+});
+```
 
 ## CLI Commands
 
@@ -431,6 +442,7 @@ import type {
   ReactiveObject,
   ReactiveWatch,
   WatchOptions,
+  BridgeUser,
   RoolObject,
   RoolObjectStat,
   SpaceSchema,

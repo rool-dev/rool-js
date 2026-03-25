@@ -7,7 +7,7 @@
  * Used by both the console's ExtensionHost component and the local dev shell.
  */
 
-import type { BridgeRequest, BridgeInit } from './protocol.js';
+import type { BridgeRequest, BridgeInit, BridgeUser } from './protocol.js';
 import { isBridgeMessage } from './protocol.js';
 
 /**
@@ -112,17 +112,21 @@ export interface BridgeHostOptions {
   channel: BridgeableChannel;
   /** The iframe element hosting the extension */
   iframe: HTMLIFrameElement;
+  /** Current user info to expose to the extension */
+  user: BridgeUser;
 }
 
 export class BridgeHost {
   private channel: BridgeableChannel;
   private iframe: HTMLIFrameElement;
+  private user: BridgeUser;
   private eventCleanups: Array<() => void> = [];
   private _destroyed = false;
 
   constructor(options: BridgeHostOptions) {
     this.channel = options.channel;
     this.iframe = options.iframe;
+    this.user = options.user;
 
     window.addEventListener('message', this._onMessage);
 
@@ -155,6 +159,7 @@ export class BridgeHost {
       role: this.channel.role,
       linkAccess: this.channel.linkAccess,
       userId: this.channel.userId,
+      user: this.user,
       schema: this.channel.getSchema(),
       metadata: this.channel.getAllMetadata(),
     };

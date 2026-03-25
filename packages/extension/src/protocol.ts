@@ -35,6 +35,13 @@ export interface BridgeReady {
   type: 'rool:ready';
 }
 
+/** Current user info sent to extensions during handshake */
+export interface BridgeUser {
+  id: string;
+  name: string | null;
+  email: string;
+}
+
 /** Host → Extension: handshake response with channel metadata */
 export interface BridgeInit {
   type: 'rool:init';
@@ -44,6 +51,7 @@ export interface BridgeInit {
   role: string;
   linkAccess: string;
   userId: string;
+  user: BridgeUser;
   schema: Record<string, unknown>;
   metadata: Record<string, unknown>;
 }
