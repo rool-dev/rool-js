@@ -1,10 +1,10 @@
 /**
- * rool-app dev
+ * rool-extension dev
  *
- * Starts the app's Vite dev server with the dev host shell injected.
- * The host shell is served at /__rool-host/ and the app at /.
+ * Starts the extension's Vite dev server with the dev host shell injected.
+ * The host shell is served at /__rool-host/ and the extension at /.
  *
- * Usage: npx rool-app dev
+ * Usage: npx rool-extension dev
  */
 
 import { createServer, type Plugin, type ViteDevServer } from 'vite';
@@ -33,10 +33,10 @@ function escapeHtml(s: string): string {
 
 function generateHostHtml(result: ManifestResult): string {
   const { manifest, error } = result;
-  const channelId = manifest?.id ?? 'app-dev';
+  const channelId = manifest?.id ?? 'extension-dev';
   const dataAttrs: Record<string, string> = {
     'data-channel-id': channelId,
-    'data-app-url': '/',
+    'data-extension-url': '/',
   };
   if (manifest) dataAttrs['data-manifest'] = escapeHtml(JSON.stringify(manifest));
   if (error) dataAttrs['data-manifest-error'] = escapeHtml(error);
@@ -47,7 +47,7 @@ function generateHostHtml(result: ManifestResult): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${manifest?.name ? escapeHtml(manifest.name) + ' \u2014 ' : ''}App Dev Host</title>
+  <title>${manifest?.name ? escapeHtml(manifest.name) + ' \u2014 ' : ''}Extension Dev Host</title>
   <script type="module" src="/@vite/client"></script>
 </head>
 <body style="height:100%;margin:0">
@@ -65,14 +65,14 @@ function generateHostHtml(result: ManifestResult): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Synthesizes index.html and the app entry module so app projects
- * only need App.svelte + rool-app.json.
+ * Synthesizes index.html and the extension entry module so extension projects
+ * only need App.svelte + manifest.json.
  */
-function roolAppPlugin(root: string, tailwindCssPath: string): Plugin {
-  const VIRTUAL_ENTRY = 'virtual:rool-app-entry';
+function roolExtensionPlugin(root: string, tailwindCssPath: string): Plugin {
+  const VIRTUAL_ENTRY = 'virtual:rool-extension-entry';
   const RESOLVED_ENTRY = '\0' + VIRTUAL_ENTRY;
 
-  const VIRTUAL_CSS = 'virtual:rool-app-tailwind.css';
+  const VIRTUAL_CSS = 'virtual:rool-extension-tailwind.css';
   const RESOLVED_CSS = '\0' + VIRTUAL_CSS;
 
   const appPath = resolve(root, 'App.svelte');
@@ -80,7 +80,7 @@ function roolAppPlugin(root: string, tailwindCssPath: string): Plugin {
   const hasCss = existsSync(cssPath);
 
   return {
-    name: 'rool-app-entry',
+    name: 'rool-extension-entry',
     resolveId(id) {
       if (id === VIRTUAL_ENTRY) return RESOLVED_ENTRY;
       if (id === VIRTUAL_CSS) return RESOLVED_CSS;
@@ -90,14 +90,14 @@ function roolAppPlugin(root: string, tailwindCssPath: string): Plugin {
       if (id === RESOLVED_CSS) return `@import "${tailwindCssPath}";`;
       if (id !== RESOLVED_ENTRY) return;
       return [
-        `import { initApp } from '@rool-dev/app';`,
+        `import { initExtension } from '@rool-dev/extension';`,
         `import { mount } from 'svelte';`,
         `import App from '${appPath}';`,
         `import '${VIRTUAL_CSS}';`,
         hasCss ? `import '${cssPath}';` : ``,
         ``,
         `async function main() {`,
-        `  const channel = await initApp();`,
+        `  const channel = await initExtension();`,
         `  mount(App, {`,
         `    target: document.getElementById('app'),`,
         `    props: { channel },`,
@@ -106,7 +106,7 @@ function roolAppPlugin(root: string, tailwindCssPath: string): Plugin {
         ``,
         `main().catch((err) => {`,
         `  document.getElementById('app').innerHTML =`,
-        `    '<div style="padding:2rem;color:red"><h2>Failed to initialize app</h2><p>' + err.message + '</p></div>';`,
+        `    '<div style="padding:2rem;color:red"><h2>Failed to initialize extension</h2><p>' + err.message + '</p></div>';`,
         `});`,
       ].filter(Boolean).join('\n');
     },
@@ -119,7 +119,7 @@ function roolAppPlugin(root: string, tailwindCssPath: string): Plugin {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>App</title>
+  <title>Extension</title>
 </head>
 <body style="height:100%;margin:0">
   <div id="app" style="height:100%"></div>
@@ -140,7 +140,7 @@ function roolAppPlugin(root: string, tailwindCssPath: string): Plugin {
 
 function roolHostPlugin(state: { current: ManifestResult }, hostShellJs: string, cwd: string): Plugin {
   return {
-    name: 'rool-app-host',
+    name: 'rool-extension-host',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/__rool-host')) return next();
@@ -148,10 +148,10 @@ function roolHostPlugin(state: { current: ManifestResult }, hostShellJs: string,
         // Build + zip endpoint for in-browser publishing
         if (req.url === '/__rool-host/publish' && req.method === 'POST') {
           try {
-            const { buildApp, zipProject } = await import('./build-pipeline.js');
+            const { buildExtension, zipProject } = await import('./build-pipeline.js');
             const { readManifestOrExit } = await import('./vite-utils.js');
             const manifest = readManifestOrExit(cwd);
-            const { totalSize } = await buildApp(cwd, manifest);
+            const { totalSize } = await buildExtension(cwd, manifest);
             const zipBuffer = await zipProject(cwd);
             res.setHeader('Content-Type', 'application/zip');
             res.setHeader('X-Total-Size', String(totalSize));
@@ -184,7 +184,7 @@ function roolHostPlugin(state: { current: ManifestResult }, hostShellJs: string,
 // ---------------------------------------------------------------------------
 
 function watchManifest(root: string, state: { current: ManifestResult }, server: ViteDevServer) {
-  const manifestPath = resolve(root, 'rool-app.json');
+  const manifestPath = resolve(root, 'manifest.json');
   let debounce: ReturnType<typeof setTimeout> | null = null;
 
   const onChange = () => {
@@ -212,7 +212,7 @@ function watchManifest(root: string, state: { current: ManifestResult }, server:
     // File may not exist yet — watch the directory instead
   }
   watch(root, (_, filename) => {
-    if (filename === 'rool-app.json') onChange();
+    if (filename === 'manifest.json') onChange();
   });
 }
 
@@ -235,7 +235,7 @@ export async function dev() {
   } catch {
     console.error(
       `Could not find host-shell.js at ${HOST_SHELL_JS_PATH}.\n` +
-      `Run "pnpm build" in the @rool-dev/app package first.`,
+      `Run "pnpm build" in the @rool-dev/extension package first.`,
     );
     process.exit(1);
   }
@@ -244,7 +244,7 @@ export async function dev() {
   // and to ensure a single copy of svelte (compiler + runtime must match)
   const tailwindPkgDir = dirname(fileURLToPath(import.meta.resolve('tailwindcss/package.json')));
   const tailwindCssPath = resolve(tailwindPkgDir, 'index.css');
-  const appPkgPath = resolve(__dirname, '..');
+  const extensionPkgPath = resolve(__dirname, '..');
 
   const server = await createServer({
     configFile: false,
@@ -254,7 +254,7 @@ export async function dev() {
     },
     resolve: {
       alias: [
-        { find: '@rool-dev/app', replacement: appPkgPath },
+        { find: '@rool-dev/extension', replacement: extensionPkgPath },
         { find: /^tailwindcss$/, replacement: tailwindCssPath },
         ...getSvelteAliases(),
       ],
@@ -262,7 +262,7 @@ export async function dev() {
     plugins: [
       tailwindcss(),
       svelte(),
-      roolAppPlugin(cwd, tailwindCssPath),
+      roolExtensionPlugin(cwd, tailwindCssPath),
       roolHostPlugin(state, hostShellJs, cwd),
     ],
   });
@@ -270,7 +270,7 @@ export async function dev() {
   await server.listen();
   server.printUrls();
 
-  const name = state.current.manifest?.name ?? 'app';
+  const name = state.current.manifest?.name ?? 'extension';
   console.log(`\n  Dev host ready \u2014 serving ${name} via bridge\n`);
 
   // Start watching the manifest for changes

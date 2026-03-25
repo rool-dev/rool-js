@@ -1,19 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { GridStack } from 'gridstack';
-  import type { AppTab } from './DevHostController.js';
+  import type { ExtensionTab } from './DevHostController.js';
   import type { DevHostController } from './DevHostController.js';
-  import type { PublishedAppInfo } from '@rool-dev/sdk';
+  import type { PublishedExtensionInfo } from '@rool-dev/sdk';
 
   interface Props {
     controller: DevHostController;
-    tabs: AppTab[];
-    uninstalledApps: PublishedAppInfo[];
-    onInstallApp: (appId: string) => void;
-    onRemoveApp: (appId: string) => void;
+    tabs: ExtensionTab[];
+    uninstalledExtensions: PublishedExtensionInfo[];
+    onInstallExtension: (extensionId: string) => void;
+    onRemoveExtension: (extensionId: string) => void;
   }
 
-  let { controller, tabs, uninstalledApps, onInstallApp, onRemoveApp }: Props = $props();
+  let { controller, tabs, uninstalledExtensions, onInstallExtension, onRemoveExtension }: Props = $props();
 
   let gridEl: HTMLDivElement;
   let grid: GridStack;
@@ -92,7 +92,7 @@
     };
   });
 
-  function addTabWidget(tab: AppTab, savedLayout?: Record<string, SavedWidget>) {
+  function addTabWidget(tab: ExtensionTab, savedLayout?: Record<string, SavedWidget>) {
     if (mountedTabIds.has(tab.id)) return;
     mountedTabIds.add(tab.id);
 
@@ -140,11 +140,11 @@
       const close = document.createElement('button');
       close.className = 'border-none bg-transparent cursor-pointer text-slate-400 hover:text-red-500 p-0.5 leading-none shrink-0 transition-colors';
       close.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>';
-      close.title = 'Uninstall app';
+      close.title = 'Uninstall extension';
       close.addEventListener('click', (e) => {
         e.stopPropagation();
         removeTabWidget(tab.id);
-        onRemoveApp(tab.id);
+        onRemoveExtension(tab.id);
       });
       titleBar.appendChild(close);
     }
@@ -187,9 +187,9 @@
 <div class="flex-1 min-h-0 relative flex flex-col">
   <!-- Toolbar -->
   <div class="flex items-center px-3 py-1.5 bg-white border-b border-slate-200 shrink-0">
-    <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Apps</span>
+    <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Extensions</span>
     <div class="flex-1"></div>
-    {#if uninstalledApps.length > 0}
+    {#if uninstalledExtensions.length > 0}
       <div class="relative" data-add-menu>
         <button
           class="px-2.5 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors border border-slate-200 bg-white flex items-center gap-1.5"
@@ -201,14 +201,14 @@
         </button>
         {#if addMenuOpen}
           <div class="absolute top-full mt-1 right-0 min-w-[200px] max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
-            {#each uninstalledApps as app}
+            {#each uninstalledExtensions as ext}
               <button
                 class="flex items-center gap-2 w-full px-2.5 py-1.5 text-[13px] text-left border-none cursor-pointer hover:bg-slate-50 text-slate-700 bg-transparent"
                 type="button"
-                onclick={() => { addMenuOpen = false; onInstallApp(app.appId); }}
+                onclick={() => { addMenuOpen = false; onInstallExtension(ext.extensionId); }}
               >
-                <span class="font-medium">{app.manifest.name}</span>
-                <span class="text-[10px] text-slate-400 font-mono ml-auto">{app.appId}</span>
+                <span class="font-medium">{ext.manifest.name}</span>
+                <span class="text-[10px] text-slate-400 font-mono ml-auto">{ext.extensionId}</span>
               </button>
             {/each}
           </div>

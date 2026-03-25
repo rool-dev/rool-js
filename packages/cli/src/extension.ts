@@ -7,12 +7,12 @@ import { formatBytes } from './format.js';
 import { type Environment } from './constants.js';
 
 /**
- * Spawn a rool-app CLI command, forwarding the --env flag.
+ * Spawn a rool-extension CLI command, forwarding the --env flag.
  */
-function spawnRoolApp(command: string, args: string[], env: Environment): void {
+function spawnRoolExtension(command: string, args: string[], env: Environment): void {
   const require = createRequire(import.meta.url);
-  const appPkg = require.resolve('@rool-dev/app/package.json');
-  const bin = resolve(dirname(appPkg), 'dist/cli/index.js');
+  const extensionPkg = require.resolve('@rool-dev/extension/package.json');
+  const bin = resolve(dirname(extensionPkg), 'dist/cli/index.js');
 
   const fullArgs = [command, ...args];
   if (env !== 'prod') {
@@ -26,60 +26,60 @@ function spawnRoolApp(command: string, args: string[], env: Environment): void {
   process.exit(result.status ?? 1);
 }
 
-export function registerApp(program: Command): void {
-  const app = program
-    .command('app')
-    .description('Create, develop, build, publish, and manage apps');
+export function registerExtension(program: Command): void {
+  const ext = program
+    .command('extension')
+    .description('Create, develop, build, publish, and manage extensions');
 
-  app
+  ext
     .command('create')
-    .description('Create a new Rool app')
-    .argument('[name]', 'app name (creates subdirectory)')
+    .description('Create a new Rool extension')
+    .argument('[name]', 'extension name (creates subdirectory)')
     .action((name: string | undefined, _opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
-      spawnRoolApp('init', name ? [name] : [], env);
+      spawnRoolExtension('init', name ? [name] : [], env);
     });
 
-  app
+  ext
     .command('dev')
     .description('Start the dev server')
     .action((_opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
-      spawnRoolApp('dev', [], env);
+      spawnRoolExtension('dev', [], env);
     });
 
-  app
+  ext
     .command('build')
-    .description('Build the app')
+    .description('Build the extension')
     .action((_opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
-      spawnRoolApp('build', [], env);
+      spawnRoolExtension('build', [], env);
     });
 
-  app
+  ext
     .command('publish')
-    .description('Build and publish the app')
+    .description('Build and publish the extension')
     .action((_opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
-      spawnRoolApp('publish', [], env);
+      spawnRoolExtension('publish', [], env);
     });
 
-  app
+  ext
     .command('list')
-    .description('List published apps')
+    .description('List published extensions')
     .action(async (_opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
       const client = await getClient(env);
       try {
-        const apps = await client.listApps();
+        const extensions = await client.listExtensions();
 
-        if (apps.length === 0) {
-          console.log('No published apps.');
+        if (extensions.length === 0) {
+          console.log('No published extensions.');
         } else {
-          console.log('Published apps:');
+          console.log('Published extensions:');
           console.log('');
-          for (const a of apps) {
-            console.log(`  ${a.appId}`);
+          for (const a of extensions) {
+            console.log(`  ${a.extensionId}`);
             console.log(`    Name: ${a.manifest.name}`);
             console.log(`    URL: ${a.url}`);
             console.log(`    Size: ${formatBytes(a.sizeBytes)}`);
@@ -92,29 +92,29 @@ export function registerApp(program: Command): void {
       }
     });
 
-  app
+  ext
     .command('unpublish')
-    .description('Unpublish an app')
-    .argument('<app-id>', 'app to unpublish')
-    .action(async (rawAppId: string, _opts: object, command: Command) => {
-      const appId = rawAppId.toLowerCase();
+    .description('Unpublish an extension')
+    .argument('<extension-id>', 'extension to unpublish')
+    .action(async (rawExtensionId: string, _opts: object, command: Command) => {
+      const extensionId = rawExtensionId.toLowerCase();
       const { env } = command.optsWithGlobals() as { env: Environment };
       const client = await getClient(env);
       try {
-        const a = await client.getAppInfo(appId);
+        const a = await client.getExtensionInfo(extensionId);
         if (!a) {
-          console.error(`App not found: ${appId}`);
+          console.error(`Extension not found: ${extensionId}`);
           process.exit(1);
         }
 
-        await client.unpublishApp(appId);
-        console.log(`Unpublished: ${appId}`);
+        await client.unpublishExtension(extensionId);
+        console.log(`Unpublished: ${extensionId}`);
       } finally {
         client.destroy();
       }
     });
 
-  app
+  ext
     .command('slug')
     .description('Show or set your user slug')
     .argument('[new-slug]', 'new slug to set')

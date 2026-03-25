@@ -372,7 +372,7 @@ class ReactiveChannelImpl {
   get channelName() { return this.#channel.channelName; }
   get isReadOnly() { return this.#channel.isReadOnly; }
   get linkAccess() { return this.#channel.linkAccess; }
-  get appUrl() { return this.#channel.appUrl; }
+  get extensionUrl() { return this.#channel.extensionUrl; }
 
   // Proxy all methods
   close() {

@@ -1,13 +1,13 @@
 /**
- * @rool-dev/app — Svelte-first app SDK for Rool.
+ * @rool-dev/extension — Svelte-first extension SDK for Rool.
  *
- * `initApp()` connects to the host via the iframe bridge and returns
+ * `initExtension()` connects to the host via the iframe bridge and returns
  * a reactive channel with $state properties, matching the @rool-dev/svelte API.
  */
 
 // Public API — reactive channel
-export { initApp } from './reactive.svelte.js';
-export type { ReactiveAppChannel, ReactiveAppConversationHandle, ReactiveObject, ReactiveWatch, WatchOptions } from './reactive.svelte.js';
+export { initExtension } from './reactive.svelte.js';
+export type { ReactiveChannel, ReactiveConversationHandle, ReactiveObject, ReactiveWatch, WatchOptions } from './reactive.svelte.js';
 
 // Types
 export type {
@@ -29,5 +29,5 @@ export type {
   ChangeSource,
   RoolUserRole,
   LinkAccess,
-  AppChannelEvents,
+  ChannelEvents,
 } from './types.js';

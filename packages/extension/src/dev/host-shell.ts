@@ -16,12 +16,12 @@ style.textContent = css + '\n' + gridstackCss;
 document.head.appendChild(style);
 
 const root = document.getElementById('rool-host')!;
-const channelId = root.dataset.channelId ?? 'app-dev';
-const appUrl = root.dataset.appUrl ?? '/';
+const channelId = root.dataset.channelId ?? 'extension-dev';
+const extensionUrl = root.dataset.extensionUrl ?? '/';
 const manifest = root.dataset.manifest ? JSON.parse(root.dataset.manifest) : null;
 const manifestError = root.dataset.manifestError ?? null;
 
 mount(HostShell, {
   target: root,
-  props: { channelId, appUrl, manifest, manifestError },
+  props: { channelId, extensionUrl, manifest, manifestError },
 });

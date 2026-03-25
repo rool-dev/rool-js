@@ -19,7 +19,7 @@ export interface ManifestCollections {
   read?: Record<string, ManifestFieldDef[]> | '*';
 }
 
-export interface AppManifest {
+export interface Manifest {
   id: string;
   name: string;
   public: boolean;
@@ -31,7 +31,7 @@ export interface AppManifest {
 }
 
 export type ManifestResult =
-  | { manifest: AppManifest; error: null }
+  | { manifest: Manifest; error: null }
   | { manifest: null; error: string };
 
 // ---------------------------------------------------------------------------

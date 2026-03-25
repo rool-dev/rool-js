@@ -1,54 +1,54 @@
 // =============================================================================
-// Apps Client
-// REST API wrapper for app publishing/unpublishing/listing
+// Extensions Client
+// REST API wrapper for extension publishing/unpublishing/listing
 // =============================================================================
 
-import type { PublishedAppInfo, PublishAppOptions } from './types.js';
+import type { PublishedExtensionInfo, PublishExtensionOptions } from './types.js';
 import type { AuthManager } from './auth.js';
 
-export interface AppsClientConfig {
-  appsUrl: string;
+export interface ExtensionsClientConfig {
+  extensionsUrl: string;
   authManager: AuthManager;
 }
 
-export class AppsClient {
-  private config: AppsClientConfig;
+export class ExtensionsClient {
+  private config: ExtensionsClientConfig;
 
-  constructor(config: AppsClientConfig) {
+  constructor(config: ExtensionsClientConfig) {
     this.config = config;
   }
 
   /**
-   * List all published apps for the current user.
+   * List all published extensions for the current user.
    */
-  async list(): Promise<PublishedAppInfo[]> {
+  async list(): Promise<PublishedExtensionInfo[]> {
     const tokens = await this.config.authManager.getTokens();
     if (!tokens) throw new Error('Not authenticated');
 
     const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
-    const response = await fetch(this.config.appsUrl, {
+    const response = await fetch(this.config.extensionsUrl, {
       method: 'GET',
       headers,
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to list apps: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to list extensions: ${response.status} ${response.statusText}`);
     }
 
     return response.json();
   }
 
   /**
-   * Get info for a specific published app.
+   * Get info for a specific published extension.
    */
-  async get(appId: string): Promise<PublishedAppInfo | null> {
+  async get(extensionId: string): Promise<PublishedExtensionInfo | null> {
     const tokens = await this.config.authManager.getTokens();
     if (!tokens) throw new Error('Not authenticated');
 
     const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
-    const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
+    const response = await fetch(`${this.config.extensionsUrl}/${encodeURIComponent(extensionId)}`, {
       method: 'GET',
       headers,
     });
@@ -58,18 +58,18 @@ export class AppsClient {
     }
 
     if (!response.ok) {
-      throw new Error(`Failed to get app: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to get extension: ${response.status} ${response.statusText}`);
     }
 
     return response.json();
   }
 
   /**
-   * Publish or update an app.
-   * @param appId - URL-safe identifier for the app
-   * @param options - Bundle zip file (must include index.html and rool-app.json)
+   * Publish or update an extension.
+   * @param extensionId - URL-safe identifier for the extension
+   * @param options - Bundle zip file (must include index.html and manifest.json)
    */
-  async publish(appId: string, options: PublishAppOptions): Promise<PublishedAppInfo> {
+  async publish(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
     const tokens = await this.config.authManager.getTokens();
     if (!tokens) throw new Error('Not authenticated');
 
@@ -78,7 +78,7 @@ export class AppsClient {
     const formData = new FormData();
     formData.append('bundle', options.bundle);
 
-    const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
+    const response = await fetch(`${this.config.extensionsUrl}/${encodeURIComponent(extensionId)}`, {
       method: 'POST',
       headers,
       body: formData,
@@ -87,28 +87,28 @@ export class AppsClient {
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({}));
       const errorMessage = errorBody.error || `${response.status} ${response.statusText}`;
-      throw new Error(`Failed to publish app: ${errorMessage}`);
+      throw new Error(`Failed to publish extension: ${errorMessage}`);
     }
 
     return response.json();
   }
 
   /**
-   * Unpublish an app.
+   * Unpublish an extension.
    */
-  async unpublish(appId: string): Promise<void> {
+  async unpublish(extensionId: string): Promise<void> {
     const tokens = await this.config.authManager.getTokens();
     if (!tokens) throw new Error('Not authenticated');
 
     const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
 
-    const response = await fetch(`${this.config.appsUrl}/${encodeURIComponent(appId)}`, {
+    const response = await fetch(`${this.config.extensionsUrl}/${encodeURIComponent(extensionId)}`, {
       method: 'DELETE',
       headers,
     });
 
     if (!response.ok && response.status !== 204) {
-      throw new Error(`Failed to unpublish app: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to unpublish extension: ${response.status} ${response.statusText}`);
     }
   }
 }

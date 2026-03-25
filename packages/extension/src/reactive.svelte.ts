@@ -1,12 +1,12 @@
 /**
- * Reactive Svelte wrapper around AppChannel (bridge client).
+ * Reactive Svelte wrapper around Channel (bridge client).
  *
  * Mirrors the @rool-dev/svelte ReactiveChannel API: same $state properties,
  * same methods, same reactive primitives (object(), watch()).
- * The underlying transport is the postMessage bridge, not the SDK directly.
+ * The underlying transport is the postMessage bridge, not the SDK.
  */
 
-import { AppChannel, AppConversationHandle } from './client.js';
+import { Channel, ConversationHandle } from './client.js';
 import type {
   RoolObject,
   FieldDef,
@@ -34,7 +34,7 @@ export interface WatchOptions {
 // ---------------------------------------------------------------------------
 
 class ReactiveWatchImpl {
-  #channel: AppChannel;
+  #channel: Channel;
   #options: WatchOptions;
   #unsubscribers: (() => void)[] = [];
   #currentIds = new Set<string>();
@@ -42,7 +42,7 @@ class ReactiveWatchImpl {
   objects = $state<RoolObject[]>([]);
   loading = $state(true);
 
-  constructor(channel: AppChannel, options: WatchOptions) {
+  constructor(channel: Channel, options: WatchOptions) {
     this.#channel = channel;
     this.#options = options;
     this.#setup();
@@ -137,14 +137,14 @@ export type ReactiveWatch = ReactiveWatchImpl;
 // ---------------------------------------------------------------------------
 
 class ReactiveObjectImpl {
-  #channel: AppChannel;
+  #channel: Channel;
   #objectId: string;
   #unsubscribers: (() => void)[] = [];
 
   data = $state<RoolObject | undefined>(undefined);
   loading = $state(true);
 
-  constructor(channel: AppChannel, objectId: string) {
+  constructor(channel: Channel, objectId: string) {
     this.#channel = channel;
     this.#objectId = objectId;
     this.#setup();
@@ -194,11 +194,11 @@ class ReactiveObjectImpl {
 export type ReactiveObject = ReactiveObjectImpl;
 
 // ---------------------------------------------------------------------------
-// ReactiveAppChannel
+// ReactiveChannel
 // ---------------------------------------------------------------------------
 
-class ReactiveAppChannelImpl {
-  #channel: AppChannel;
+class ReactiveChannelImpl {
+  #channel: Channel;
   #closed = false;
 
   // Reactive state
@@ -209,7 +209,7 @@ class ReactiveAppChannelImpl {
 
   #unsubscribers: (() => void)[] = [];
 
-  constructor(channel: AppChannel) {
+  constructor(channel: Channel) {
     this.#channel = channel;
 
     // Load initial data
@@ -308,14 +308,14 @@ class ReactiveAppChannelImpl {
   dropCollection(name: string) { return this.#channel.dropCollection(name); }
 
   // Conversations
-  conversation(conversationId: string): ReactiveAppConversationHandle {
+  conversation(conversationId: string): ReactiveConversationHandle {
     if (this.#closed) throw new Error('Cannot create reactive conversation: channel is closed');
-    return new ReactiveAppConversationHandleImpl(this.#channel, conversationId);
+    return new ReactiveConversationHandleImpl(this.#channel, conversationId);
   }
 
   // Events
-  on(...args: Parameters<AppChannel['on']>) { return this.#channel.on(...args); }
-  off(...args: Parameters<AppChannel['off']>) { return this.#channel.off(...args); }
+  on(...args: Parameters<Channel['on']>) { return this.#channel.on(...args); }
+  off(...args: Parameters<Channel['off']>) { return this.#channel.off(...args); }
 
   // Reactive primitives
 
@@ -339,28 +339,28 @@ class ReactiveAppChannelImpl {
   }
 }
 
-export type ReactiveAppChannel = ReactiveAppChannelImpl;
+export type ReactiveChannel = ReactiveChannelImpl;
 
 // ---------------------------------------------------------------------------
-// ReactiveAppConversationHandle
+// ReactiveConversationHandle
 // ---------------------------------------------------------------------------
 
 /**
- * A reactive conversation handle for the app bridge.
- * Wraps AppConversationHandle with $state interactions that auto-update
+ * A reactive conversation handle for the extension bridge.
+ * Wraps ConversationHandle with $state interactions that auto-update
  * when the conversation changes via SSE events.
  *
  * Call `close()` when done to stop listening for updates.
  */
-class ReactiveAppConversationHandleImpl {
-  #handle: AppConversationHandle;
+class ReactiveConversationHandleImpl {
+  #handle: ConversationHandle;
   #conversationId: string;
   #unsubscribers: (() => void)[] = [];
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
 
-  constructor(channel: AppChannel, conversationId: string) {
+  constructor(channel: Channel, conversationId: string) {
     this.#conversationId = conversationId;
     this.#handle = channel.conversation(conversationId);
 
@@ -418,22 +418,22 @@ class ReactiveAppConversationHandleImpl {
   }
 }
 
-export type ReactiveAppConversationHandle = ReactiveAppConversationHandleImpl;
+export type ReactiveConversationHandle = ReactiveConversationHandleImpl;
 
 // ---------------------------------------------------------------------------
-// initApp (reactive version)
+// initExtension (reactive version)
 // ---------------------------------------------------------------------------
 
-import { initApp as initBridge } from './client.js';
+import { initExtension as initBridge } from './client.js';
 
 /**
- * Initialize the app and return a reactive channel.
+ * Initialize the extension and return a reactive channel.
  *
  * Sends `rool:ready` to the host, waits for the handshake, and returns
  * a reactive channel with $state properties (interactions, objectIds)
  * and reactive primitives (object(), watch()).
  */
-export async function initApp(timeout?: number): Promise<ReactiveAppChannel> {
+export async function initExtension(timeout?: number): Promise<ReactiveChannel> {
   const bridge = await initBridge(timeout);
-  return new ReactiveAppChannelImpl(bridge);
+  return new ReactiveChannelImpl(bridge);
 }

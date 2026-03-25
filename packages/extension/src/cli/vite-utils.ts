@@ -7,28 +7,28 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import type { AppManifest, ManifestResult } from '../manifest.js';
+import type { Manifest, ManifestResult } from '../manifest.js';
 
 // ---------------------------------------------------------------------------
 // Manifest reading
 // ---------------------------------------------------------------------------
 
 export function readManifest(root: string): ManifestResult {
-  const path = resolve(root, 'rool-app.json');
+  const path = resolve(root, 'manifest.json');
   if (!existsSync(path)) {
-    return { manifest: null, error: 'rool-app.json not found' };
+    return { manifest: null, error: 'manifest.json not found' };
   }
   let raw: string;
   try {
     raw = readFileSync(path, 'utf-8');
   } catch (e) {
-    return { manifest: null, error: `Cannot read rool-app.json: ${e instanceof Error ? e.message : String(e)}` };
+    return { manifest: null, error: `Cannot read manifest.json: ${e instanceof Error ? e.message : String(e)}` };
   }
-  let parsed: AppManifest;
+  let parsed: Manifest;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { manifest: null, error: 'rool-app.json contains invalid JSON' };
+    return { manifest: null, error: 'manifest.json contains invalid JSON' };
   }
   const missing: string[] = [];
   if (!parsed.id) missing.push('id');
@@ -36,7 +36,7 @@ export function readManifest(root: string): ManifestResult {
   if (typeof parsed.public !== 'boolean') missing.push('public');
   if (!parsed.collections || typeof parsed.collections !== 'object') missing.push('collections');
   if (missing.length > 0) {
-    return { manifest: null, error: `rool-app.json missing required fields: ${missing.join(', ')}` };
+    return { manifest: null, error: `manifest.json missing required fields: ${missing.join(', ')}` };
   }
   return { manifest: parsed, error: null };
 }
@@ -44,7 +44,7 @@ export function readManifest(root: string): ManifestResult {
 /**
  * Strict manifest reading for publish — exits on error.
  */
-export function readManifestOrExit(root: string): AppManifest {
+export function readManifestOrExit(root: string): Manifest {
   const result = readManifest(root);
   if (result.error !== null) {
     console.error(result.error);
@@ -61,7 +61,7 @@ export function readManifestOrExit(root: string): AppManifest {
  * Builds resolve.alias entries that map every `svelte` and `svelte/*` import
  * to the exact file in the CLI's own svelte copy. This ensures the compiler
  * (loaded from the CLI) and the browser runtime always use the same svelte
- * instance — even when the app lives outside the monorepo.
+ * instance — even when the extension lives outside the monorepo.
  */
 export function getSvelteAliases(): { find: RegExp; replacement: string }[] {
   const svelteDir = dirname(fileURLToPath(import.meta.resolve('svelte/package.json')));

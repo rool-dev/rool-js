@@ -135,8 +135,8 @@ export interface Channel {
   createdAt: number;
   createdBy: string;
   createdByName?: string;
-  /** URL of the installed app, if this channel was created via installApp. */
-  appUrl?: string;
+  /** URL of the installed extension, if this channel was created via installExtension. */
+  extensionUrl?: string;
   conversations: Record<string, Conversation>;
 }
 
@@ -151,8 +151,8 @@ export interface ChannelInfo {
   createdBy: string;
   createdByName: string | null;
   interactionCount: number;
-  /** URL of the installed app, or null if this is a plain channel. */
-  appUrl: string | null;
+  /** URL of the installed extension, or null if this is a plain channel. */
+  extensionUrl: string | null;
 }
 
 
@@ -226,22 +226,22 @@ export interface MediaResponse {
 }
 
 // =============================================================================
-// App Publishing Types
+// Extension Publishing Types
 // =============================================================================
 
 /**
- * Options for publishing an app.
+ * Options for publishing an extension.
  */
-export interface PublishAppOptions {
-  /** Zip bundle containing the app files (must include index.html and rool-app.json at root) */
+export interface PublishExtensionOptions {
+  /** Zip bundle containing the extension files (must include index.html and manifest.json at root) */
   bundle: File | Blob;
 }
 
 /**
- * App manifest from rool-app.json, stored with each published app.
+ * Extension manifest from manifest.json, stored with each published extension.
  */
-export interface AppManifest {
-  /** App identifier (lowercase, hyphens) */
+export interface ExtensionManifest {
+  /** Extension identifier (lowercase, hyphens) */
   id: string;
   /** Display name */
   name: string;
@@ -249,33 +249,33 @@ export interface AppManifest {
   icon?: string;
   /** Collection access declarations */
   collections: Record<string, unknown>;
-  /** Whether the app is publicly listed */
+  /** Whether the extension is publicly listed */
   public: boolean;
-  /** Optional app description */
+  /** Optional extension description */
   description?: string;
   /** Optional system instruction for the AI agent */
   systemInstruction?: string | null;
 }
 
 /**
- * Options for finding/searching public apps.
+ * Options for finding/searching public extensions.
  */
-export interface FindAppsOptions {
-  /** Natural language search query for semantic app discovery. Omit to browse all public apps. */
+export interface FindExtensionsOptions {
+  /** Natural language search query for semantic extension discovery. Omit to browse all public extensions. */
   query?: string;
   /** Maximum number of results (default: 20, max: 100) */
   limit?: number;
 }
 
 /**
- * Info about a published app.
+ * Info about a published extension.
  */
-export interface PublishedAppInfo {
-  /** App identifier (URL-safe) */
-  appId: string;
-  /** App manifest from rool-app.json */
-  manifest: AppManifest;
-  /** Public URL where the app is accessible */
+export interface PublishedExtensionInfo {
+  /** Extension identifier (URL-safe) */
+  extensionId: string;
+  /** Extension manifest from manifest.json */
+  manifest: ExtensionManifest;
+  /** Public URL where the extension is accessible */
   url: string;
   /** Bundle size in bytes */
   sizeBytes: number;
@@ -426,7 +426,7 @@ export interface ChannelCreatedClientEvent extends ClientEventBase {
   channelCreatedAt?: number;
   channelCreatedBy?: string;
   channelCreatedByName?: string;
-  channelAppUrl?: string | null;
+  channelExtensionUrl?: string | null;
 }
 
 export interface ChannelRenamedClientEvent extends ClientEventBase {
@@ -651,7 +651,7 @@ export interface ConversationUpdatedEvent {
  * Semantic events describe what changed:
  * - `objectCreated`, `objectUpdated`, `objectDeleted`: Object changes
  * - `metadataUpdated`: Space metadata changes
- * - `channelUpdated`: Channel metadata changed (name, appUrl)
+ * - `channelUpdated`: Channel metadata changed (name, extensionUrl)
  * - `conversationUpdated`: Conversation interaction history changed
  * - `reset`: Full state replacement (undo/redo, resync)
  *
@@ -669,7 +669,7 @@ export interface ChannelEvents {
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Collection schema was updated */
   schemaUpdated: (event: SchemaUpdatedEvent) => void;
-  /** Channel metadata was updated (name, appUrl) */
+  /** Channel metadata was updated (name, extensionUrl) */
   channelUpdated: (event: ChannelUpdatedEvent) => void;
   /** Conversation interaction history was updated */
   conversationUpdated: (event: ConversationUpdatedEvent) => void;

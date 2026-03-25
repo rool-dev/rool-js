@@ -1,12 +1,12 @@
 <script lang="ts">
-  import type { ReactiveAppChannel, ReactiveWatch, RoolObject } from '@rool-dev/app';
+  import type { ReactiveChannel, ReactiveWatch, RoolObject } from '@rool-dev/extension';
   import { fly } from 'svelte/transition';
   import { calculateNextReview } from './sm2.js';
   import Icon from '@iconify/svelte';
   import FlashcardDisplay from './FlashcardDisplay.svelte';
 
   interface Props {
-    channel: ReactiveAppChannel;
+    channel: ReactiveChannel;
   }
 
   let { channel }: Props = $props();

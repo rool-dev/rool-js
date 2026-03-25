@@ -75,7 +75,7 @@ jobs:
       - name: Set dev versions
         run: |
           SHORT_SHA=${GITHUB_SHA::7}
-          for pkg in packages/sdk packages/cli packages/svelte packages/app; do
+          for pkg in packages/sdk packages/cli packages/svelte packages/extension; do
             BASE_VERSION=$(node -p "require('./$pkg/package.json').version")
             DEV_VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
             echo "Setting $pkg to ${DEV_VERSION}"
@@ -96,8 +96,8 @@ jobs:
         working-directory: packages/svelte
         run: pnpm publish --tag dev --access public --no-git-checks
 
-      - name: Publish App (dev)
-        working-directory: packages/app
+      - name: Publish Extension (dev)
+        working-directory: packages/extension
         run: pnpm publish --tag dev --access public --no-git-checks
 
   publish-release:
@@ -140,7 +140,7 @@ jobs:
       - name: Verify versions match tag
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          for pkg in packages/sdk packages/cli packages/svelte packages/app; do
+          for pkg in packages/sdk packages/cli packages/svelte packages/extension; do
             PKG_NAME=$(node -p "require('./$pkg/package.json').name")
             PKG_VERSION=$(node -p "require('./$pkg/package.json').version")
             if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
@@ -162,6 +162,6 @@ jobs:
         working-directory: packages/svelte
         run: pnpm publish --access public --no-git-checks
 
-      - name: Publish App
-        working-directory: packages/app
+      - name: Publish Extension
+        working-directory: packages/extension
         run: pnpm publish --access public --no-git-checks

@@ -1,7 +1,7 @@
 /**
- * rool-app init [name]
+ * rool-extension init [name]
  *
- * Scaffolds a new app project in the current directory or a named subdirectory.
+ * Scaffolds a new extension project in the current directory or a named subdirectory.
  */
 
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-function getAppSdkVersion(): string {
+function getExtensionSdkVersion(): string {
   const pkgPath = resolve(__dirname, '../../package.json');
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
   return pkg.version;
@@ -34,8 +34,8 @@ function init() {
     mkdirSync(dir, { recursive: true });
   }
 
-  if (existsSync(resolve(dir, 'rool-app.json'))) {
-    console.error('rool-app.json already exists in this directory.');
+  if (existsSync(resolve(dir, 'manifest.json'))) {
+    console.error('manifest.json already exists in this directory.');
     process.exit(1);
   }
 
@@ -47,10 +47,10 @@ function init() {
   };
 
   const appSvelte = `<script lang="ts">
-  import type { ReactiveAppChannel } from '@rool-dev/app';
+  import type { ReactiveChannel } from '@rool-dev/extension';
 
   interface Props {
-    channel: ReactiveAppChannel;
+    channel: ReactiveChannel;
   }
 
   let { channel }: Props = $props();
@@ -70,10 +70,10 @@ function init() {
     version: '0.0.0',
     type: 'module',
     scripts: {
-      dev: 'rool-app dev',
+      dev: 'rool-extension dev',
     },
     dependencies: {
-      '@rool-dev/app': `^${getAppSdkVersion()}`,
+      '@rool-dev/extension': `^${getExtensionSdkVersion()}`,
     },
     devDependencies: {
       svelte: '^5.0.0',
@@ -83,20 +83,20 @@ function init() {
 
   const agentsMd = `# ${appName}
 
-This is a Rool App — a sandboxed Svelte 5 component that runs inside a Rool Space.
+This is a Rool Extension — a sandboxed Svelte 5 component that runs inside a Rool Space.
 
 ## Documentation
 
-Read the app SDK documentation before making changes:
+Read the extension SDK documentation before making changes:
 
 \`\`\`
-cat node_modules/@rool-dev/app/README.md
+cat node_modules/@rool-dev/extension/README.md
 \`\`\`
 
 ## Project structure
 
-- \`App.svelte\` — Main component (receives \`channel: ReactiveAppChannel\` as a prop)
-- \`rool-app.json\` — Manifest (id, name, collections)
+- \`App.svelte\` — Main component (receives \`channel: ReactiveChannel\` as a prop)
+- \`manifest.json\` — Manifest (id, name, collections)
 - \`app.css\` — Optional custom styles (Tailwind v4 is available by default)
 
 Additional \`.svelte\` and \`.ts\` files can be imported from \`App.svelte\`.
@@ -104,23 +104,23 @@ Additional \`.svelte\` and \`.ts\` files can be imported from \`App.svelte\`.
 ## Dev server
 
 \`\`\`
-npx rool-app dev
+npx rool-extension dev
 \`\`\`
 `;
 
-  writeFileSync(resolve(dir, 'rool-app.json'), JSON.stringify(manifest, null, 2) + '\n');
+  writeFileSync(resolve(dir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   writeFileSync(resolve(dir, 'App.svelte'), appSvelte);
   writeFileSync(resolve(dir, 'package.json'), JSON.stringify(packageJson, null, 2) + '\n');
   writeFileSync(resolve(dir, 'AGENTS.md'), agentsMd);
 
   const relDir = name ?? '.';
   console.log(`
-  Created app "${appName}" in ${relDir}/
+  Created extension "${appName}" in ${relDir}/
 
   Next steps:
     ${name ? `cd ${name}` : ''}
     npm install
-    npx rool-app dev
+    npx rool-extension dev
 `);
 }
 

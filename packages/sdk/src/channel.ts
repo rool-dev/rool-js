@@ -221,10 +221,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Get the app URL if this channel was created via installApp, or null.
+   * Get the extension URL if this channel was created via installExtension, or null.
    */
-  get appUrl(): string | null {
-    return this._channel?.appUrl ?? null;
+  get extensionUrl(): string | null {
+    return this._channel?.extensionUrl ?? null;
   }
 
   // ===========================================================================
@@ -1102,7 +1102,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
         break;
 
       case 'channel_updated':
-        // Only update if it's our channel — channel_updated is now metadata-only (name, appUrl)
+        // Only update if it's our channel — channel_updated is now metadata-only (name, extensionUrl)
         if (event.channelId === this._channelId && event.channel) {
           const changed = JSON.stringify(this._channel) !== JSON.stringify(event.channel);
           this._channel = event.channel;

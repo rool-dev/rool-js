@@ -25,12 +25,12 @@ switch (command) {
     break;
   }
   default:
-    console.log(`Usage: rool-app <command>
+    console.log(`Usage: rool-extension <command>
 
 Commands:
-  init      Create a new app project
+  init      Create a new extension project
   dev       Start the dev server
-  build     Build the app
-  publish   Build and publish the app`);
+  build     Build the extension
+  publish   Build and publish the extension`);
     process.exit(command ? 1 : 0);
 }

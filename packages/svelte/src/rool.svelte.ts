@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindAppsOptions, type PublishedAppInfo, type PublishAppOptions } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindExtensionsOptions, type PublishedExtensionInfo, type PublishExtensionOptions } from '@rool-dev/sdk';
 import { wrapChannel, createChannelList, type ReactiveChannel, type ReactiveChannelList } from './channel.svelte.js';
 
 /**
@@ -218,48 +218,48 @@ class RoolImpl {
   }
 
   /**
-   * Search for public apps. With a query, performs semantic search.
-   * Without a query, returns all public apps sorted by most recently updated.
+   * Search for public extensions. With a query, performs semantic search.
+   * Without a query, returns all public extensions sorted by most recently updated.
    */
-  findApps(options?: FindAppsOptions): Promise<PublishedAppInfo[]> {
-    return this.#client.findApps(options);
+  findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
+    return this.#client.findExtensions(options);
   }
 
   /**
-   * Install an app into a space.
-   * Creates/updates a channel with the app's manifest settings.
+   * Install an extension into a space.
+   * Creates/updates a channel with the extension's manifest settings.
    * Returns the channel ID.
    */
-  installApp(spaceId: string, appId: string, channelId?: string): Promise<string> {
-    return this.#client.installApp(spaceId, appId, channelId);
+  installExtension(spaceId: string, extensionId: string, channelId?: string): Promise<string> {
+    return this.#client.installExtension(spaceId, extensionId, channelId);
   }
 
   /**
-   * Publish or update an app.
+   * Publish or update an extension.
    */
-  publishApp(appId: string, options: PublishAppOptions): Promise<PublishedAppInfo> {
-    return this.#client.publishApp(appId, options);
+  publishExtension(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
+    return this.#client.publishExtension(extensionId, options);
   }
 
   /**
-   * Unpublish an app.
+   * Unpublish an extension.
    */
-  unpublishApp(appId: string): Promise<void> {
-    return this.#client.unpublishApp(appId);
+  unpublishExtension(extensionId: string): Promise<void> {
+    return this.#client.unpublishExtension(extensionId);
   }
 
   /**
-   * List the current user's published apps.
+   * List the current user's published extensions.
    */
-  listApps(): Promise<PublishedAppInfo[]> {
-    return this.#client.listApps();
+  listExtensions(): Promise<PublishedExtensionInfo[]> {
+    return this.#client.listExtensions();
   }
 
   /**
-   * Get info for a specific published app.
+   * Get info for a specific published extension.
    */
-  getAppInfo(appId: string): Promise<PublishedAppInfo | null> {
-    return this.#client.getAppInfo(appId);
+  getExtensionInfo(extensionId: string): Promise<PublishedExtensionInfo | null> {
+    return this.#client.getExtensionInfo(extensionId);
   }
 
   /**

@@ -19,8 +19,8 @@ import type {
   ChannelInfo,
   Channel,
   SpaceSchema,
-  PublishedAppInfo,
-  FindAppsOptions,
+  PublishedExtensionInfo,
+  FindExtensionsOptions,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 
@@ -102,7 +102,7 @@ export class GraphQLClient {
             createdBy
             createdByName
             interactionCount
-            appUrl
+            extensionUrl
           }
         }
       }
@@ -623,11 +623,11 @@ export class GraphQLClient {
     await this.request(mutation, { slug });
   }
 
-  async findApps(options?: FindAppsOptions): Promise<PublishedAppInfo[]> {
+  async findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
     const query = `
-      query FindApps($query: String, $limit: Int) {
-        findApps(query: $query, limit: $limit) {
-          appId
+      query FindExtensions($query: String, $limit: Int) {
+        findExtensions(query: $query, limit: $limit) {
+          extensionId
           manifest
           url
           sizeBytes
@@ -636,25 +636,25 @@ export class GraphQLClient {
         }
       }
     `;
-    const response = await this.request<{ findApps: PublishedAppInfo[] }>(query, {
+    const response = await this.request<{ findExtensions: PublishedExtensionInfo[] }>(query, {
       query: options?.query,
       limit: options?.limit,
     });
-    return response.findApps;
+    return response.findExtensions;
   }
 
-  async installApp(spaceId: string, appId: string, channelId: string): Promise<string> {
+  async installExtension(spaceId: string, extensionId: string, channelId: string): Promise<string> {
     const mutation = `
-      mutation InstallApp($spaceId: String!, $appId: String!, $channelId: String!) {
-        installApp(spaceId: $spaceId, appId: $appId, channelId: $channelId)
+      mutation InstallExtension($spaceId: String!, $extensionId: String!, $channelId: String!) {
+        installExtension(spaceId: $spaceId, extensionId: $extensionId, channelId: $channelId)
       }
     `;
-    const result = await this.request<{ installApp: string }>(mutation, {
+    const result = await this.request<{ installExtension: string }>(mutation, {
       spaceId,
-      appId,
+      extensionId,
       channelId,
     });
-    return result.installApp;
+    return result.installExtension;
   }
 
   async setUserStorage(key: string, value: unknown): Promise<void> {

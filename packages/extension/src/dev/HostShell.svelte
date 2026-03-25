@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { DevHostController } from './DevHostController.js';
-  import type { AppTab } from './DevHostController.js';
-  import type { AppManifest } from '../manifest.js';
-  import type { RoolSpaceInfo, PublishedAppInfo } from '@rool-dev/sdk';
+  import type { ExtensionTab } from './DevHostController.js';
+  import type { Manifest } from '../manifest.js';
+  import type { RoolSpaceInfo, PublishedExtensionInfo } from '@rool-dev/sdk';
   import type { Environment } from '../manifest.js';
   import Sidebar from './Sidebar.svelte';
   import AppGrid from './AppGrid.svelte';
@@ -11,8 +11,8 @@
   // Props injected from the mount entry
   interface Props {
     channelId: string;
-    appUrl: string;
-    manifest: AppManifest | null;
+    extensionUrl: string;
+    manifest: Manifest | null;
     manifestError: string | null;
   }
 
@@ -29,9 +29,9 @@
   let placeholderText: string | null = $state('Authenticating...');
   let sidebarCollapsed: boolean = $state(false);
   let env: Environment = $state('prod');
-  let publishedApps: PublishedAppInfo[] = $state([]);
-  let installedAppIds: string[] = $state([]);
-  let tabs: AppTab[] = $state([]);
+  let publishedExtensions: PublishedExtensionInfo[] = $state([]);
+  let installedExtensionIds: string[] = $state([]);
+  let tabs: ExtensionTab[] = $state([]);
   let publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = $state('idle');
   let publishMessage: string | null = $state(null);
   let publishUrl: string | null = $state(null);
@@ -53,8 +53,8 @@
     placeholderText = controller.placeholderText;
     sidebarCollapsed = controller.sidebarCollapsed;
     env = controller.env;
-    publishedApps = controller.publishedApps;
-    installedAppIds = controller.installedAppIds;
+    publishedExtensions = controller.publishedExtensions;
+    installedExtensionIds = controller.installedExtensionIds;
     tabs = controller.tabs;
     publishState = controller.publishState;
     publishMessage = controller.publishMessage;
@@ -62,8 +62,8 @@
   }
 
   // Derived: published apps not yet installed (excluding the local dev app)
-  let uninstalledApps = $derived(
-    publishedApps.filter((app) => app.appId !== props.channelId && !installedAppIds.includes(app.appId)),
+  let uninstalledExtensions = $derived(
+    publishedExtensions.filter((ext) => ext.extensionId !== props.channelId && !installedExtensionIds.includes(ext.extensionId)),
   );
 
   // Initial sync
@@ -111,9 +111,9 @@
     <AppGrid
       {controller}
       {tabs}
-      {uninstalledApps}
-      onInstallApp={(id) => controller.installApp(id)}
-      onRemoveApp={(id) => controller.removeApp(id)}
+      uninstalledExtensions={uninstalledExtensions}
+      onInstallExtension={(id) => controller.installExtension(id)}
+      onRemoveExtension={(id) => controller.removeExtension(id)}
     />
   {/if}
 </div>

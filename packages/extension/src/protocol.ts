@@ -1,11 +1,11 @@
 /**
- * Bridge protocol types shared between app (client) and host.
+ * Bridge protocol types shared between extension (client) and host.
  *
  * All communication between the sandboxed iframe and the host happens
  * via window.postMessage using these message shapes.
  */
 
-/** App → Host: invoke a channel method */
+/** Extension → Host: invoke a channel method */
 export interface BridgeRequest {
   type: 'rool:request';
   id: string;
@@ -15,7 +15,7 @@ export interface BridgeRequest {
   conversationId?: string;
 }
 
-/** Host → App: result of a channel method call */
+/** Host → Extension: result of a channel method call */
 export interface BridgeResponse {
   type: 'rool:response';
   id: string;
@@ -23,19 +23,19 @@ export interface BridgeResponse {
   error?: string;
 }
 
-/** Host → App: channel event pushed in real-time */
+/** Host → Extension: channel event pushed in real-time */
 export interface BridgeEvent {
   type: 'rool:event';
   name: string;
   data: unknown;
 }
 
-/** App → Host: app is loaded and ready for handshake */
+/** Extension → Host: extension is loaded and ready for handshake */
 export interface BridgeReady {
   type: 'rool:ready';
 }
 
-/** Host → App: handshake response with channel metadata */
+/** Host → Extension: handshake response with channel metadata */
 export interface BridgeInit {
   type: 'rool:init';
   channelId: string;

@@ -1,9 +1,9 @@
 /**
- * rool-app publish
+ * rool-extension publish
  *
- * Builds the app with Vite and publishes it to the Rool app platform.
+ * Builds the extension with Vite and publishes it to the Rool extension platform.
  *
- * Usage: npx rool-app publish [--env local|dev|prod]
+ * Usage: npx rool-extension publish [--env local|dev|prod]
  */
 
 import { RoolClient } from '@rool-dev/sdk';
@@ -11,7 +11,7 @@ import { NodeAuthProvider } from '@rool-dev/sdk/node';
 import type { Environment } from '../manifest.js';
 import { ENV_URLS } from '../manifest.js';
 import { readManifestOrExit, formatBytes } from './vite-utils.js';
-import { buildApp, zipProject } from './build-pipeline.js';
+import { buildExtension, zipProject } from './build-pipeline.js';
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -46,7 +46,7 @@ export async function publish() {
   const manifest = readManifestOrExit(cwd);
 
   console.log(`\n  Building ${manifest.name}...\n`);
-  const { totalSize } = await buildApp(cwd, manifest);
+  const { totalSize } = await buildExtension(cwd, manifest);
   const zipBuffer = await zipProject(cwd);
   console.log(`\n  Build complete — ${formatBytes(totalSize)}`);
   console.log(`  Bundle: ${formatBytes(zipBuffer.length)}\n`);
@@ -61,13 +61,13 @@ export async function publish() {
 
   if (!await client.isAuthenticated()) {
     console.log('  Opening browser to authenticate...');
-    await client.login('Rool App CLI');
+    await client.login('Rool Extension CLI');
   }
 
   // Publish
   console.log(`  Publishing ${manifest.id} to ${env}...`);
   const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
-  const result = await client.publishApp(manifest.id, {
+  const result = await client.publishExtension(manifest.id, {
     bundle: blob,
   });
 

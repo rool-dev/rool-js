@@ -3,7 +3,7 @@ import { VERSION, DEFAULT_ENV, type Environment } from './constants.js';
 import { registerChat } from './chat.js';
 import { registerMedia } from './media.js';
 import { registerSpace } from './space.js';
-import { registerApp } from './app.js';
+import { registerExtension } from './extension.js';
 import { registerUser } from './user.js';
 import { registerLogout } from './logout.js';
 
@@ -26,7 +26,7 @@ export function createProgram(): Command {
   registerChat(program);
   registerMedia(program);
   registerSpace(program);
-  registerApp(program);
+  registerExtension(program);
   registerUser(program);
   registerLogout(program);
 

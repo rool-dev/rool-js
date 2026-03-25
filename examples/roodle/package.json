@@ -4,12 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "rool-app dev"
+    "dev": "rool-extension dev"
   },
   "dependencies": {
     "@humanspeak/svelte-markdown": "^0.8.17",
     "@iconify/svelte": "^5.2.1",
-    "@rool-dev/app": "workspace:*"
+    "@rool-dev/extension": "workspace:*"
   },
   "devDependencies": {
     "svelte": "^5.54.0",

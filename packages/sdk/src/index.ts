@@ -45,11 +45,11 @@ export type {
   MediaInfo,
   MediaResponse,
 
-  // App publishing types
-  PublishAppOptions,
-  PublishedAppInfo,
-  AppManifest,
-  FindAppsOptions,
+  // Extension publishing types
+  PublishExtensionOptions,
+  PublishedExtensionInfo,
+  ExtensionManifest,
+  FindExtensionsOptions,
 
   // Schema types
   FieldType,

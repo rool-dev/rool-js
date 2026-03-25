@@ -26,9 +26,9 @@ importers:
       '@iconify/svelte':
         specifier: ^5.2.1
         version: 5.2.1(svelte@5.54.0)
-      '@rool-dev/app':
+      '@rool-dev/extension':
         specifier: workspace:*
-        version: link:../../packages/app
+        version: link:../../packages/extension
     devDependencies:
       svelte:
         specifier: ^5.54.0
@@ -42,9 +42,9 @@ importers:
       '@iconify/svelte':
         specifier: ^5.2.1
         version: 5.2.1(svelte@5.54.0)
-      '@rool-dev/app':
+      '@rool-dev/extension':
         specifier: workspace:*
-        version: link:../../packages/app
+        version: link:../../packages/extension
     devDependencies:
       svelte:
         specifier: ^5.54.0
@@ -61,9 +61,9 @@ importers:
       '@iconify/svelte':
         specifier: ^5.2.1
         version: 5.2.1(svelte@5.54.0)
-      '@rool-dev/app':
+      '@rool-dev/extension':
         specifier: workspace:*
-        version: link:../../packages/app
+        version: link:../../packages/extension
     devDependencies:
       svelte:
         specifier: ^5.54.0
@@ -74,9 +74,9 @@ importers:
 
   examples/snake:
     dependencies:
-      '@rool-dev/app':
+      '@rool-dev/extension':
         specifier: workspace:*
-        version: link:../../packages/app
+        version: link:../../packages/extension
     devDependencies:
       svelte:
         specifier: ^5.54.0
@@ -93,9 +93,9 @@ importers:
       '@iconify/svelte':
         specifier: ^5.2.1
         version: 5.2.1(svelte@5.54.0)
-      '@rool-dev/app':
+      '@rool-dev/extension':
         specifier: workspace:*
-        version: link:../../packages/app
+        version: link:../../packages/extension
     devDependencies:
       svelte:
         specifier: ^5.54.0
@@ -104,7 +104,38 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  packages/app:
+  packages/cli:
+    dependencies:
+      '@rool-dev/extension':
+        specifier: workspace:*
+        version: link:../extension
+      '@rool-dev/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      commander:
+        specifier: ^14.0.3
+        version: 14.0.3
+      marked:
+        specifier: ^15.0.12
+        version: 15.0.12
+      marked-terminal:
+        specifier: ^7.3.0
+        version: 7.3.0(marked@15.0.12)
+    devDependencies:
+      '@types/marked-terminal':
+        specifier: ^6.1.1
+        version: 6.1.1
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/extension:
     dependencies:
       '@rool-dev/sdk':
         specifier: workspace:*
@@ -143,37 +174,6 @@ importers:
       svelte-check:
         specifier: ^4.4.5
         version: 4.4.5(picomatch@4.0.3)(svelte@5.54.0)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/cli:
-    dependencies:
-      '@rool-dev/app':
-        specifier: workspace:*
-        version: link:../app
-      '@rool-dev/sdk':
-        specifier: workspace:*
-        version: link:../sdk
-      commander:
-        specifier: ^14.0.3
-        version: 14.0.3
-      marked:
-        specifier: ^15.0.12
-        version: 15.0.12
-      marked-terminal:
-        specifier: ^7.3.0
-        version: 7.3.0(marked@15.0.12)
-    devDependencies:
-      '@types/marked-terminal':
-        specifier: ^6.1.1
-        version: 6.1.1
-      '@types/node':
-        specifier: ^25.5.0
-        version: 25.5.0
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -4274,7 +4274,7 @@ snapshots:
 
   '@types/sax@1.2.7':
     dependencies:
-      '@types/node': 24.12.0
+      '@types/node': 25.5.0
 
   '@types/trusted-types@2.0.7': {}
 

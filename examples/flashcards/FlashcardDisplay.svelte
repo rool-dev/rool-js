@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { RoolObject } from '@rool-dev/app';
+  import type { RoolObject } from '@rool-dev/extension';
 
   interface Card extends RoolObject {
     front: string;

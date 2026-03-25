@@ -2,7 +2,7 @@
 
 The TypeScript SDK for Rool, a persistent and collaborative environment for organizing objects.
 
-> **Building a new Rool app?** Start with [`@rool-dev/app`](/app/) — it handles hosting, dev server, and gives you a reactive Svelte channel out of the box. This SDK is for advanced use cases: integrating Rool into an existing application, building Node.js scripts, or working outside the app sandbox.
+> **Building a new Rool extension?** Start with [`@rool-dev/extension`](/extension/) — it handles hosting, dev server, and gives you a reactive Svelte channel out of the box. This SDK is for advanced use cases: integrating Rool into an existing application, building Node.js scripts, or working outside the extension sandbox.
 
 The SDK manages authentication, real-time synchronization, and media storage. Core primitives:
 
@@ -587,18 +587,18 @@ client.on('userStorageChanged', ({ key, value, source }) => {
 });
 ```
 
-### Apps
+### Extensions
 
-Publish, manage, and discover apps. See [`@rool-dev/app`](/app/) for building apps.
+Publish, manage, and discover extensions. See [`@rool-dev/extension`](/extension/) for building extensions.
 
 | Method | Description |
 |--------|-------------|
-| `publishApp(appId, options): Promise<PublishedAppInfo>` | Publish or update an app (`options.bundle`: zip with `index.html` and `rool-app.json`) |
-| `unpublishApp(appId): Promise<void>` | Unpublish an app |
-| `listApps(): Promise<PublishedAppInfo[]>` | List your own published apps |
-| `getAppInfo(appId): Promise<PublishedAppInfo \| null>` | Get info for a specific app |
-| `findApps(options?): Promise<PublishedAppInfo[]>` | Search public apps. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
-| `installApp(spaceId, appId, channelId?): Promise<string>` | Install an app into a space. Creates/updates a channel with the app's manifest settings (name, system instruction, collections). Returns the channel ID. Defaults `channelId` to `appId`. |
+| `publishExtension(extensionId, options): Promise<PublishedExtensionInfo>` | Publish or update an extension (`options.bundle`: zip with `index.html` and `manifest.json`) |
+| `unpublishExtension(extensionId): Promise<void>` | Unpublish an extension |
+| `listExtensions(): Promise<PublishedExtensionInfo[]>` | List your own published extensions |
+| `getExtensionInfo(extensionId): Promise<PublishedExtensionInfo \| null>` | Get info for a specific extension |
+| `findExtensions(options?): Promise<PublishedExtensionInfo[]>` | Search public extensions. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
+| `installExtension(spaceId, extensionId, channelId?): Promise<string>` | Install an extension into a space. Creates/updates a channel with the extension's manifest settings (name, system instruction, collections). Returns the channel ID. Defaults `channelId` to `extensionId`. |
 
 ### Utilities
 
@@ -680,7 +680,7 @@ A channel is a named context within a space. All object operations, AI prompts, 
 | `userId: string` | Current user's ID |
 | `channelId: string` | Channel ID (read-only, fixed at open time) |
 | `isReadOnly: boolean` | True if viewer role |
-| `appUrl: string \| null` | URL of the installed app, or null if this is a plain channel |
+| `extensionUrl: string \| null` | URL of the installed extension, or null if this is a plain channel |
 
 ### Lifecycle
 
@@ -922,7 +922,7 @@ channel.on('metadataUpdated', ({ metadata, source }) => void)
 // Collection schema changed
 channel.on('schemaUpdated', ({ schema, source }) => void)
 
-// Channel metadata updated (name, appUrl)
+// Channel metadata updated (name, extensionUrl)
 channel.on('channelUpdated', ({ channelId, source }) => void)
 
 // Conversation interaction history updated
@@ -1055,7 +1055,7 @@ interface Channel {
   createdAt: number;            // Timestamp when channel was created
   createdBy: string;            // User ID who created the channel
   createdByName?: string;       // Display name at time of creation
-  appUrl?: string;              // URL of installed app (set by installApp)
+  extensionUrl?: string;        // URL of installed extension (set by installExtension)
   conversations: Record<string, Conversation>;  // Keyed by conversation ID
 }
 
@@ -1067,7 +1067,7 @@ interface ChannelInfo {
   createdBy: string;
   createdByName: string | null;
   interactionCount: number;
-  appUrl: string | null;        // URL of installed app, or null
+  extensionUrl: string | null;  // URL of installed extension, or null
 }
 ```
 

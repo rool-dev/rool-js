@@ -1,8 +1,8 @@
 /**
- * App build pipeline.
+ * Extension build pipeline.
  *
- * Runs a Vite production build for a Rool app project, producing a ready-to-deploy
- * dist/ directory with index.html, compiled assets, and rool-app.json.
+ * Runs a Vite production build for a Rool extension project, producing a ready-to-deploy
+ * dist/ directory with index.html, compiled assets, and manifest.json.
  */
 
 import { build } from 'vite';
@@ -12,7 +12,7 @@ import { existsSync, readdirSync, statSync, copyFileSync, writeFileSync } from '
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import archiver from 'archiver';
-import type { AppManifest } from '../manifest.js';
+import type { Manifest } from '../manifest.js';
 import { getSvelteAliases } from './vite-utils.js';
 
 // ---------------------------------------------------------------------------
@@ -25,11 +25,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Vite build plugin (production version of the dev virtual entry)
 // ---------------------------------------------------------------------------
 
-function roolAppBuildPlugin(root: string, tailwindCssPath: string): import('vite').Plugin {
-  const VIRTUAL_ENTRY = 'virtual:rool-app-entry';
+function roolExtensionBuildPlugin(root: string, tailwindCssPath: string): import('vite').Plugin {
+  const VIRTUAL_ENTRY = 'virtual:rool-extension-entry';
   const RESOLVED_ENTRY = '\0' + VIRTUAL_ENTRY;
 
-  const VIRTUAL_CSS = 'virtual:rool-app-tailwind.css';
+  const VIRTUAL_CSS = 'virtual:rool-extension-tailwind.css';
   const RESOLVED_CSS = '\0' + VIRTUAL_CSS;
 
   const appPath = resolve(root, 'App.svelte');
@@ -37,7 +37,7 @@ function roolAppBuildPlugin(root: string, tailwindCssPath: string): import('vite
   const hasCss = existsSync(cssPath);
 
   return {
-    name: 'rool-app-build',
+    name: 'rool-extension-build',
     resolveId(id) {
       if (id === VIRTUAL_ENTRY) return RESOLVED_ENTRY;
       if (id === VIRTUAL_CSS) return RESOLVED_CSS;
@@ -47,14 +47,14 @@ function roolAppBuildPlugin(root: string, tailwindCssPath: string): import('vite
       if (id === RESOLVED_CSS) return `@import "${tailwindCssPath}";`;
       if (id !== RESOLVED_ENTRY) return;
       return [
-        `import { initApp } from '@rool-dev/app';`,
+        `import { initExtension } from '@rool-dev/extension';`,
         `import { mount } from 'svelte';`,
         `import App from '${appPath}';`,
         `import '${VIRTUAL_CSS}';`,
         hasCss ? `import '${cssPath}';` : ``,
         ``,
         `async function main() {`,
-        `  const channel = await initApp();`,
+        `  const channel = await initExtension();`,
         `  mount(App, {`,
         `    target: document.getElementById('app'),`,
         `    props: { channel },`,
@@ -63,7 +63,7 @@ function roolAppBuildPlugin(root: string, tailwindCssPath: string): import('vite
         ``,
         `main().catch((err) => {`,
         `  document.getElementById('app').innerHTML =`,
-        `    '<div style="padding:2rem;color:red"><h2>Failed to initialize app</h2><p>' + err.message + '</p></div>';`,
+        `    '<div style="padding:2rem;color:red"><h2>Failed to initialize extension</h2><p>' + err.message + '</p></div>';`,
         `});`,
       ].filter(Boolean).join('\n');
     },
@@ -75,13 +75,13 @@ function roolAppBuildPlugin(root: string, tailwindCssPath: string): import('vite
 // ---------------------------------------------------------------------------
 
 /**
- * Run a Vite production build for a Rool app.
- * Produces dist/ with compiled assets, index.html, and rool-app.json.
+ * Run a Vite production build for a Rool extension.
+ * Produces dist/ with compiled assets, index.html, and manifest.json.
  */
-export async function buildApp(cwd: string, manifest: AppManifest): Promise<{ outDir: string; totalSize: number }> {
+export async function buildExtension(cwd: string, manifest: Manifest): Promise<{ outDir: string; totalSize: number }> {
   const tailwindPkgDir = dirname(fileURLToPath(import.meta.resolve('tailwindcss/package.json')));
   const tailwindCssPath = resolve(tailwindPkgDir, 'index.css');
-  const appPkgPath = resolve(__dirname, '..');
+  const extensionPkgPath = resolve(__dirname, '..');
 
   const outDir = resolve(cwd, 'dist');
 
@@ -92,12 +92,12 @@ export async function buildApp(cwd: string, manifest: AppManifest): Promise<{ ou
       outDir,
       emptyOutDir: true,
       rolldownOptions: {
-        input: 'virtual:rool-app-entry',
+        input: 'virtual:rool-extension-entry',
       },
     },
     resolve: {
       alias: [
-        { find: '@rool-dev/app', replacement: appPkgPath },
+        { find: '@rool-dev/extension', replacement: extensionPkgPath },
         { find: /^tailwindcss$/, replacement: tailwindCssPath },
         ...getSvelteAliases(),
       ],
@@ -105,13 +105,13 @@ export async function buildApp(cwd: string, manifest: AppManifest): Promise<{ ou
     plugins: [
       tailwindcss(),
       svelte(),
-      roolAppBuildPlugin(cwd, tailwindCssPath),
+      roolExtensionBuildPlugin(cwd, tailwindCssPath),
     ],
     logLevel: 'warn',
   });
 
-  // Copy rool-app.json into dist
-  copyFileSync(resolve(cwd, 'rool-app.json'), resolve(outDir, 'rool-app.json'));
+  // Copy manifest.json into dist
+  copyFileSync(resolve(cwd, 'manifest.json'), resolve(outDir, 'manifest.json'));
 
   // Copy icon file into dist if specified
   if (manifest.icon) {

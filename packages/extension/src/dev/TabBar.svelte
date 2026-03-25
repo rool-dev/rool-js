@@ -1,17 +1,17 @@
 <script lang="ts">
-  import type { AppTab } from './DevHostController.js';
-  import type { PublishedAppInfo } from '@rool-dev/sdk';
+  import type { ExtensionTab } from './DevHostController.js';
+  import type { PublishedExtensionInfo } from '@rool-dev/sdk';
 
   interface Props {
-    tabs: AppTab[];
+    tabs: ExtensionTab[];
     activeTab: string;
-    uninstalledApps: PublishedAppInfo[];
+    uninstalledExtensions: PublishedExtensionInfo[];
     onSelectTab: (id: string) => void;
-    onRemoveApp: (id: string) => void;
-    onInstallApp: (appId: string) => void;
+    onRemoveExtension: (id: string) => void;
+    onInstallExtension: (extensionId: string) => void;
   }
 
-  let { tabs, activeTab, uninstalledApps, onSelectTab, onRemoveApp, onInstallApp }: Props = $props();
+  let { tabs, activeTab, uninstalledExtensions, onSelectTab, onRemoveExtension, onInstallExtension }: Props = $props();
 
   let addMenuOpen = $state(false);
 </script>
@@ -37,8 +37,8 @@
         <button
           class="ml-1 text-slate-400 hover:text-red-500 transition-colors p-0 border-none bg-transparent leading-none"
           type="button"
-          title="Uninstall app"
-          onclick={(e: MouseEvent) => { e.stopPropagation(); onRemoveApp(tab.id); }}
+          title="Uninstall extension"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); onRemoveExtension(tab.id); }}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
         </button>
@@ -46,28 +46,28 @@
     </div>
   {/each}
 
-  <!-- Add app button -->
-  {#if uninstalledApps.length > 0}
+  <!-- Add extension button -->
+  {#if uninstalledExtensions.length > 0}
     <div class="relative ml-1 mb-0.5" data-add-menu>
       <button
         class="px-2 py-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors border-none bg-transparent"
         type="button"
-        title="Install app"
+        title="Install extension"
         onclick={(e: MouseEvent) => { e.stopPropagation(); addMenuOpen = !addMenuOpen; }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
       </button>
       {#if addMenuOpen}
         <div class="absolute top-full mt-1 left-0 min-w-[200px] max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg z-50 py-1">
-          <div class="px-2.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Install App</div>
-          {#each uninstalledApps as app}
+          <div class="px-2.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Install Extension</div>
+          {#each uninstalledExtensions as ext}
             <button
               class="block w-full px-2.5 py-1.5 text-[13px] text-left truncate border-none cursor-pointer hover:bg-slate-100 text-slate-700 bg-transparent"
               type="button"
-              onclick={() => { addMenuOpen = false; onInstallApp(app.appId); }}
+              onclick={() => { addMenuOpen = false; onInstallExtension(ext.extensionId); }}
             >
-              <span class="font-medium">{app.manifest.name}</span>
-              <span class="text-[10px] text-slate-400 font-mono ml-1.5">{app.appId}</span>
+              <span class="font-medium">{ext.manifest.name}</span>
+              <span class="text-[10px] text-slate-400 font-mono ml-1.5">{ext.extensionId}</span>
             </button>
           {/each}
         </div>

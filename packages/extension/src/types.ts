@@ -1,8 +1,8 @@
 /**
- * Lightweight types for app-side code.
+ * Lightweight types for extension-side code.
  *
  * These mirror the SDK types but are defined locally so that
- * @rool-dev/app has zero runtime dependencies for apps.
+ * @rool-dev/extension has zero runtime dependencies for extensions.
  */
 
 // -- Objects ------------------------------------------------------------------
@@ -116,7 +116,7 @@ export interface ConversationInfo {
   interactionCount: number;
 }
 
-export interface AppChannelEvents {
+export interface ChannelEvents {
   objectCreated: { objectId: string; object: RoolObject; source: ChangeSource };
   objectUpdated: { objectId: string; object: RoolObject; source: ChangeSource };
   objectDeleted: { objectId: string; source: ChangeSource };

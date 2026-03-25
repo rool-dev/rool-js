@@ -7,7 +7,7 @@ import { AuthManager } from './auth.js';
 import { GraphQLClient } from './graphql.js';
 import { ClientSubscriptionManager } from './subscription.js';
 import { MediaClient } from './media.js';
-import { AppsClient } from './apps.js';
+import { ExtensionsClient } from './apps.js';
 import { RoolChannel, generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
 import { defaultLogger, type Logger } from './logger.js';
@@ -22,16 +22,16 @@ import type {
   UserResult,
   AuthUser,
   ConnectionState,
-  PublishedAppInfo,
-  PublishAppOptions,
-  FindAppsOptions,
+  PublishedExtensionInfo,
+  PublishExtensionOptions,
+  FindExtensionsOptions,
 } from './types.js';
 
 type ResolvedUrls = {
   graphql: string;
   media: string;
   auth: string;
-  apps: string;
+  extensions: string;
 };
 
 /**
@@ -74,7 +74,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       graphql: config.graphqlUrl ?? `${this.baseUrl}/graphql`,
       media: config.mediaUrl ?? `${this.baseUrl}/media`,
       auth: config.authUrl ?? `${this.baseUrl}/auth`,
-      apps: `${this.baseUrl}/apps`,
+      extensions: `${this.baseUrl}/extensions`,
     };
 
     this.authManager = new AuthManager({
@@ -392,62 +392,62 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   // ===========================================================================
-  // App Publishing
+  // Extension Publishing
   // ===========================================================================
 
   /**
-   * Publish an app. The app will be accessible at:
-   * https://{appId}.rool.app/
+   * Publish an extension. The extension will be accessible at:
+   * https://{extensionId}.rool.app/
    *
-   * @param appId - URL-safe identifier (alphanumeric, hyphens, underscores; case-insensitive, lowercased by server)
-   * @param options - Bundle zip file (must include index.html and rool-app.json)
+   * @param extensionId - URL-safe identifier (alphanumeric, hyphens, underscores; case-insensitive, lowercased by server)
+   * @param options - Bundle zip file (must include index.html and manifest.json)
    */
-  async publishApp(appId: string, options: PublishAppOptions): Promise<PublishedAppInfo> {
-    return this.appsClient.publish(appId, options);
+  async publishExtension(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
+    return this.extensionsClient.publish(extensionId, options);
   }
 
   /**
-   * Unpublish an app.
+   * Unpublish an extension.
    */
-  async unpublishApp(appId: string): Promise<void> {
-    return this.appsClient.unpublish(appId);
+  async unpublishExtension(extensionId: string): Promise<void> {
+    return this.extensionsClient.unpublish(extensionId);
   }
 
   /**
-   * List all published apps for the current user.
+   * List all published extensions for the current user.
    */
-  async listApps(): Promise<PublishedAppInfo[]> {
-    return this.appsClient.list();
+  async listExtensions(): Promise<PublishedExtensionInfo[]> {
+    return this.extensionsClient.list();
   }
 
   /**
-   * Get info for a specific published app.
-   * Returns null if the app doesn't exist.
+   * Get info for a specific published extension.
+   * Returns null if the extension doesn't exist.
    */
-  async getAppInfo(appId: string): Promise<PublishedAppInfo | null> {
-    return this.appsClient.get(appId);
+  async getExtensionInfo(extensionId: string): Promise<PublishedExtensionInfo | null> {
+    return this.extensionsClient.get(extensionId);
   }
 
   /**
-   * Search for public apps. With a query, performs semantic search.
-   * Without a query, returns all public apps sorted by most recently updated.
+   * Search for public extensions. With a query, performs semantic search.
+   * Without a query, returns all public extensions sorted by most recently updated.
    */
-  async findApps(options?: FindAppsOptions): Promise<PublishedAppInfo[]> {
-    return this.graphqlClient.findApps(options);
+  async findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
+    return this.graphqlClient.findExtensions(options);
   }
 
   /**
-   * Install an app into a space.
-   * Creates (or updates) a channel with the app's name, URL, system instruction,
-   * and collections from the published app manifest.
+   * Install an extension into a space.
+   * Creates (or updates) a channel with the extension's name, URL, system instruction,
+   * and collections from the published extension manifest.
    *
-   * @param spaceId - The space to install the app into
-   * @param appId - The published app ID
-   * @param channelId - Channel ID for the app (defaults to appId)
+   * @param spaceId - The space to install the extension into
+   * @param extensionId - The published extension ID
+   * @param channelId - Channel ID for the extension (defaults to extensionId)
    * @returns The channel ID
    */
-  async installApp(spaceId: string, appId: string, channelId?: string): Promise<string> {
-    return this.graphqlClient.installApp(spaceId, appId, channelId ?? appId);
+  async installExtension(spaceId: string, extensionId: string, channelId?: string): Promise<string> {
+    return this.graphqlClient.installExtension(spaceId, extensionId, channelId ?? extensionId);
   }
 
   // ===========================================================================
@@ -509,12 +509,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   // ===========================================================================
-  // Apps Client (used for app publishing)
+  // Extensions Client (used for extension publishing)
   // ===========================================================================
 
-  private get appsClient(): AppsClient {
-    return new AppsClient({
-      appsUrl: this.urls.apps,
+  private get extensionsClient(): ExtensionsClient {
+    return new ExtensionsClient({
+      extensionsUrl: this.urls.extensions,
       authManager: this.authManager,
     });
   }
@@ -661,7 +661,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
           createdBy: event.channelCreatedBy ?? '',
           createdByName: event.channelCreatedByName ?? null,
           interactionCount: 0,
-          appUrl: event.channelAppUrl ?? null,
+          extensionUrl: event.channelExtensionUrl ?? null,
         });
         break;
 

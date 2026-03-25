@@ -1,10 +1,10 @@
 /**
- * @rool-dev/app/host — Host-side bridge for iframe-sandboxed apps.
+ * @rool-dev/extension/host — Host-side bridge for iframe-sandboxed extensions.
  *
  * The host creates a `BridgeHost` with a real `BridgeableChannel` and an iframe.
  * It handles the handshake, proxies method calls, and forwards events.
  *
- * Used by both the console's AppHost component and the local dev shell.
+ * Used by both the console's ExtensionHost component and the local dev shell.
  */
 
 import type { BridgeRequest, BridgeInit } from './protocol.js';
@@ -29,7 +29,7 @@ export interface BridgeableChannel {
   conversation(conversationId: string): unknown;
 }
 
-// Channel events to forward to the app
+// Channel events to forward to the extension
 const FORWARDED_EVENTS = [
   'objectCreated',
   'objectUpdated',
@@ -42,7 +42,7 @@ const FORWARDED_EVENTS = [
   'syncError',
 ] as const;
 
-// Channel methods the app can call.
+// Channel methods the extension can call.
 // Sync methods (getObjectIds, getSchema, etc.) are wrapped as async on the host side.
 const ALLOWED_METHODS = new Set([
   'getObject',
@@ -99,7 +99,7 @@ const CONVERSATION_METHOD_MAP: Record<string, string> = {
 export interface BridgeHostOptions {
   /** The real channel to proxy calls to */
   channel: BridgeableChannel;
-  /** The iframe element hosting the app */
+  /** The iframe element hosting the extension */
   iframe: HTMLIFrameElement;
 }
 
@@ -115,7 +115,7 @@ export class BridgeHost {
 
     window.addEventListener('message', this._onMessage);
 
-    // Forward channel events to the app iframe
+    // Forward channel events to the extension iframe
     for (const eventName of FORWARDED_EVENTS) {
       const handler = (data: unknown) => {
         this._postToApp({
@@ -177,7 +177,7 @@ export class BridgeHost {
       this._postToApp({
         type: 'rool:response',
         id,
-        error: `Method "${method}" is not available to apps`,
+        error: `Method "${method}" is not available to extensions`,
       });
       return;
     }

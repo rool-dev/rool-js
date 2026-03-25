@@ -1,7 +1,7 @@
 /**
- * App-side bridge client.
+ * Extension-side bridge client.
  *
- * `initApp()` waits for the host handshake, then returns an `AppChannel`
+ * `initExtension()` waits for the host handshake, then returns a `Channel`
  * that mirrors the RoolChannel API over postMessage.
  */
 
@@ -21,7 +21,7 @@ import type {
   UpdateObjectOptions,
   RoolUserRole,
   LinkAccess,
-  AppChannelEvents,
+  ChannelEvents,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -33,14 +33,14 @@ function nextRequestId(): string {
   return `req-${++_nextId}-${Date.now().toString(36)}`;
 }
 
-type EventName = keyof AppChannelEvents;
+type EventName = keyof ChannelEvents;
 type EventCallback = (...args: unknown[]) => void;
 
 // ---------------------------------------------------------------------------
-// AppChannel
+// Channel
 // ---------------------------------------------------------------------------
 
-export class AppChannel {
+export class Channel {
   private _pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   private _listeners = new Map<string, Set<EventCallback>>();
 
@@ -76,7 +76,7 @@ export class AppChannel {
   // Event emitter
   // ---------------------------------------------------------------------------
 
-  on<E extends EventName>(event: E, callback: (data: AppChannelEvents[E]) => void): void {
+  on<E extends EventName>(event: E, callback: (data: ChannelEvents[E]) => void): void {
     let set = this._listeners.get(event);
     if (!set) {
       set = new Set();
@@ -85,7 +85,7 @@ export class AppChannel {
     set.add(callback as EventCallback);
   }
 
-  off<E extends EventName>(event: E, callback: (data: AppChannelEvents[E]) => void): void {
+  off<E extends EventName>(event: E, callback: (data: ChannelEvents[E]) => void): void {
     this._listeners.get(event)?.delete(callback as EventCallback);
   }
 
@@ -96,7 +96,7 @@ export class AppChannel {
         try {
           cb(data);
         } catch (e) {
-          console.error(`[AppChannel] Error in ${event} listener:`, e);
+          console.error(`[Channel] Error in ${event} listener:`, e);
         }
       }
     }
@@ -112,7 +112,7 @@ export class AppChannel {
 
   /**
    * Send a bridge request, optionally scoped to a conversation.
-   * Used internally by AppChannel (no conversationId) and by AppConversationHandle.
+   * Used internally by Channel (no conversationId) and ConversationHandle.
    * @internal
    */
   _callScoped(method: string, args: unknown[], conversationId?: string): Promise<unknown> {
@@ -258,8 +258,8 @@ export class AppChannel {
    * Scopes AI and mutation operations to that conversation's interaction history.
    * Conversations are auto-created on first interaction.
    */
-  conversation(conversationId: string): AppConversationHandle {
-    return new AppConversationHandle(this, conversationId);
+  conversation(conversationId: string): ConversationHandle {
+    return new ConversationHandle(this, conversationId);
   }
 
   // Metadata
@@ -314,7 +314,7 @@ export class AppChannel {
   destroy(): void {
     window.removeEventListener('message', this._onMessage);
     for (const { reject } of this._pending.values()) {
-      reject(new Error('AppChannel destroyed'));
+      reject(new Error('Channel destroyed'));
     }
     this._pending.clear();
     this._listeners.clear();
@@ -322,11 +322,11 @@ export class AppChannel {
 }
 
 // ---------------------------------------------------------------------------
-// AppConversationHandle
+// ConversationHandle
 // ---------------------------------------------------------------------------
 
 /**
- * A conversation handle for the app bridge.
+ * A conversation handle for the extension bridge.
  * Mirrors the SDK's ConversationHandle API over postMessage.
  *
  * Scopes AI and mutation operations to a specific conversation's
@@ -334,12 +334,12 @@ export class AppChannel {
  *
  * Obtain via `channel.conversation('thread-id')`.
  */
-export class AppConversationHandle {
-  private _channel: AppChannel;
+export class ConversationHandle {
+  private _channel: Channel;
   private _conversationId: string;
 
   /** @internal */
-  constructor(channel: AppChannel, conversationId: string) {
+  constructor(channel: Channel, conversationId: string) {
     this._channel = channel;
     this._conversationId = conversationId;
   }
@@ -411,38 +411,38 @@ export class AppConversationHandle {
 }
 
 // ---------------------------------------------------------------------------
-// initApp
+// initExtension
 // ---------------------------------------------------------------------------
 
 /**
- * Initialize the app bridge. Call this once at startup.
+ * Initialize the extension bridge. Call this once at startup.
  *
  * Sends `rool:ready` to the host and waits for `rool:init` with channel metadata.
- * Returns an `AppChannel` that mirrors the RoolChannel API over postMessage.
+ * Returns a `Channel` that mirrors the RoolChannel API over postMessage.
  *
- * If the app is opened directly (not in an iframe), redirects to the Rool
- * console with `?openApp={appId}` so the user can install or navigate to it.
+ * If the extension is opened directly (not in an iframe), redirects to the Rool
+ * console with `?openExtension={extensionId}` so the user can install or navigate to it.
  *
  * @param timeout - How long to wait for the handshake (ms). Default: 10000.
  */
-export function initApp(timeout = 10000): Promise<AppChannel> {
+export function initExtension(timeout = 10000): Promise<Channel> {
   // Deep link: if not in an iframe, redirect to the Rool console
   if (window.self === window.top) {
     const host = window.location.hostname;
     const dot = host.indexOf('.');
     if (dot > 0) {
-      const appId = host.slice(0, dot);
+      const extensionId = host.slice(0, dot);
       const domain = host.slice(dot + 1);
-      window.location.href = `https://${domain}/?openApp=${appId}`;
+      window.location.href = `https://${domain}/?openExtension=${extensionId}`;
     }
     // Never resolve — the redirect will unload the page
-    return new Promise<AppChannel>(() => {});
+    return new Promise<Channel>(() => {});
   }
 
-  return new Promise<AppChannel>((resolve, reject) => {
+  return new Promise<Channel>((resolve, reject) => {
     const timer = setTimeout(() => {
       window.removeEventListener('message', onMessage);
-      reject(new Error('App handshake timed out — is this running inside a Rool host?'));
+      reject(new Error('Extension handshake timed out — is this running inside a Rool host?'));
     }, timeout);
 
     function onMessage(event: MessageEvent): void {
@@ -451,7 +451,7 @@ export function initApp(timeout = 10000): Promise<AppChannel> {
       clearTimeout(timer);
       window.removeEventListener('message', onMessage);
 
-      const channel = new AppChannel(event.data as BridgeInit);
+      const channel = new Channel(event.data as BridgeInit);
       resolve(channel);
     }
 

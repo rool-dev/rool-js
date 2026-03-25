@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { ReactiveAppChannel, ReactiveAppConversationHandle } from '@rool-dev/app';
+  import type { ReactiveChannel, ReactiveConversationHandle } from '@rool-dev/extension';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import EffortSelector, { type PromptEffort } from './EffortSelector.svelte';
 
   interface Props {
-    channel: ReactiveAppChannel;
+    channel: ReactiveChannel;
   }
 
   let { channel }: Props = $props();
@@ -15,7 +15,7 @@
   // ---------------------------------------------------------------------------
 
   let activeId = $state('default');
-  let activeHandle: ReactiveAppConversationHandle | null = $state(null);
+  let activeHandle: ReactiveConversationHandle | null = $state(null);
   let sidebarOpen = $state(false);
 
   // Create/cleanup reactive conversation handle when active ID changes

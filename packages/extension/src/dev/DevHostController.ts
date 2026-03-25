@@ -1,8 +1,8 @@
 /**
  * DevHostController — business logic for the dev host shell.
  *
- * Owns the RoolClient lifecycle, space management, channel-per-app management,
- * bridge hosting, and published app management. The Svelte component is a thin
+ * Owns the RoolClient lifecycle, space management, channel-per-extension management,
+ * bridge hosting, and published extension management. The Svelte component is a thin
  * view layer that reads this controller's state and calls its methods.
  *
  * The controller is self-sufficient: it manages the full lifecycle including
@@ -11,17 +11,17 @@
  */
 
 import { RoolClient } from '@rool-dev/sdk';
-import type { RoolSpaceInfo, RoolChannel, PublishedAppInfo } from '@rool-dev/sdk';
+import type { RoolSpaceInfo, RoolChannel, PublishedExtensionInfo } from '@rool-dev/sdk';
 import { createBridgeHost, type BridgeHost } from '../host.js';
-import type { AppManifest, Environment } from '../manifest.js';
+import type { Manifest, Environment } from '../manifest.js';
 import { ENV_URLS } from '../manifest.js';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface AppTab {
-  id: string;        // 'local' or the published app ID
+export interface ExtensionTab {
+  id: string;        // 'local' or the published extension ID
   name: string;
   url: string;
   isLocal: boolean;
@@ -51,8 +51,8 @@ function storageSet(key: string, value: string | null) {
 export class DevHostController {
   // --- Config (immutable after construction) ---
   readonly channelId: string;
-  readonly appUrl: string;
-  readonly manifest: AppManifest | null;
+  readonly extensionUrl: string;
+  readonly manifest: Manifest | null;
   readonly manifestError: string | null;
 
   // --- SDK client ---
@@ -65,8 +65,8 @@ export class DevHostController {
   statusState: StatusState = 'off';
   placeholderText: string | null = 'Authenticating...';
   env: Environment;
-  publishedApps: PublishedAppInfo[] = [];
-  installedAppIds: string[] = [];
+  publishedExtensions: PublishedExtensionInfo[] = [];
+  installedExtensionIds: string[] = [];
   sidebarCollapsed: boolean = false;
   publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = 'idle';
   publishMessage: string | null = null;
@@ -87,15 +87,15 @@ export class DevHostController {
   constructor(
     options: {
       channelId: string;
-      appUrl: string;
-      manifest: AppManifest | null;
+      extensionUrl: string;
+      manifest: Manifest | null;
       manifestError: string | null;
     },
     onChange: () => void,
     tick: () => Promise<void>,
   ) {
     this.channelId = options.channelId;
-    this.appUrl = options.appUrl;
+    this.extensionUrl = options.extensionUrl;
     this.manifest = options.manifest;
     this.manifestError = options.manifestError;
     this._onChange = onChange;
@@ -112,26 +112,26 @@ export class DevHostController {
   // Derived
   // ---------------------------------------------------------------------------
 
-  get tabs(): AppTab[] {
-    const localTab: AppTab = {
+  get tabs(): ExtensionTab[] {
+    const localTab: ExtensionTab = {
       id: 'local',
       name: this.manifest?.name ?? 'Local',
-      url: this.appUrl,
+      url: this.extensionUrl,
       isLocal: true,
     };
-    const appTabs: AppTab[] = this.installedAppIds
+    const extensionTabs: ExtensionTab[] = this.installedExtensionIds
       .map((id) => {
         const ch = this.channels[id];
-        if (!ch?.appUrl) return null;
+        if (!ch?.extensionUrl) return null;
         return {
           id,
           name: ch.channelName ?? id,
-          url: ch.appUrl,
+          url: ch.extensionUrl,
           isLocal: false,
-        } as AppTab;
+        } as ExtensionTab;
       })
-      .filter((t): t is AppTab => t !== null);
-    return [localTab, ...appTabs];
+      .filter((t): t is ExtensionTab => t !== null);
+    return [localTab, ...extensionTabs];
   }
 
   // ---------------------------------------------------------------------------
@@ -148,7 +148,7 @@ export class DevHostController {
       this.statusText = 'Authenticating...';
       this.statusState = 'loading';
       this._onChange();
-      this.client.login('App Dev Host');
+      this.client.login('Extension Dev Host');
       return;
     }
 
@@ -157,13 +157,13 @@ export class DevHostController {
     this.statusState = 'loading';
     this._onChange();
 
-    const [spaceList, appList] = await Promise.all([
+    const [spaceList, extensionList] = await Promise.all([
       this.client.listSpaces(),
-      this.client.listApps().catch(() => [] as PublishedAppInfo[]),
+      this.client.listExtensions().catch(() => [] as PublishedExtensionInfo[]),
     ]);
 
     this.spaces = spaceList;
-    this.publishedApps = appList;
+    this.publishedExtensions = extensionList;
 
     this.client.on('spaceAdded', (space) => {
       if (!this.spaces.some((s) => s.id === space.id)) {
@@ -192,7 +192,7 @@ export class DevHostController {
     if (savedSpace && this.spaces.some((s) => s.id === savedSpace)) {
       await this.selectSpace(savedSpace);
     } else {
-      this.placeholderText = 'Select a space to load the app';
+      this.placeholderText = 'Select a space to load the extension';
       this._onChange();
     }
   }
@@ -212,27 +212,27 @@ export class DevHostController {
     this._onChange();
 
     try {
-      // Open the local app's channel
+      // Open the local extension's channel
       const localChannel = await this.client.openChannel(spaceId, this.channelId);
       this.channels['local'] = localChannel;
 
       // Apply manifest settings to the local channel
       await this._syncManifest(localChannel, this.manifest);
 
-      // Discover installed apps: channels with an appUrl
+      // Discover installed extensions: channels with an extensionUrl
       const space = await this.client.openSpace(spaceId);
       const spaceChannels = space.getChannels();
-      this.installedAppIds = spaceChannels
-        .filter((ch) => ch.appUrl && ch.id !== this.channelId)
+      this.installedExtensionIds = spaceChannels
+        .filter((ch) => ch.extensionUrl && ch.id !== this.channelId)
         .map((ch) => ch.id);
 
-      // Open channels for each installed app (server already applied manifest)
-      for (const appId of this.installedAppIds) {
+      // Open channels for each installed extension (server already applied manifest)
+      for (const extId of this.installedExtensionIds) {
         try {
-          const ch = await this.client.openChannel(spaceId, appId);
-          this.channels[appId] = ch;
+          const ch = await this.client.openChannel(spaceId, extId);
+          this.channels[extId] = ch;
         } catch (e) {
-          console.error(`Failed to open channel for app ${appId}:`, e);
+          console.error(`Failed to open channel for extension ${extId}:`, e);
         }
       }
 
@@ -256,53 +256,53 @@ export class DevHostController {
   }
 
   // ---------------------------------------------------------------------------
-  // App installation / removal
+  // Extension installation / removal
   // ---------------------------------------------------------------------------
 
   /**
-   * Install an app in the current space.
+   * Install an extension in the current space.
    *
    * Opens the channel first, THEN adds the tab. This ensures the channel
    * exists when the iframe mounts so registerIframe → _bindBridge can
-   * connect the bridge before the app sends its init message.
+   * connect the bridge before the extension sends its init message.
    */
-  async installApp(appId: string): Promise<void> {
+  async installExtension(extensionId: string): Promise<void> {
     if (!this.currentSpaceId) return;
-    if (this.installedAppIds.includes(appId)) return;
+    if (this.installedExtensionIds.includes(extensionId)) return;
 
     try {
-      // Step 1: install app (server applies manifest: name, systemInstruction, collections)
-      const channelId = await this.client.installApp(this.currentSpaceId, appId);
+      // Step 1: install extension (server applies manifest: name, systemInstruction, collections)
+      const channelId = await this.client.installExtension(this.currentSpaceId, extensionId);
 
       // Step 2: open channel for live subscription
       const ch = await this.client.openChannel(this.currentSpaceId, channelId);
-      this.channels[appId] = ch;
+      this.channels[extensionId] = ch;
 
       // Step 3: add the card, flush DOM, bind bridge
-      this.installedAppIds = [...this.installedAppIds, appId];
+      this.installedExtensionIds = [...this.installedExtensionIds, extensionId];
       this._onChange();
       await this._tick();
-      this._bindBridge(appId);
+      this._bindBridge(extensionId);
     } catch (e) {
-      console.error(`Failed to install app ${appId}:`, e);
-      this.installedAppIds = this.installedAppIds.filter((id) => id !== appId);
+      console.error(`Failed to install extension ${extensionId}:`, e);
+      this.installedExtensionIds = this.installedExtensionIds.filter((id) => id !== extensionId);
       this._onChange();
     }
   }
 
   /**
-   * Uninstall an app from the current space.
+   * Uninstall an extension from the current space.
    * Deletes the channel and removes the card.
    */
-  removeApp(appId: string): void {
-    this._destroyTab(appId);
-    this.installedAppIds = this.installedAppIds.filter((id) => id !== appId);
+  removeExtension(extensionId: string): void {
+    this._destroyTab(extensionId);
+    this.installedExtensionIds = this.installedExtensionIds.filter((id) => id !== extensionId);
     this._onChange();
 
     // Delete the channel in the background (fire-and-forget)
     if (this.currentSpaceId) {
-      this.client.deleteChannel(this.currentSpaceId, appId).catch((e) => {
-        console.error(`Failed to delete channel for app ${appId}:`, e);
+      this.client.deleteChannel(this.currentSpaceId, extensionId).catch((e) => {
+        console.error(`Failed to delete channel for extension ${extensionId}:`, e);
       });
     }
   }
@@ -338,20 +338,20 @@ export class DevHostController {
       this.publishState = 'uploading';
       this._onChange();
 
-      const result = await this.client.publishApp(this.manifest.id, {
+      const result = await this.client.publishExtension(this.manifest.id, {
         bundle: zipBlob,
       });
 
-      // Step 3: update published apps list
-      const existingIdx = this.publishedApps.findIndex((a) => a.appId === result.appId);
+      // Step 3: update published extensions list
+      const existingIdx = this.publishedExtensions.findIndex((a) => a.extensionId === result.extensionId);
       if (existingIdx >= 0) {
-        this.publishedApps = [
-          ...this.publishedApps.slice(0, existingIdx),
+        this.publishedExtensions = [
+          ...this.publishedExtensions.slice(0, existingIdx),
           result,
-          ...this.publishedApps.slice(existingIdx + 1),
+          ...this.publishedExtensions.slice(existingIdx + 1),
         ];
       } else {
-        this.publishedApps = [...this.publishedApps, result];
+        this.publishedExtensions = [...this.publishedExtensions, result];
       }
 
       this.publishState = 'done';
@@ -384,8 +384,8 @@ export class DevHostController {
     this._destroyAllBridgesAndChannels();
     this.currentSpaceId = null;
     this.spaces = [];
-    this.publishedApps = [];
-    this.installedAppIds = [];
+    this.publishedExtensions = [];
+    this.installedExtensionIds = [];
     this._onChange();
     await this.boot();
   }
@@ -462,9 +462,9 @@ export class DevHostController {
 
   /**
    * Idempotently sync a manifest's settings (name, system instruction, collections)
-   * onto a channel. Safe to call every time the app is opened.
+   * onto a channel. Safe to call every time the extension is opened.
    */
-  private async _syncManifest(channel: RoolChannel, manifest: AppManifest | null): Promise<void> {
+  private async _syncManifest(channel: RoolChannel, manifest: Manifest | null): Promise<void> {
     if (!manifest) return;
 
     if (channel.channelName !== manifest.name) {

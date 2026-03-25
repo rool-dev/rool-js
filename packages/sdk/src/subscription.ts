@@ -238,7 +238,7 @@ export class ClientSubscriptionManager {
           channelCreatedAt: raw.createdAt as number | undefined,
           channelCreatedBy: raw.createdBy as string | undefined,
           channelCreatedByName: raw.createdByName as string | undefined,
-          channelAppUrl: raw.appUrl as string | undefined,
+          channelExtensionUrl: raw.extensionUrl as string | undefined,
         };
       case 'channel_renamed':
         return { type, timestamp, spaceId: raw.spaceId as string, channelId: raw.channelId as string, name: raw.name as string };
@@ -506,7 +506,7 @@ export class ChannelSubscriptionManager {
       case 'metadata_updated':
         return { type, spaceId, timestamp, source, metadata: raw.metadata as Record<string, unknown> };
       case 'channel_updated':
-        return { type, spaceId, timestamp, source, channelId: raw.channelId as string, channel: raw.channel as Channel };
+        return { type, spaceId, timestamp, source, channelId: raw.channelId as string, channel: raw.channel as Channel | undefined };
       case 'conversation_updated':
         return { type, spaceId, timestamp, source, channelId: raw.channelId as string, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
       case 'channel_deleted':

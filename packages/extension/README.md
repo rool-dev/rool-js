@@ -1,38 +1,38 @@
-# Rool App
+# Rool Extension
 
-An app is an extension that adds features to a Rool Space. Apps are Svelte 5 components hosted in sandboxed iframes, communicating with the host via a postMessage bridge. Each app gets a reactive channel as its interface to the Space's objects, schema, AI, and real-time events.
+An extension is a feature package that adds capabilities to a Rool Space. Extensions are Svelte 5 components hosted in sandboxed iframes, communicating with the host via a postMessage bridge. Each extension gets a reactive channel as its interface to the Space's objects, schema, AI, and real-time events.
 
-Developers build apps to create custom experiences on top of a Space — productivity tools, dashboards, data views, games, or anything else. Multiple apps can be installed into the same Space, letting users and teams assemble an AI-powered interface that fits exactly how they work.
+Developers build extensions to create custom experiences on top of a Space — productivity tools, dashboards, data views, games, or anything else. Multiple extensions can be installed into the same Space, letting users and teams assemble an AI-powered interface that fits exactly how they work.
 
-An app project is just two files:
+An extension project is just two files:
 
 - **`App.svelte`** — Your UI component (receives a reactive channel as a prop)
-- **`rool-app.json`** — Manifest with id, name, icon, visibility, and collection access
+- **`manifest.json`** — Manifest with id, name, icon, visibility, and collection access
 
 Everything else (Vite config, entry point, HTML, Tailwind CSS) is provided by the CLI.
 
 ## Quick Start
 
 ```bash
-npx rool-app init my-app
-cd my-app
+npx rool-extension init my-extension
+cd my-extension
 pnpm install
-npx rool-app dev
+npx rool-extension dev
 ```
 
-This opens a dev host at `/__rool-host/` that loads your app in a sandboxed iframe, connected to a real Rool Space.
+This opens a dev host at `/__rool-host/` that loads your extension in a sandboxed iframe, connected to a real Rool Space.
 
 ## Manifest
 
-`rool-app.json` declares your app's identity and collection access:
+`manifest.json` declares your extension's identity and collection access:
 
 ```json
 {
-  "id": "my-app",
-  "name": "My App",
+  "id": "my-extension",
+  "name": "My Extension",
   "public": false,
   "icon": "icon.png",
-  "description": "What this app does",
+  "description": "What this extension does",
   "collections": {
     "write": {
       "task": [
@@ -50,7 +50,7 @@ This opens a dev host at `/__rool-host/` that loads your app in a sandboxed ifra
 |-------|----------|-------------|
 | `id` | Yes | Unique identifier (lowercase, hyphens) |
 | `name` | Yes | Display name |
-| `public` | Yes | Whether the app is listed in the public app directory |
+| `public` | Yes | Whether the extension is listed in the public extension directory |
 | `icon` | No | Path to an icon image file relative to the project root (e.g. `"icon.png"`) |
 | `description` | No | Short description |
 | `collections` | Yes | Collection access declarations — can be `{}` (see below) |
@@ -58,15 +58,15 @@ This opens a dev host at `/__rool-host/` that loads your app in a sandboxed ifra
 
 ### Collection Access
 
-The `collections` field declares what collections the app works with, grouped by access level:
+The `collections` field declares what collections the extension works with, grouped by access level:
 
-- **`write`** — Collections the app can create, update, and delete objects in. An object with field definitions creates the collection in the space. `"*"` grants write access to all collections.
-- **`read`** — Collections the app can read from. An object with field definitions declares the expected shape. `"*"` grants read access to all collections.
+- **`write`** — Collections the extension can create, update, and delete objects in. An object with field definitions creates the collection in the space. `"*"` grants write access to all collections.
+- **`read`** — Collections the extension can read from. An object with field definitions declares the expected shape. `"*"` grants read access to all collections.
 
 `write` implies `read` — no need to list a collection under both.
 
 ```json
-// App with its own collections + read access to everything else
+// Extension with its own collections + read access to everything else
 "collections": {
   "write": {
     "card": [
@@ -88,16 +88,16 @@ The `collections` field declares what collections the app works with, grouped by
 }
 ```
 
-## App Component
+## Extension Component
 
-`App.svelte` receives a single prop — a `ReactiveAppChannel`:
+App.svelte receives a single prop — a `ReactiveChannel`:
 
 ```svelte
 <script lang="ts">
-  import type { ReactiveAppChannel } from '@rool-dev/app';
+  import type { ReactiveChannel } from '@rool-dev/extension';
 
   interface Props {
-    channel: ReactiveAppChannel;
+    channel: ReactiveChannel;
   }
 
   let { channel }: Props = $props();
@@ -114,13 +114,13 @@ The component can import other `.svelte` components and `.ts` files — standard
 
 ### Example: Task List
 
-A complete app that lets users add tasks, mark them done, and ask the AI to generate tasks from a description. The `watch` primitive keeps the list in sync with the Space in real-time.
+A complete extension that lets users add tasks, mark them done, and ask the AI to generate tasks from a description. The `watch` primitive keeps the list in sync with the Space in real-time.
 
 ```svelte
 <script lang="ts">
-  import type { ReactiveAppChannel } from '@rool-dev/app';
+  import type { ReactiveChannel } from '@rool-dev/extension';
 
-  interface Props { channel: ReactiveAppChannel }
+  interface Props { channel: ReactiveChannel }
   let { channel }: Props = $props();
 
   const tasks = channel.watch({ collection: 'task' });
@@ -156,11 +156,11 @@ A complete app that lets users add tasks, mark them done, and ask the AI to gene
 {/each}
 ```
 
-This example covers the main patterns you'll use in most apps: `watch` for a live query, `createObject` for direct mutations, `updateObject` for edits, and `prompt` to let the AI create or modify objects on the user's behalf.
+This example covers the main patterns you'll use in most extensions: `watch` for a live query, `createObject` for direct mutations, `updateObject` for edits, and `prompt` to let the AI create or modify objects on the user's behalf.
 
-## ReactiveAppChannel
+## ReactiveChannel
 
-The channel is the app's interface to the host Space — objects, schema, AI, metadata, undo/redo, and real-time events.
+The channel is the extension's interface to the host Space — objects, schema, AI, metadata, undo/redo, and real-time events.
 
 ### Reactive State
 
@@ -314,7 +314,7 @@ await channel.renameConversation('Research')
 
 ### Conversation Handles
 
-For apps that need multiple independent interaction threads (e.g., chat with multiple threads), use `channel.conversation()` to get a reactive handle scoped to a specific conversation:
+For extensions that need multiple independent interaction threads (e.g., chat with multiple threads), use `channel.conversation()` to get a reactive handle scoped to a specific conversation:
 
 ```svelte
 <script>
@@ -405,29 +405,29 @@ Methods: `object.refresh()`, `object.close()`.
 
 ## Hosting
 
-Apps run in a sandboxed iframe (`allow-scripts allow-same-origin`). The host creates the iframe, establishes a postMessage bridge, and proxies all channel operations to a real Rool Space. The app never authenticates directly — the host handles auth and forwards operations.
+Extensions run in a sandboxed iframe (`allow-scripts allow-same-origin`). The host creates the iframe, establishes a postMessage bridge, and proxies all channel operations to a real Rool Space. The extension never authenticates directly — the host handles auth and forwards operations.
 
 The bridge protocol:
-1. App sends `rool:ready`
+1. Extension sends `rool:ready`
 2. Host responds with `rool:init` (channel metadata, schema, space info)
-3. App calls channel methods → `rool:request` → host executes → `rool:response`
-4. Host pushes real-time events → `rool:event` → app updates reactive state
+3. Extension calls channel methods → `rool:request` → host executes → `rool:response`
+4. Host pushes real-time events → `rool:event` → extension updates reactive state
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `rool-app init [name]` | Scaffold a new app project |
-| `rool-app dev` | Start the dev server with host shell |
-| `rool-app build` | Build the app |
-| `rool-app publish` | Build and publish the app |
+| `rool-extension init [name]` | Scaffold a new extension project |
+| `rool-extension dev` | Start the dev server with host shell |
+| `rool-extension build` | Build the extension |
+| `rool-extension publish` | Build and publish the extension |
 
 ## Exported Types
 
 ```typescript
 import type {
-  ReactiveAppChannel,
-  ReactiveAppConversationHandle,
+  ReactiveChannel,
+  ReactiveConversationHandle,
   ReactiveObject,
   ReactiveWatch,
   WatchOptions,
@@ -449,8 +449,8 @@ import type {
   ChangeSource,
   RoolUserRole,
   LinkAccess,
-  AppChannelEvents,
-} from '@rool-dev/app';
+  ChannelEvents,
+} from '@rool-dev/extension';
 ```
 
 ## License

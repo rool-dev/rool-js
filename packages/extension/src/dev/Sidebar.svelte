@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { DevHostController } from './DevHostController.js';
   import type { RoolSpaceInfo } from '@rool-dev/sdk';
-  import type { AppManifest, Environment } from '../manifest.js';
+  import type { Manifest, Environment } from '../manifest.js';
   import { ENV_URLS } from '../manifest.js';
 
   interface Props {
     controller: DevHostController;
     // Reactive copies from the controller (Svelte $state)
-    manifest: AppManifest | null;
+    manifest: Manifest | null;
     manifestError: string | null;
     spaces: RoolSpaceInfo[];
     currentSpaceId: string | null;
