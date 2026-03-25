@@ -269,6 +269,9 @@ class ReactiveConversationHandleImpl {
 
   // Conversation history
   getInteractions() { return this.#handle.getInteractions(); }
+  getTree() { return this.#handle.getTree(); }
+  get activeLeafId() { return this.#handle.activeLeafId; }
+  setActiveLeaf(interactionId: string) { this.#handle.setActiveLeaf(interactionId); }
   getSystemInstruction() { return this.#handle.getSystemInstruction(); }
   setSystemInstruction(...args: Parameters<ConversationHandle['setSystemInstruction']>) { return this.#handle.setSystemInstruction(...args); }
   rename(...args: Parameters<ConversationHandle['rename']>) { return this.#handle.rename(...args); }
@@ -409,6 +412,9 @@ class ReactiveChannelImpl {
 
   // Channel history
   getInteractions() { return this.#channel.getInteractions(); }
+  getTree() { return this.#channel.getTree(); }
+  get activeLeafId() { return this.#channel.activeLeafId; }
+  setActiveLeaf(interactionId: string) { this.#channel.setActiveLeaf(interactionId); }
   getSystemInstruction() { return this.#channel.getSystemInstruction(); }
   setSystemInstruction(...args: Parameters<RoolChannel['setSystemInstruction']>) { return this.#channel.setSystemInstruction(...args); }
   getConversations() { return this.#channel.getConversations(); }

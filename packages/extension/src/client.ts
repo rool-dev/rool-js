@@ -231,6 +231,18 @@ export class Channel {
     return this._call('getInteractions') as Promise<Interaction[]>;
   }
 
+  async getTree(): Promise<Record<string, Interaction>> {
+    return this._call('getTree') as Promise<Record<string, Interaction>>;
+  }
+
+  async getActiveLeafId(): Promise<string | undefined> {
+    return this._call('getActiveLeafId') as Promise<string | undefined>;
+  }
+
+  async setActiveLeaf(interactionId: string): Promise<void> {
+    await this._call('setActiveLeaf', interactionId);
+  }
+
   async getSystemInstruction(): Promise<string | undefined> {
     return this._call('getSystemInstruction') as Promise<string | undefined>;
   }
@@ -351,6 +363,18 @@ export class ConversationHandle {
 
   async getInteractions(): Promise<Interaction[]> {
     return this._channel._callScoped('getInteractions', [], this._conversationId) as Promise<Interaction[]>;
+  }
+
+  async getTree(): Promise<Record<string, Interaction>> {
+    return this._channel._callScoped('getTree', [], this._conversationId) as Promise<Record<string, Interaction>>;
+  }
+
+  async getActiveLeafId(): Promise<string | undefined> {
+    return this._channel._callScoped('getActiveLeafId', [], this._conversationId) as Promise<string | undefined>;
+  }
+
+  async setActiveLeaf(interactionId: string): Promise<void> {
+    await this._channel._callScoped('setActiveLeaf', [interactionId], this._conversationId);
   }
 
   async getSystemInstruction(): Promise<string | undefined> {

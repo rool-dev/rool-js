@@ -295,6 +295,9 @@ class ReactiveChannelImpl {
 
   // History
   getInteractions() { return this.#channel.getInteractions(); }
+  getTree() { return this.#channel.getTree(); }
+  getActiveLeafId() { return this.#channel.getActiveLeafId(); }
+  setActiveLeaf(interactionId: string) { return this.#channel.setActiveLeaf(interactionId); }
   getSystemInstruction() { return this.#channel.getSystemInstruction(); }
   setSystemInstruction(instruction: string | null) { return this.#channel.setSystemInstruction(instruction); }
   getConversations() { return this.#channel.getConversations(); }
@@ -388,6 +391,9 @@ class ReactiveConversationHandleImpl {
 
   // Conversation history
   getInteractions() { return this.#handle.getInteractions(); }
+  getTree() { return this.#handle.getTree(); }
+  getActiveLeafId() { return this.#handle.getActiveLeafId(); }
+  setActiveLeaf(interactionId: string) { return this.#handle.setActiveLeaf(interactionId); }
   getSystemInstruction() { return this.#handle.getSystemInstruction(); }
   setSystemInstruction(instruction: string | null) { return this.#handle.setSystemInstruction(instruction); }
   rename(name: string) { return this.#handle.rename(name); }

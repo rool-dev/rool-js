@@ -90,6 +90,8 @@ export type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
  */
 export interface Interaction {
   id: string;
+  /** Parent interaction in the conversation tree. null = root message. */
+  parentId: string | null;
   timestamp: number;
   userId: string;
   userName?: string | null;  // Display name at time of interaction
@@ -112,7 +114,7 @@ export interface Conversation {
   systemInstruction?: string;
   createdAt: number;
   createdBy: string;
-  interactions: Interaction[];
+  interactions: Record<string, Interaction>;
 }
 
 /**
@@ -303,6 +305,8 @@ export interface PromptOptions {
   responseSchema?: Record<string, unknown>;
   /** Effort level for the AI operation. Defaults to 'STANDARD'. */
   effort?: PromptEffort;
+  /** Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. Pass null to start a new root-level branch. */
+  parentInteractionId?: string | null;
   /** If true, the prompt won't be recorded in interaction history. Useful for transient operations like tab completion. */
   ephemeral?: boolean;
   /** If true, mutation tools (create, update, delete) are disabled. Defaults to false. */

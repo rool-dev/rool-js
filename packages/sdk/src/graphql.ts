@@ -563,8 +563,8 @@ export class GraphQLClient {
     options: Omit<PromptOptions, 'attachments'> & { attachmentUrls?: string[]; interactionId: string }
   ): Promise<{ message: string; modifiedObjectIds: string[] }> {
     const mutation = `
-      mutation Prompt($spaceId: String!, $prompt: String!, $objectIds: [String!], $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort, $ephemeral: Boolean, $readOnly: Boolean, $attachments: [String!], $interactionId: String!) {
-        prompt(spaceId: $spaceId, prompt: $prompt, objectIds: $objectIds, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId) {
+      mutation Prompt($spaceId: String!, $prompt: String!, $objectIds: [String!], $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort, $ephemeral: Boolean, $readOnly: Boolean, $attachments: [String!], $interactionId: String!, $parentInteractionId: String) {
+        prompt(spaceId: $spaceId, prompt: $prompt, objectIds: $objectIds, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId, parentInteractionId: $parentInteractionId) {
           message
           modifiedObjectIds
         }
@@ -584,6 +584,7 @@ export class GraphQLClient {
       readOnly: options.readOnly,
       attachments: options.attachmentUrls,
       interactionId: options.interactionId,
+      parentInteractionId: options.parentInteractionId,
     });
     return response.prompt;
   }

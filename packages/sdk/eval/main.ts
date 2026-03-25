@@ -20,6 +20,7 @@ import { testCase as findImages } from './cases/find-images.js';
 import { testCase as companyLookup } from './cases/company-lookup.js';
 import { testCase as mathTest } from './cases/math-test.js';
 import { testCase as quickstart } from './cases/quickstart.js';
+import { testCase as branchingConversation } from './cases/branching-conversation.js';
 
 // Register all test cases
 const cases: Record<string, TestCase> = {
@@ -39,6 +40,7 @@ const cases: Record<string, TestCase> = {
   'company-lookup': companyLookup,
   'math-test': mathTest,
   'quickstart': quickstart,
+  'branching-conversation': branchingConversation,
 };
 
 // Parse CLI arguments

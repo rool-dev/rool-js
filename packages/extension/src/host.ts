@@ -57,6 +57,9 @@ const ALLOWED_METHODS = new Set([
   'alterCollection',
   'dropCollection',
   'getInteractions',
+  'getTree',
+  'setActiveLeaf',
+  'getActiveLeafId',
   'getConversations',
   'getSystemInstruction',
   'setSystemInstruction',
@@ -77,6 +80,9 @@ const ALLOWED_METHODS = new Set([
 // Methods that can be dispatched to a ConversationHandle when conversationId is present
 const CONVERSATION_METHODS = new Set([
   'getInteractions',
+  'getTree',
+  'setActiveLeaf',
+  'getActiveLeafId',
   'getSystemInstruction',
   'setSystemInstruction',
   'renameConversation',
@@ -94,6 +100,11 @@ const CONVERSATION_METHODS = new Set([
 // Wire method names that differ on ConversationHandle
 const CONVERSATION_METHOD_MAP: Record<string, string> = {
   'renameConversation': 'rename',
+};
+
+// Wire method names that map to getters (not callable methods)
+const GETTER_MAP: Record<string, string> = {
+  'getActiveLeafId': 'activeLeafId',
 };
 
 export interface BridgeHostOptions {
@@ -190,6 +201,11 @@ export class BridgeHost {
       if (conversationId !== undefined && CONVERSATION_METHODS.has(method)) {
         target = this.channel.conversation(conversationId);
         methodName = CONVERSATION_METHOD_MAP[method] ?? method;
+      }
+
+      // Resolve getter aliases (e.g. getActiveLeafId → activeLeafId)
+      if (GETTER_MAP[methodName]) {
+        methodName = GETTER_MAP[methodName];
       }
 
       // Get the method from the target (cast for dynamic dispatch)

@@ -53,6 +53,8 @@ export type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
 
 export interface Interaction {
   id: string;
+  /** Parent interaction in the conversation tree. null = root message. */
+  parentId: string | null;
   timestamp: number;
   userId: string;
   userName?: string | null;
@@ -76,6 +78,8 @@ export interface PromptOptions {
   effort?: PromptEffort;
   ephemeral?: boolean;
   readOnly?: boolean;
+  /** Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. */
+  parentInteractionId?: string | null;
   // Note: attachments are not supported over the bridge (no File/Blob transfer)
 }
 

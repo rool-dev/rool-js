@@ -101,7 +101,7 @@ const channel2 = await space.openChannel('research');
 await channel2.prompt('Analyze the data');  // Independent channel
 ```
 
-The `channelId` is fixed when you open a channel and cannot be changed. To use a different channel, open a new one. Both channels share the same objects and schema — only the interaction history differs.
+The `channelId` is fixed when you open a channel and cannot be changed. To use a different channel, open a new one. Channels to the same space share the same objects and schema.
 
 **Channel ID constraints:**
 - 1–32 characters
@@ -124,7 +124,7 @@ await thread.prompt('Hello');  // Uses 'thread-42' conversation
 thread.getInteractions();      // Interactions for thread-42 only
 ```
 
-Each conversation has its own interaction history and optional system instruction. Conversations are auto-created on first interaction — no explicit create step needed. The 50-message cap applies per conversation. All conversations share one SSE connection per channel.
+Each conversation has its own interaction history and optional system instruction. Conversations are auto-created on first interaction — no explicit create step needed. The 200-interaction cap applies per conversation. All conversations share one SSE connection per channel.
 
 ```typescript
 // System instructions are per-conversation
@@ -140,6 +140,40 @@ await channel.deleteConversation('old-thread');
 // Rename a conversation
 await thread.rename('Research Thread');
 ```
+
+### Branching Conversations
+
+The conversation history is a **tree**, not a flat list. Each interaction has a `parentId` pointing to the interaction it continues from. When you call `prompt()`, the SDK automatically continues from the current active leaf. To branch (edit/reroll), pass a different `parentInteractionId`:
+
+```typescript
+const thread = channel.conversation('chat');
+
+// Normal conversation — each prompt auto-continues from the last
+await thread.prompt('My favorite color is blue. Say OK.');
+await thread.prompt('What is my favorite color?');  // Sees "blue"
+
+// Branch: go back to the first message and say something different
+const firstLeaf = thread.activeLeafId;  // ID of the "blue" interaction
+const tree = thread.getTree();
+const firstInteractionId = tree[firstLeaf!].parentId!;  // The root
+
+await thread.prompt('My favorite color is red. Say OK.', {
+  parentInteractionId: firstInteractionId,  // Sibling of "blue"
+});
+await thread.prompt('What is my favorite color?');  // Sees "red", not "blue"
+
+// Switch back to the blue branch
+thread.setActiveLeaf(firstLeaf!);
+thread.getInteractions();  // Returns the blue branch (root → leaf)
+```
+
+**Key concepts:**
+- `getInteractions()` returns the active branch as a flat `Interaction[]` (root → leaf)
+- `getTree()` returns the full `Record<string, Interaction>` for branch navigation UI
+- `activeLeafId` is the tip of the branch the user is currently viewing
+- `setActiveLeaf(id)` switches branches (emits `conversationUpdated` so reactive UIs refresh)
+- `prompt()` with no `parentInteractionId` auto-continues from `activeLeafId`
+- `prompt()` with `parentInteractionId: null` starts a new root-level branch
 
 ### Objects & References
 
@@ -346,6 +380,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 | `effort` | Effort level: `'QUICK'`, `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | If true, don't record in interaction history (useful for tab completion) |
 | `readOnly` | If true, disable mutation tools (create, update, delete). Use for questions. |
+| `parentInteractionId` | Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. Pass `null` to start a new root-level branch. Pass a specific ID to branch from that point (edit/reroll). |
 | `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Uploaded to the media store via `uploadMedia()`. Resulting URLs are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot read their contents. |
 
 ### Effort Levels
@@ -953,13 +988,16 @@ try {
 
 ## Interaction History
 
-Each channel contains one or more conversations, each with its own interaction history. History is stored in the space data and syncs in real-time. Truncated to the most recent 50 entries per conversation.
+Each channel contains one or more conversations, each with its own interaction history. History is stored as a tree (interactions linked by `parentId`) in the space data and syncs in real-time. Capped at 200 interactions per conversation.
 
 ### Conversation History Methods
 
 | Method | Description |
 |--------|-------------|
-| `getInteractions(): Interaction[]` | Get interactions for the default conversation |
+| `getInteractions(): Interaction[]` | Get the active branch as a flat array (root → leaf) |
+| `getTree(): Record<string, Interaction>` | Get the full interaction tree for branch navigation |
+| `activeLeafId: string \| undefined` | The tip of the currently active branch |
+| `setActiveLeaf(id: string): void` | Switch to a different branch (emits `conversationUpdated`) |
 | `getSystemInstruction(): string \| undefined` | Get system instruction for the default conversation |
 | `setSystemInstruction(instruction): Promise<void>` | Set system instruction for the default conversation. Pass `null` to clear. |
 | `getConversations(): ConversationInfo[]` | List all conversations in this channel |
@@ -1030,13 +1068,13 @@ interface RoolObjectStat {
 ### Channels and Conversations
 
 ```typescript
-// Conversation — holds interaction history and optional system instruction
+// Conversation — holds interaction tree and optional system instruction
 interface Conversation {
   name?: string;                  // Conversation name (optional)
   systemInstruction?: string;     // Custom system instruction for AI
   createdAt: number;              // Timestamp when conversation was created
   createdBy: string;              // User ID who created the conversation
-  interactions: Interaction[];    // Interaction history
+  interactions: Record<string, Interaction>;  // Interaction tree (keyed by ID, linked by parentId)
 }
 
 // Conversation summary info (returned by channel.getConversations())
@@ -1086,6 +1124,7 @@ type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
 
 interface Interaction {
   id: string;                    // Unique ID for this interaction
+  parentId: string | null;       // Parent in conversation tree (null = root)
   timestamp: number;
   userId: string;                // Who performed this interaction
   userName?: string | null;      // Display name at time of interaction
@@ -1126,6 +1165,7 @@ interface PromptOptions {
   effort?: PromptEffort;     // Effort level (default: 'STANDARD')
   ephemeral?: boolean;       // Don't record in interaction history
   readOnly?: boolean;        // Disable mutation tools (default: false)
+  parentInteractionId?: string | null;  // Branch from a specific interaction (omit to auto-continue)
   attachments?: Array<File | Blob | { data: string; contentType: string }>;  // Files to attach (uploaded to media store)
 }
 ```

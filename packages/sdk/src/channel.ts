@@ -37,6 +37,36 @@ export function generateEntityId(): string {
   return result;
 }
 
+/** Walk from a leaf interaction up through parentId to root, return in root→leaf order. */
+function walkBranch(interactions: Record<string, Interaction>, leafId: string): Interaction[] {
+  const path: Interaction[] = [];
+  let currentId: string | null = leafId;
+  while (currentId) {
+    const ix: Interaction | undefined = interactions[currentId];
+    if (!ix) break;
+    path.push(ix);
+    currentId = ix.parentId;
+  }
+  return path.reverse();
+}
+
+/** Find the default leaf: the most recent interaction by timestamp that has no children. */
+function findDefaultLeaf(interactions: Record<string, Interaction> | Interaction[] | undefined): string | undefined {
+  if (!interactions || Array.isArray(interactions)) return undefined;
+  const childSet = new Set<string>();
+  for (const ix of Object.values(interactions)) {
+    if (ix.parentId) childSet.add(ix.parentId);
+  }
+  // Leaves = interactions with no children, pick most recent
+  let best: Interaction | undefined;
+  for (const ix of Object.values(interactions)) {
+    if (!childSet.has(ix.id)) {
+      if (!best || ix.timestamp > best.timestamp) best = ix;
+    }
+  }
+  return best?.id;
+}
+
 // Default timeout for waiting on SSE object events (30 seconds)
 const OBJECT_COLLECT_TIMEOUT = 30000;
 
@@ -108,6 +138,9 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _objectIds: string[];
   private _objectStats: Map<string, RoolObjectStat>;
   private _hasConnected = false;
+
+  // Active leaf per conversation (client-side tree cursor)
+  private _activeLeaves = new Map<string, string>();
 
   // Object collection: tracks pending local mutations for dedup
   // Maps objectId → optimistic object data (for create/update) or null (for delete)
@@ -232,7 +265,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // ===========================================================================
 
   /**
-   * Get interactions for the current conversation.
+   * Get the active branch of the current conversation as a flat array (root → leaf).
+   * Walks from the active leaf up through parentId pointers.
    */
   getInteractions(): Interaction[] {
     return this._getInteractionsImpl(this._conversationId);
@@ -240,7 +274,66 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   /** @internal */
   _getInteractionsImpl(conversationId: string): Interaction[] {
-    return this._channel?.conversations[conversationId]?.interactions ?? [];
+    const interactions = this._channel?.conversations[conversationId]?.interactions;
+    if (!interactions) return [];
+
+    // Handle legacy array format
+    if (Array.isArray(interactions)) return interactions as Interaction[];
+
+    const leafId = this._getActiveLeafImpl(conversationId);
+    if (!leafId) return [];
+
+    return walkBranch(interactions, leafId);
+  }
+
+  /**
+   * Get the full interaction tree for a conversation as a record.
+   * For clients that need to render branch navigation UI.
+   */
+  getTree(): Record<string, Interaction> {
+    return this._getTreeImpl(this._conversationId);
+  }
+
+  /** @internal */
+  _getTreeImpl(conversationId: string): Record<string, Interaction> {
+    const interactions = this._channel?.conversations[conversationId]?.interactions;
+    if (!interactions || Array.isArray(interactions)) return {};
+    return interactions;
+  }
+
+  /**
+   * Get the active leaf interaction ID for a conversation.
+   * Returns undefined if the conversation has no interactions.
+   */
+  get activeLeafId(): string | undefined {
+    return this._getActiveLeafImpl(this._conversationId);
+  }
+
+  /** @internal */
+  _getActiveLeafImpl(conversationId: string): string | undefined {
+    return this._activeLeaves.get(conversationId) ?? findDefaultLeaf(this._channel?.conversations[conversationId]?.interactions);
+  }
+
+  /**
+   * Set the active leaf for a conversation (switch branches).
+   * Emits a conversationUpdated event so reactive wrappers refresh.
+   */
+  setActiveLeaf(interactionId: string): void {
+    this._setActiveLeafImpl(interactionId, this._conversationId);
+  }
+
+  /** @internal */
+  _setActiveLeafImpl(interactionId: string, conversationId: string): void {
+    const interactions = this._channel?.conversations[conversationId]?.interactions;
+    if (!interactions || Array.isArray(interactions) || !interactions[interactionId]) {
+      throw new Error(`Interaction "${interactionId}" not found in conversation "${conversationId}"`);
+    }
+    this._activeLeaves.set(conversationId, interactionId);
+    this.emit('conversationUpdated', {
+      conversationId,
+      channelId: this._channelId,
+      source: 'local_user',
+    });
   }
 
   /**
@@ -255,7 +348,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       systemInstruction: conv.systemInstruction ?? null,
       createdAt: conv.createdAt,
       createdBy: conv.createdBy,
-      interactionCount: conv.interactions.length,
+      interactionCount: Object.keys(conv.interactions).length,
     }));
   }
 
@@ -808,7 +901,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       this._channel.conversations[conversationId] = {
         createdAt: Date.now(),
         createdBy: this._userId,
-        interactions: [],
+        interactions: {},
       };
     }
   }
@@ -866,7 +959,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   /** @internal */
   async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
     // Upload attachments via media endpoint, then send URLs to the server
-    const { attachments, ...rest } = options ?? {};
+    const { attachments, parentInteractionId: explicitParent, ...rest } = options ?? {};
     let attachmentUrls: string[] | undefined;
     if (attachments?.length) {
       attachmentUrls = await Promise.all(
@@ -874,8 +967,16 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       );
     }
 
+    // Auto-continue from active leaf if no explicit parent provided
+    const parentInteractionId = explicitParent !== undefined
+      ? explicitParent
+      : (this._getActiveLeafImpl(conversationId) ?? null);
+
     const interactionId = generateEntityId();
-    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls, interactionId });
+    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls, interactionId, parentInteractionId });
+
+    // Update active leaf to the new interaction
+    this._activeLeaves.set(conversationId, interactionId);
 
     // Collect modified objects — they arrive via SSE events during/after the mutation.
     // Try collecting from buffer first, then fetch any missing from server.
@@ -1135,6 +1236,19 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
           // Skip emit if data is unchanged (e.g. echo of our own optimistic update)
           if (JSON.stringify(prev) === JSON.stringify(event.conversation)) break;
 
+          // Auto-advance active leaf if someone continued our current branch
+          if (event.conversation && !Array.isArray(event.conversation.interactions)) {
+            const currentLeaf = this._getActiveLeafImpl(event.conversationId);
+            if (currentLeaf) {
+              for (const ix of Object.values(event.conversation.interactions)) {
+                if (ix.parentId === currentLeaf && ix.id !== currentLeaf) {
+                  this._activeLeaves.set(event.conversationId, ix.id);
+                  break;
+                }
+              }
+            }
+          }
+
           // Emit the new conversationUpdated event
           this.emit('conversationUpdated', {
             conversationId: event.conversationId,
@@ -1275,9 +1389,24 @@ export class ConversationHandle {
   // Conversation History
   // ---------------------------------------------------------------------------
 
-  /** Get interactions for this conversation. */
+  /** Get the active branch of this conversation as a flat array (root → leaf). */
   getInteractions(): Interaction[] {
     return this._channel._getInteractionsImpl(this._conversationId);
+  }
+
+  /** Get the full interaction tree as a record. */
+  getTree(): Record<string, Interaction> {
+    return this._channel._getTreeImpl(this._conversationId);
+  }
+
+  /** Get the active leaf interaction ID, or undefined if empty. */
+  get activeLeafId(): string | undefined {
+    return this._channel._getActiveLeafImpl(this._conversationId);
+  }
+
+  /** Switch to a different branch by setting the active leaf. */
+  setActiveLeaf(interactionId: string): void {
+    this._channel._setActiveLeafImpl(interactionId, this._conversationId);
   }
 
   /** Get the system instruction for this conversation. */
