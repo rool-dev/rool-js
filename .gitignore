@@ -27,6 +27,9 @@ pnpm-debug.log*
 # Test coverage
 coverage/
 
+# SvelteKit
+.svelte-kit/
+
 # Astro
 docs/dist/
 docs/.astro/
