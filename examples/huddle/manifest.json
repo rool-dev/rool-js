@@ -1,0 +1,24 @@
+{
+  "id": "huddle",
+  "name": "Huddle",
+  "public": true,
+  "description": "Lightweight team chat with AI",
+  "collections": {
+    "write": {
+      "huddle": [
+        { "name": "name", "type": { "kind": "string" } },
+        { "name": "description", "type": { "kind": "maybe", "inner": { "kind": "string" } } }
+      ],
+      "huddle_message": [
+        { "name": "huddle", "type": { "kind": "ref" } },
+        { "name": "text", "type": { "kind": "string" } },
+        { "name": "sender", "type": { "kind": "string" } },
+        { "name": "senderName", "type": { "kind": "string" } },
+        { "name": "timestamp", "type": { "kind": "number" } },
+        { "name": "fromAgent", "type": { "kind": "boolean" } }
+      ]
+    },
+    "read": "*"
+  },
+  "systemInstruction": "You are a helpful team assistant in a collaborative chat. When invoked, you can see the messages in the current huddle. Answer questions, summarize discussions, or perform actions on the space's objects. Keep responses concise and conversational."
+}

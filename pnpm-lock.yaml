@@ -53,6 +53,25 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  examples/huddle:
+    dependencies:
+      '@humanspeak/svelte-markdown':
+        specifier: ^0.8.17
+        version: 0.8.17(svelte@5.54.0)
+      '@iconify/svelte':
+        specifier: ^5.2.1
+        version: 5.2.1(svelte@5.54.0)
+      '@rool-dev/extension':
+        specifier: workspace:*
+        version: link:../../packages/extension
+    devDependencies:
+      svelte:
+        specifier: ^5.54.0
+        version: 5.54.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   examples/roodle:
     dependencies:
       '@humanspeak/svelte-markdown':
