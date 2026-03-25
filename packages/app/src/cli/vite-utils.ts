@@ -45,22 +45,12 @@ export function readManifest(root: string): ManifestResult {
  * Strict manifest reading for publish — exits on error.
  */
 export function readManifestOrExit(root: string): AppManifest {
-  const path = resolve(root, 'rool-app.json');
-  if (!existsSync(path)) {
-    console.error('rool-app.json not found');
+  const result = readManifest(root);
+  if (result.error !== null) {
+    console.error(result.error);
     process.exit(1);
   }
-  const parsed = JSON.parse(readFileSync(path, 'utf-8'));
-  const missing: string[] = [];
-  if (!parsed.id) missing.push('id');
-  if (!parsed.name) missing.push('name');
-  if (typeof parsed.public !== 'boolean') missing.push('public');
-  if (!parsed.icon) missing.push('icon');
-  if (missing.length > 0) {
-    console.error(`rool-app.json missing required fields: ${missing.join(', ')}`);
-    process.exit(1);
-  }
-  return parsed;
+  return result.manifest;
 }
 
 // ---------------------------------------------------------------------------

@@ -30,10 +30,9 @@ export interface AppManifest {
   [key: string]: unknown;
 }
 
-export interface ManifestResult {
-  manifest: AppManifest | null;
-  error: string | null;
-}
+export type ManifestResult =
+  | { manifest: AppManifest; error: null }
+  | { manifest: null; error: string };
 
 // ---------------------------------------------------------------------------
 // Environment config
