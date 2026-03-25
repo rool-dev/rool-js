@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ReactiveWatch, RoolObject } from '@rool-dev/extension';
+  import type { ReactiveWatch } from '@rool-dev/extension';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
 

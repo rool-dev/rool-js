@@ -15,18 +15,21 @@
   // Huddles (topics)
   // ---------------------------------------------------------------------------
 
-  const huddles = channel.watch({ collection: 'huddle' });
-
-  let activeHuddleId = $state<string | null>(null);
-  let activeHuddle = $derived(huddles.objects.find((h) => h.id === activeHuddleId));
-  let sidebarOpen = $state(false);
-
-  // ---------------------------------------------------------------------------
-  // Messages for the active huddle
-  // ---------------------------------------------------------------------------
-
+  let huddlesWatch: ReactiveWatch | null = $state(null);
   let messagesWatch: ReactiveWatch | null = $state(null);
 
+  let activeHuddleId = $state<string | null>(null);
+  let activeHuddle = $derived(huddlesWatch?.objects.find((h) => h.id === activeHuddleId));
+  let sidebarOpen = $state(false);
+
+  // Watch all huddles
+  $effect(() => {
+    const w = channel.watch({ collection: 'huddle' });
+    huddlesWatch = w;
+    return () => w.close();
+  });
+
+  // Watch messages for the active huddle
   $effect(() => {
     const id = activeHuddleId;
     if (!id) {
@@ -148,7 +151,7 @@
   ">
     <TopicSidebar
       {channel}
-      {huddles}
+      huddles={huddlesWatch}
       {activeHuddleId}
       onselect={(id) => activeHuddleId = id}
       oncreate={() => {}}

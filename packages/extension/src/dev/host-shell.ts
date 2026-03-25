@@ -23,5 +23,5 @@ const manifestError = root.dataset.manifestError ?? null;
 
 mount(HostShell, {
   target: root,
-  props: { channelId, extensionUrl, manifest, manifestError },
+  context: new Map([['hostConfig', { channelId, extensionUrl, manifest, manifestError }]]),
 });

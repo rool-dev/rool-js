@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { getContext, onMount, tick } from 'svelte';
   import { DevHostController } from './DevHostController.js';
   import type { ExtensionTab } from './DevHostController.js';
   import type { Manifest } from '../manifest.js';
@@ -8,15 +8,15 @@
   import Sidebar from './Sidebar.svelte';
   import AppGrid from './AppGrid.svelte';
 
-  // Props injected from the mount entry
-  interface Props {
+  // Static config injected via mount() context — not reactive, never changes
+  interface HostConfig {
     channelId: string;
     extensionUrl: string;
     manifest: Manifest | null;
     manifestError: string | null;
   }
 
-  const props: Props = $props();
+  const { channelId, extensionUrl, manifest, manifestError } = getContext<HostConfig>('hostConfig');
 
   // ---------------------------------------------------------------------------
   // Controller + reactive state mirror
@@ -40,7 +40,7 @@
   let dropdownOpen: boolean = $state(false);
 
   const controller = new DevHostController(
-    props,
+    { channelId, extensionUrl, manifest, manifestError },
     syncState,
     tick,
   );
@@ -63,7 +63,7 @@
 
   // Derived: published apps not yet installed (excluding the local dev app)
   let uninstalledExtensions = $derived(
-    publishedExtensions.filter((ext) => ext.extensionId !== props.channelId && !installedExtensionIds.includes(ext.extensionId)),
+    publishedExtensions.filter((ext) => ext.extensionId !== channelId && !installedExtensionIds.includes(ext.extensionId)),
   );
 
   // Initial sync
@@ -89,8 +89,8 @@
 <!-- Sidebar -->
 <Sidebar
   {controller}
-  manifest={props.manifest}
-  manifestError={props.manifestError}
+  {manifest}
+  {manifestError}
   {spaces}
   {currentSpaceId}
   {env}

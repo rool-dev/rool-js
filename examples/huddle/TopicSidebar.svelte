@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { ReactiveChannel, ReactiveWatch, RoolObject } from '@rool-dev/extension';
+  import type { ReactiveChannel, ReactiveWatch } from '@rool-dev/extension';
   import Icon from '@iconify/svelte';
 
   interface Props {
     channel: ReactiveChannel;
-    huddles: ReactiveWatch;
+    huddles: ReactiveWatch | null;
     activeHuddleId: string | null;
     onselect: (id: string) => void;
     oncreate: () => void;
@@ -66,7 +66,7 @@
 
   <!-- Huddle list -->
   <div class="flex-1 overflow-auto py-1">
-    {#each huddles.objects as huddle (huddle.id)}
+    {#each huddles?.objects ?? [] as huddle (huddle.id)}
       <div
         class="group flex items-center gap-1 mx-2 my-0.5 px-3 py-2 rounded-lg cursor-pointer transition-colors
           {activeHuddleId === huddle.id
@@ -90,7 +90,7 @@
       </div>
     {:else}
       <p class="px-4 py-8 text-sm text-slate-400 text-center">
-        {huddles.loading ? 'Loading...' : 'No huddles yet. Create one above.'}
+        {huddles?.loading ? 'Loading...' : 'No huddles yet. Create one above.'}
       </p>
     {/each}
   </div>
