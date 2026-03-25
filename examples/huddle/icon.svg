@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="12" fill="#8b5cf6"/>
+  <!-- Center person -->
+  <circle cx="32" cy="22" r="5" fill="white" opacity="0.9"/>
+  <path d="M24 38a8 8 0 0 1 16 0z" fill="white" opacity="0.9"/>
+  <!-- Left person -->
+  <circle cx="18" cy="26" r="4" fill="white" opacity="0.6"/>
+  <path d="M11 38a7 7 0 0 1 14 0z" fill="white" opacity="0.6"/>
+  <!-- Right person -->
+  <circle cx="46" cy="26" r="4" fill="white" opacity="0.6"/>
+  <path d="M39 38a7 7 0 0 1 14 0z" fill="white" opacity="0.6"/>
+  <!-- Chat dots -->
+  <rect x="22" y="42" width="20" height="7" rx="3.5" fill="white" opacity="0.5"/>
+  <circle cx="28" cy="45.5" r="1.5" fill="#8b5cf6"/>
+  <circle cx="32" cy="45.5" r="1.5" fill="#8b5cf6"/>
+  <circle cx="36" cy="45.5" r="1.5" fill="#8b5cf6"/>
+</svg>

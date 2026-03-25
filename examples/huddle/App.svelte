@@ -18,15 +18,34 @@
   let huddlesWatch: ReactiveWatch | null = $state(null);
   let messagesWatch: ReactiveWatch | null = $state(null);
 
-  let activeHuddleId = $state<string | null>(null);
+  const storageKey = `huddle:${channel.spaceId}:activeId`;
+  let activeHuddleId = $state<string | null>(localStorage.getItem(storageKey));
   let activeHuddle = $derived(huddlesWatch?.objects.find((h) => h.id === activeHuddleId));
   let sidebarOpen = $state(false);
+
+  // Persist active huddle selection
+  $effect(() => {
+    if (activeHuddleId) {
+      localStorage.setItem(storageKey, activeHuddleId);
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+  });
 
   // Watch all huddles
   $effect(() => {
     const w = channel.watch({ collection: 'huddle' });
     huddlesWatch = w;
     return () => w.close();
+  });
+
+  // Default to first huddle, or clear if stored huddle was deleted
+  $effect(() => {
+    const huddles = huddlesWatch?.objects ?? [];
+    if (huddles.length === 0) return;
+    if (!activeHuddleId || !huddles.some((h) => h.id === activeHuddleId)) {
+      activeHuddleId = huddles[0].id;
+    }
   });
 
   // Watch messages for the active huddle
@@ -47,17 +66,32 @@
 
   let isSending = $state(false);
 
+  // Build mentionable users from message history (Rool + other senders)
+  let mentions = $derived.by(() => {
+    const senders = new Map<string, string>();
+    for (const msg of messagesWatch?.objects ?? []) {
+      const sender = msg.sender as string;
+      if (sender !== 'agent') {
+        senders.set(sender, msg.senderName as string);
+      }
+    }
+    return [
+      { id: 'agent', name: 'Rool' },
+      ...Array.from(senders, ([id, name]) => ({ id, name })),
+    ];
+  });
+
   async function handleSend(text: string) {
     if (!activeHuddleId || isSending) return;
 
-    const isRool = text.trimStart().startsWith('@rool');
+    const mentionsRool = /@rool\b/i.test(text);
     const senderName = channel.user.name ?? channel.userId;
 
     // Create the user's message
     await channel.createObject({
       data: {
         huddle: activeHuddleId,
-        text: text,
+        text,
         sender: channel.userId,
         senderName,
         timestamp: Date.now(),
@@ -65,18 +99,16 @@
       },
     });
 
-    // If @rool, invoke the agent
-    if (isRool) {
+    // If @rool is mentioned anywhere, invoke the agent
+    if (mentionsRool) {
       isSending = true;
       try {
-        const prompt = text.replace(/^\s*@rool\s*/i, '').trim() || 'Help';
         const messageIds = messagesWatch?.objects.map((m) => m.id) ?? [];
-        const { message } = await channel.prompt(prompt, {
+        const { message } = await channel.prompt(text, {
           objectIds: [activeHuddleId, ...messageIds],
           ephemeral: true,
         });
 
-        // Create the agent response as a message
         await channel.createObject({
           data: {
             huddle: activeHuddleId,
@@ -88,7 +120,6 @@
           },
         });
       } catch (err) {
-        // Create an error message so the user sees what happened
         await channel.createObject({
           data: {
             huddle: activeHuddleId,
@@ -186,11 +217,12 @@
       <MessageFeed
         messages={messagesWatch}
         currentUserId={channel.userId}
-        huddleName={activeHuddle?.name as string ?? ''}
+        huddleName={String(activeHuddle?.name ?? '')}
         {isSending}
       />
       <MessageInput
         disabled={isSending}
+        {mentions}
         onsend={handleSend}
       />
     {:else}

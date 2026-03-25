@@ -64,7 +64,7 @@
           {#if isAgent}
             <Icon icon="mdi:robot-outline" class="w-4 h-4" />
           {:else}
-            {initials(msg.senderName as string || '?')}
+            {initials(String(msg.senderName ?? '?'))}
           {/if}
         </div>
 
@@ -83,7 +83,7 @@
                 ? 'bg-teal-500 text-white rounded-tr-md'
                 : 'bg-white border border-slate-200 text-slate-700 rounded-tl-md'}">
             {#if isAgent}
-              <SvelteMarkdown source={msg.text as string} />
+              <SvelteMarkdown source={String(msg.text ?? '')} />
             {:else}
               <p class="whitespace-pre-wrap">{msg.text}</p>
             {/if}
