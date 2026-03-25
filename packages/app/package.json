@@ -61,11 +61,11 @@
   },
   "dependencies": {
     "@rool-dev/sdk": "workspace:*",
-    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@tailwindcss/vite": "^4.2.2",
     "archiver": "^7.0.1",
     "tailwindcss": "^4.2.2",
-    "vite": "^6.4.1"
+    "vite": "^8.0.0"
   },
   "devDependencies": {
     "@sveltejs/package": "^2.5.7",

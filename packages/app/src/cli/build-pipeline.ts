@@ -91,7 +91,7 @@ export async function buildApp(cwd: string, manifest: AppManifest): Promise<{ ou
     build: {
       outDir,
       emptyOutDir: true,
-      rollupOptions: {
+      rolldownOptions: {
         input: 'virtual:rool-app-entry',
       },
     },

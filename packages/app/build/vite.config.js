@@ -24,12 +24,8 @@ export default defineConfig({
     outDir: resolve(root, 'dist/dev'),
     emptyOutDir: false,
     // Bundle everything — no externals
-    rollupOptions: {
-      output: {
-        // Single chunk, no code-splitting
-        inlineDynamicImports: true,
-      },
-    },
+    // Single chunk, no code-splitting
+    codeSplitting: false,
     // Dev-only tool, no need to minify for readability during debugging
     minify: false,
     sourcemap: true,
