@@ -25,14 +25,22 @@ const packages = [
 
 const version = process.argv[2];
 
-if (!version) {
-  console.error('Usage: pnpm release <version>');
-  console.error('Example: pnpm release 0.2.0');
-  process.exit(1);
+function suggestVersions(latest) {
+  if (!latest) return '';
+  const { major, minor, patch } = latest;
+  return `  Next patch: ${major}.${minor}.${patch + 1}\n  Next minor: ${major}.${minor + 1}.0\n  Next major: ${major + 1}.0.0`;
 }
 
-if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
-  console.error(`Invalid version: ${version}`);
+if (!version || !/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
+  const latest = getLatestVersion();
+  if (!version) {
+    console.error('Usage: pnpm release <version>');
+  } else {
+    console.error(`Invalid version: ${version}`);
+  }
+  if (latest) {
+    console.error(`\nCurrent version: ${latest.tag.slice(1)}\n${suggestVersions(latest)}`);
+  }
   process.exit(1);
 }
 
