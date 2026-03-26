@@ -22,7 +22,7 @@
   let snake = $state<Point[]>([{ x: 10, y: 10 }]);
   let food = $state<Point>({ x: 15, y: 10 });
   let dir = $state<Dir>('right');
-  let nextDir = $state<Dir>('right');
+  let dirQueue = $state<Dir[]>([]);
   let running = $state(false);
   let over = $state(false);
   let score = $state(0);
@@ -43,7 +43,7 @@
   function start() {
     snake = [{ x: 10, y: 10 }];
     dir = 'right';
-    nextDir = 'right';
+    dirQueue = [];
     food = spawnFood();
     score = 0;
     over = false;
@@ -58,7 +58,7 @@
   }
 
   function tick() {
-    dir = nextDir;
+    if (dirQueue.length > 0) dir = dirQueue.shift()!;
     const head: Point = { ...snake[0] };
 
     switch (dir) {
@@ -211,15 +211,20 @@
     };
     const newDir = keyMap[e.key];
     if (!newDir || !running) return;
-    if (OPPOSITE[newDir] !== dir) {
-      nextDir = newDir;
-      e.preventDefault();
-    }
+    if (enqueueDir(newDir)) e.preventDefault();
+  }
+
+  function enqueueDir(newDir: Dir) {
+    const effective = dirQueue.length > 0 ? dirQueue[dirQueue.length - 1] : dir;
+    if (newDir === effective || newDir === OPPOSITE[effective]) return false;
+    if (dirQueue.length >= 2) return false;
+    dirQueue = [...dirQueue, newDir];
+    return true;
   }
 
   function steer(newDir: Dir) {
     if (!running) return;
-    if (OPPOSITE[newDir] !== dir) nextDir = newDir;
+    enqueueDir(newDir);
   }
 
   onMount(() => {
