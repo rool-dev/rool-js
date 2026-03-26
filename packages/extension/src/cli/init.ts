@@ -104,7 +104,7 @@ Additional \`.svelte\` and \`.ts\` files can be imported from \`App.svelte\`.
 ## Dev server
 
 \`\`\`
-npx rool-extension dev
+pnpm dev
 \`\`\`
 `;
 

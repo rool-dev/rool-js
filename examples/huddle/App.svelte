@@ -18,17 +18,23 @@
   let huddlesWatch: ReactiveWatch | null = $state(null);
   let messagesWatch: ReactiveWatch | null = $state(null);
 
-  const storageKey = `huddle:${channel.spaceId}:activeId`;
-  let activeHuddleId = $state<string | null>(localStorage.getItem(storageKey));
+  let activeHuddleId = $state<string | null>(null);
   let activeHuddle = $derived(huddlesWatch?.objects.find((h) => h.id === activeHuddleId));
   let sidebarOpen = $state(false);
 
-  // Persist active huddle selection
+  // Persist active huddle selection (channel.spaceId read inside effect avoids top-level warning)
+  function storageKey() { return `huddle:${channel.spaceId}:activeId`; }
+
   $effect(() => {
+    // Load saved selection on first run
+    if (activeHuddleId === null) {
+      const saved = localStorage.getItem(storageKey());
+      if (saved) { activeHuddleId = saved; return; }
+    }
     if (activeHuddleId) {
-      localStorage.setItem(storageKey, activeHuddleId);
+      localStorage.setItem(storageKey(), activeHuddleId);
     } else {
-      localStorage.removeItem(storageKey);
+      localStorage.removeItem(storageKey());
     }
   });
 
@@ -175,7 +181,7 @@
 
   <!-- Sidebar -->
   <div class="
-    w-64 bg-white border-r border-slate-200 flex flex-col shrink-0
+    w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 flex flex-col shrink-0
     fixed inset-y-0 left-0 z-20 transition-transform duration-200
     md:relative md:translate-x-0
     {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -192,11 +198,11 @@
   </div>
 
   <!-- Main area -->
-  <div class="flex-1 flex flex-col min-h-0 relative bg-slate-50">
+  <div class="flex-1 flex flex-col min-h-0 relative bg-slate-50 dark:bg-slate-800">
     <!-- Header -->
-    <div class="flex items-center gap-3 px-4 py-2.5 border-b border-slate-200 bg-white">
+    <div class="flex items-center gap-3 px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
       <button
-        class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 md:hidden"
+        class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 md:hidden"
         onclick={() => sidebarOpen = true}
         aria-label="Open sidebar"
       >
@@ -204,7 +210,7 @@
       </button>
       {#if activeHuddle}
         <Icon icon="mdi:pound" class="w-4 h-4 text-slate-400" />
-        <span class="font-semibold text-slate-700 text-sm">{activeHuddle.name}</span>
+        <span class="font-semibold text-slate-700 dark:text-slate-200 text-sm">{activeHuddle.name}</span>
         {#if activeHuddle.description}
           <span class="text-xs text-slate-400 hidden sm:inline">&mdash; {activeHuddle.description}</span>
         {/if}
@@ -228,12 +234,12 @@
     {:else}
       <!-- No huddle selected -->
       <div class="flex-1 flex flex-col items-center justify-center text-center p-8">
-        <div class="w-20 h-20 bg-teal-100 rounded-2xl flex items-center justify-center mb-6">
-          <Icon icon="mdi:account-group-outline" class="w-10 h-10 text-teal-500" />
+        <div class="w-20 h-20 bg-teal-100 dark:bg-teal-900 rounded-2xl flex items-center justify-center mb-6">
+          <Icon icon="mdi:account-group-outline" class="w-10 h-10 text-teal-500 dark:text-teal-400" />
         </div>
-        <h2 class="text-xl font-semibold text-slate-700 mb-2">Huddle</h2>
-        <p class="text-slate-500 text-sm max-w-xs">
-          Create a huddle to start chatting with your team. Type <code class="bg-slate-100 px-1 rounded text-teal-600">@rool</code> in any huddle to bring AI into the conversation.
+        <h2 class="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-2">Huddle</h2>
+        <p class="text-slate-500 dark:text-slate-400 text-sm max-w-xs">
+          Create a huddle to start chatting with your team. Type <code class="bg-slate-100 dark:bg-slate-700 px-1 rounded text-teal-600 dark:text-teal-400">@rool</code> in any huddle to bring AI into the conversation.
         </p>
       </div>
     {/if}

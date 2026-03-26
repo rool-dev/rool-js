@@ -42,6 +42,9 @@ export interface BridgeUser {
   email: string;
 }
 
+/** Resolved color scheme sent to extensions */
+export type ColorScheme = 'light' | 'dark';
+
 /** Host → Extension: handshake response with channel metadata */
 export interface BridgeInit {
   type: 'rool:init';
@@ -52,6 +55,7 @@ export interface BridgeInit {
   linkAccess: string;
   userId: string;
   user: BridgeUser;
+  colorScheme: ColorScheme;
   schema: Record<string, unknown>;
   metadata: Record<string, unknown>;
 }

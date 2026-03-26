@@ -10,7 +10,7 @@ export { initExtension } from './reactive.svelte.js';
 export type { ReactiveChannel, ReactiveConversationHandle, ReactiveObject, ReactiveWatch, WatchOptions } from './reactive.svelte.js';
 
 // Bridge types
-export type { BridgeUser } from './protocol.js';
+export type { BridgeUser, ColorScheme } from './protocol.js';
 
 // Types
 export type {

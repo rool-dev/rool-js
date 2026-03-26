@@ -13,7 +13,7 @@
 import { RoolClient } from '@rool-dev/sdk';
 import type { RoolSpaceInfo, RoolChannel, PublishedExtensionInfo } from '@rool-dev/sdk';
 import { createBridgeHost, type BridgeHost } from '../host.js';
-import type { BridgeUser } from '../protocol.js';
+import type { BridgeUser, ColorScheme } from '../protocol.js';
 import type { Manifest, Environment } from '../manifest.js';
 import { ENV_URLS } from '../manifest.js';
 
@@ -69,6 +69,7 @@ export class DevHostController {
   publishedExtensions: PublishedExtensionInfo[] = [];
   installedExtensionIds: string[] = [];
   sidebarCollapsed: boolean = false;
+  colorScheme: ColorScheme = 'light';
   publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = 'idle';
   publishMessage: string | null = null;
   publishUrl: string | null = null;
@@ -107,6 +108,7 @@ export class DevHostController {
     // Restore persisted state
     this.env = this._getSavedEnv();
     this.sidebarCollapsed = storageGet('rool-devhost:collapsed') === 'true';
+    this.colorScheme = this._getSavedColorScheme();
   }
 
   // ---------------------------------------------------------------------------
@@ -401,6 +403,15 @@ export class DevHostController {
     this._onChange();
   }
 
+  toggleColorScheme(): void {
+    this.colorScheme = this.colorScheme === 'light' ? 'dark' : 'light';
+    storageSet('rool-devhost:colorScheme', this.colorScheme);
+    for (const host of Object.values(this.bridgeHosts)) {
+      host.setColorScheme(this.colorScheme);
+    }
+    this._onChange();
+  }
+
   // ---------------------------------------------------------------------------
   // Iframe registration (called by Svelte action)
   // ---------------------------------------------------------------------------
@@ -436,7 +447,7 @@ export class DevHostController {
     const el = this.iframeEls[tabId];
     const ch = this.channels[tabId];
     if (el && ch && !this.bridgeHosts[tabId]) {
-      this.bridgeHosts[tabId] = createBridgeHost({ channel: ch, iframe: el, user: this._bridgeUser });
+      this.bridgeHosts[tabId] = createBridgeHost({ channel: ch, iframe: el, user: this._bridgeUser, colorScheme: this.colorScheme });
     }
   }
 
@@ -502,5 +513,12 @@ export class DevHostController {
     const saved = storageGet('rool-devhost:env');
     if (saved === 'local' || saved === 'dev' || saved === 'prod') return saved;
     return 'prod';
+  }
+
+  private _getSavedColorScheme(): ColorScheme {
+    const saved = storageGet('rool-devhost:colorScheme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    // Fall back to OS preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 }

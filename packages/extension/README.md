@@ -14,10 +14,10 @@ Everything else (Vite config, entry point, HTML, Tailwind CSS) is provided by th
 ## Quick Start
 
 ```bash
-npx rool-extension init my-extension
+npx @rool-dev/cli extension create my-extension
 cd my-extension
 pnpm install
-npx rool-extension dev
+pnpm dev
 ```
 
 This opens a dev host at `/__rool-host/` that loads your extension in a sandboxed iframe, connected to a real Rool Space.
@@ -344,7 +344,7 @@ await thread.rename('Research Thread');
 thread.close();   // Stop listening for updates
 ```
 
-Conversations are auto-created on first interaction — no explicit create step needed. All conversations share one bridge connection. The 50-message cap applies per conversation.
+Conversations are auto-created on first interaction — no explicit create step needed. All conversations share one bridge connection. The 200-interaction cap applies per conversation.
 
 ### Events
 
@@ -428,10 +428,10 @@ const host = createBridgeHost({
 
 | Command | Description |
 |---------|-------------|
-| `rool-extension init [name]` | Scaffold a new extension project |
-| `rool-extension dev` | Start the dev server with host shell |
-| `rool-extension build` | Build the extension |
-| `rool-extension publish` | Build and publish the extension |
+| `rool extension create [name]` | Scaffold a new extension project |
+| `rool extension dev` | Start the dev server with host shell |
+| `rool extension build` | Build the extension |
+| `rool extension publish` | Build and publish the extension |
 
 ## Exported Types
 
@@ -443,6 +443,7 @@ import type {
   ReactiveWatch,
   WatchOptions,
   BridgeUser,
+  ColorScheme,
   RoolObject,
   RoolObjectStat,
   SpaceSchema,

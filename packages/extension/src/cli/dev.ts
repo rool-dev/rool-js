@@ -87,7 +87,7 @@ function roolExtensionPlugin(root: string, tailwindCssPath: string): Plugin {
       return undefined;
     },
     load(id) {
-      if (id === RESOLVED_CSS) return `@import "${tailwindCssPath}";`;
+      if (id === RESOLVED_CSS) return `@import "${tailwindCssPath}";\n@custom-variant dark (&:where(.dark, .dark *));`;
       if (id !== RESOLVED_ENTRY) return;
       return [
         `import { initExtension } from '@rool-dev/extension';`,

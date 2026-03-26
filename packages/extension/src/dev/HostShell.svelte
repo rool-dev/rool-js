@@ -32,6 +32,7 @@
   let publishedExtensions: PublishedExtensionInfo[] = $state([]);
   let installedExtensionIds: string[] = $state([]);
   let tabs: ExtensionTab[] = $state([]);
+  let colorScheme: 'light' | 'dark' = $state('light');
   let publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = $state('idle');
   let publishMessage: string | null = $state(null);
   let publishUrl: string | null = $state(null);
@@ -52,6 +53,7 @@
     statusState = controller.statusState;
     placeholderText = controller.placeholderText;
     sidebarCollapsed = controller.sidebarCollapsed;
+    colorScheme = controller.colorScheme;
     env = controller.env;
     publishedExtensions = controller.publishedExtensions;
     installedExtensionIds = controller.installedExtensionIds;
@@ -97,6 +99,7 @@
   {statusText}
   {statusState}
   {sidebarCollapsed}
+  {colorScheme}
   {publishState}
   {publishMessage}
   {publishUrl}

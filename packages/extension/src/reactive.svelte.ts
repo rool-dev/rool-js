@@ -5,7 +5,7 @@
  * properties, matching the @rool-dev/svelte ReactiveChannel API.
  */
 
-import type { BridgeInit, BridgeResponse, BridgeEvent, BridgeUser } from './protocol.js';
+import type { BridgeInit, BridgeResponse, BridgeEvent, BridgeUser, ColorScheme } from './protocol.js';
 import { isBridgeMessage } from './protocol.js';
 import type {
   RoolObject,
@@ -212,6 +212,14 @@ class ReactiveObjectImpl {
 export type ReactiveObject = ReactiveObjectImpl;
 
 // ---------------------------------------------------------------------------
+// Color scheme helper
+// ---------------------------------------------------------------------------
+
+function applyColorScheme(scheme: ColorScheme): void {
+  document.documentElement.classList.toggle('dark', scheme === 'dark');
+}
+
+// ---------------------------------------------------------------------------
 // ReactiveChannel
 // ---------------------------------------------------------------------------
 
@@ -238,6 +246,7 @@ class ReactiveChannelImpl {
   objectIds = $state<string[]>([]);
   collections = $state<string[]>([]);
   conversations = $state<ConversationInfo[]>([]);
+  colorScheme = $state<ColorScheme>('light');
 
   constructor(init: BridgeInit) {
     this.channelId = init.channelId;
@@ -249,6 +258,8 @@ class ReactiveChannelImpl {
     this.user = init.user;
     this._schema = init.schema as SpaceSchema;
     this._metadata = init.metadata;
+    this.colorScheme = init.colorScheme ?? 'light';
+    applyColorScheme(this.colorScheme);
 
     window.addEventListener('message', this._onMessage);
 
@@ -376,7 +387,11 @@ class ReactiveChannelImpl {
       const msg = event.data as BridgeEvent;
 
       // Update local caches before emitting so listeners see fresh data
-      if (msg.name === 'metadataUpdated') {
+      if (msg.name === 'colorSchemeChanged') {
+        const { colorScheme } = msg.data as { colorScheme: ColorScheme };
+        this.colorScheme = colorScheme;
+        applyColorScheme(colorScheme);
+      } else if (msg.name === 'metadataUpdated') {
         const payload = msg.data as { metadata: Record<string, unknown> };
         this._metadata = payload.metadata;
       } else if (msg.name === 'schemaUpdated') {

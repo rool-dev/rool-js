@@ -7,7 +7,7 @@
  * Used by both the console's ExtensionHost component and the local dev shell.
  */
 
-import type { BridgeRequest, BridgeInit, BridgeUser } from './protocol.js';
+import type { BridgeRequest, BridgeInit, BridgeUser, ColorScheme } from './protocol.js';
 import { isBridgeMessage } from './protocol.js';
 
 /**
@@ -114,12 +114,15 @@ export interface BridgeHostOptions {
   iframe: HTMLIFrameElement;
   /** Current user info to expose to the extension */
   user: BridgeUser;
+  /** Resolved color scheme to send to the extension. Defaults to 'light'. */
+  colorScheme?: ColorScheme;
 }
 
 export class BridgeHost {
   private channel: BridgeableChannel;
   private iframe: HTMLIFrameElement;
   private user: BridgeUser;
+  private _colorScheme: ColorScheme;
   private eventCleanups: Array<() => void> = [];
   private _destroyed = false;
 
@@ -127,6 +130,7 @@ export class BridgeHost {
     this.channel = options.channel;
     this.iframe = options.iframe;
     this.user = options.user;
+    this._colorScheme = options.colorScheme ?? 'light';
 
     window.addEventListener('message', this._onMessage);
 
@@ -160,6 +164,7 @@ export class BridgeHost {
       linkAccess: this.channel.linkAccess,
       userId: this.channel.userId,
       user: this.user,
+      colorScheme: this._colorScheme,
       schema: this.channel.getSchema(),
       metadata: this.channel.getAllMetadata(),
     };
@@ -233,6 +238,16 @@ export class BridgeHost {
       const message = e instanceof Error ? e.message : String(e);
       this._postToApp({ type: 'rool:response', id, error: message });
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Color scheme
+  // ---------------------------------------------------------------------------
+
+  /** Update the color scheme and push to the extension iframe. */
+  setColorScheme(colorScheme: ColorScheme): void {
+    this._colorScheme = colorScheme;
+    this._postToApp({ type: 'rool:event', name: 'colorSchemeChanged', data: { colorScheme } });
   }
 
   // ---------------------------------------------------------------------------
