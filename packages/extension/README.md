@@ -158,6 +158,26 @@ A complete extension that lets users add tasks, mark them done, and ask the AI t
 
 This example covers the main patterns you'll use in most extensions: `watch` for a live query, `createObject` for direct mutations, `updateObject` for edits, and `prompt` to let the AI create or modify objects on the user's behalf.
 
+### Dark Mode
+
+Extensions automatically receive the host's color scheme. The `dark` class is toggled on the extension's `<html>` element, so Tailwind's `dark:` variants work out of the box — no configuration needed.
+
+Use the `neutral` color scale for dark mode backgrounds and borders to match the host app:
+
+| Surface | Light | Dark |
+|---------|-------|------|
+| Page background | `bg-slate-50` | `dark:bg-neutral-950` |
+| Panels / cards | `bg-white` | `dark:bg-neutral-900` |
+| Inset surfaces | `bg-slate-50` | `dark:bg-neutral-800` |
+| Borders | `border-slate-200` | `dark:border-neutral-700` |
+| Primary text | `text-slate-800` | `dark:text-neutral-100` |
+| Secondary text | `text-slate-500` | `dark:text-neutral-400` |
+| Inputs | `bg-slate-50` | `dark:bg-neutral-800` |
+
+Accent colors (teal, violet, emerald, etc.) should shift to the `400` weight in dark mode for better contrast against dark backgrounds — e.g. `text-emerald-600 dark:text-emerald-400`.
+
+The reactive `channel.colorScheme` property (`'light'` or `'dark'`) is available if you need to branch in code rather than CSS.
+
 ## ReactiveChannel
 
 The channel is the extension's interface to the host Space — objects, schema, AI, metadata, undo/redo, and real-time events.
@@ -172,6 +192,7 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 | `objectIds` | `string[]` | All object IDs in the space (auto-updates on create/delete) |
 | `collections` | `string[]` | Collection names from the schema (auto-updates) |
 | `conversations` | `ConversationInfo[]` | Conversations in this channel (auto-updates on create/delete/rename) |
+| `colorScheme` | `ColorScheme` | Host's color scheme: `'light'` or `'dark'` (auto-updates on toggle) |
 
 ### Properties
 

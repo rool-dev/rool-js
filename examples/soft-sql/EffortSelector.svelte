@@ -43,8 +43,8 @@
     onclick={() => menuOpen = !menuOpen}
     class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm transition-colors
       {value === 'STANDARD'
-        ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-        : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'}"
+        ? 'text-slate-500 dark:text-neutral-400 hover:text-slate-700 dark:hover:text-neutral-200 hover:bg-slate-200 dark:hover:bg-neutral-700'
+        : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'}"
     title={currentEffort.label}
   >
     <Icon icon={currentEffort.icon} class="w-4 h-4" />
@@ -53,13 +53,13 @@
   </button>
 
   {#if menuOpen}
-    <div class="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-35 z-50">
+    <div class="absolute top-full left-0 mt-1 bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded-lg shadow-lg py-1 min-w-35 z-50">
       {#each effortOptions as option}
         <button
           type="button"
           onclick={() => selectEffort(option.value)}
-          class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50 transition-colors
-            {value === option.value ? 'text-emerald-600' : 'text-slate-700'}"
+          class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-neutral-700 transition-colors
+            {value === option.value ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-neutral-200'}"
         >
           <Icon icon={option.icon} class="w-4 h-4" />
           <span class="flex-1">{option.label}</span>

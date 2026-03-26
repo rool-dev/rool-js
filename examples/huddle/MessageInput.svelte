@@ -110,32 +110,32 @@
 <div class="absolute bottom-0 left-0 right-0 p-4">
   <!-- Mention autocomplete popup -->
   {#if filteredMentions.length > 0}
-    <div class="mb-1 ml-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 shadow-lg py-1 max-h-40 overflow-y-auto">
+    <div class="mb-1 ml-1 bg-white dark:bg-neutral-800 rounded-lg border border-slate-200 dark:border-neutral-700 shadow-lg py-1 max-h-40 overflow-y-auto">
       {#each filteredMentions as mention, i}
         <button
-          class="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700
-            {i === selectedIndex ? 'bg-slate-100 dark:bg-slate-700' : ''}"
+          class="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-neutral-700
+            {i === selectedIndex ? 'bg-slate-100 dark:bg-neutral-700' : ''}"
           onmousedown={(e) => { e.preventDefault(); insertMention(mention.name); }}
         >
           {#if mention.id === 'agent'}
             <Icon icon="mdi:robot-outline" class="w-4 h-4 text-violet-500 shrink-0" />
           {:else}
-            <span class="w-4 h-4 rounded-full bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 text-[10px] font-bold flex items-center justify-center shrink-0">
+            <span class="w-4 h-4 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 text-[10px] font-bold flex items-center justify-center shrink-0">
               {mention.name[0]?.toUpperCase()}
             </span>
           {/if}
-          <span class="text-slate-700 dark:text-slate-200">{mention.name}</span>
+          <span class="text-slate-700 dark:text-neutral-200">{mention.name}</span>
         </button>
       {/each}
     </div>
   {/if}
 
-  <div class="flex items-end gap-1 bg-white dark:bg-slate-800 rounded-2xl px-3 py-2 border border-slate-200 dark:border-slate-600 shadow-sm
+  <div class="flex items-end gap-1 bg-white dark:bg-neutral-800 rounded-2xl px-3 py-2 border border-slate-200 dark:border-neutral-600 shadow-sm
     {hasRoolMention ? 'border-violet-400 ring-1 ring-violet-200 dark:ring-violet-800' : 'focus-within:border-teal-400'}
     transition-colors">
     <textarea
       bind:this={textarea}
-      class="flex-1 bg-transparent outline-none placeholder:text-slate-400 resize-none overflow-y-auto leading-6 py-1 text-sm input-scrollbar text-slate-700 dark:text-slate-200"
+      class="flex-1 bg-transparent outline-none placeholder:text-slate-400 dark:placeholder:text-neutral-500 resize-none overflow-y-auto leading-6 py-1 text-sm input-scrollbar text-slate-700 dark:text-neutral-100"
       placeholder="Message... or @ to mention"
       spellcheck="false"
       rows="1"
@@ -148,8 +148,8 @@
     <button
       class="p-1.5 rounded-full transition-colors disabled:opacity-30
         {hasRoolMention
-          ? 'text-violet-500 hover:text-violet-600 hover:bg-violet-100 dark:hover:bg-violet-900'
-          : 'text-slate-500 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-700'}"
+          ? 'text-violet-500 hover:text-violet-600 hover:bg-violet-100 dark:hover:bg-violet-900/30'
+          : 'text-slate-500 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-neutral-700'}"
       onclick={send}
       disabled={disabled || !input.trim()}
       aria-label={hasRoolMention ? 'Send to Rool' : 'Send message'}
