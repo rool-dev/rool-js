@@ -223,25 +223,25 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
 
 {#if !event && !collectionsLoading}
   <!-- Setup: no event object yet -->
-  <div class="h-full flex items-center justify-center p-4">
+  <div class="h-full flex items-center justify-center p-4 bg-slate-50 dark:bg-neutral-950">
     <div class="w-full max-w-md">
       <div class="text-center mb-8">
         <div class="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Icon icon="mdi:calendar-clock" class="w-8 h-8 text-white" />
           </div>
-          <h1 class="text-2xl font-bold text-slate-800 mb-2">Schedule Something</h1>
-        <p class="text-slate-500">AI-powered collaborative scheduling</p>
+          <h1 class="text-2xl font-bold text-slate-800 dark:text-neutral-100 mb-2">Schedule Something</h1>
+        <p class="text-slate-500 dark:text-neutral-400">AI-powered collaborative scheduling</p>
       </div>
 
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+      <div class="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-slate-200 dark:border-neutral-700 p-6 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1" for="title">
+          <label class="block text-sm font-medium text-slate-700 dark:text-neutral-200 mb-1" for="title">
             What are you scheduling?
           </label>
           <input
             id="title"
             type="text"
-            class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none"
+            class="w-full px-3 py-2 border border-slate-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-slate-800 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none"
             placeholder="Team offsite, coffee chat, project kickoff..."
             bind:value={formTitle}
             disabled={isCreatingPlan}
@@ -249,12 +249,12 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1" for="description">
-            Description <span class="text-slate-400">(optional)</span>
+          <label class="block text-sm font-medium text-slate-700 dark:text-neutral-200 mb-1" for="description">
+            Description <span class="text-slate-400 dark:text-neutral-500">(optional)</span>
           </label>
           <textarea
             id="description"
-            class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none resize-none"
+            class="w-full px-3 py-2 border border-slate-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-slate-800 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none resize-none"
             rows="2"
             placeholder="What's the purpose of this event?"
             bind:value={formDescription}
@@ -263,14 +263,14 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1" for="duration">
+          <label class="block text-sm font-medium text-slate-700 dark:text-neutral-200 mb-1" for="duration">
             Duration
           </label>
           <input
             id="duration"
             type="text"
             list="duration-options"
-            class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none"
+            class="w-full px-3 py-2 border border-slate-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-slate-800 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none"
             placeholder="1 hour"
             bind:value={formDuration}
             disabled={isCreatingPlan}
@@ -286,13 +286,13 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1" for="prefs">
-            Date preferences <span class="text-slate-400">(optional)</span>
+          <label class="block text-sm font-medium text-slate-700 dark:text-neutral-200 mb-1" for="prefs">
+            Date preferences <span class="text-slate-400 dark:text-neutral-500">(optional)</span>
           </label>
           <input
             id="prefs"
             type="text"
-            class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none"
+            class="w-full px-3 py-2 border border-slate-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-slate-800 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none"
             placeholder="Next week, weekday mornings, avoid Fridays..."
             bind:value={formDatePrefs}
             disabled={isCreatingPlan}
@@ -317,22 +317,22 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     </div>
   </div>
 {:else if !event && collectionsLoading}
-  <div class="h-full flex items-center justify-center">
-    <p class="text-slate-500">Loading...</p>
+  <div class="h-full flex items-center justify-center bg-slate-50 dark:bg-neutral-950">
+    <p class="text-slate-500 dark:text-neutral-400">Loading...</p>
   </div>
 {:else}
   <!-- Scheduling view -->
-  <div class="h-full flex flex-col overflow-hidden">
+  <div class="h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-neutral-950">
     <main class="flex-1 flex flex-col min-h-0 p-4 max-w-4xl mx-auto w-full">
       <!-- Event info -->
       {#if event}
-        <div class="bg-white rounded-xl border border-slate-200 p-2 sm:p-4 mb-2 sm:mb-4 relative">
+        <div class="bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 p-2 sm:p-4 mb-2 sm:mb-4 relative">
           <div class="flex items-center justify-between gap-2">
-            <h2 class="text-sm sm:text-lg font-semibold text-slate-800 truncate">{event.title}</h2>
-            <div class="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-500 shrink-0">
+            <h2 class="text-sm sm:text-lg font-semibold text-slate-800 dark:text-neutral-100 truncate">{event.title}</h2>
+            <div class="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-500 dark:text-neutral-400 shrink-0">
               {#if event.description}
                 <button
-                  class="sm:hidden p-1 -m-1 text-slate-400 hover:text-slate-600"
+                  class="sm:hidden p-1 -m-1 text-slate-400 dark:text-neutral-500 hover:text-slate-600 dark:hover:text-neutral-300"
                   onclick={() => showDescription = !showDescription}
                   aria-label="Show event details"
                 >
@@ -345,7 +345,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
                 <span class="sm:hidden">{event.duration.replace(' hour', 'h').replace(' minutes', 'm')}</span>
               </span>
               {#if isOrganizer}
-                <span class="flex items-center gap-1 text-amber-600">
+                <span class="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                   <Icon icon="mdi:crown" class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span class="hidden sm:inline">Organizer</span>
                 </span>
@@ -353,7 +353,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
             </div>
           </div>
           {#if event.description}
-            <p class="hidden sm:block text-sm text-slate-500 mt-1">{event.description}</p>
+            <p class="hidden sm:block text-sm text-slate-500 dark:text-neutral-400 mt-1">{event.description}</p>
           {/if}
           {#if showDescription && event.description}
             <button
@@ -361,7 +361,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
               onclick={() => showDescription = false}
               aria-label="Close tooltip"
             ></button>
-            <div class="sm:hidden absolute right-2 top-full mt-1 z-50 bg-slate-800 text-white text-xs rounded-lg px-3 py-2 max-w-64 shadow-lg">
+            <div class="sm:hidden absolute right-2 top-full mt-1 z-50 bg-slate-800 dark:bg-neutral-700 text-white text-xs rounded-lg px-3 py-2 max-w-64 shadow-lg">
               {event.description}
             </div>
           {/if}
@@ -371,7 +371,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
       <!-- Slots -->
       {#if sortedSlots.length > 0}
         <div class="mb-3 sm:mb-4">
-          <h3 class="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2 sm:mb-3">Available Times</h3>
+          <h3 class="text-xs sm:text-sm font-semibold text-slate-500 dark:text-neutral-400 uppercase tracking-wider mb-2 sm:mb-3">Available Times</h3>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
             {#each sortedSlots as slot (slot.id)}
               <div animate:flip={{ duration: 200 }}>
@@ -389,26 +389,26 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
           </div>
         </div>
       {:else if collectionsLoading || isSending}
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 text-center">
+        <div class="bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-xl p-4 mb-4 text-center">
           <Icon icon="mdi:loading" class="w-8 h-8 text-amber-500 mx-auto mb-2 animate-spin" />
-          <p class="text-sm text-slate-500">Loading time slots...</p>
+          <p class="text-sm text-slate-500 dark:text-neutral-400">Loading time slots...</p>
         </div>
       {:else}
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-center">
+        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-4 text-center">
           <Icon icon="mdi:calendar-question" class="w-8 h-8 text-amber-500 mx-auto mb-2" />
-          <p class="text-sm text-amber-700">No time slots yet. The AI will suggest some options.</p>
+          <p class="text-sm text-amber-700 dark:text-amber-300">No time slots yet. The AI will suggest some options.</p>
         </div>
       {/if}
 
       <!-- Chat -->
-      <div class="flex-1 flex flex-col min-h-0 bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div class="px-4 py-2 border-b border-slate-100">
-          <h3 class="text-sm font-semibold text-slate-700">Discussion</h3>
+      <div class="flex-1 flex flex-col min-h-0 bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 overflow-hidden">
+        <div class="px-4 py-2 border-b border-slate-100 dark:border-neutral-700">
+          <h3 class="text-sm font-semibold text-slate-700 dark:text-neutral-200">Discussion</h3>
         </div>
 
         <div class="flex-1 overflow-auto p-4 space-y-4" bind:this={messagesContainer}>
           {#if currentInteractions.length === 0 && !isSending}
-            <div class="text-center text-slate-400 text-sm py-8">
+            <div class="text-center text-slate-400 dark:text-neutral-500 text-sm py-8">
               <p>Share your availability constraints or preferences.</p>
               <p class="mt-1">Example: "I can't do mornings" or "Prefer next week"</p>
             </div>
@@ -417,7 +417,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
           {#each currentInteractions as interaction}
             <!-- User message -->
             <div class="flex flex-col items-end">
-              <div class="flex items-center gap-2 mb-1 text-xs text-slate-500">
+              <div class="flex items-center gap-2 mb-1 text-xs text-slate-500 dark:text-neutral-400">
                 <span class="font-medium">{interaction.userName ?? 'Anonymous'}</span>
                 <span>{formatMessageTime(interaction.timestamp)}</span>
               </div>
@@ -429,26 +429,26 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
             <!-- AI response -->
             {#if interaction.output}
               <div class="flex justify-start">
-                <div class="max-w-[80%] bg-slate-100 rounded-2xl rounded-bl-md px-4 py-2">
-                  <div class="markdown-output text-sm text-slate-700">
+                <div class="max-w-[80%] bg-slate-100 dark:bg-neutral-800 rounded-2xl rounded-bl-md px-4 py-2">
+                  <div class="markdown-output text-sm text-slate-700 dark:text-neutral-200">
                     <SvelteMarkdown source={interaction.output} />
                   </div>
                 </div>
               </div>
             {:else}
               <div class="flex justify-start">
-                <div class="max-w-[80%] bg-slate-100 rounded-2xl rounded-bl-md px-4 py-2">
+                <div class="max-w-[80%] bg-slate-100 dark:bg-neutral-800 rounded-2xl rounded-bl-md px-4 py-2">
                   {#if interaction.toolCalls && interaction.toolCalls.length > 0}
                     <div class="space-y-1">
                       {#each interaction.toolCalls as toolCall}
-                        <div class="flex items-center gap-2 text-sm text-slate-500">
+                        <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-neutral-400">
                           <Icon icon="mdi:chevron-right" class="w-4 h-4 text-amber-500" />
                           <span class="font-mono text-xs">{toolCall.name}</span>
                         </div>
                       {/each}
                     </div>
                   {:else}
-                    <div class="flex items-center gap-2 text-slate-400">
+                    <div class="flex items-center gap-2 text-slate-400 dark:text-neutral-500">
                       <Icon icon="mdi:loading" class="w-4 h-4 animate-spin" />
                       <span class="text-sm">Thinking...</span>
                     </div>
@@ -460,10 +460,10 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
         </div>
 
         <!-- Input -->
-        <div class="p-2 sm:p-4 border-t border-slate-100">
+        <div class="p-2 sm:p-4 border-t border-slate-100 dark:border-neutral-700">
           <div class="relative flex items-center">
             <textarea
-              class="w-full pl-3 sm:pl-4 pr-10 py-2 text-sm border border-slate-200 rounded-full resize-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none min-h-[40px] max-h-24"
+              class="w-full pl-3 sm:pl-4 pr-10 py-2 text-sm border border-slate-200 dark:border-neutral-600 rounded-full resize-none bg-white dark:bg-neutral-800 text-slate-800 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none min-h-[40px] max-h-24"
               placeholder="Your availability..."
               rows="1"
               bind:value={messageInput}
@@ -471,7 +471,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
               disabled={isSending}
             ></textarea>
             <button
-              class="absolute right-3 p-1 text-amber-500 hover:text-amber-600 disabled:text-slate-300 disabled:cursor-not-allowed transition-colors"
+              class="absolute right-3 p-1 text-amber-500 hover:text-amber-600 disabled:text-slate-300 dark:disabled:text-neutral-600 disabled:cursor-not-allowed transition-colors"
               onclick={sendMessage}
               disabled={isSending || !messageInput.trim()}
               aria-label="Send message"
@@ -513,6 +513,11 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     border-radius: 0.25rem;
     font-size: 0.875rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  :global(.dark) .markdown-output :global(code) {
+    background-color: rgb(0 0 0 / 0.3);
+    color: rgb(251 191 36);
   }
 
   .markdown-output :global(ul),
