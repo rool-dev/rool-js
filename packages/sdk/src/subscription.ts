@@ -11,7 +11,7 @@ import type { Logger } from './logger.js';
 const INITIAL_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 const RECONNECT_MULTIPLIER = 2;
-const HEARTBEAT_TIMEOUT = 45_000; // Server sends heartbeats every 30s; reconnect if none arrives within 45s
+const HEARTBEAT_TIMEOUT = 35_000; // Server sends heartbeats every 30s; reconnect if none arrives within 35s
 
 // =============================================================================
 // Client Subscription Manager
