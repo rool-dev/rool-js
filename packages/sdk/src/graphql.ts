@@ -593,10 +593,10 @@ export class GraphQLClient {
   // User / Collaboration Operations
   // ===========================================================================
 
-  async getAccount(): Promise<CurrentUser> {
+  async getCurrentUser(): Promise<CurrentUser> {
     const query = `
-      query GetAccount {
-        getAccount {
+      query GetCurrentUser {
+        getCurrentUser {
           id
           email
           name
@@ -611,17 +611,30 @@ export class GraphQLClient {
         }
       }
     `;
-    const response = await this.request<{ getAccount: CurrentUser }>(query);
-    return response.getAccount;
+    const response = await this.request<{ getCurrentUser: CurrentUser }>(query);
+    return response.getCurrentUser;
   }
 
-  async setSlug(slug: string): Promise<void> {
+  async updateCurrentUser(input: { name?: string; slug?: string }): Promise<CurrentUser> {
     const mutation = `
-      mutation SetSlug($slug: String!) {
-        setSlug(slug: $slug)
+      mutation UpdateCurrentUser($input: UpdateCurrentUserInput!) {
+        updateCurrentUser(input: $input) {
+          id
+          email
+          name
+          slug
+          plan
+          creditsBalance
+          totalCreditsUsed
+          createdAt
+          lastActivity
+          processedAt
+          storage
+        }
       }
     `;
-    await this.request(mutation, { slug });
+    const response = await this.request<{ updateCurrentUser: CurrentUser }>(mutation, { input });
+    return response.updateCurrentUser;
   }
 
   async findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {

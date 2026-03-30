@@ -204,8 +204,19 @@ class RoolImpl {
   /**
    * Get current user profile from server.
    */
-  getCurrentUser() {
-    return this.#client.getCurrentUser();
+  async getCurrentUser() {
+    const user = await this.#client.getCurrentUser();
+    this.currentUser = user;
+    return user;
+  }
+
+  /**
+   * Update the current user's profile (name, slug).
+   */
+  async updateCurrentUser(input: { name?: string; slug?: string }) {
+    const user = await this.#client.updateCurrentUser(input);
+    this.currentUser = user;
+    return user;
   }
 
   /**

@@ -363,7 +363,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Returns the user's server-assigned id, email, plan, and credits.
    */
   async getCurrentUser(): Promise<CurrentUser> {
-    const user = await this.graphqlClient.getAccount();
+    const user = await this.graphqlClient.getCurrentUser();
     this._currentUser = user;
     return user;
   }
@@ -376,13 +376,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Set the current user's slug (used in app publishing URLs).
-   * Slug must be 3-32 characters, start with a letter, and contain only
-   * lowercase letters, numbers, hyphens, and underscores.
-   * Cannot be changed if the user has published apps.
+   * Update the current user's profile.
+   * - name: display name
+   * - slug: used in app publishing URLs (3-32 chars, start with letter, lowercase alphanumeric/hyphens/underscores)
    */
-  async setSlug(slug: string): Promise<void> {
-    return this.graphqlClient.setSlug(slug);
+  async updateCurrentUser(input: { name?: string; slug?: string }): Promise<CurrentUser> {
+    const user = await this.graphqlClient.updateCurrentUser(input);
+    this._currentUser = user;
+    return user;
   }
 
   // ===========================================================================

@@ -524,6 +524,7 @@ When a user accesses a space via URL, they're granted the corresponding role (`v
 |--------|-------------|
 | `currentUser: CurrentUser \| null` | Cached user profile from `initialize()`. Use for sync access to user info (id, email, name, etc.). Returns `null` before `initialize()` is called. |
 | `getCurrentUser(): Promise<CurrentUser>` | Fetch fresh user profile from server (id, email, name, slug, plan, creditsBalance, totalCreditsUsed, createdAt, lastActivity, processedAt, storage) |
+| `updateCurrentUser(input): Promise<CurrentUser>` | Update the current user's profile (`name`, `slug`). Returns the updated user. Slug must be 3–32 chars, start with a letter, and contain only lowercase alphanumeric characters, hyphens, and underscores. |
 | `searchUser(email): Promise<UserResult \| null>` | Find user by exact email address (no partial matching) |
 
 ### Real-time Collaboration
