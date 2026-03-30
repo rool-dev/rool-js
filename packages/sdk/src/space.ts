@@ -17,6 +17,7 @@ export interface SpaceConfig {
   name: string;
   role: RoolUserRole;
   linkAccess: LinkAccess;
+  memberCount: number;
   channels: ChannelInfo[];
   graphqlClient: GraphQLClient;
   mediaClient: MediaClient;
@@ -38,6 +39,7 @@ export class RoolSpace {
   private _name: string;
   private _role: RoolUserRole;
   private _linkAccess: LinkAccess;
+  private _memberCount: number;
   private _channels: ChannelInfo[];
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
@@ -48,6 +50,7 @@ export class RoolSpace {
     this._name = config.name;
     this._role = config.role;
     this._linkAccess = config.linkAccess;
+    this._memberCount = config.memberCount;
     this._channels = config.channels;
     this.graphqlClient = config.graphqlClient;
     this.mediaClient = config.mediaClient;
@@ -62,6 +65,8 @@ export class RoolSpace {
   get name(): string { return this._name; }
   get role(): RoolUserRole { return this._role; }
   get linkAccess(): LinkAccess { return this._linkAccess; }
+  get memberCount(): number { return this._memberCount; }
+  get isPrivate(): boolean { return this._linkAccess === 'none' && this._memberCount === 1; }
 
   // ===========================================================================
   // Channel Lifecycle
@@ -175,10 +180,11 @@ export class RoolSpace {
    * Updates name, role, linkAccess, and channel list.
    */
   async refresh(): Promise<void> {
-    const { name, role, linkAccess, channels } = await this.graphqlClient.openSpace(this._id);
+    const { name, role, linkAccess, memberCount, channels } = await this.graphqlClient.openSpace(this._id);
     this._name = name;
     this._role = role as RoolUserRole;
     this._linkAccess = linkAccess;
+    this._memberCount = memberCount;
     this._channels = channels;
   }
 }

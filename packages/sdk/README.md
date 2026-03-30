@@ -684,6 +684,8 @@ A space is a lightweight admin handle for space-level operations. It does not ha
 | `name: string` | Space name |
 | `role: RoolUserRole` | User's role |
 | `linkAccess: LinkAccess` | URL sharing level |
+| `memberCount: number` | Number of users with access to the space |
+| `isPrivate: boolean` | True if no link sharing and only one member |
 
 ### Methods
 
@@ -1146,7 +1148,7 @@ interface Interaction {
 type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
 type LinkAccess = 'none' | 'viewer' | 'editor';
 
-interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; linkAccess: LinkAccess; }
+interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; linkAccess: LinkAccess; memberCount: number; }
 interface SpaceMember { id: string; email: string; role: RoolUserRole; }
 interface UserResult { id: string; email: string; name: string | null; }
 interface CurrentUser { id: string; email: string; name: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }

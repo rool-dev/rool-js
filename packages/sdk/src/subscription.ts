@@ -228,6 +228,7 @@ export class ClientSubscriptionManager {
           ownerId: raw.ownerId as string, size: raw.size as number,
           createdAt: raw.createdAt as string, updatedAt: raw.updatedAt as string,
           role: raw.role as string, linkAccess: raw.linkAccess as string,
+          memberCount: raw.memberCount as number,
         };
       case 'user_storage_changed':
         return { type, timestamp, key: raw.key as string, value: raw.value };

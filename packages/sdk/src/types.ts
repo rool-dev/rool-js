@@ -175,6 +175,7 @@ export interface RoolSpaceInfo {
   createdAt: string;
   updatedAt: string;
   linkAccess: LinkAccess;
+  memberCount: number;
 }
 
 export interface UserResult {
@@ -414,6 +415,7 @@ export interface SpaceAccessChangedClientEvent extends ClientEventBase {
   updatedAt: string;
   role: string;
   linkAccess: string;
+  memberCount: number;
 }
 
 export interface UserStorageChangedClientEvent extends ClientEventBase {

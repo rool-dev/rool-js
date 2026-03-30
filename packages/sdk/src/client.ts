@@ -276,13 +276,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * To work with objects and AI, call space.openChannel(channelId).
    */
   async openSpace(spaceId: string): Promise<RoolSpace> {
-    const { name, role, linkAccess, channels } = await this.graphqlClient.openSpace(spaceId);
+    const { name, role, linkAccess, memberCount, channels } = await this.graphqlClient.openSpace(spaceId);
 
     return new RoolSpace({
       id: spaceId,
       name,
       role: role as RoolUserRole,
       linkAccess,
+      memberCount,
       channels,
       graphqlClient: this.graphqlClient,
       mediaClient: this.mediaClient,
@@ -306,6 +307,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       name,
       role: 'owner',
       linkAccess: 'none',
+      memberCount: 1,
       channels: [],
       graphqlClient: this.graphqlClient,
       mediaClient: this.mediaClient,
@@ -616,6 +618,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
           createdAt: event.createdAt ?? new Date().toISOString(),
           updatedAt: event.updatedAt ?? new Date().toISOString(),
           linkAccess: 'none', // New spaces default to no link access
+          memberCount: 1, // Creator is the only member
         });
         break;
 
@@ -640,6 +643,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
             createdAt: event.createdAt,
             updatedAt: event.updatedAt,
             linkAccess: event.linkAccess as LinkAccess,
+            memberCount: event.memberCount,
           });
         }
         break;

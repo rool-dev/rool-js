@@ -81,6 +81,7 @@ export class GraphQLClient {
           createdAt
           updatedAt
           linkAccess
+          memberCount
         }
       }
     `;
@@ -88,13 +89,14 @@ export class GraphQLClient {
     return response.listSpaces;
   }
 
-  async openSpace(spaceId: string): Promise<{ name: string; role: string; linkAccess: LinkAccess; channels: ChannelInfo[] }> {
+  async openSpace(spaceId: string): Promise<{ name: string; role: string; linkAccess: LinkAccess; memberCount: number; channels: ChannelInfo[] }> {
     const query = `
       query OpenSpace($id: String!) {
         openSpace(id: $id) {
           name
           role
           linkAccess
+          memberCount
           channels {
             id
             name
@@ -107,7 +109,7 @@ export class GraphQLClient {
         }
       }
     `;
-    const response = await this.request<{ openSpace: { name: string; role: string; linkAccess: LinkAccess; channels: ChannelInfo[] } }>(query, { id: spaceId });
+    const response = await this.request<{ openSpace: { name: string; role: string; linkAccess: LinkAccess; memberCount: number; channels: ChannelInfo[] } }>(query, { id: spaceId });
     return response.openSpace;
   }
 
