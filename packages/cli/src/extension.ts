@@ -114,24 +114,4 @@ export function registerExtension(program: Command): void {
       }
     });
 
-  ext
-    .command('slug')
-    .description('Show or set your user slug')
-    .argument('[new-slug]', 'new slug to set')
-    .action(async (newSlug: string | undefined, _opts: object, command: Command) => {
-      const { env } = command.optsWithGlobals() as { env: Environment };
-      const client = await getClient(env);
-      try {
-        const user = await client.getCurrentUser();
-
-        if (newSlug) {
-          await client.setSlug(newSlug);
-          console.log(`Slug updated to: ${newSlug}`);
-        } else {
-          console.log(`Your slug: ${user.slug}`);
-        }
-      } finally {
-        client.destroy();
-      }
-    });
 }

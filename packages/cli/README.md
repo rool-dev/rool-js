@@ -24,7 +24,6 @@ rool <command> [options]
 | `app publish` | Build and publish the app |
 | `app list` | List published apps |
 | `app unpublish <app-id>` | Unpublish an app |
-| `app slug [new-slug]` | Show or set your user slug |
 | `chat [prompt]` | Chat with a space (interactive if no prompt) |
 | `media upload <file>` | Upload a file to a space and create an object with the media URL |
 | `space list` | List all spaces |
@@ -70,12 +69,6 @@ rool app list
 
 # Unpublish an app
 rool app unpublish my-app
-
-# Show your user slug
-rool app slug
-
-# Set your user slug
-rool app slug my-slug
 
 # Chat with the default space
 rool chat "What is the capital of France?"
