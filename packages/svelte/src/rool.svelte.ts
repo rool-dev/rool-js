@@ -96,7 +96,12 @@ class RoolImpl {
    * Returns true if authenticated, false otherwise.
    */
   async init(): Promise<boolean> {
-    this.authenticated = await this.#client.initialize();
+    try {
+      this.authenticated = await this.#client.initialize();
+    } catch {
+      this.authenticated = false;
+      return false;
+    }
     if (this.authenticated) {
       // Populate reactive state from SDK (now fresh from server)
       this.currentUser = this.#client.currentUser;

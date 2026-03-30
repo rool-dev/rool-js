@@ -343,7 +343,7 @@ if (!authenticated) {
 
 | Method | Description |
 |--------|-------------|
-| `initialize(): Promise<boolean>` | **Call on app startup.** Processes auth callback from URL, sets up token refresh, returns auth state. |
+| `initialize(): Promise<boolean>` | **Call on app startup.** Processes auth callback from URL, sets up token refresh, returns auth state. Returns `false` if not authenticated. Throws if authenticated but account fetch fails (e.g. network error or invalid token). |
 | `login(appName): void` | Redirect to login page. The app name is displayed on the auth page ("Sign in to {appName}"). |
 | `logout(): void` | Clear tokens and state |
 | `isAuthenticated(): Promise<boolean>` | Check auth status (validates token) |
@@ -522,7 +522,7 @@ When a user accesses a space via URL, they're granted the corresponding role (`v
 
 | Method | Description |
 |--------|-------------|
-| `currentUser: CurrentUser \| null` | Cached user profile from `initialize()`. Use for sync access to user info (id, email, name, etc.). Returns `null` before init or if not authenticated. |
+| `currentUser: CurrentUser \| null` | Cached user profile from `initialize()`. Use for sync access to user info (id, email, name, etc.). Returns `null` before `initialize()` is called. |
 | `getCurrentUser(): Promise<CurrentUser>` | Fetch fresh user profile from server (id, email, name, slug, plan, creditsBalance, totalCreditsUsed, createdAt, lastActivity, processedAt, storage) |
 | `searchUser(email): Promise<UserResult \| null>` | Find user by exact email address (no partial matching) |
 
