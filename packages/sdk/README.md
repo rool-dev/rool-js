@@ -685,7 +685,6 @@ A space is a lightweight admin handle for space-level operations. It does not ha
 | `role: RoolUserRole` | User's role |
 | `linkAccess: LinkAccess` | URL sharing level |
 | `memberCount: number` | Number of users with access to the space |
-| `isPrivate: boolean` | True if no link sharing and only one member |
 
 ### Methods
 

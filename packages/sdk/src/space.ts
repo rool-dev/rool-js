@@ -66,7 +66,6 @@ export class RoolSpace {
   get role(): RoolUserRole { return this._role; }
   get linkAccess(): LinkAccess { return this._linkAccess; }
   get memberCount(): number { return this._memberCount; }
-  get isPrivate(): boolean { return this._linkAccess === 'none' && this._memberCount === 1; }
 
   // ===========================================================================
   // Channel Lifecycle
