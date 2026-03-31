@@ -10,7 +10,7 @@
     "@rool-dev/extension": "workspace:*"
   },
   "devDependencies": {
-    "svelte": "^5.54.0",
+    "svelte": "^5.55.1",
     "typescript": "^5.9.3"
   }
 }
