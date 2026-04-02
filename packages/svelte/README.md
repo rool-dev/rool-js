@@ -451,6 +451,7 @@ import type {
   PublishExtensionOptions,
   ExtensionManifest,
   FindExtensionsOptions,
+  LoginOptions,
 } from '@rool-dev/svelte';
 ```
 

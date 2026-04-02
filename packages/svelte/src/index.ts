@@ -38,4 +38,5 @@ export type {
   PublishExtensionOptions,
   ExtensionManifest,
   FindExtensionsOptions,
+  LoginOptions,
 } from '@rool-dev/sdk';

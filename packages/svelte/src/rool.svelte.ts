@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindExtensionsOptions, type PublishedExtensionInfo, type PublishExtensionOptions } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindExtensionsOptions, type PublishedExtensionInfo, type PublishExtensionOptions, type LoginOptions } from '@rool-dev/sdk';
 import { wrapChannel, createChannelList, type ReactiveChannel, type ReactiveChannelList } from './channel.svelte.js';
 
 /**
@@ -114,8 +114,8 @@ class RoolImpl {
   /**
    * Redirect to login page.
    */
-  login(appName: string): void {
-    this.#client.login(appName);
+  login(appName: string, options?: LoginOptions): void {
+    this.#client.login(appName, options);
   }
 
   /**
