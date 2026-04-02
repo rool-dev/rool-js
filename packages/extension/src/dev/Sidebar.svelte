@@ -274,7 +274,7 @@
     <!-- Footer -->
     <div class="px-4 py-3 mt-auto flex items-center justify-between">
       <a
-        href="https://docs.rool.dev/extension"
+        href="https://docs.rool.dev/extension/"
         target="_blank"
         rel="noopener noreferrer"
         class="text-[11px] text-slate-400 hover:text-indigo-500 transition-colors"

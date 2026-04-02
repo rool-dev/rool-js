@@ -29,7 +29,7 @@ pnpm build
 ```
 
 ## Docs Site
-The `docs/` folder is a Starlight (Astro) site. The SDK, CLI, and Svelte doc pages are **generated from package READMEs** by `docs/build-docs.js` at build time (`pnpm docs:build`). The generated files (`docs/src/content/docs/{sdk,cli,svelte}.md` and `docs/public/llms.txt`) are gitignored. Static pages like `index.md` and `console.md` are checked in directly. **Do not edit the generated doc pages — edit the package READMEs instead.**
+The `docs/` folder is a Starlight (Astro) site. The SDK, CLI, and Svelte doc pages are **generated from package READMEs** by `docs/build-docs.js` at build time (`pnpm docs:build`). The generated files (`docs/src/content/docs/{sdk,cli,svelte}.md` and `docs/public/llms.txt`) are gitignored. Static pages like `index.md` are checked in directly. **Do not edit the generated doc pages — edit the package READMEs instead.**
 
 ## Publishing
 All packages share a single version number and are published together under the `@rool-dev` scope.

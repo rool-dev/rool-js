@@ -3,7 +3,7 @@
  * Copies package READMEs to docs folder with necessary transformations.
  * Run before astro build/dev.
  *
- * Static pages (index.md, console.md) are checked into git directly.
+ * Static pages (index.md) are checked into git directly.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';

@@ -17,9 +17,8 @@ export default defineConfig({
       sidebar: [
         { label: 'Overview', link: '/' },
         {
-          label: 'Products',
+          label: 'Developer Tools',
           items: [
-            { label: 'Console', link: '/console/' },
             { label: 'Extension', link: '/extension/' },
             { label: 'SDK', link: '/sdk/' },
             { label: 'Svelte', link: '/svelte/' },

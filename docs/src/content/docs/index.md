@@ -9,7 +9,7 @@ Extensions add features to a Space. Productivity tools, dashboards, data views, 
 
 ## Getting Started
 
-Sign up via the [Console](https://console.rool.dev) and familiarize yourself with the environment. Create a few spaces, chat with them, add and remove objects. You can install example extensions like Chat, Flashcards, and Snake directly from the extension directory inside any Space.
+[Rool](https://rool.app) is a chat-centered AI web app with object-based memory that can be customized with vibe-coded extensions. Sign up at [rool.app](https://rool.app) and familiarize yourself with the environment. Create a few spaces, chat with them, add and remove objects. You can install example extensions like Chat, Flashcards, and Snake directly from the extension directory inside any Space.
 
 When you're ready to build your own extension, scaffold a new project with the CLI:
 
@@ -21,13 +21,7 @@ cd my-extension && npm install && npm run dev
 
 For detailed API documentation, read the [Extension docs](/extension/) or point your coding agent at them.
 
-## Products
-
-### Console
-
-The web application for managing your spaces. Create, explore, and collaborate on spaces with a visual interface. Install extensions from the directory or build your own.
-
-[Open Console](https://console.rool.dev)
+## Developer Tools
 
 ### Extension
 
