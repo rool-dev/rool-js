@@ -1,5 +1,5 @@
 
-import type { AuthProvider, AuthUser } from './types.js';
+import type { AuthProvider, AuthUser, LoginOptions } from './types.js';
 import type { Logger } from './logger.js';
 
 const REFRESH_BUFFER_MS = 15 * 60 * 1000; // Refresh 15 minutes before expiry
@@ -114,11 +114,15 @@ export class BrowserAuthProvider implements AuthProvider {
      * Initiate login by redirecting to auth page.
      * @param appName - The name of the application requesting login (displayed on auth page)
      */
-    login(appName: string): void {
+    login(appName: string, options?: LoginOptions): void {
         const loginUrl = new URL(`${this.authBaseUrl}/`);
         const redirectTarget = window.location.origin + window.location.pathname + window.location.search;
         loginUrl.searchParams.set('redirect_uri', redirectTarget);
         loginUrl.searchParams.set('app_name', appName);
+
+        if (options?.signup) {
+            loginUrl.searchParams.set('signup', 'true');
+        }
 
         const state = this.generateState();
         this.storeState(state);

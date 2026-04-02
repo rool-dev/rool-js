@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import open from 'open';
-import type { AuthProvider, AuthUser } from './types.js';
+import type { AuthProvider, AuthUser, LoginOptions } from './types.js';
 import { defaultLogger, type Logger } from './logger.js';
 
 export interface NodeAuthConfig {
@@ -114,7 +114,7 @@ export class NodeAuthProvider implements AuthProvider {
         return tokens !== undefined;
     }
 
-    async login(appName: string): Promise<void> {
+    async login(appName: string, options?: LoginOptions): Promise<void> {
         const { server, closeAll } = await this.startLoopbackServer();
         const port = (server.address() as any).port;
         const redirectUri = `http://localhost:${port}`;
@@ -126,6 +126,9 @@ export class NodeAuthProvider implements AuthProvider {
         const loginUrl = new URL(`${this.authEndpoint}/`);
         loginUrl.searchParams.set('redirect_uri', redirectUri);
         loginUrl.searchParams.set('app_name', appName);
+        if (options?.signup) {
+            loginUrl.searchParams.set('signup', 'true');
+        }
         loginUrl.searchParams.set('state', state);
 
         this.logger.info(`Opening browser to login to ${appName}:`, loginUrl.toString());

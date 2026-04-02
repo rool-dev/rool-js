@@ -25,6 +25,7 @@ import type {
   PublishedExtensionInfo,
   PublishExtensionOptions,
   FindExtensionsOptions,
+  LoginOptions,
 } from './types.js';
 
 type ResolvedUrls = {
@@ -142,8 +143,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Initiate login by redirecting to auth page.
    * @param appName - The name of the application requesting login (displayed on auth page)
    */
-  async login(appName: string): Promise<void> {
-    return this.authManager.login(appName);
+  async login(appName: string, options?: LoginOptions): Promise<void> {
+    return this.authManager.login(appName, options);
   }
 
   /**

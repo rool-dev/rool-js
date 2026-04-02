@@ -91,4 +91,5 @@ export type {
   RoolClientEvents,
   AuthTokens,
   AuthProvider,
+  LoginOptions,
 } from './types.js';
