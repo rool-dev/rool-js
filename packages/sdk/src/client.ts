@@ -75,7 +75,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       graphql: config.graphqlUrl ?? `${this.baseUrl}/graphql`,
       media: config.mediaUrl ?? `${this.baseUrl}/media`,
       auth: config.authUrl ?? `${this.baseUrl}/auth`,
-      extensions: `${this.baseUrl}/extensions`,
+      extensions: `${this.baseUrl}/user-extensions`,
     };
 
     this.authManager = new AuthManager({
