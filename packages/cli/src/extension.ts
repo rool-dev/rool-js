@@ -66,7 +66,7 @@ export function registerExtension(program: Command): void {
 
   ext
     .command('list')
-    .description('List published extensions')
+    .description('List your extensions')
     .action(async (_opts: object, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
       const client = await getClient(env);
@@ -74,9 +74,9 @@ export function registerExtension(program: Command): void {
         const extensions = await client.listExtensions();
 
         if (extensions.length === 0) {
-          console.log('No published extensions.');
+          console.log('No extensions.');
         } else {
-          console.log('Published extensions:');
+          console.log('Your extensions:');
           console.log('');
           for (const a of extensions) {
             console.log(`  ${a.extensionId}`);
@@ -109,6 +109,38 @@ export function registerExtension(program: Command): void {
 
         await client.deleteExtension(extensionId);
         console.log(`Deleted: ${extensionId}`);
+      } finally {
+        client.destroy();
+      }
+    });
+
+  ext
+    .command('publish-public')
+    .description('Publish an extension to the public catalog')
+    .argument('<extension-id>', 'extension to publish')
+    .action(async (rawExtensionId: string, _opts: object, command: Command) => {
+      const extensionId = rawExtensionId.toLowerCase();
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      const client = await getClient(env);
+      try {
+        await client.publishToPublic(extensionId);
+        console.log(`Published to public catalog: ${extensionId}`);
+      } finally {
+        client.destroy();
+      }
+    });
+
+  ext
+    .command('unpublish')
+    .description('Remove an extension from the public catalog (keeps your user extension)')
+    .argument('<extension-id>', 'extension to unpublish')
+    .action(async (rawExtensionId: string, _opts: object, command: Command) => {
+      const extensionId = rawExtensionId.toLowerCase();
+      const { env } = command.optsWithGlobals() as { env: Environment };
+      const client = await getClient(env);
+      try {
+        await client.unpublishFromPublic(extensionId);
+        console.log(`Unpublished from public catalog: ${extensionId}`);
       } finally {
         client.destroy();
       }
