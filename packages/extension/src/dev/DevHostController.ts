@@ -275,7 +275,7 @@ export class DevHostController {
 
     try {
       // Step 1: install extension (server applies manifest: name, systemInstruction, collections)
-      const channelId = await this.client.installExtension(this.currentSpaceId, extensionId);
+      const channelId = await this.client.installExtension(this.currentSpaceId, extensionId, extensionId);
 
       // Step 2: open channel for live subscription
       const ch = await this.client.openChannel(this.currentSpaceId, channelId);
