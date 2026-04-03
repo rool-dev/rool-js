@@ -67,7 +67,7 @@ export async function publish() {
   // Publish
   console.log(`  Publishing ${manifest.id} to ${env}...`);
   const blob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
-  const result = await client.publishExtension(manifest.id, {
+  const result = await client.uploadExtension(manifest.id, {
     bundle: blob,
   });
 

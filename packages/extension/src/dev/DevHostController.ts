@@ -341,7 +341,7 @@ export class DevHostController {
       this.publishState = 'uploading';
       this._onChange();
 
-      const result = await this.client.publishExtension(this.manifest.id, {
+      const result = await this.client.uploadExtension(this.manifest.id, {
         bundle: zipBlob,
       });
 

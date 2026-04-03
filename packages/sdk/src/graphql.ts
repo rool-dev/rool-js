@@ -105,6 +105,7 @@ export class GraphQLClient {
             createdByName
             interactionCount
             extensionUrl
+            extensionId
           }
         }
       }
@@ -671,6 +672,24 @@ export class GraphQLClient {
       channelId,
     });
     return result.installExtension;
+  }
+
+  async publishExtensionToPublic(extensionId: string): Promise<void> {
+    const mutation = `
+      mutation PublishExtension($extensionId: String!) {
+        publishExtension(extensionId: $extensionId)
+      }
+    `;
+    await this.request(mutation, { extensionId });
+  }
+
+  async unpublishExtensionFromPublic(extensionId: string): Promise<void> {
+    const mutation = `
+      mutation UnpublishExtension($extensionId: String!) {
+        unpublishExtension(extensionId: $extensionId)
+      }
+    `;
+    await this.request(mutation, { extensionId });
   }
 
   async setUserStorage(key: string, value: unknown): Promise<void> {

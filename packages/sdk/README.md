@@ -625,16 +625,20 @@ client.on('userStorageChanged', ({ key, value, source }) => {
 
 ### Extensions
 
-Publish, manage, and discover extensions. See [`@rool-dev/extension`](/extension/) for building extensions.
+Manage, and publish extensions. See [`@rool-dev/extension`](/extension/) for building extensions.
+
+**User extensions** are your personal library — extensions you've created or installed. **Published extensions** are publicly discoverable by all users.
 
 | Method | Description |
 |--------|-------------|
-| `publishExtension(extensionId, options): Promise<PublishedExtensionInfo>` | Publish or update an extension (`options.bundle`: zip with `index.html` and `manifest.json`) |
-| `unpublishExtension(extensionId): Promise<void>` | Unpublish an extension |
-| `listExtensions(): Promise<PublishedExtensionInfo[]>` | List your own published extensions |
-| `getExtensionInfo(extensionId): Promise<PublishedExtensionInfo \| null>` | Get info for a specific extension |
-| `findExtensions(options?): Promise<PublishedExtensionInfo[]>` | Search public extensions. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
-| `installExtension(spaceId, extensionId, channelId?): Promise<string>` | Install an extension into a space. Creates/updates a channel with the extension's manifest settings (name, system instruction, collections). Returns the channel ID. Defaults `channelId` to `extensionId`. |
+| `uploadExtension(extensionId, options): Promise<PublishedExtensionInfo>` | Upload or update a user extension (`options.bundle`: zip with `index.html` and `manifest.json`) |
+| `deleteExtension(extensionId): Promise<void>` | Delete a user extension permanently (removes files and DB row) |
+| `listExtensions(): Promise<PublishedExtensionInfo[]>` | List your user extensions |
+| `getExtensionInfo(extensionId): Promise<PublishedExtensionInfo \| null>` | Get info for a specific user extension |
+| `findExtensions(options?): Promise<PublishedExtensionInfo[]>` | Search published extensions. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
+| `installExtension(spaceId, extensionId, channelId): Promise<string>` | Install an extension into a space. If you own the extension, wires it directly. If it's a published extension, copies and builds a new user extension. Returns the channel ID. |
+| `publishToPublic(extensionId): Promise<void>` | Publish a user extension (make it publicly discoverable) |
+| `unpublishFromPublic(extensionId): Promise<void>` | Unpublish an extension (remove from public listing, keeps the user extension) |
 
 ### Utilities
 
@@ -718,6 +722,7 @@ A channel is a named context within a space. All object operations, AI prompts, 
 | `channelId: string` | Channel ID (read-only, fixed at open time) |
 | `isReadOnly: boolean` | True if viewer role |
 | `extensionUrl: string \| null` | URL of the installed extension, or null if this is a plain channel |
+| `extensionId: string \| null` | ID of the installed extension, or null if this is a plain channel |
 
 ### Lifecycle
 
@@ -1096,6 +1101,7 @@ interface Channel {
   createdBy: string;            // User ID who created the channel
   createdByName?: string;       // Display name at time of creation
   extensionUrl?: string;        // URL of installed extension (set by installExtension)
+  extensionId?: string;         // ID of installed extension (user_extensions.extension_id)
   conversations: Record<string, Conversation>;  // Keyed by conversation ID
 }
 
@@ -1108,6 +1114,7 @@ interface ChannelInfo {
   createdByName: string | null;
   interactionCount: number;
   extensionUrl: string | null;  // URL of installed extension, or null
+  extensionId: string | null;   // ID of installed extension, or null
 }
 ```
 

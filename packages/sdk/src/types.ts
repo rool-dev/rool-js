@@ -139,6 +139,8 @@ export interface Channel {
   createdByName?: string;
   /** URL of the installed extension, if this channel was created via installExtension. */
   extensionUrl?: string;
+  /** ID of the installed extension (user_extensions.extension_id). */
+  extensionId?: string;
   conversations: Record<string, Conversation>;
 }
 
@@ -155,6 +157,8 @@ export interface ChannelInfo {
   interactionCount: number;
   /** URL of the installed extension, or null if this is a plain channel. */
   extensionUrl: string | null;
+  /** ID of the installed extension, or null if this is a plain channel. */
+  extensionId: string | null;
 }
 
 
@@ -433,6 +437,7 @@ export interface ChannelCreatedClientEvent extends ClientEventBase {
   channelCreatedBy?: string;
   channelCreatedByName?: string;
   channelExtensionUrl?: string | null;
+  channelExtensionId?: string | null;
 }
 
 export interface ChannelRenamedClientEvent extends ClientEventBase {

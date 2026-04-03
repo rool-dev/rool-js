@@ -1,6 +1,6 @@
 // =============================================================================
 // Extensions Client
-// REST API wrapper for extension publishing/unpublishing/listing
+// REST API wrapper for user extension management (upload/delete/list/get)
 // =============================================================================
 
 import type { PublishedExtensionInfo, PublishExtensionOptions } from './types.js';
@@ -18,18 +18,19 @@ export class ExtensionsClient {
     this.config = config;
   }
 
-  /**
-   * List all published extensions for the current user.
-   */
-  async list(): Promise<PublishedExtensionInfo[]> {
+  private async getHeaders(): Promise<Record<string, string>> {
     const tokens = await this.config.authManager.getTokens();
     if (!tokens) throw new Error('Not authenticated');
+    return { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
+  }
 
-    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
-
+  /**
+   * List all user extensions.
+   */
+  async list(): Promise<PublishedExtensionInfo[]> {
     const response = await fetch(this.config.extensionsUrl, {
       method: 'GET',
-      headers,
+      headers: await this.getHeaders(),
     });
 
     if (!response.ok) {
@@ -40,22 +41,15 @@ export class ExtensionsClient {
   }
 
   /**
-   * Get info for a specific published extension.
+   * Get info for a specific user extension.
    */
   async get(extensionId: string): Promise<PublishedExtensionInfo | null> {
-    const tokens = await this.config.authManager.getTokens();
-    if (!tokens) throw new Error('Not authenticated');
-
-    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
-
     const response = await fetch(`${this.config.extensionsUrl}/${encodeURIComponent(extensionId)}`, {
       method: 'GET',
-      headers,
+      headers: await this.getHeaders(),
     });
 
-    if (response.status === 404) {
-      return null;
-    }
+    if (response.status === 404) return null;
 
     if (!response.ok) {
       throw new Error(`Failed to get extension: ${response.status} ${response.statusText}`);
@@ -65,50 +59,40 @@ export class ExtensionsClient {
   }
 
   /**
-   * Publish or update an extension.
+   * Upload or update a user extension bundle.
    * @param extensionId - URL-safe identifier for the extension
    * @param options - Bundle zip file (must include index.html and manifest.json)
    */
-  async publish(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
-    const tokens = await this.config.authManager.getTokens();
-    if (!tokens) throw new Error('Not authenticated');
-
-    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
-
+  async upload(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
     const formData = new FormData();
     formData.append('bundle', options.bundle);
 
     const response = await fetch(`${this.config.extensionsUrl}/${encodeURIComponent(extensionId)}`, {
       method: 'POST',
-      headers,
+      headers: await this.getHeaders(),
       body: formData,
     });
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({}));
       const errorMessage = errorBody.error || `${response.status} ${response.statusText}`;
-      throw new Error(`Failed to publish extension: ${errorMessage}`);
+      throw new Error(`Failed to upload extension: ${errorMessage}`);
     }
 
     return response.json();
   }
 
   /**
-   * Unpublish an extension.
+   * Delete a user extension permanently.
    */
-  async unpublish(extensionId: string): Promise<void> {
-    const tokens = await this.config.authManager.getTokens();
-    if (!tokens) throw new Error('Not authenticated');
-
-    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
-
+  async delete(extensionId: string): Promise<void> {
     const response = await fetch(`${this.config.extensionsUrl}/${encodeURIComponent(extensionId)}`, {
       method: 'DELETE',
-      headers,
+      headers: await this.getHeaders(),
     });
 
     if (!response.ok && response.status !== 204) {
-      throw new Error(`Failed to unpublish extension: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to delete extension: ${response.status} ${response.statusText}`);
     }
   }
 }

@@ -260,6 +260,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this._channel?.extensionUrl ?? null;
   }
 
+  /**
+   * Get the extension ID if this channel has an installed extension, or null.
+   */
+  get extensionId(): string | null {
+    return this._channel?.extensionId ?? null;
+  }
+
   // ===========================================================================
   // Channel History Access
   // ===========================================================================

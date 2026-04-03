@@ -93,9 +93,9 @@ export function registerExtension(program: Command): void {
     });
 
   ext
-    .command('unpublish')
-    .description('Unpublish an extension')
-    .argument('<extension-id>', 'extension to unpublish')
+    .command('delete')
+    .description('Delete a user extension permanently')
+    .argument('<extension-id>', 'extension to delete')
     .action(async (rawExtensionId: string, _opts: object, command: Command) => {
       const extensionId = rawExtensionId.toLowerCase();
       const { env } = command.optsWithGlobals() as { env: Environment };
@@ -107,8 +107,8 @@ export function registerExtension(program: Command): void {
           process.exit(1);
         }
 
-        await client.unpublishExtension(extensionId);
-        console.log(`Unpublished: ${extensionId}`);
+        await client.deleteExtension(extensionId);
+        console.log(`Deleted: ${extensionId}`);
       } finally {
         client.destroy();
       }

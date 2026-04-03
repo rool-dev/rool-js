@@ -393,42 +393,41 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   // Extension Publishing
   // ===========================================================================
 
+  // ===========================================================================
+  // User Extensions (your personal library)
+  // ===========================================================================
+
   /**
-   * Publish an extension. The extension will be accessible at:
-   * https://{extensionId}.rool.app/
-   *
-   * @param extensionId - URL-safe identifier (alphanumeric, hyphens, underscores; case-insensitive, lowercased by server)
+   * Upload or update a user extension bundle.
+   * @param extensionId - URL-safe identifier (alphanumeric, hyphens, underscores)
    * @param options - Bundle zip file (must include index.html and manifest.json)
    */
-  async publishExtension(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
-    return this.extensionsClient.publish(extensionId, options);
+  async uploadExtension(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
+    return this.extensionsClient.upload(extensionId, options);
   }
 
-  /**
-   * Unpublish an extension.
-   */
-  async unpublishExtension(extensionId: string): Promise<void> {
-    return this.extensionsClient.unpublish(extensionId);
+  /** Delete a user extension permanently (removes files and DB row). */
+  async deleteExtension(extensionId: string): Promise<void> {
+    return this.extensionsClient.delete(extensionId);
   }
 
-  /**
-   * List all published extensions for the current user.
-   */
+  /** List the current user's extensions. */
   async listExtensions(): Promise<PublishedExtensionInfo[]> {
     return this.extensionsClient.list();
   }
 
-  /**
-   * Get info for a specific published extension.
-   * Returns null if the extension doesn't exist.
-   */
+  /** Get info for a specific user extension. Returns null if not found. */
   async getExtensionInfo(extensionId: string): Promise<PublishedExtensionInfo | null> {
     return this.extensionsClient.get(extensionId);
   }
 
+  // ===========================================================================
+  // Published Extensions (public discovery & install)
+  // ===========================================================================
+
   /**
-   * Search for public extensions. With a query, performs semantic search.
-   * Without a query, returns all public extensions sorted by most recently updated.
+   * Search published extensions. With a query, performs semantic search.
+   * Without a query, returns all published extensions sorted by most recently updated.
    */
   async findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
     return this.graphqlClient.findExtensions(options);
@@ -436,16 +435,22 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Install an extension into a space.
-   * Creates (or updates) a channel with the extension's name, URL, system instruction,
-   * and collections from the published extension manifest.
-   *
-   * @param spaceId - The space to install the extension into
-   * @param extensionId - The published extension ID
-   * @param channelId - Channel ID for the extension (defaults to extensionId)
+   * If extensionId is a user extension you own, wires it directly.
+   * If it's a published extension, copies source and builds a new user extension.
    * @returns The channel ID
    */
-  async installExtension(spaceId: string, extensionId: string, channelId?: string): Promise<string> {
-    return this.graphqlClient.installExtension(spaceId, extensionId, channelId ?? extensionId);
+  async installExtension(spaceId: string, extensionId: string, channelId: string): Promise<string> {
+    return this.graphqlClient.installExtension(spaceId, extensionId, channelId);
+  }
+
+  /** Publish a user extension (make it publicly discoverable). */
+  async publishToPublic(extensionId: string): Promise<void> {
+    return this.graphqlClient.publishExtensionToPublic(extensionId);
+  }
+
+  /** Unpublish an extension (remove from public listing). */
+  async unpublishFromPublic(extensionId: string): Promise<void> {
+    return this.graphqlClient.unpublishExtensionFromPublic(extensionId);
   }
 
   // ===========================================================================
@@ -662,6 +667,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
           createdByName: event.channelCreatedByName ?? null,
           interactionCount: 0,
           extensionUrl: event.channelExtensionUrl ?? null,
+          extensionId: event.channelExtensionId ?? null,
         });
         break;
 

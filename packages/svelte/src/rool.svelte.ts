@@ -234,48 +234,52 @@ class RoolImpl {
   }
 
   /**
-   * Search for public extensions. With a query, performs semantic search.
-   * Without a query, returns all public extensions sorted by most recently updated.
-   */
-  findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
-    return this.#client.findExtensions(options);
-  }
-
-  /**
    * Install an extension into a space.
    * Creates/updates a channel with the extension's manifest settings.
    * Returns the channel ID.
    */
-  installExtension(spaceId: string, extensionId: string, channelId?: string): Promise<string> {
-    return this.#client.installExtension(spaceId, extensionId, channelId);
+  // --- User Extensions (your personal library) ---
+
+  /** Upload or update a user extension bundle. */
+  uploadExtension(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
+    return this.#client.uploadExtension(extensionId, options);
   }
 
-  /**
-   * Publish or update an extension.
-   */
-  publishExtension(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
-    return this.#client.publishExtension(extensionId, options);
+  /** Delete a user extension permanently. */
+  deleteExtension(extensionId: string): Promise<void> {
+    return this.#client.deleteExtension(extensionId);
   }
 
-  /**
-   * Unpublish an extension.
-   */
-  unpublishExtension(extensionId: string): Promise<void> {
-    return this.#client.unpublishExtension(extensionId);
-  }
-
-  /**
-   * List the current user's published extensions.
-   */
+  /** List the current user's extensions. */
   listExtensions(): Promise<PublishedExtensionInfo[]> {
     return this.#client.listExtensions();
   }
 
-  /**
-   * Get info for a specific published extension.
-   */
+  /** Get info for a specific user extension. */
   getExtensionInfo(extensionId: string): Promise<PublishedExtensionInfo | null> {
     return this.#client.getExtensionInfo(extensionId);
+  }
+
+  // --- Published Extensions (public discovery & install) ---
+
+  /** Search published extensions. */
+  findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
+    return this.#client.findExtensions(options);
+  }
+
+  /** Install an extension into a space. */
+  installExtension(spaceId: string, extensionId: string, channelId: string): Promise<string> {
+    return this.#client.installExtension(spaceId, extensionId, channelId);
+  }
+
+  /** Publish a user extension (make it publicly discoverable). */
+  publishToPublic(extensionId: string): Promise<void> {
+    return this.#client.publishToPublic(extensionId);
+  }
+
+  /** Unpublish an extension (remove from public listing). */
+  unpublishFromPublic(extensionId: string): Promise<void> {
+    return this.#client.unpublishFromPublic(extensionId);
   }
 
   /**
