@@ -129,7 +129,7 @@ export class NodeAuthProvider implements AuthProvider {
 
         const state = Math.random().toString(36).substring(2);
 
-        const url = new URL(`${this.authEndpoint}/auth/${flow}`);
+        const url = new URL(`${this.authEndpoint}/${flow}`);
         url.searchParams.set('redirect_uri', redirectUri);
         url.searchParams.set('app_name', appName);
         url.searchParams.set('state', state);
