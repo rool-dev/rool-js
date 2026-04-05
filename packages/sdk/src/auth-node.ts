@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import open from 'open';
-import type { AuthProvider, AuthUser, LoginOptions } from './types.js';
+import type { AuthProvider, AuthUser } from './types.js';
 import { defaultLogger, type Logger } from './logger.js';
 
 export interface NodeAuthConfig {
@@ -114,25 +114,28 @@ export class NodeAuthProvider implements AuthProvider {
         return tokens !== undefined;
     }
 
-    async login(appName: string, options?: LoginOptions): Promise<void> {
+    async login(appName: string): Promise<void> {
+        return this.authFlow('login', appName);
+    }
+
+    async signup(appName: string): Promise<void> {
+        return this.authFlow('signup', appName);
+    }
+
+    private async authFlow(flow: 'login' | 'signup', appName: string): Promise<void> {
         const { server, closeAll } = await this.startLoopbackServer();
         const port = (server.address() as any).port;
         const redirectUri = `http://localhost:${port}`;
 
-        // Generate code verifier/state if needed, currently just state
         const state = Math.random().toString(36).substring(2);
 
-        // Auth endpoint is the root of the auth service
-        const loginUrl = new URL(`${this.authEndpoint}/`);
-        loginUrl.searchParams.set('redirect_uri', redirectUri);
-        loginUrl.searchParams.set('app_name', appName);
-        if (options?.signup) {
-            loginUrl.searchParams.set('signup', 'true');
-        }
-        loginUrl.searchParams.set('state', state);
+        const url = new URL(`${this.authEndpoint}/auth/${flow}`);
+        url.searchParams.set('redirect_uri', redirectUri);
+        url.searchParams.set('app_name', appName);
+        url.searchParams.set('state', state);
 
-        this.logger.info(`Opening browser to login to ${appName}:`, loginUrl.toString());
-        await open(loginUrl.toString());
+        this.logger.info(`Opening browser to ${flow} to ${appName}:`, url.toString());
+        await open(url.toString());
 
         const timeoutMs = this.config.loginTimeoutMs ?? 5 * 60 * 1000; // 5 minutes default
 

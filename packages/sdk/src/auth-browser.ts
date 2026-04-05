@@ -1,5 +1,5 @@
 
-import type { AuthProvider, AuthUser, LoginOptions } from './types.js';
+import type { AuthProvider, AuthUser } from './types.js';
 import type { Logger } from './logger.js';
 
 const REFRESH_BUFFER_MS = 15 * 60 * 1000; // Refresh 15 minutes before expiry
@@ -114,21 +114,29 @@ export class BrowserAuthProvider implements AuthProvider {
      * Initiate login by redirecting to auth page.
      * @param appName - The name of the application requesting login (displayed on auth page)
      */
-    login(appName: string, options?: LoginOptions): void {
-        const loginUrl = new URL(`${this.authBaseUrl}/`);
-        const redirectTarget = window.location.origin + window.location.pathname + window.location.search;
-        loginUrl.searchParams.set('redirect_uri', redirectTarget);
-        loginUrl.searchParams.set('app_name', appName);
+    login(appName: string): void {
+        this.redirectToAuth('login', appName);
+    }
 
-        if (options?.signup) {
-            loginUrl.searchParams.set('signup', 'true');
-        }
+    /**
+     * Initiate signup by redirecting to auth page.
+     * @param appName - The name of the application requesting signup (displayed on auth page)
+     */
+    signup(appName: string): void {
+        this.redirectToAuth('signup', appName);
+    }
+
+    private redirectToAuth(flow: 'login' | 'signup', appName: string): void {
+        const url = new URL(`${this.authBaseUrl}/auth/${flow}`);
+        const redirectTarget = window.location.origin + window.location.pathname + window.location.search;
+        url.searchParams.set('redirect_uri', redirectTarget);
+        url.searchParams.set('app_name', appName);
 
         const state = this.generateState();
         this.storeState(state);
-        loginUrl.searchParams.set('state', state);
+        url.searchParams.set('state', state);
 
-        window.location.href = loginUrl.toString();
+        window.location.href = url.toString();
     }
 
     /**

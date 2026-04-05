@@ -71,6 +71,7 @@ const rool = createRool();
 
 rool.init();              // Process auth callbacks (call on app startup)
 rool.login('My App');     // Redirect to login page
+rool.signup('My App');    // Redirect to signup page
 rool.logout();            // Clear auth state and close all channels
 rool.destroy();           // Clean up all resources
 ```
@@ -451,7 +452,7 @@ import type {
   PublishExtensionOptions,
   ExtensionManifest,
   FindExtensionsOptions,
-  LoginOptions,
+
 } from '@rool-dev/svelte';
 ```
 

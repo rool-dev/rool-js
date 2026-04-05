@@ -3,7 +3,7 @@
 // Handles authentication via configurable AuthProvider
 // =============================================================================
 
-import type { AuthUser, AuthProvider, LoginOptions } from './types.js';
+import type { AuthUser, AuthProvider } from './types.js';
 import { BrowserAuthProvider } from './auth-browser.js';
 import type { Logger } from './logger.js';
 
@@ -75,8 +75,16 @@ export class AuthManager {
    * Initiate login.
    * @param appName - The name of the application requesting login (displayed on auth page)
    */
-  login(appName: string, options?: LoginOptions): Promise<void> | void {
-    return this.provider.login(appName, options);
+  login(appName: string): Promise<void> | void {
+    return this.provider.login(appName);
+  }
+
+  /**
+   * Initiate signup.
+   * @param appName - The name of the application requesting signup (displayed on auth page)
+   */
+  signup(appName: string): Promise<void> | void {
+    return this.provider.signup(appName);
   }
 
   /**

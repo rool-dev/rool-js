@@ -514,11 +514,6 @@ export interface ChannelEvent {
  * External auth provider interface for Electron or custom auth flows.
  * When provided, the SDK delegates all auth operations to this provider.
  */
-export interface LoginOptions {
-  /** If true, show the signup page instead of the login page */
-  signup?: boolean;
-}
-
 export interface AuthProvider {
   /** Initialize the provider (e.g. check for callbacks, start timers) */
   initialize?: () => boolean;
@@ -529,7 +524,9 @@ export interface AuthProvider {
   /** Check if currently authenticated (validates token is usable) */
   isAuthenticated: () => Promise<boolean>;
   /** Initiate login with application name */
-  login: (appName: string, options?: LoginOptions) => Promise<void> | void;
+  login: (appName: string) => Promise<void> | void;
+  /** Initiate signup with application name */
+  signup: (appName: string) => Promise<void> | void;
   /** Logout and clear session */
   logout: () => void;
   /** Clean up resources (e.g. stop timers) */
