@@ -171,17 +171,11 @@ export class MediaClient {
 
   /**
    * Fetch an external URL via the server proxy (bypasses CORS).
+   * Uses POST /fetch/:spaceId with cache-control hint for media.
    */
   private async fetchViaProxy(spaceId: string, url: string): Promise<Response> {
-    const tokens = await this.config.authManager.getTokens();
-    if (!tokens) throw new Error('Not authenticated');
-
-    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
-
-    const proxyUrl = `${this.baseUrl(spaceId)}/proxy?url=${encodeURIComponent(url)}`;
-    const response = await fetch(proxyUrl, {
-      method: 'GET',
-      headers,
+    const response = await this.proxyFetch(spaceId, url, {
+      headers: { 'Cache-Control': 'private, max-age=3600' },
     });
 
     if (!response.ok) {
@@ -209,6 +203,37 @@ export class MediaClient {
     if (!response.ok && response.status !== 204) {
       throw new Error(`Failed to delete media: ${response.status} ${response.statusText}`);
     }
+  }
+
+  /**
+   * Proxied fetch — execute an HTTP request via the server, bypassing CORS.
+   * Uses POST /fetch/:spaceId on the backend.
+   */
+  async proxyFetch(
+    spaceId: string,
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: unknown }
+  ): Promise<Response> {
+    const tokens = await this.config.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
+
+    const fetchUrl = `${this.config.backendOrigin}/fetch/${encodeURIComponent(spaceId)}`;
+    const response = await fetch(fetchUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokens.accessToken}`,
+        'X-Rool-Token': tokens.roolToken,
+      },
+      body: JSON.stringify({
+        url,
+        method: init?.method,
+        headers: init?.headers,
+        body: init?.body,
+      }),
+    });
+
+    return response;
   }
 
   /**

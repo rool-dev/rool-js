@@ -75,6 +75,7 @@ const ALLOWED_METHODS = new Set([
   'undo',
   'redo',
   'clearHistory',
+  'fetch',
 ]);
 
 // Methods that can be dispatched to a ConversationHandle when conversationId is present
@@ -231,6 +232,16 @@ export class BridgeHost {
       } else {
         // Property access (shouldn't happen with current ALLOWED_METHODS, but just in case)
         result = fn;
+      }
+
+      // Response objects can't be serialized over postMessage — convert to a plain object
+      // Uses ArrayBuffer (transferable) to support both text and binary responses.
+      if (method === 'fetch' && result instanceof Response) {
+        const response = result;
+        const headers: Record<string, string> = {};
+        response.headers.forEach((v, k) => { headers[k] = v; });
+        const body = await response.arrayBuffer();
+        result = { status: response.status, statusText: response.statusText, headers, body };
       }
 
       this._postToApp({ type: 'rool:response', id, result });

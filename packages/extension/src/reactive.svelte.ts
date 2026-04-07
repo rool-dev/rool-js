@@ -578,6 +578,31 @@ class ReactiveChannelImpl {
   }
 
   // ---------------------------------------------------------------------------
+  // Proxied fetch
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fetch an external URL via the server proxy, bypassing CORS restrictions.
+   * Requires editor role or above. Blocked for private/internal IP ranges (SSRF protection).
+   */
+  async fetch(
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: unknown }
+  ): Promise<Response> {
+    const result = await this._call('fetch', url, init) as {
+      status: number;
+      statusText: string;
+      headers: Record<string, string>;
+      body: ArrayBuffer;
+    };
+    return new Response(result.body, {
+      status: result.status,
+      statusText: result.statusText,
+      headers: new Headers(result.headers),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Reactive primitives
   // ---------------------------------------------------------------------------
 

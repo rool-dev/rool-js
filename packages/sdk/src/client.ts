@@ -185,12 +185,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Make an authenticated fetch request to the Rool API.
-   * Use this escape hatch for app-specific endpoints not covered by the typed API.
+   * @internal Not part of the public API — use typed methods instead.
    *
    * @param path - Path relative to the base URL (e.g., '/billing/usage')
    * @param init - Standard fetch RequestInit options. Authorization header is added automatically.
    */
-  async fetch(path: string, init?: RequestInit): Promise<Response> {
+  async _api(path: string, init?: RequestInit): Promise<Response> {
     const tokens = await this.authManager.getTokens();
     if (!tokens) throw new Error('Not authenticated');
 
@@ -584,15 +584,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Execute an arbitrary GraphQL query or mutation.
-   * Use this escape hatch for app-specific operations not covered by the typed API.
-   * 
-   * @example
-   * const result = await client.graphql<{ lastMessages: Message[] }>(
-   *   `query trace($spaceId: String!) { trace(spaceId: $spaceId) }`,
-   *   { spaceId: 'abc123' }
-   * );
+   * @internal Not part of the public API — use typed methods instead.
    */
-  async graphql<T>(
+  async _graphql<T>(
     query: string,
     variables?: Record<string, unknown>
   ): Promise<T> {

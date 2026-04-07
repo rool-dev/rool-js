@@ -433,6 +433,9 @@ class ReactiveChannelImpl {
   deleteMedia(...args: Parameters<RoolChannel['deleteMedia']>) { return this.#channel.deleteMedia(...args); }
   listMedia() { return this.#channel.listMedia(); }
 
+  // Proxied fetch
+  fetch(...args: Parameters<RoolChannel['fetch']>) { return this.#channel.fetch(...args); }
+
   // Channel admin
   rename(...args: Parameters<RoolChannel['rename']>) { return this.#channel.rename(...args); }
 

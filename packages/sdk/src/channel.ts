@@ -1081,6 +1081,25 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   // ===========================================================================
+  // Proxied Fetch
+  // ===========================================================================
+
+  /**
+   * Fetch an external URL via the server proxy, bypassing CORS restrictions.
+   * Requires editor role or above. Blocked for private/internal IP ranges (SSRF protection).
+   *
+   * @param url - The URL to fetch
+   * @param init - Optional method, headers, and body
+   * @returns The proxied Response
+   */
+  async fetch(
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: unknown }
+  ): Promise<Response> {
+    return this.mediaClient.proxyFetch(this._id, url, init);
+  }
+
+  // ===========================================================================
   // Object Collection (internal)
   // ===========================================================================
 

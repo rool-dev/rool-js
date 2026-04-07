@@ -646,8 +646,6 @@ Manage, and publish extensions. See [`@rool-dev/extension`](/extension/) for bui
 | Method | Description |
 |--------|-------------|
 | `RoolClient.generateId(): string` | Generate 6-char alphanumeric ID (static) |
-| `graphql<T>(query, variables?): Promise<T>` | Execute raw GraphQL |
-| `fetch(path, init?): Promise<Response>` | Authenticated fetch to the Rool API (adds Bearer token) |
 | `destroy(): void` | Clean up resources |
 
 ### Client Events
@@ -865,6 +863,27 @@ if (response.contentType.startsWith('image/')) {
   const blob = await response.blob();
   img.src = URL.createObjectURL(blob);
 }
+```
+
+### Proxied Fetch
+
+Fetch external URLs via the server, bypassing CORS restrictions. Requires editor role or above. Private/internal IP ranges are blocked (SSRF protection).
+
+| Method | Description |
+|--------|-------------|
+| `fetch(url, init?): Promise<Response>` | Fetch a URL via the server proxy. `init` accepts `method`, `headers`, and `body`. |
+
+```typescript
+// GET request
+const response = await channel.fetch('https://api.example.com/data');
+const data = await response.json();
+
+// POST with headers and body
+const response = await channel.fetch('https://api.example.com/submit', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: { key: 'value' },
+});
 ```
 
 ### Collection Schema
