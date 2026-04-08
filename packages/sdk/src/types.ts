@@ -198,6 +198,7 @@ export interface CurrentUser {
   id: string;
   email: string;
   name: string | null;
+  photoUrl: string | null;
   slug: string;
   plan: string;
   creditsBalance: number;

@@ -603,6 +603,7 @@ export class GraphQLClient {
           id
           email
           name
+          photoUrl
           slug
           plan
           creditsBalance
@@ -625,6 +626,7 @@ export class GraphQLClient {
           id
           email
           name
+          photoUrl
           slug
           plan
           creditsBalance

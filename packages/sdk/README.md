@@ -524,7 +524,7 @@ When a user accesses a space via URL, they're granted the corresponding role (`v
 | Method | Description |
 |--------|-------------|
 | `currentUser: CurrentUser \| null` | Cached user profile from `initialize()`. Use for sync access to user info (id, email, name, etc.). Returns `null` before `initialize()` is called. |
-| `getCurrentUser(): Promise<CurrentUser>` | Fetch fresh user profile from server (id, email, name, slug, plan, creditsBalance, totalCreditsUsed, createdAt, lastActivity, processedAt, storage) |
+| `getCurrentUser(): Promise<CurrentUser>` | Fetch fresh user profile from server (id, email, name, photoUrl, slug, plan, creditsBalance, totalCreditsUsed, createdAt, lastActivity, processedAt, storage) |
 | `updateCurrentUser(input): Promise<CurrentUser>` | Update the current user's profile (`name`, `slug`). Returns the updated user. Slug must be 3–32 chars, start with a letter, and contain only lowercase alphanumeric characters, hyphens, and underscores. |
 | `searchUser(email): Promise<UserResult \| null>` | Find user by exact email address (no partial matching) |
 
@@ -1177,7 +1177,7 @@ type LinkAccess = 'none' | 'viewer' | 'editor';
 interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; linkAccess: LinkAccess; memberCount: number; }
 interface SpaceMember { id: string; email: string; role: RoolUserRole; }
 interface UserResult { id: string; email: string; name: string | null; }
-interface CurrentUser { id: string; email: string; name: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }
+interface CurrentUser { id: string; email: string; name: string | null; photoUrl: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }
 interface MediaInfo { url: string; contentType: string; size: number; createdAt: string; }
 interface MediaResponse { contentType: string; size: number | null; blob(): Promise<Blob>; }
 type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
