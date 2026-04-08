@@ -186,12 +186,14 @@ export interface UserResult {
   id: string;
   email: string;
   name: string | null;
+  photoUrl: string | null;
 }
 
 export interface SpaceMember {
   id: string;
   email: string;
   role: RoolUserRole;
+  photoUrl: string | null;
 }
 
 export interface CurrentUser {

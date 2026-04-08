@@ -1175,8 +1175,8 @@ type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
 type LinkAccess = 'none' | 'viewer' | 'editor';
 
 interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; linkAccess: LinkAccess; memberCount: number; }
-interface SpaceMember { id: string; email: string; role: RoolUserRole; }
-interface UserResult { id: string; email: string; name: string | null; }
+interface SpaceMember { id: string; email: string; role: RoolUserRole; photoUrl: string | null; }
+interface UserResult { id: string; email: string; name: string | null; photoUrl: string | null; }
 interface CurrentUser { id: string; email: string; name: string | null; photoUrl: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }
 interface MediaInfo { url: string; contentType: string; size: number; createdAt: string; }
 interface MediaResponse { contentType: string; size: number | null; blob(): Promise<Blob>; }

@@ -710,6 +710,7 @@ export class GraphQLClient {
           id
           email
           name
+          photoUrl
         }
       }
     `;
@@ -728,6 +729,7 @@ export class GraphQLClient {
           id
           email
           role
+          photoUrl
         }
       }
     `;
