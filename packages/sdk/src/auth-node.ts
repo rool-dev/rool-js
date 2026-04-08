@@ -114,15 +114,15 @@ export class NodeAuthProvider implements AuthProvider {
         return tokens !== undefined;
     }
 
-    async login(appName: string): Promise<void> {
-        return this.authFlow('login', appName);
+    async login(appName: string, params?: Record<string, string>): Promise<void> {
+        return this.authFlow('login', appName, params);
     }
 
-    async signup(appName: string): Promise<void> {
-        return this.authFlow('signup', appName);
+    async signup(appName: string, params?: Record<string, string>): Promise<void> {
+        return this.authFlow('signup', appName, params);
     }
 
-    private async authFlow(flow: 'login' | 'signup', appName: string): Promise<void> {
+    private async authFlow(flow: 'login' | 'signup', appName: string, params?: Record<string, string>): Promise<void> {
         const { server, closeAll } = await this.startLoopbackServer();
         const port = (server.address() as any).port;
         const redirectUri = `http://localhost:${port}`;
@@ -132,6 +132,11 @@ export class NodeAuthProvider implements AuthProvider {
         const url = new URL(`${this.authEndpoint}/${flow}`);
         url.searchParams.set('redirect_uri', redirectUri);
         url.searchParams.set('app_name', appName);
+        if (params) {
+            for (const [key, value] of Object.entries(params)) {
+                url.searchParams.set(key, value);
+            }
+        }
         url.searchParams.set('state', state);
 
         this.logger.info(`Opening browser to ${flow} to ${appName}:`, url.toString());

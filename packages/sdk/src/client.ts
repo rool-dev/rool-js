@@ -142,16 +142,17 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Initiate login by redirecting to auth page.
    * @param appName - The name of the application requesting login (displayed on auth page)
    */
-  async login(appName: string): Promise<void> {
-    return this.authManager.login(appName);
+  async login(appName: string, params?: Record<string, string>): Promise<void> {
+    return this.authManager.login(appName, params);
   }
 
   /**
    * Initiate signup by redirecting to auth page.
    * @param appName - The name of the application requesting signup (displayed on auth page)
+   * @param params - Optional additional query parameters to pass to the auth server
    */
-  async signup(appName: string): Promise<void> {
-    return this.authManager.signup(appName);
+  async signup(appName: string, params?: Record<string, string>): Promise<void> {
+    return this.authManager.signup(appName, params);
   }
 
   /**

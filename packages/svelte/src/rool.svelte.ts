@@ -114,15 +114,15 @@ class RoolImpl {
   /**
    * Redirect to login page.
    */
-  login(appName: string): void {
-    this.#client.login(appName);
+  login(appName: string, params?: Record<string, string>): void {
+    this.#client.login(appName, params);
   }
 
   /**
    * Redirect to signup page.
    */
-  signup(appName: string): void {
-    this.#client.signup(appName);
+  signup(appName: string, params?: Record<string, string>): void {
+    this.#client.signup(appName, params);
   }
 
   /**

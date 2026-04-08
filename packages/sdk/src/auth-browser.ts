@@ -114,23 +114,29 @@ export class BrowserAuthProvider implements AuthProvider {
      * Initiate login by redirecting to auth page.
      * @param appName - The name of the application requesting login (displayed on auth page)
      */
-    login(appName: string): void {
-        this.redirectToAuth('login', appName);
+    login(appName: string, params?: Record<string, string>): void {
+        this.redirectToAuth('login', appName, params);
     }
 
     /**
      * Initiate signup by redirecting to auth page.
      * @param appName - The name of the application requesting signup (displayed on auth page)
      */
-    signup(appName: string): void {
-        this.redirectToAuth('signup', appName);
+    signup(appName: string, params?: Record<string, string>): void {
+        this.redirectToAuth('signup', appName, params);
     }
 
-    private redirectToAuth(flow: 'login' | 'signup', appName: string): void {
+    private redirectToAuth(flow: 'login' | 'signup', appName: string, params?: Record<string, string>): void {
         const url = new URL(`${this.authBaseUrl}/${flow}`);
         const redirectTarget = window.location.origin + window.location.pathname + window.location.search;
         url.searchParams.set('redirect_uri', redirectTarget);
         url.searchParams.set('app_name', appName);
+
+        if (params) {
+            for (const [key, value] of Object.entries(params)) {
+                url.searchParams.set(key, value);
+            }
+        }
 
         const state = this.generateState();
         this.storeState(state);

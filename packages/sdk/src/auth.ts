@@ -75,16 +75,16 @@ export class AuthManager {
    * Initiate login.
    * @param appName - The name of the application requesting login (displayed on auth page)
    */
-  login(appName: string): Promise<void> | void {
-    return this.provider.login(appName);
+  login(appName: string, params?: Record<string, string>): Promise<void> | void {
+    return this.provider.login(appName, params);
   }
 
   /**
    * Initiate signup.
    * @param appName - The name of the application requesting signup (displayed on auth page)
    */
-  signup(appName: string): Promise<void> | void {
-    return this.provider.signup(appName);
+  signup(appName: string, params?: Record<string, string>): Promise<void> | void {
+    return this.provider.signup(appName, params);
   }
 
   /**

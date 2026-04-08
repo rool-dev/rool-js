@@ -524,9 +524,9 @@ export interface AuthProvider {
   /** Check if currently authenticated (validates token is usable) */
   isAuthenticated: () => Promise<boolean>;
   /** Initiate login with application name */
-  login: (appName: string) => Promise<void> | void;
+  login: (appName: string, params?: Record<string, string>) => Promise<void> | void;
   /** Initiate signup with application name */
-  signup: (appName: string) => Promise<void> | void;
+  signup: (appName: string, params?: Record<string, string>) => Promise<void> | void;
   /** Logout and clear session */
   logout: () => void;
   /** Clean up resources (e.g. stop timers) */
