@@ -265,14 +265,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       graphqlUrl: this.urls.graphql,
       authManager: this.authManager,
       logger: this.logger,
-      onClose: (id) => this.unregisterChannel(id),
+      onClose: () => this.unregisterChannel(spaceId, channelId),
     });
 
     // Wait for real-time subscription before returning
     await channel._waitForSubscription();
 
     // Register for cleanup
-    this.registerChannel(spaceId, channel);
+    this.registerChannel(spaceId, channelId, channel);
 
     return channel;
   }
@@ -598,12 +598,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   // Private Methods - Channel Registry
   // ===========================================================================
 
-  private registerChannel(spaceId: string, channel: RoolChannel): void {
-    this.openChannels.set(spaceId, channel);
+  private registerChannel(spaceId: string, channelId: string, channel: RoolChannel): void {
+    this.openChannels.set(`${spaceId}:${channelId}`, channel);
   }
 
-  private unregisterChannel(spaceId: string): void {
-    this.openChannels.delete(spaceId);
+  private unregisterChannel(spaceId: string, channelId: string): void {
+    this.openChannels.delete(`${spaceId}:${channelId}`);
   }
 
   // ===========================================================================

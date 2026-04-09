@@ -94,7 +94,7 @@ export interface ChannelConfig {
   graphqlUrl: string;
   authManager: AuthManager;
   logger: Logger;
-  onClose: (spaceId: string) => void;
+  onClose: () => void;
 }
 
 /**
@@ -127,7 +127,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
   private subscriptionManager: ChannelSubscriptionManager;
-  private onCloseCallback: (spaceId: string) => void;
+  private onCloseCallback: () => void;
   private _subscriptionReady: Promise<void>;
   private logger: Logger;
 
@@ -407,7 +407,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   close(): void {
     this._closed = true;
     this.subscriptionManager.destroy();
-    this.onCloseCallback(this._id);
+    this.onCloseCallback();
 
     // Clean up pending object collectors
     this._objectResolvers.clear();
