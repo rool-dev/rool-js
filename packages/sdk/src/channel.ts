@@ -1,8 +1,6 @@
 import { EventEmitter } from './event-emitter.js';
 import type { GraphQLClient } from './graphql.js';
 import type { MediaClient } from './media.js';
-import type { AuthManager } from './auth.js';
-import { ChannelSubscriptionManager } from './subscription.js';
 import type { Logger } from './logger.js';
 import type {
   RoolObject,
@@ -91,8 +89,6 @@ export interface ChannelConfig {
   channelId: string;
   graphqlClient: GraphQLClient;
   mediaClient: MediaClient;
-  graphqlUrl: string;
-  authManager: AuthManager;
   logger: Logger;
   onClose: () => void;
 }
@@ -126,9 +122,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _closed: boolean = false;
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
-  private subscriptionManager: ChannelSubscriptionManager;
   private onCloseCallback: () => void;
-  private _subscriptionReady: Promise<void>;
   private logger: Logger;
 
   // Local cache for bounded data (schema, metadata, own channel, object IDs, stats)
@@ -137,7 +131,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _channel: Channel | undefined;
   private _objectIds: string[];
   private _objectStats: Map<string, RoolObjectStat>;
-  private _hasConnected = false;
 
   // Active leaf per conversation (client-side tree cursor)
   private _activeLeaves = new Map<string, string>();
@@ -172,33 +165,37 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._objectIds = config.objectIds;
     this._objectStats = new Map(Object.entries(config.objectStats));
 
-    // Create channel subscription
-    this.subscriptionManager = new ChannelSubscriptionManager({
-      graphqlUrl: config.graphqlUrl,
-      authManager: config.authManager,
-      logger: this.logger,
-      spaceId: this._id,
-      channelId: this._channelId,
-      onEvent: (event) => this.handleChannelEvent(event),
-      onConnectionStateChanged: () => {
-        // Channel connection state (could emit events if needed)
-      },
-      onError: (error) => {
-        this.logger.error(`[RoolChannel ${this._id}] Subscription error:`, error);
-      },
-    });
-
-    // Start subscription - store promise for openChannel to await
-    this._subscriptionReady = this.subscriptionManager.subscribe();
   }
 
   /**
-   * Wait for the real-time subscription to be established.
-   * Called internally by openChannel/createSpace before returning the channel.
+   * Handle an event from the shared space subscription.
+   * Called by the client's event router.
    * @internal
    */
-  _waitForSubscription(): Promise<void> {
-    return this._subscriptionReady;
+  _handleEvent(event: ChannelEvent): void {
+    this.handleChannelEvent(event);
+  }
+
+  /**
+   * Apply resync data after reconnection. Called by the client, which
+   * fetches space data once and distributes to all channels.
+   * @internal
+   */
+  _applyResyncData(data: {
+    meta: Record<string, unknown>;
+    schema: SpaceSchema;
+    objectIds: string[];
+    objectStats: Record<string, RoolObjectStat>;
+    channel: Channel | undefined;
+  }): void {
+    if (this._closed) return;
+    this._meta = data.meta;
+    this._schema = data.schema;
+    this._objectIds = data.objectIds;
+    this._objectStats = new Map(Object.entries(data.objectStats));
+    if (data.channel) this._channel = data.channel;
+    this._activeLeaves.clear();
+    this.emit('reset', { source: 'system' });
   }
 
   // ===========================================================================
@@ -406,7 +403,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    */
   close(): void {
     this._closed = true;
-    this.subscriptionManager.destroy();
     this.onCloseCallback();
 
     // Clean up pending object collectors
@@ -1177,25 +1173,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     switch (event.type) {
       case 'connected':
-        // On reconnection, do a full reload to catch up on missed events.
-        // Skip on initial connection — data was already fetched by openChannel.
-        if (this._hasConnected) {
-          this.logger.info(`[RoolChannel ${this._id}] Reconnected, resyncing...`);
-          void this.graphqlClient.openChannel(this._id, this._channelId).then((result) => {
-            if (this._closed) return;
-            this._meta = result.meta;
-            this._schema = result.schema;
-            this._channel = result.channel;
-            this._objectIds = result.objectIds;
-            this._objectStats = new Map(Object.entries(result.objectStats));
-            this._activeLeaves.clear();
-            this.logger.info(`[RoolChannel ${this._id}] Resync complete (${result.objectIds.length} objects)`);
-            this.emit('reset', { source: 'system' });
-          }).catch((error) => {
-            this.logger.error(`[RoolChannel ${this._id}] Failed to reload state after reconnect:`, error);
-          });
-        }
-        this._hasConnected = true;
+        // Resync is handled by the client via _applyResyncData.
         break;
 
       case 'object_created':
@@ -1295,16 +1273,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
         break;
 
       case 'space_changed':
-        // Full reload needed (undo/redo, bulk operations)
-        void this.graphqlClient.openChannel(this._id, this._channelId).then((result) => {
-          if (this._closed) return;
-          this._meta = result.meta;
-          this._schema = result.schema;
-          this._channel = result.channel;
-          this._objectIds = result.objectIds;
-          this._objectStats = new Map(Object.entries(result.objectStats));
-          this.emit('reset', { source: changeSource });
-        });
+        // Resync is handled by the client via _applyResyncData.
         break;
     }
   }

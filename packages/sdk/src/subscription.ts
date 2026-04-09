@@ -266,23 +266,23 @@ export class ClientSubscriptionManager {
 }
 
 // =============================================================================
-// Channel Subscription Manager
-// Handles channel-level events (objects, schema, metadata, interactions)
+// Space Subscription Manager
+// One per space, shared by all channels. Handles object, schema, metadata,
+// channel, and conversation events for the entire space.
 // =============================================================================
 
-export interface ChannelSubscriptionConfig {
+export interface SpaceSubscriptionConfig {
   graphqlUrl: string;
   authManager: AuthManager;
   logger: Logger;
   spaceId: string;
-  channelId: string;
   onEvent: (event: ChannelEvent) => void;
   onConnectionStateChanged: (state: ConnectionState) => void;
   onError: (error: Error) => void;
 }
 
-export class ChannelSubscriptionManager {
-  private config: ChannelSubscriptionConfig;
+export class SpaceSubscriptionManager {
+  private config: SpaceSubscriptionConfig;
   private client: Client | null = null;
   private unsubscribe: (() => void) | null = null;
   private reconnectDelay = INITIAL_RECONNECT_DELAY;
@@ -294,7 +294,7 @@ export class ChannelSubscriptionManager {
   private lastMessageAt = 0;
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 
-  constructor(config: ChannelSubscriptionConfig) {
+  constructor(config: SpaceSubscriptionConfig) {
     this.config = config;
     this.logger = config.logger;
   }
@@ -357,8 +357,8 @@ export class ChannelSubscriptionManager {
       });
 
       const query = `
-        subscription ChannelEvents($spaceId: String!, $channelId: String!) {
-          channelEvents(spaceId: $spaceId, channelId: $channelId)
+        subscription SpaceEvents($spaceId: String!) {
+          spaceEvents(spaceId: $spaceId)
         }
       `;
 
@@ -367,7 +367,6 @@ export class ChannelSubscriptionManager {
           query,
           variables: {
             spaceId: this.config.spaceId,
-            channelId: this.config.channelId,
           },
         },
         {
@@ -375,11 +374,11 @@ export class ChannelSubscriptionManager {
             this.reconnectDelay = INITIAL_RECONNECT_DELAY;
             this.resetHeartbeat();
 
-            if (result.data?.channelEvents) {
+            if (result.data?.spaceEvents) {
               try {
-                const eventData = result.data.channelEvents as string;
+                const eventData = result.data.spaceEvents as string;
                 const rawEvent = JSON.parse(eventData);
-                const event = this.parseChannelEvent(rawEvent);
+                const event = this.parseSpaceEvent(rawEvent);
                 if (event) {
                   // Handle connected event - resolve initial promise
                   if (event.type === 'connected') {
@@ -498,7 +497,7 @@ export class ChannelSubscriptionManager {
     }
   }
 
-  private parseChannelEvent(raw: Record<string, unknown>): ChannelEvent | null {
+  private parseSpaceEvent(raw: Record<string, unknown>): ChannelEvent | null {
     if (raw.type === 'heartbeat') return null;
     const type = raw.type as ChannelEvent["type"];
     const spaceId = raw.spaceId as string;

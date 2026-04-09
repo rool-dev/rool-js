@@ -40,17 +40,18 @@ export interface GraphQLClientConfig {
   authManager: AuthManager;
 }
 
-/** Result from the openChannel GraphQL query */
-export interface OpenChannelResult {
+/** Result from the openSpace full query — space data + all channels */
+export interface OpenSpaceFullResult {
   name: string;
   role: string;
   userId: string;
   linkAccess: LinkAccess;
+  memberCount: number;
   objectIds: string[];
   objectStats: Record<string, RoolObjectStat>;
   schema: SpaceSchema;
   meta: Record<string, unknown>;
-  channel: Channel | undefined;
+  channels: Record<string, Channel>;
 }
 
 interface GraphQLResponse<T> {
@@ -97,21 +98,28 @@ export class GraphQLClient {
           role
           linkAccess
           memberCount
-          channels {
-            id
-            name
-            createdAt
-            createdBy
-            createdByName
-            interactionCount
-            extensionUrl
-            extensionId
-          }
+          channels
         }
       }
     `;
-    const response = await this.request<{ openSpace: { name: string; role: string; linkAccess: LinkAccess; memberCount: number; channels: ChannelInfo[] } }>(query, { id: spaceId });
-    return response.openSpace;
+    const response = await this.request<{ openSpace: { name: string; role: string; linkAccess: LinkAccess; memberCount: number; channels: Record<string, Channel> | null } }>(query, { id: spaceId });
+    const r = response.openSpace;
+
+    // Convert full channel data to ChannelInfo summaries
+    const channelInfos: ChannelInfo[] = Object.entries(r.channels ?? {}).map(([id, ch]) => ({
+      id,
+      name: ch.name ?? null,
+      createdAt: ch.createdAt,
+      createdBy: ch.createdBy,
+      createdByName: ch.createdByName ?? null,
+      interactionCount: Object.values(ch.conversations ?? {}).reduce(
+        (sum, conv) => sum + (conv.interactions ? Object.keys(conv.interactions).length : 0), 0
+      ),
+      extensionUrl: ch.extensionUrl ?? null,
+      extensionId: ch.extensionId ?? null,
+    }));
+
+    return { name: r.name, role: r.role, linkAccess: r.linkAccess, memberCount: r.memberCount, channels: channelInfos };
   }
 
   // ===========================================================================
@@ -132,44 +140,62 @@ export class GraphQLClient {
     return { spaceId: response.createSpace.spaceId };
   }
 
-  /** Response from openChannel — top-level fields, channel data, object stats */
-  async openChannel(spaceId: string, channelId: string): Promise<OpenChannelResult> {
+  /** Full space data — objects, schema, metadata, all channels. Used for initial load and reconnect resync. */
+  async openSpaceFull(spaceId: string): Promise<OpenSpaceFullResult> {
     const query = `
-      query OpenChannel($spaceId: String!, $channelId: String!) {
-        openChannel(spaceId: $spaceId, channelId: $channelId) {
+      query OpenSpaceFull($id: String!) {
+        openSpace(id: $id) {
           name
           role
           userId
           linkAccess
+          memberCount
           objectIds
           objectStats
           schema
           meta
-          channel
+          channels
         }
       }
     `;
-    const response = await this.request<{ openChannel: {
-      name: string; role: string; userId: string; linkAccess: LinkAccess;
+    const response = await this.request<{ openSpace: {
+      name: string; role: string; userId: string; linkAccess: LinkAccess; memberCount: number;
       objectIds: string[];
       objectStats: Record<string, RoolObjectStat> | null;
       schema: SpaceSchema | null;
       meta: Record<string, unknown> | null;
-      channel: Channel | null;
-    } }>(query, { spaceId, channelId });
+      channels: Record<string, Channel> | null;
+    } }>(query, { id: spaceId });
 
-    const r = response.openChannel;
+    const r = response.openSpace;
     return {
       name: r.name,
       role: r.role,
       userId: r.userId,
       linkAccess: r.linkAccess,
+      memberCount: r.memberCount,
       objectIds: r.objectIds,
       objectStats: r.objectStats ?? {},
       schema: r.schema ?? {},
       meta: r.meta ?? {},
-      channel: r.channel ?? undefined,
+      channels: r.channels ?? {},
     };
+  }
+
+  /** Create a channel. Throws if channel already exists. */
+  async createChannel(spaceId: string, channelId: string, options?: { name?: string; extensionUrl?: string }): Promise<Channel> {
+    const mutation = `
+      mutation CreateChannel($spaceId: String!, $channelId: String!, $name: String, $extensionUrl: String) {
+        createChannel(spaceId: $spaceId, channelId: $channelId, name: $name, extensionUrl: $extensionUrl)
+      }
+    `;
+    const response = await this.request<{ createChannel: Channel }>(mutation, {
+      spaceId,
+      channelId,
+      name: options?.name,
+      extensionUrl: options?.extensionUrl,
+    });
+    return response.createChannel;
   }
 
   async deleteSpace(spaceId: string): Promise<void> {
