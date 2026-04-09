@@ -11,7 +11,8 @@ import type { Logger } from './logger.js';
 const INITIAL_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 const RECONNECT_MULTIPLIER = 2;
-const HEARTBEAT_TIMEOUT = 12_000; // Server sends heartbeats every 10s; reconnect if none arrives within 12s
+const HEARTBEAT_TIMEOUT = 15_000; // Server sends heartbeats every 10s; reconnect if no message within 15s
+const HEARTBEAT_CHECK_INTERVAL = 3_000; // How often to check for stale connection
 
 // =============================================================================
 // Client Subscription Manager
@@ -36,8 +37,8 @@ export class ClientSubscriptionManager {
   private isIntentionalClose = false;
   private _isSubscribed = false;
   private logger: Logger;
-  private heartbeatTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  private boundVisibilityHandler: (() => void) | null = null;
+  private lastMessageAt = 0;
+  private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: ClientSubscriptionConfig) {
     this.config = config;
@@ -52,15 +53,13 @@ export class ClientSubscriptionManager {
     if (this._isSubscribed) return;
 
     this.isIntentionalClose = false;
-    this.listenForVisibility();
     await this.connect();
   }
 
   unsubscribeFromEvents(): void {
     this.isIntentionalClose = true;
     this.cancelReconnect();
-    this.clearHeartbeatTimeout();
-    this.removeVisibilityListener();
+    this.stopHeartbeatCheck();
     this.disconnect();
   }
 
@@ -187,42 +186,25 @@ export class ClientSubscriptionManager {
   }
 
   private resetHeartbeat(): void {
-    this.clearHeartbeatTimeout();
-    this.heartbeatTimeoutId = setTimeout(() => {
-      this.heartbeatTimeoutId = null;
-      if (this.isIntentionalClose) return;
-      this.logger.info('[RoolClient] Heartbeat timeout, forcing reconnect');
-      this.disconnect();
-      this.reconnectDelay = INITIAL_RECONNECT_DELAY;
-      void this.connect();
-    }, HEARTBEAT_TIMEOUT);
-  }
-
-  private clearHeartbeatTimeout(): void {
-    if (this.heartbeatTimeoutId !== null) {
-      clearTimeout(this.heartbeatTimeoutId);
-      this.heartbeatTimeoutId = null;
+    this.lastMessageAt = Date.now();
+    if (!this.heartbeatIntervalId) {
+      this.heartbeatIntervalId = setInterval(() => {
+        if (this.isIntentionalClose) return;
+        if (Date.now() - this.lastMessageAt > HEARTBEAT_TIMEOUT) {
+          this.logger.info('[RoolClient] Heartbeat timeout, forcing reconnect');
+          this.stopHeartbeatCheck();
+          this.disconnect();
+          this.reconnectDelay = INITIAL_RECONNECT_DELAY;
+          void this.connect();
+        }
+      }, HEARTBEAT_CHECK_INTERVAL);
     }
   }
 
-  private listenForVisibility(): void {
-    if (typeof document === 'undefined') return;
-    if (this.boundVisibilityHandler) return;
-    this.boundVisibilityHandler = () => {
-      if (document.visibilityState === 'visible' && this._isSubscribed) {
-        this.logger.info('[RoolClient] Page became visible, forcing reconnect');
-        this.disconnect();
-        this.reconnectDelay = INITIAL_RECONNECT_DELAY;
-        void this.connect();
-      }
-    };
-    document.addEventListener('visibilitychange', this.boundVisibilityHandler);
-  }
-
-  private removeVisibilityListener(): void {
-    if (this.boundVisibilityHandler) {
-      document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
-      this.boundVisibilityHandler = null;
+  private stopHeartbeatCheck(): void {
+    if (this.heartbeatIntervalId !== null) {
+      clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
     }
   }
 
@@ -306,8 +288,8 @@ export class ChannelSubscriptionManager {
   private _isSubscribed = false;
   private _initialConnectPromise: { resolve: () => void; reject: (e: Error) => void } | null = null;
   private logger: Logger;
-  private heartbeatTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  private boundVisibilityHandler: (() => void) | null = null;
+  private lastMessageAt = 0;
+  private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: ChannelSubscriptionConfig) {
     this.config = config;
@@ -327,7 +309,6 @@ export class ChannelSubscriptionManager {
     if (this._isSubscribed) return Promise.resolve();
 
     this.isIntentionalClose = false;
-    this.listenForVisibility();
 
     return new Promise<void>((resolve, reject) => {
       this._initialConnectPromise = { resolve, reject };
@@ -338,8 +319,7 @@ export class ChannelSubscriptionManager {
   unsubscribeFromEvents(): void {
     this.isIntentionalClose = true;
     this.cancelReconnect();
-    this.clearHeartbeatTimeout();
-    this.removeVisibilityListener();
+    this.stopHeartbeatCheck();
     this.disconnect();
   }
 
@@ -493,42 +473,25 @@ export class ChannelSubscriptionManager {
   }
 
   private resetHeartbeat(): void {
-    this.clearHeartbeatTimeout();
-    this.heartbeatTimeoutId = setTimeout(() => {
-      this.heartbeatTimeoutId = null;
-      if (this.isIntentionalClose) return;
-      this.logger.info(`[RoolChannel] Heartbeat timeout, forcing reconnect for space ${this.config.spaceId}`);
-      this.disconnect();
-      this.reconnectDelay = INITIAL_RECONNECT_DELAY;
-      void this.connect();
-    }, HEARTBEAT_TIMEOUT);
-  }
-
-  private clearHeartbeatTimeout(): void {
-    if (this.heartbeatTimeoutId !== null) {
-      clearTimeout(this.heartbeatTimeoutId);
-      this.heartbeatTimeoutId = null;
+    this.lastMessageAt = Date.now();
+    if (!this.heartbeatIntervalId) {
+      this.heartbeatIntervalId = setInterval(() => {
+        if (this.isIntentionalClose) return;
+        if (Date.now() - this.lastMessageAt > HEARTBEAT_TIMEOUT) {
+          this.logger.info(`[RoolChannel] Heartbeat timeout, forcing reconnect for space ${this.config.spaceId}`);
+          this.stopHeartbeatCheck();
+          this.disconnect();
+          this.reconnectDelay = INITIAL_RECONNECT_DELAY;
+          void this.connect();
+        }
+      }, HEARTBEAT_CHECK_INTERVAL);
     }
   }
 
-  private listenForVisibility(): void {
-    if (typeof document === 'undefined') return;
-    if (this.boundVisibilityHandler) return;
-    this.boundVisibilityHandler = () => {
-      if (document.visibilityState === 'visible' && this._isSubscribed) {
-        this.logger.info(`[RoolChannel] Page became visible, forcing reconnect for space ${this.config.spaceId}`);
-        this.disconnect();
-        this.reconnectDelay = INITIAL_RECONNECT_DELAY;
-        void this.connect();
-      }
-    };
-    document.addEventListener('visibilitychange', this.boundVisibilityHandler);
-  }
-
-  private removeVisibilityListener(): void {
-    if (this.boundVisibilityHandler) {
-      document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
-      this.boundVisibilityHandler = null;
+  private stopHeartbeatCheck(): void {
+    if (this.heartbeatIntervalId !== null) {
+      clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
     }
   }
 
