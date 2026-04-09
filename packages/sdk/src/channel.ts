@@ -1180,6 +1180,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
         // On reconnection, do a full reload to catch up on missed events.
         // Skip on initial connection — data was already fetched by openChannel.
         if (this._hasConnected) {
+          this.logger.info(`[RoolChannel ${this._id}] Reconnected, resyncing...`);
           void this.graphqlClient.openChannel(this._id, this._channelId).then((result) => {
             if (this._closed) return;
             this._meta = result.meta;
@@ -1187,7 +1188,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
             this._channel = result.channel;
             this._objectIds = result.objectIds;
             this._objectStats = new Map(Object.entries(result.objectStats));
+            this._activeLeaves.clear();
+            this.logger.info(`[RoolChannel ${this._id}] Resync complete (${result.objectIds.length} objects)`);
             this.emit('reset', { source: 'system' });
+          }).catch((error) => {
+            this.logger.error(`[RoolChannel ${this._id}] Failed to reload state after reconnect:`, error);
           });
         }
         this._hasConnected = true;

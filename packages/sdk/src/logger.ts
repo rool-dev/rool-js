@@ -13,11 +13,15 @@ export interface Logger {
   error(message: string, ...args: unknown[]): void;
 }
 
-/** Default logger — only surfaces errors via console.error. */
+/** Default logger — surfaces info and above via console. */
 export const defaultLogger: Logger = {
   debug() {},
-  info() {},
-  warn() {},
+  info(message, ...args) {
+    console.info(message, ...args);
+  },
+  warn(message, ...args) {
+    console.warn(message, ...args);
+  },
   error(message, ...args) {
     console.error(message, ...args);
   },

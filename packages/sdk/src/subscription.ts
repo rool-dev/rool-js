@@ -122,6 +122,7 @@ export class ClientSubscriptionManager {
             }
           },
           error: (error) => {
+            this.logger.info('[RoolClient] Client subscription disconnected');
             this.logger.error('[RoolClient] Client subscription error:', error);
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
@@ -131,6 +132,7 @@ export class ClientSubscriptionManager {
             }
           },
           complete: () => {
+            this.logger.info('[RoolClient] Client subscription disconnected');
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
 
@@ -209,6 +211,7 @@ export class ClientSubscriptionManager {
   }
 
   private parseClientEvent(raw: Record<string, unknown>): ClientEvent | null {
+    if (raw.type === 'heartbeat') return null;
     const type = raw.type as ClientEvent["type"];
     const timestamp = raw.timestamp as number;
 
@@ -339,6 +342,7 @@ export class ChannelSubscriptionManager {
       return;
     }
 
+    this.logger.info(`[RoolChannel] Space ${this.config.spaceId} connecting...`);
     this.config.onConnectionStateChanged('reconnecting');
 
     try {
@@ -397,25 +401,24 @@ export class ChannelSubscriptionManager {
             }
           },
           error: (error) => {
-            this.logger.error('[RoolChannel] Space subscription error:', error);
+            this.logger.info(`[RoolChannel] Space ${this.config.spaceId} subscription disconnected`);
+            this.logger.error(`[RoolChannel] Space ${this.config.spaceId} subscription error:`, error);
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
 
             if (this._initialConnectPromise) {
-              // Initial connection failed - reject and don't auto-reconnect
               this._initialConnectPromise.reject(error instanceof Error ? error : new Error(String(error)));
               this._initialConnectPromise = null;
             } else if (!this.isIntentionalClose) {
-              // Established connection dropped - auto-reconnect
               this.scheduleReconnect();
             }
           },
           complete: () => {
+            this.logger.info(`[RoolChannel] Space ${this.config.spaceId} subscription disconnected`);
             this._isSubscribed = false;
             this.config.onConnectionStateChanged('disconnected');
 
             if (this._initialConnectPromise) {
-              // Connection closed before establishing - reject
               this._initialConnectPromise.reject(new Error('Connection closed before establishing'));
               this._initialConnectPromise = null;
             } else if (!this.isIntentionalClose) {
@@ -496,6 +499,7 @@ export class ChannelSubscriptionManager {
   }
 
   private parseChannelEvent(raw: Record<string, unknown>): ChannelEvent | null {
+    if (raw.type === 'heartbeat') return null;
     const type = raw.type as ChannelEvent["type"];
     const spaceId = raw.spaceId as string;
     const timestamp = raw.timestamp as number;
