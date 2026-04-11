@@ -88,6 +88,15 @@ export class AuthManager {
   }
 
   /**
+   * Complete an email verification flow. Returns true if the user is
+   * signed in as a result.
+   */
+  async verify(token: string): Promise<boolean> {
+    if (!this.provider.verify) return false;
+    return this.provider.verify(token);
+  }
+
+  /**
    * Logout - clear all tokens and state.
    */
   logout(): void {

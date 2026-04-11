@@ -530,6 +530,12 @@ export interface AuthProvider {
   login: (appName: string, params?: Record<string, string>) => Promise<void> | void;
   /** Initiate signup with application name */
   signup: (appName: string, params?: Record<string, string>) => Promise<void> | void;
+  /**
+   * Complete an email verification flow. Exchanges a verify JWT (from the
+   * verification email link) for a live session and signs the user in.
+   * Optional: providers that don't implement it will reject the call.
+   */
+  verify?: (token: string) => Promise<boolean>;
   /** Logout and clear session */
   logout: () => void;
   /** Clean up resources (e.g. stop timers) */

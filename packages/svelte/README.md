@@ -72,6 +72,7 @@ const rool = createRool();
 rool.init();              // Process auth callbacks (call on app startup)
 rool.login('My App');     // Redirect to login page
 rool.signup('My App');    // Redirect to signup page
+rool.verify(token);       // Sign in from an email verification link (used by the official Rool app)
 rool.logout();            // Clear auth state and close all channels
 rool.destroy();           // Clean up all resources
 ```

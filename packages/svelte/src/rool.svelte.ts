@@ -126,6 +126,24 @@ class RoolImpl {
   }
 
   /**
+   * Complete an email verification flow using a token from the verification
+   * email link. Signs the user in without a redirect on success. Intended
+   * to be called when the app detects `?verify=<token>` on load.
+   */
+  async verify(token: string): Promise<boolean> {
+    const ok = await this.#client.verify(token);
+    if (ok) {
+      // Client has already hydrated currentUser, storage, and subscriptions.
+      // Mirror that state into our reactive fields — spaces refresh is
+      // triggered by the authStateChanged event, which also updates
+      // `authenticated`.
+      this.currentUser = this.#client.currentUser;
+      this.userStorage = this.#client.getAllUserStorage();
+    }
+    return ok;
+  }
+
+  /**
    * Log out and close all open channels.
    */
   logout(): void {

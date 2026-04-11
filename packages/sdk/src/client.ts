@@ -119,13 +119,22 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.authManager.initialize();
     const authenticated = await this.isAuthenticated();
     if (authenticated) {
-      const user = await this.getCurrentUser();
-      this._currentUser = user;
-      this._storageCache = user.storage ?? {};
-      this.saveStorageCache();
-      await this.ensureSubscribed();
+      await this.hydrateAuthenticatedSession();
     }
     return authenticated;
+  }
+
+  /**
+   * Fetch currentUser, populate storage cache, and start the client
+   * subscription. Shared by initialize() and verify() — any path that
+   * lands the user in an authenticated state needs this hydration.
+   */
+  private async hydrateAuthenticatedSession(): Promise<void> {
+    const user = await this.getCurrentUser();
+    this._currentUser = user;
+    this._storageCache = user.storage ?? {};
+    this.saveStorageCache();
+    await this.ensureSubscribed();
   }
 
   /**
@@ -167,6 +176,22 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async signup(appName: string, params?: Record<string, string>): Promise<void> {
     return this.authManager.signup(appName, params);
+  }
+
+  /**
+   * Complete an email verification flow using a token from the verification
+   * email link. Exchanges the token for a live session and signs the user in
+   * without a redirect. Intended to be called when the app detects a
+   * `?verify=<token>` query parameter on load.
+   *
+   * Returns true if the user is now signed in as a result.
+   */
+  async verify(token: string): Promise<boolean> {
+    const ok = await this.authManager.verify(token);
+    if (ok) {
+      await this.hydrateAuthenticatedSession();
+    }
+    return ok;
   }
 
   /**

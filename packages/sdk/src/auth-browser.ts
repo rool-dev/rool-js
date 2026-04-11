@@ -126,6 +126,60 @@ export class BrowserAuthProvider implements AuthProvider {
         this.redirectToAuth('signup', appName, params);
     }
 
+    /**
+     * Complete an email verification flow.
+     *
+     * The app calls this when it detects a `?verify=<jwt>` param on load.
+     * We exchange the JWT for a fresh token set at the auth server and sign
+     * the user in — no redirect, no URL fragment. Mirrors processCallback()
+     * minus the hash parsing.
+     */
+    async verify(token: string): Promise<boolean> {
+        let response: Response;
+        try {
+            response = await fetch(`${this.authBaseUrl}/verify-and-signin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token }),
+            });
+        } catch (error) {
+            this.logger.error('[RoolClient] verify network error:', error);
+            return false;
+        }
+
+        if (!response.ok) {
+            this.logger.warn(`[RoolClient] verify failed: ${response.status}`);
+            return false;
+        }
+
+        let data: {
+            id_token?: string;
+            refresh_token?: string;
+            expires_in?: number;
+            rool_token?: string;
+        };
+        try {
+            data = await response.json();
+        } catch (error) {
+            this.logger.error('[RoolClient] verify response parse error:', error);
+            return false;
+        }
+
+        const idToken = data.id_token ?? null;
+        const refreshToken = data.refresh_token ?? null;
+        const expiresAt = data.expires_in ? Date.now() + data.expires_in * 1000 : NaN;
+        if (!idToken || !Number.isFinite(expiresAt)) {
+            this.logger.error('[RoolClient] verify response missing id_token or expires_in');
+            return false;
+        }
+
+        this.writeTokens(idToken, refreshToken, expiresAt);
+        this.writeRoolToken(data.rool_token ?? null);
+        this.scheduleTokenRefresh();
+        this.config.onAuthStateChanged(true);
+        return true;
+    }
+
     private redirectToAuth(flow: 'login' | 'signup', appName: string, params?: Record<string, string>): void {
         const url = new URL(`${this.authBaseUrl}/${flow}`);
         const redirectTarget = window.location.origin + window.location.pathname + window.location.search;

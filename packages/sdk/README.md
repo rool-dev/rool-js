@@ -346,6 +346,7 @@ if (!authenticated) {
 | `initialize(): Promise<boolean>` | **Call on app startup.** Processes auth callback from URL, sets up token refresh, returns auth state. Returns `false` if not authenticated. Throws if authenticated but account fetch fails (e.g. network error or invalid token). |
 | `login(appName, params?): void` | Redirect to login page. The app name is displayed on the auth page ("Sign in to {appName}"). Optional `params` are added as query parameters to the auth URL. |
 | `signup(appName, params?): void` | Redirect to signup page. The app name is displayed on the auth page ("Sign up for {appName}"). Optional `params` are added as query parameters to the auth URL. |
+| `verify(token): Promise<boolean>` | Sign in using a verification token (from a `?verify=<token>` email link). Used by the official Rool app — most integrations won't need this. |
 | `logout(): void` | Clear tokens and state |
 | `isAuthenticated(): Promise<boolean>` | Check auth status (validates token) |
 | `getAuthUser(): AuthUser` | Get auth identity from JWT (`{ email, name }`) |
