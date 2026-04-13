@@ -65,14 +65,14 @@
     "@tailwindcss/vite": "^4.2.2",
     "archiver": "^7.0.1",
     "tailwindcss": "^4.2.2",
-    "vite": "^8.0.3"
+    "vite": "^8.0.8"
   },
   "devDependencies": {
     "@sveltejs/package": "^2.5.7",
     "@types/archiver": "^7.0.0",
-    "@types/node": "^25.5.0",
-    "gridstack": "^12.4.2",
-    "svelte": "^5.55.1",
+    "@types/node": "^25.6.0",
+    "gridstack": "^12.6.0",
+    "svelte": "^5.55.3",
     "svelte-check": "^4.4.6",
     "typescript": "^5.9.3"
   }

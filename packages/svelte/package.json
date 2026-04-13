@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@sveltejs/package": "^2.5.7",
-    "svelte": "^5.55.1",
+    "svelte": "^5.55.3",
     "svelte-check": "^4.4.6",
     "typescript": "^5.9.3"
   }
