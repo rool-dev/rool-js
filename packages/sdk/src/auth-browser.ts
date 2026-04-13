@@ -7,7 +7,7 @@ const REFRESH_BUFFER_MS = 15 * 60 * 1000; // Refresh 15 minutes before expiry
 const DEFAULT_STORAGE_PREFIX = 'rool_';
 
 export interface BrowserAuthConfig {
-    /** Auth service URL (e.g. https://dev.rool.dev/auth) */
+    /** Auth URL (e.g. https://rool.dev/auth) */
     authUrl: string;
     logger: Logger;
     onAuthStateChanged: (authenticated: boolean) => void;

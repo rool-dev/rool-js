@@ -54,8 +54,8 @@ export async function publish() {
   // Authenticate
   const envConfig = ENV_URLS[env];
   const client = new RoolClient({
-    domain: envConfig.domain,
-    baseUrl: envConfig.baseUrl,
+    apiUrl: envConfig.apiUrl,
+    authUrl: envConfig.authUrl,
     authProvider: new NodeAuthProvider(),
   });
 

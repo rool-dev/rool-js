@@ -79,36 +79,19 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.logger = config.logger ?? defaultLogger;
     this._emitterLogger = this.logger;
 
-    // Resolve API and auth origins from config.
-    // Priority: domain sets both; baseUrl can override the API origin.
-    let apiOrigin: string;
-    let authOrigin: string;
+    // Resolve API origin and auth URL.
+    // Auth is derived by stripping the api. hostname prefix from the API URL.
+    // For local dev (localhost etc.), set authUrl explicitly.
+    const apiOrigin = ((config.apiUrl ?? config.baseUrl) ?? 'https://api.rool.dev').replace(/\/+$/, '');
 
-    if (config.domain) {
-      // domain is the primary config — derive API and auth from it.
-      // baseUrl can still override the API origin (e.g. localhost for local dev).
-      apiOrigin = config.baseUrl
-        ? config.baseUrl.replace(/\/+$/, '')
-        : `https://api.${config.domain}`;
-      authOrigin = `https://${config.domain}`;
-    } else if (config.baseUrl) {
-      // Deprecated path: derive auth origin by stripping api. prefix
-      apiOrigin = config.baseUrl.replace(/\/+$/, '');
-      try {
-        const parsed = new URL(apiOrigin);
-        if (parsed.hostname.startsWith('api.')) {
-          parsed.hostname = parsed.hostname.slice(4);
-          authOrigin = parsed.origin;
-        } else {
-          authOrigin = apiOrigin;
-        }
-      } catch {
-        authOrigin = apiOrigin;
+    let authOrigin = apiOrigin;
+    try {
+      const parsed = new URL(apiOrigin);
+      if (parsed.hostname.startsWith('api.')) {
+        parsed.hostname = parsed.hostname.slice(4);
+        authOrigin = parsed.origin;
       }
-    } else {
-      apiOrigin = 'https://api.rool.dev';
-      authOrigin = 'https://rool.dev';
-    }
+    } catch { /* keep apiOrigin as fallback */ }
 
     this.baseUrl = apiOrigin;
     this.urls = {
