@@ -230,8 +230,10 @@ export class BrowserAuthProvider implements AuthProvider {
         const incomingState = params.get('state');
         const storedState = this.readState();
 
-        // Validate state - if we stored one, require it back
-        if (storedState && incomingState !== storedState) {
+        // Validate state — only enforce when both sides have one (SDK-initiated
+        // flow). When the auth page is opened directly (e.g., link from the
+        // website), there's no incoming state and nothing to validate against.
+        if (storedState && incomingState && incomingState !== storedState) {
             this.logger.error('[RoolClient] Auth state mismatch. Token fragment ignored.');
             return false;
         }
