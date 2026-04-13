@@ -41,14 +41,15 @@ export type ManifestResult =
 export type Environment = 'local' | 'dev' | 'prod';
 
 export interface EnvironmentConfig {
-  baseUrl: string;
-  authUrl: string;
+  domain: string;
+  /** Override API origin for local dev (e.g. 'http://localhost:1357') */
+  baseUrl?: string;
   label: string;
   appsDomain: string;
 }
 
 export const ENV_URLS: Record<Environment, EnvironmentConfig> = {
-  local: { baseUrl: 'http://localhost:1357', authUrl: 'https://api.dev.rool.dev/auth', label: 'localhost:1357', appsDomain: 'dev.rool.app' },
-  dev: { baseUrl: 'https://api.dev.rool.dev', authUrl: 'https://api.dev.rool.dev/auth', label: 'api.dev.rool.dev', appsDomain: 'dev.rool.app' },
-  prod: { baseUrl: 'https://api.rool.dev', authUrl: 'https://api.rool.dev/auth', label: 'api.rool.dev', appsDomain: 'rool.app' },
+  local: { domain: 'dev.rool.dev', baseUrl: 'http://localhost:1357', label: 'localhost:1357', appsDomain: 'dev.rool.app' },
+  dev: { domain: 'dev.rool.dev', label: 'api.dev.rool.dev', appsDomain: 'dev.rool.app' },
+  prod: { domain: 'rool.dev', label: 'api.rool.dev', appsDomain: 'rool.app' },
 };

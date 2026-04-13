@@ -142,8 +142,8 @@ export class DevHostController {
   // ---------------------------------------------------------------------------
 
   async boot(): Promise<void> {
-    const urls = ENV_URLS[this.env];
-    this.client = new RoolClient({ baseUrl: urls.baseUrl, authUrl: urls.authUrl });
+    const envConfig = ENV_URLS[this.env];
+    this.client = new RoolClient({ domain: envConfig.domain, baseUrl: envConfig.baseUrl });
     const authenticated = await this.client.initialize();
 
     if (!authenticated) {

@@ -10,13 +10,12 @@ export const DEFAULT_CHANNEL_ID = 'rool-dev';
 export type Environment = 'local' | 'dev' | 'prod';
 export const DEFAULT_ENV: Environment = 'prod';
 
-const ENV_URLS: Record<Environment, { target: string; auth: string }> = {
-  local: { target: 'http://localhost:1357', auth: 'https://api.dev.rool.dev/auth' },
-  dev: { target: 'https://api.dev.rool.dev', auth: 'https://api.dev.rool.dev/auth' },
-  prod: { target: 'https://api.rool.dev', auth: 'https://api.rool.dev/auth' },
+const ENVIRONMENTS: Record<Environment, { domain: string; baseUrl?: string }> = {
+  local: { domain: 'dev.rool.dev', baseUrl: 'http://localhost:1357' },
+  dev: { domain: 'dev.rool.dev' },
+  prod: { domain: 'rool.dev' },
 };
 
-export function getApiUrls(env: Environment): { baseUrl: string; authUrl: string } {
-  const urls = ENV_URLS[env];
-  return { baseUrl: urls.target, authUrl: urls.auth };
+export function getEnvConfig(env: Environment): { domain: string; baseUrl?: string } {
+  return ENVIRONMENTS[env];
 }

@@ -547,13 +547,27 @@ export interface AuthProvider {
 }
 
 export interface RoolClientConfig {
-  /** Base URL of the Rool deployment (default: 'https://api.rool.dev') */
+  /**
+   * Base domain of the Rool deployment (default: `'rool.dev'`).
+   *
+   * The SDK derives endpoint URLs from this domain:
+   * - API: `https://api.{domain}`
+   * - Auth: `https://{domain}/auth`
+   *
+   * Examples: `'rool.dev'`, `'dev.rool.dev'`
+   */
+  domain?: string;
+  /**
+   * @deprecated Use `domain` instead. When set without `domain`, the SDK
+   * uses this as the API origin and derives the auth URL by stripping the
+   * `api.` hostname prefix. Will be removed in a future major version.
+   */
   baseUrl?: string;
-  /** Override GraphQL endpoint (default: {baseUrl}/graphql) */
+  /** Override GraphQL endpoint (default: `https://api.{domain}/graphql`) */
   graphqlUrl?: string;
-  /** Override media endpoint (default: {baseUrl}/media) */
+  /** Override media endpoint (default: `https://api.{domain}/media`) */
   mediaUrl?: string;
-  /** Override auth endpoint (default: {baseUrl}/auth) */
+  /** Override auth endpoint (default: `https://{domain}/auth`) */
   authUrl?: string;
   /**
    * External auth provider.

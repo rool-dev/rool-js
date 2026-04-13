@@ -2,10 +2,10 @@ import { RoolClient } from '../src/client.js';
 import { NodeAuthProvider } from '../src/auth-node.js';
 import type { TestCase, TestResult, TestCaseResults, RunnerConfig, Environment } from './types.js';
 
-const ENV_URLS: Record<Environment, { target: string; auth: string }> = {
-  local: { target: 'http://localhost:1357', auth: 'https://api.dev.rool.dev/auth' },
-  dev: { target: 'https://api.dev.rool.dev', auth: 'https://api.dev.rool.dev/auth' },
-  prod: { target: 'https://api.rool.dev', auth: 'https://api.rool.dev/auth' },
+const ENVIRONMENTS: Record<Environment, { domain: string; baseUrl?: string }> = {
+  local: { domain: 'dev.rool.dev', baseUrl: 'http://localhost:1357' },
+  dev: { domain: 'dev.rool.dev' },
+  prod: { domain: 'rool.dev' },
 };
 
 interface QueuedTask {
@@ -19,7 +19,7 @@ interface QueuedTask {
  */
 export class EvalRunner {
   private config: Required<RunnerConfig>;
-  private urls: { target: string; auth: string };
+  private envConfig: { domain: string; baseUrl?: string };
   private client: RoolClient | null = null;
 
   constructor(config: RunnerConfig = {}) {
@@ -28,7 +28,7 @@ export class EvalRunner {
       runs: config.runs ?? 1,
       workers: config.workers ?? 25,
     };
-    this.urls = ENV_URLS[this.config.env];
+    this.envConfig = ENVIRONMENTS[this.config.env];
   }
 
   /**
@@ -36,8 +36,7 @@ export class EvalRunner {
    */
   async initialize(): Promise<void> {
     this.client = new RoolClient({
-      baseUrl: this.urls.target,
-      authUrl: this.urls.auth,
+      ...this.envConfig,
       authProvider: new NodeAuthProvider(),
     });
 
@@ -48,7 +47,7 @@ export class EvalRunner {
 
     const user = this.client.getAuthUser();
     console.log(`Authenticated as: ${user.email}`);
-    console.log(`Target: ${this.urls.target} (${this.config.env})`);
+    console.log(`Target: ${this.envConfig.baseUrl ?? `api.${this.envConfig.domain}`} (${this.config.env})`);
   }
 
   /**

@@ -52,10 +52,10 @@ export async function publish() {
   console.log(`  Bundle: ${formatBytes(zipBuffer.length)}\n`);
 
   // Authenticate
-  const urls = ENV_URLS[env];
+  const envConfig = ENV_URLS[env];
   const client = new RoolClient({
-    baseUrl: urls.baseUrl,
-    authUrl: urls.authUrl,
+    domain: envConfig.domain,
+    baseUrl: envConfig.baseUrl,
     authProvider: new NodeAuthProvider(),
   });
 

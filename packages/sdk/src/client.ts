@@ -79,12 +79,43 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.logger = config.logger ?? defaultLogger;
     this._emitterLogger = this.logger;
 
-    this.baseUrl = (config.baseUrl ?? 'https://api.rool.dev').replace(/\/+$/, ''); // Remove trailing slashes
+    // Resolve API and auth origins from config.
+    // Priority: domain sets both; baseUrl can override the API origin.
+    let apiOrigin: string;
+    let authOrigin: string;
+
+    if (config.domain) {
+      // domain is the primary config — derive API and auth from it.
+      // baseUrl can still override the API origin (e.g. localhost for local dev).
+      apiOrigin = config.baseUrl
+        ? config.baseUrl.replace(/\/+$/, '')
+        : `https://api.${config.domain}`;
+      authOrigin = `https://${config.domain}`;
+    } else if (config.baseUrl) {
+      // Deprecated path: derive auth origin by stripping api. prefix
+      apiOrigin = config.baseUrl.replace(/\/+$/, '');
+      try {
+        const parsed = new URL(apiOrigin);
+        if (parsed.hostname.startsWith('api.')) {
+          parsed.hostname = parsed.hostname.slice(4);
+          authOrigin = parsed.origin;
+        } else {
+          authOrigin = apiOrigin;
+        }
+      } catch {
+        authOrigin = apiOrigin;
+      }
+    } else {
+      apiOrigin = 'https://api.rool.dev';
+      authOrigin = 'https://rool.dev';
+    }
+
+    this.baseUrl = apiOrigin;
     this.urls = {
-      graphql: config.graphqlUrl ?? `${this.baseUrl}/graphql`,
-      media: config.mediaUrl ?? `${this.baseUrl}/media`,
-      auth: config.authUrl ?? `${this.baseUrl}/auth`,
-      extensions: `${this.baseUrl}/user-extensions`,
+      graphql: config.graphqlUrl ?? `${apiOrigin}/graphql`,
+      media: config.mediaUrl ?? `${apiOrigin}/media`,
+      auth: config.authUrl ?? `${authOrigin}/auth`,
+      extensions: `${apiOrigin}/user-extensions`,
     };
 
     this.authManager = new AuthManager({
