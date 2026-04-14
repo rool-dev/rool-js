@@ -627,20 +627,31 @@ client.on('userStorageChanged', ({ key, value, source }) => {
 
 ### Extensions
 
-Manage, and publish extensions. See [`@rool-dev/extension`](/extension/) for building extensions.
+Manage and publish extensions. See [`@rool-dev/extension`](/extension/) for building extensions.
 
-**User extensions** are your personal library — extensions you've created or installed. **Published extensions** are publicly discoverable by all users.
+There are two distinct domains: your **personal library** (extensions you've created or installed) and the **published extensions** (extensions discoverable by all users). Each has its own return type.
+
+#### Your Library (`ExtensionInfo`)
+
+Manage extensions you own. Each `ExtensionInfo` includes `published` (whether it's listed in the marketplace) and `marketplaceExtensionId` (non-null if you installed it from someone else's listing, null if you authored it).
 
 | Method | Description |
 |--------|-------------|
-| `uploadExtension(extensionId, options): Promise<PublishedExtensionInfo>` | Upload or update a user extension (`options.bundle`: zip with `index.html` and `manifest.json`) |
-| `deleteExtension(extensionId): Promise<void>` | Delete a user extension permanently (removes files and DB row) |
-| `listExtensions(): Promise<PublishedExtensionInfo[]>` | List your user extensions |
-| `getExtensionInfo(extensionId): Promise<PublishedExtensionInfo \| null>` | Get info for a specific user extension |
-| `findExtensions(options?): Promise<PublishedExtensionInfo[]>` | Search published extensions. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
-| `installExtension(spaceId, extensionId, channelId): Promise<string>` | Install an extension into a space. If you own the extension, wires it directly. If it's a published extension, copies and builds a new user extension. Returns the channel ID. |
-| `publishToPublic(extensionId): Promise<void>` | Publish a user extension (make it publicly discoverable) |
-| `unpublishFromPublic(extensionId): Promise<void>` | Unpublish an extension (remove from public listing, keeps the user extension) |
+| `uploadExtension(extensionId, options): Promise<ExtensionInfo>` | Upload or update an extension (`options.bundle`: zip with `index.html` and `manifest.json`) |
+| `listExtensions(): Promise<ExtensionInfo[]>` | List your extensions |
+| `getExtensionInfo(extensionId): Promise<ExtensionInfo \| null>` | Get info for a specific extension |
+| `deleteExtension(extensionId): Promise<void>` | Delete an extension permanently (removes files and DB row) |
+
+#### Marketplace (`PublishedExtensionInfo`)
+
+Discover and install extensions published by other users.
+
+| Method | Description |
+|--------|-------------|
+| `findExtensions(options?): Promise<PublishedExtensionInfo[]>` | Search the marketplace. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
+| `installExtension(spaceId, extensionId, channelId): Promise<string>` | Install an extension into a space. If you own it, wires it directly. If it's a marketplace extension, copies and builds a new extension in your library. Returns the channel ID. |
+| `publishToPublic(extensionId): Promise<void>` | Publish one of your extensions to the marketplace |
+| `unpublishFromPublic(extensionId): Promise<void>` | Remove from the marketplace (keeps the extension in your library) |
 
 ### Utilities
 

@@ -34,8 +34,9 @@ export type {
   SpaceMember,
   UserResult,
   RoolClient,
+  ExtensionInfo,
   PublishedExtensionInfo,
-  PublishExtensionOptions,
+  UploadExtensionOptions,
   ExtensionManifest,
   FindExtensionsOptions,
 } from '@rool-dev/sdk';

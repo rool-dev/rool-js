@@ -3,12 +3,16 @@
 // REST API wrapper for user extension management (upload/delete/list/get)
 // =============================================================================
 
-import type { PublishedExtensionInfo, PublishExtensionOptions } from './types.js';
+import type { ExtensionInfo, UploadExtensionOptions } from './types.js';
 import type { AuthManager } from './auth.js';
 
 export interface ExtensionsClientConfig {
   extensionsUrl: string;
   authManager: AuthManager;
+}
+
+function normalizeExtensionInfo(raw: any): ExtensionInfo {
+  return { ...raw, published: raw.published ?? false, marketplaceExtensionId: raw.marketplaceExtensionId ?? null };
 }
 
 export class ExtensionsClient {
@@ -27,7 +31,7 @@ export class ExtensionsClient {
   /**
    * List all user extensions.
    */
-  async list(): Promise<PublishedExtensionInfo[]> {
+  async list(): Promise<ExtensionInfo[]> {
     const response = await fetch(this.config.extensionsUrl, {
       method: 'GET',
       headers: await this.getHeaders(),
@@ -37,13 +41,14 @@ export class ExtensionsClient {
       throw new Error(`Failed to list extensions: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    const rows: any[] = await response.json();
+    return rows.map(normalizeExtensionInfo);
   }
 
   /**
    * Get info for a specific user extension.
    */
-  async get(extensionId: string): Promise<PublishedExtensionInfo | null> {
+  async get(extensionId: string): Promise<ExtensionInfo | null> {
     const response = await fetch(`${this.config.extensionsUrl}/${encodeURIComponent(extensionId)}`, {
       method: 'GET',
       headers: await this.getHeaders(),
@@ -55,7 +60,7 @@ export class ExtensionsClient {
       throw new Error(`Failed to get extension: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    return normalizeExtensionInfo(await response.json());
   }
 
   /**
@@ -63,7 +68,7 @@ export class ExtensionsClient {
    * @param extensionId - URL-safe identifier for the extension
    * @param options - Bundle zip file (must include index.html and manifest.json)
    */
-  async upload(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
+  async upload(extensionId: string, options: UploadExtensionOptions): Promise<ExtensionInfo> {
     const formData = new FormData();
     formData.append('bundle', options.bundle);
 
@@ -79,7 +84,7 @@ export class ExtensionsClient {
       throw new Error(`Failed to upload extension: ${errorMessage}`);
     }
 
-    return response.json();
+    return normalizeExtensionInfo(await response.json());
   }
 
   /**

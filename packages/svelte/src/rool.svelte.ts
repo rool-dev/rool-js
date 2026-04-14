@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindExtensionsOptions, type PublishedExtensionInfo, type PublishExtensionOptions } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindExtensionsOptions, type ExtensionInfo, type PublishedExtensionInfo, type UploadExtensionOptions } from '@rool-dev/sdk';
 import { wrapChannel, createChannelList, type ReactiveChannel, type ReactiveChannelList } from './channel.svelte.js';
 
 /**
@@ -266,7 +266,7 @@ class RoolImpl {
   // --- User Extensions (your personal library) ---
 
   /** Upload or update a user extension bundle. */
-  uploadExtension(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
+  uploadExtension(extensionId: string, options: UploadExtensionOptions): Promise<ExtensionInfo> {
     return this.#client.uploadExtension(extensionId, options);
   }
 
@@ -276,12 +276,12 @@ class RoolImpl {
   }
 
   /** List the current user's extensions. */
-  listExtensions(): Promise<PublishedExtensionInfo[]> {
+  listExtensions(): Promise<ExtensionInfo[]> {
     return this.#client.listExtensions();
   }
 
   /** Get info for a specific user extension. */
-  getExtensionInfo(extensionId: string): Promise<PublishedExtensionInfo | null> {
+  getExtensionInfo(extensionId: string): Promise<ExtensionInfo | null> {
     return this.#client.getExtensionInfo(extensionId);
   }
 

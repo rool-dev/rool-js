@@ -23,8 +23,9 @@ import type {
   UserResult,
   AuthUser,
   ConnectionState,
+  ExtensionInfo,
   PublishedExtensionInfo,
-  PublishExtensionOptions,
+  UploadExtensionOptions,
   FindExtensionsOptions,
 } from './types.js';
 
@@ -479,7 +480,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * @param extensionId - URL-safe identifier (alphanumeric, hyphens, underscores)
    * @param options - Bundle zip file (must include index.html and manifest.json)
    */
-  async uploadExtension(extensionId: string, options: PublishExtensionOptions): Promise<PublishedExtensionInfo> {
+  async uploadExtension(extensionId: string, options: UploadExtensionOptions): Promise<ExtensionInfo> {
     return this.extensionsClient.upload(extensionId, options);
   }
 
@@ -489,12 +490,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /** List the current user's extensions. */
-  async listExtensions(): Promise<PublishedExtensionInfo[]> {
+  async listExtensions(): Promise<ExtensionInfo[]> {
     return this.extensionsClient.list();
   }
 
   /** Get info for a specific user extension. Returns null if not found. */
-  async getExtensionInfo(extensionId: string): Promise<PublishedExtensionInfo | null> {
+  async getExtensionInfo(extensionId: string): Promise<ExtensionInfo | null> {
     return this.extensionsClient.get(extensionId);
   }
 

@@ -240,27 +240,25 @@ export interface MediaResponse {
 // =============================================================================
 
 /**
- * Options for publishing an extension.
+ * Options for uploading an extension bundle.
  */
-export interface PublishExtensionOptions {
+export interface UploadExtensionOptions {
   /** Zip bundle containing the extension files (must include index.html and manifest.json at root) */
   bundle: File | Blob;
 }
 
 /**
- * Extension manifest from manifest.json, stored with each published extension.
+ * Extension manifest from manifest.json.
  */
 export interface ExtensionManifest {
-  /** Extension identifier (lowercase, hyphens) */
+  /** Extension identifier (lowercase, alphanumeric, hyphens, underscores) */
   id: string;
   /** Display name */
   name: string;
-  /** Optional icon identifier */
+  /** Optional icon path (relative to extension URL) */
   icon?: string;
   /** Collection access declarations */
   collections: Record<string, unknown>;
-  /** Whether the extension is publicly listed */
-  public: boolean;
   /** Optional extension description */
   description?: string;
   /** Optional system instruction for the AI agent */
@@ -268,24 +266,48 @@ export interface ExtensionManifest {
 }
 
 /**
- * Options for finding/searching public extensions.
+ * Options for searching published extensions.
  */
 export interface FindExtensionsOptions {
-  /** Natural language search query for semantic extension discovery. Omit to browse all public extensions. */
+  /** Natural language search query for semantic extension discovery. Omit to browse all. */
   query?: string;
   /** Maximum number of results (default: 20, max: 100) */
   limit?: number;
 }
 
 /**
- * Info about a published extension.
+ * A user extension in your personal library.
+ * Returned by listExtensions(), getExtensionInfo(), and uploadExtension().
+ */
+export interface ExtensionInfo {
+  /** Extension identifier (URL-safe) */
+  extensionId: string;
+  /** Extension manifest from manifest.json */
+  manifest: ExtensionManifest;
+  /** URL where the extension is served */
+  url: string;
+  /** Bundle size in bytes */
+  sizeBytes: number;
+  /** Whether this extension is published to the public marketplace */
+  published: boolean;
+  /** If installed from a marketplace listing, the source extension ID. Null if user-authored. */
+  marketplaceExtensionId: string | null;
+  /** ISO timestamp of creation */
+  createdAt: string;
+  /** ISO timestamp of last update */
+  updatedAt: string;
+}
+
+/**
+ * A publicly listed extension in the marketplace.
+ * Returned by findExtensions().
  */
 export interface PublishedExtensionInfo {
   /** Extension identifier (URL-safe) */
   extensionId: string;
   /** Extension manifest from manifest.json */
   manifest: ExtensionManifest;
-  /** Public URL where the extension is accessible */
+  /** URL where the extension is served */
   url: string;
   /** Bundle size in bytes */
   sizeBytes: number;

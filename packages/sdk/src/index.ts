@@ -45,8 +45,9 @@ export type {
   MediaInfo,
   MediaResponse,
 
-  // Extension publishing types
-  PublishExtensionOptions,
+  // Extension types
+  UploadExtensionOptions,
+  ExtensionInfo,
   PublishedExtensionInfo,
   ExtensionManifest,
   FindExtensionsOptions,
