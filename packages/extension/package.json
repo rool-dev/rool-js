@@ -31,7 +31,8 @@
     "build:host-shell": "vite build -c build/vite.config.js",
     "dev": "svelte-package -i src -o dist --watch",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "pack:local": "pnpm build && pnpm pack --pack-destination . && mv rool-dev-extension-*.tgz rool-dev-extension-local.tgz"
   },
   "publishConfig": {
     "access": "public"
