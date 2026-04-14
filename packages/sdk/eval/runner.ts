@@ -40,7 +40,7 @@ export class EvalRunner {
       authProvider: new NodeAuthProvider(),
     });
 
-    if (!this.client.isAuthenticated()) {
+    if (!(await this.client.isAuthenticated())) {
       console.log('Not authenticated. Opening browser for login...');
       await this.client.login("Eval Agent");
     }
