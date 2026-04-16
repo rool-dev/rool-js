@@ -33,7 +33,6 @@ export function readManifest(root: string): ManifestResult {
   const missing: string[] = [];
   if (!parsed.id) missing.push('id');
   if (!parsed.name) missing.push('name');
-  if (typeof parsed.public !== 'boolean') missing.push('public');
   if (!parsed.collections || typeof parsed.collections !== 'object') missing.push('collections');
   if (missing.length > 0) {
     return { manifest: null, error: `manifest.json missing required fields: ${missing.join(', ')}` };

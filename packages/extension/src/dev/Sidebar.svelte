@@ -88,13 +88,6 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
       </div>
-      {#if manifest}
-        <div class="flex items-center gap-1.5 mt-1.5">
-          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium {manifest.public ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}">
-            {manifest.public ? 'Public' : 'Private'}
-          </span>
-        </div>
-      {/if}
       {#if manifest?.description}
         <div class="text-xs text-slate-500 leading-snug mt-1">{manifest.description}</div>
       {/if}

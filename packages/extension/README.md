@@ -30,7 +30,6 @@ This opens a dev host at `/__rool-host/` that loads your extension in a sandboxe
 {
   "id": "my-extension",
   "name": "My Extension",
-  "public": false,
   "icon": "icon.png",
   "description": "What this extension does",
   "collections": {
@@ -50,7 +49,6 @@ This opens a dev host at `/__rool-host/` that loads your extension in a sandboxe
 |-------|----------|-------------|
 | `id` | Yes | Unique identifier (lowercase, hyphens) |
 | `name` | Yes | Display name |
-| `public` | Yes | Whether the extension is listed in the public extension directory |
 | `icon` | No | Path to an icon image file relative to the project root (e.g. `"icon.png"`) |
 | `description` | No | Short description |
 | `collections` | Yes | Collection access declarations — can be `{}` (see below) |

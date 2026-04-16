@@ -42,7 +42,6 @@ function init() {
   const manifest = {
     id: appId,
     name: appName,
-    public: false,
     collections: {},
   };
 

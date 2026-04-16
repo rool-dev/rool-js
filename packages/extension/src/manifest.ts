@@ -22,7 +22,6 @@ export interface ManifestCollections {
 export interface Manifest {
   id: string;
   name: string;
-  public: boolean;
   icon?: string;
   collections: ManifestCollections;
   description?: string;
