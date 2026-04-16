@@ -854,6 +854,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
           interactionCount: 0,
           extensionUrl: event.channelExtensionUrl ?? null,
           extensionId: event.channelExtensionId ?? null,
+          manifest: event.channelManifest ?? null,
         });
         break;
 

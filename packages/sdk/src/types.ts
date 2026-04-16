@@ -141,6 +141,8 @@ export interface Channel {
   extensionUrl?: string;
   /** ID of the installed extension (user_extensions.extension_id). */
   extensionId?: string;
+  /** Extension manifest snapshot, set when an extension is wired to this channel. */
+  manifest?: ExtensionManifest;
   conversations: Record<string, Conversation>;
 }
 
@@ -159,6 +161,8 @@ export interface ChannelInfo {
   extensionUrl: string | null;
   /** ID of the installed extension, or null if this is a plain channel. */
   extensionId: string | null;
+  /** Extension manifest snapshot, or null if this is a plain channel. */
+  manifest: ExtensionManifest | null;
 }
 
 
@@ -463,6 +467,7 @@ export interface ChannelCreatedClientEvent extends ClientEventBase {
   channelCreatedByName?: string;
   channelExtensionUrl?: string | null;
   channelExtensionId?: string | null;
+  channelManifest?: ExtensionManifest | null;
 }
 
 export interface ChannelRenamedClientEvent extends ClientEventBase {

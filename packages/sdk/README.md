@@ -734,6 +734,7 @@ A channel is a named context within a space. All object operations, AI prompts, 
 | `isReadOnly: boolean` | True if viewer role |
 | `extensionUrl: string \| null` | URL of the installed extension, or null if this is a plain channel |
 | `extensionId: string \| null` | ID of the installed extension, or null if this is a plain channel |
+| `manifest: ExtensionManifest \| null` | Extension manifest snapshot (name, icon, collections, etc.), or null |
 
 ### Lifecycle
 
@@ -1134,6 +1135,7 @@ interface Channel {
   createdByName?: string;       // Display name at time of creation
   extensionUrl?: string;        // URL of installed extension (set by installExtension)
   extensionId?: string;         // ID of installed extension (user_extensions.extension_id)
+  manifest?: ExtensionManifest; // Extension manifest snapshot (set when extension is wired)
   conversations: Record<string, Conversation>;  // Keyed by conversation ID
 }
 
@@ -1147,6 +1149,7 @@ interface ChannelInfo {
   interactionCount: number;
   extensionUrl: string | null;  // URL of installed extension, or null
   extensionId: string | null;   // ID of installed extension, or null
+  manifest: ExtensionManifest | null;  // Extension manifest snapshot, or null
 }
 ```
 

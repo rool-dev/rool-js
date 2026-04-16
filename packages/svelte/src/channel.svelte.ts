@@ -376,6 +376,7 @@ class ReactiveChannelImpl {
   get isReadOnly() { return this.#channel.isReadOnly; }
   get linkAccess() { return this.#channel.linkAccess; }
   get extensionUrl() { return this.#channel.extensionUrl; }
+  get manifest() { return this.#channel.manifest; }
 
   // Proxy all methods
   close() {

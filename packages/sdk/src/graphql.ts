@@ -117,6 +117,7 @@ export class GraphQLClient {
       ),
       extensionUrl: ch.extensionUrl ?? null,
       extensionId: ch.extensionId ?? null,
+      manifest: ch.manifest ?? null,
     }));
 
     return { name: r.name, role: r.role, linkAccess: r.linkAccess, memberCount: r.memberCount, channels: channelInfos };

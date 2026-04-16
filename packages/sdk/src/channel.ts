@@ -22,6 +22,7 @@ import type {
   SpaceSchema,
   CollectionDef,
   FieldDef,
+  ExtensionManifest,
 } from './types.js';
 
 // 6-character alphanumeric ID (62^6 = 56.8 billion possible values)
@@ -262,6 +263,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    */
   get extensionId(): string | null {
     return this._channel?.extensionId ?? null;
+  }
+
+  /**
+   * Get the extension manifest if this channel has an installed extension, or null.
+   */
+  get manifest(): ExtensionManifest | null {
+    return this._channel?.manifest ?? null;
   }
 
   // ===========================================================================

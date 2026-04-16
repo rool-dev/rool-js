@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, RoolObject, RoolObjectStat, SpaceSchema, Channel, Conversation } from './types.js';
+import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, RoolObject, RoolObjectStat, SpaceSchema, Channel, Conversation, ExtensionManifest } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 
@@ -249,6 +249,8 @@ export class ClientSubscriptionManager {
           channelCreatedBy: raw.createdBy as string | undefined,
           channelCreatedByName: raw.createdByName as string | undefined,
           channelExtensionUrl: raw.extensionUrl as string | undefined,
+          channelExtensionId: raw.extensionId as string | undefined,
+          channelManifest: raw.manifest as ExtensionManifest | undefined,
         };
       case 'channel_renamed':
         return { type, timestamp, spaceId: raw.spaceId as string, channelId: raw.channelId as string, name: raw.name as string };
