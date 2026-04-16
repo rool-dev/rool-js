@@ -83,14 +83,19 @@ channel.close();
 A **space** is a container that holds objects, schema, metadata, and channels. A **channel** is a named context within a space — it's the handle you use for all object and AI operations. Each channel contains one or more **conversations**, each with independent interaction history.
 
 There are two main handles:
-- **`RoolSpace`** — Lightweight admin handle for user management, link access, channel management, and export. No real-time subscription.
+- **`RoolSpace`** — Live handle with SSE subscription for user management, link access, channel management, export, and channel lifecycle events. Extends `EventEmitter`.
 - **`RoolChannel`** — Full real-time handle for objects, AI prompts, media, schema, and undo/redo.
 
 ```typescript
-// Open a space for admin operations
+// Open a space — live handle with SSE subscription
 const space = await client.openSpace('space-id');
 await space.addUser(userId, 'editor');
 await space.setLinkAccess('viewer');
+
+// React to channel changes in real-time
+space.on('channelCreated', (channel) => console.log('New channel:', channel.id));
+space.on('channelUpdated', (channel) => console.log('Updated:', channel.id));
+space.on('channelDeleted', (channelId) => console.log('Deleted:', channelId));
 
 // Open a channel for object and AI operations
 const channel = await client.openChannel('space-id', 'my-channel');
@@ -99,6 +104,9 @@ await channel.prompt('Create some planets');
 // Or open a channel via the space handle
 const channel2 = await space.openChannel('research');
 await channel2.prompt('Analyze the data');  // Independent channel
+
+// Clean up — stops subscription and closes all open channels
+space.close();
 ```
 
 The `channelId` is fixed when you open a channel and cannot be changed. To use a different channel, open a new one. Channels to the same space share the same objects and schema.
@@ -568,9 +576,9 @@ const client = new RoolClient({
 | Method | Description |
 |--------|-------------|
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List available spaces |
-| `openSpace(spaceId): Promise<RoolSpace>` | Open a space for admin operations (no real-time subscription) |
+| `openSpace(spaceId): Promise<RoolSpace>` | Open a space with live SSE subscription. Caches and reuses open spaces. |
 | `openChannel(spaceId, channelId): Promise<RoolChannel>` | Open a channel on a space |
-| `createSpace(name): Promise<RoolSpace>` | Create a new space, returns admin handle |
+| `createSpace(name): Promise<RoolSpace>` | Create a new space, returns live handle with SSE subscription |
 | `deleteSpace(id): Promise<void>` | Permanently delete a space (cannot be undone) |
 | `importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
 
@@ -582,7 +590,8 @@ Manage channels within a space. Available on both the client and space handles:
 |--------|-------------|
 | `client.renameChannel(spaceId, channelId, name): Promise<void>` | Rename a channel |
 | `client.deleteChannel(spaceId, channelId): Promise<void>` | Delete a channel and its interaction history |
-| `space.getChannels(): ChannelInfo[]` | List channels (from cached snapshot) |
+| `space.channels: ChannelInfo[]` | Live channel list (auto-updates via SSE) |
+| `space.getChannels(): ChannelInfo[]` | List channels (deprecated — use `space.channels` instead) |
 | `space.deleteChannel(channelId): Promise<void>` | Delete a channel |
 | `channel.rename(name): Promise<void>` | Rename the current channel |
 
@@ -668,12 +677,14 @@ client.on('spaceAdded', (space: RoolSpaceInfo) => void)      // Space created or
 client.on('spaceRemoved', (spaceId: string) => void)         // Space deleted or access revoked
 client.on('spaceRenamed', (spaceId: string, newName: string) => void)
 client.on('channelCreated', (spaceId: string, channel: ChannelInfo) => void)
-client.on('channelRenamed', (spaceId: string, channelId: string, newName: string) => void)
+client.on('channelUpdated', (spaceId: string, channel: ChannelInfo) => void)
 client.on('channelDeleted', (spaceId: string, channelId: string) => void)
 client.on('userStorageChanged', ({ key, value, source }: UserStorageChangedEvent) => void)
 client.on('connectionStateChanged', (state: 'connected' | 'disconnected' | 'reconnecting') => void)
 client.on('error', (error: Error, context?: string) => void)
 ```
+
+Channel events on the client (`channelCreated`, `channelUpdated`, `channelDeleted`) are pass-throughs from space events for backwards compatibility. Prefer listening on the space handle directly for new code.
 
 **Space list management pattern:**
 ```typescript
@@ -689,7 +700,9 @@ client.on('spaceRenamed', (id, name) => {
 
 ## RoolSpace API
 
-A space is a lightweight admin handle for space-level operations. It does not have a real-time subscription — use channels for live data and object operations.
+A space handle with a live SSE subscription. Extends `EventEmitter`. Manages user access, link sharing, channels, and export. The `channels` property auto-updates via SSE, and channel lifecycle events fire in real-time.
+
+`openSpace()` caches and reuses open spaces — calling it twice with the same ID returns the same instance. Call `close()` when done to stop the subscription and close all open channels.
 
 ### Properties
 
@@ -700,22 +713,33 @@ A space is a lightweight admin handle for space-level operations. It does not ha
 | `role: RoolUserRole` | User's role |
 | `linkAccess: LinkAccess` | URL sharing level |
 | `memberCount: number` | Number of users with access to the space |
+| `channels: ChannelInfo[]` | Live channel list (auto-updates via SSE) |
 
 ### Methods
 
 | Method | Description |
 |--------|-------------|
 | `openChannel(channelId): Promise<RoolChannel>` | Open a channel on this space |
+| `close(): void` | Stop SSE subscription and close all open channels |
 | `rename(newName): Promise<void>` | Rename this space |
 | `delete(): Promise<void>` | Permanently delete this space |
 | `listUsers(): Promise<SpaceMember[]>` | List users with access |
 | `addUser(userId, role): Promise<void>` | Add user to space |
 | `removeUser(userId): Promise<void>` | Remove user from space |
 | `setLinkAccess(linkAccess): Promise<void>` | Set URL sharing level |
-| `getChannels(): ChannelInfo[]` | List channels (from cached snapshot) |
+| `getChannels(): ChannelInfo[]` | List channels (deprecated — use `channels` property instead) |
 | `deleteChannel(channelId): Promise<void>` | Delete a channel |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
 | `refresh(): Promise<void>` | Refresh space data from server |
+
+### Space Events
+
+```typescript
+space.on('channelCreated', (channel: ChannelInfo) => void)   // New channel added
+space.on('channelUpdated', (channel: ChannelInfo) => void)   // Channel metadata changed (name, extension, manifest)
+space.on('channelDeleted', (channelId: string) => void)      // Channel removed
+space.on('connectionStateChanged', (state: 'connected' | 'disconnected' | 'reconnecting') => void)
+```
 
 ## RoolChannel API
 

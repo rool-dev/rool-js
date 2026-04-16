@@ -39,4 +39,5 @@ export type {
   UploadExtensionOptions,
   ExtensionManifest,
   FindExtensionsOptions,
+  RoolSpaceEvents,
 } from '@rool-dev/sdk';

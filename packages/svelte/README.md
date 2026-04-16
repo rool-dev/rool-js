@@ -139,7 +139,7 @@ const channel = await rool.openChannel('space-id', 'my-channel', 'thread-1');
 const space = await rool.createSpace('My New Space');
 const channel = await space.openChannel('main');
 
-// Open a space for admin operations (lightweight, no SSE)
+// Open a space — live handle with SSE subscription
 const space = await rool.openSpace('space-id');
 await space.rename('New Name');
 await space.addUser(userId, 'editor');

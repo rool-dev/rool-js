@@ -309,11 +309,12 @@ class RoolImpl {
 
   /**
    * Create a reactive channel list for a space.
-   * Auto-updates when channels are created, renamed, or deleted.
+   * Auto-updates when channels are created, updated, or deleted.
+   * Returns immediately with loading=true; populates once the space is ready.
    * Call close() when done to stop listening.
    */
   channels(spaceId: string): ReactiveChannelList {
-    return createChannelList(this.#client, spaceId);
+    return createChannelList(this.#client.openSpace(spaceId));
   }
 
   /**

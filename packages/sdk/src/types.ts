@@ -632,8 +632,8 @@ export interface RoolClientEvents {
   spaceRenamed: (spaceId: string, newName: string) => void;
   /** Emitted when a channel is created in a space */
   channelCreated: (spaceId: string, channel: ChannelInfo) => void;
-  /** Emitted when a channel is renamed */
-  channelRenamed: (spaceId: string, channelId: string, newName: string) => void;
+  /** Emitted when a channel's metadata changes (name, extension, manifest) */
+  channelUpdated: (spaceId: string, channel: ChannelInfo) => void;
   /** Emitted when a channel is deleted */
   channelDeleted: (spaceId: string, channelId: string) => void;
   /** Emitted when user storage changes (local or remote) */
@@ -647,8 +647,26 @@ export interface RoolClientEvents {
   [key: string]: (...args: any[]) => void;
 }
 
+/**
+ * Space-level events emitted by RoolSpace.
+ * Includes channel lifecycle events derived from the space SSE subscription.
+ */
+export interface RoolSpaceEvents {
+  /** A new channel was created in this space */
+  channelCreated: (channel: ChannelInfo) => void;
+  /** A channel's metadata changed (name, extension, manifest) */
+  channelUpdated: (channel: ChannelInfo) => void;
+  /** A channel was deleted from this space */
+  channelDeleted: (channelId: string) => void;
+  /** SSE connection state changed */
+  connectionStateChanged: (state: ConnectionState) => void;
+  /** Index signature for EventEmitter compatibility */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: (...args: any[]) => void;
+}
+
 // =============================================================================
-// Space Event Types (for RoolSpace EventEmitter)
+// Space Event Types (for RoolChannel EventEmitter)
 // =============================================================================
 
 /**

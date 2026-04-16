@@ -90,6 +90,7 @@ export type {
   // Config types
   RoolClientConfig,
   RoolClientEvents,
+  RoolSpaceEvents,
   AuthTokens,
   AuthProvider,
 } from './types.js';

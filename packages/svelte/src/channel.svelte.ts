@@ -1,4 +1,4 @@
-import type { RoolChannel, RoolClient, Interaction, RoolObject, FindObjectsOptions, ChannelInfo, ConversationInfo, ConversationHandle, ConversationUpdatedEvent } from '@rool-dev/sdk';
+import type { RoolChannel, RoolSpace, Interaction, RoolObject, FindObjectsOptions, ChannelInfo, ConversationInfo, ConversationHandle, ConversationUpdatedEvent } from '@rool-dev/sdk';
 
 /**
  * Options for creating a reactive watch.
@@ -480,60 +480,63 @@ export type ReactiveChannel = ReactiveChannelImpl;
 
 /**
  * A reactive list of channels for a space that auto-updates via SSE events.
+ * Can be constructed with a RoolSpace directly or a Promise<RoolSpace>
+ * (starts with an empty list and loading=true until the space resolves).
  */
 class ReactiveChannelListImpl {
-  #client: RoolClient;
-  #spaceId: string;
+  #space: RoolSpace | null = null;
   #unsubscribers: (() => void)[] = [];
 
   // Reactive state
   list = $state<ChannelInfo[]>([]);
   loading = $state(true);
 
-  constructor(client: RoolClient, spaceId: string) {
-    this.#client = client;
-    this.#spaceId = spaceId;
-    this.#setup();
+  constructor(spaceOrPromise: RoolSpace | Promise<RoolSpace>) {
+    if (spaceOrPromise instanceof Promise) {
+      spaceOrPromise.then((space) => this.#attach(space)).catch(() => {
+        this.loading = false;
+      });
+    } else {
+      this.#attach(spaceOrPromise);
+    }
   }
 
-  #setup() {
-    // Initial fetch
-    this.refresh();
+  #attach(space: RoolSpace) {
+    this.#space = space;
+    this.list = space.channels;
+    this.loading = false;
 
-    // Listen for channel lifecycle events
-    const onChannelCreated = (spaceId: string, channel: ChannelInfo) => {
-      if (spaceId !== this.#spaceId) return;
+    // Listen for channel lifecycle events on the space
+    const onChannelCreated = (channel: ChannelInfo) => {
       this.list = [...this.list, channel];
     };
-    this.#client.on('channelCreated', onChannelCreated);
-    this.#unsubscribers.push(() => this.#client.off('channelCreated', onChannelCreated));
+    space.on('channelCreated', onChannelCreated);
+    this.#unsubscribers.push(() => space.off('channelCreated', onChannelCreated));
 
-    const onChannelRenamed = (spaceId: string, channelId: string, newName: string) => {
-      if (spaceId !== this.#spaceId) return;
+    const onChannelUpdated = (channel: ChannelInfo) => {
       this.list = this.list.map(ch =>
-        ch.id === channelId ? { ...ch, name: newName } : ch
+        ch.id === channel.id ? channel : ch
       );
     };
-    this.#client.on('channelRenamed', onChannelRenamed);
-    this.#unsubscribers.push(() => this.#client.off('channelRenamed', onChannelRenamed));
+    space.on('channelUpdated', onChannelUpdated);
+    this.#unsubscribers.push(() => space.off('channelUpdated', onChannelUpdated));
 
-    const onChannelDeleted = (spaceId: string, channelId: string) => {
-      if (spaceId !== this.#spaceId) return;
+    const onChannelDeleted = (channelId: string) => {
       this.list = this.list.filter(ch => ch.id !== channelId);
     };
-    this.#client.on('channelDeleted', onChannelDeleted);
-    this.#unsubscribers.push(() => this.#client.off('channelDeleted', onChannelDeleted));
+    space.on('channelDeleted', onChannelDeleted);
+    this.#unsubscribers.push(() => space.off('channelDeleted', onChannelDeleted));
   }
 
   /**
-   * Re-fetch the channel list from the server.
-   * Opens a lightweight space handle to get the channel list.
+   * Refresh the channel list from the space.
    */
   async refresh(): Promise<void> {
+    if (!this.#space) return;
     this.loading = true;
     try {
-      const space = await this.#client.openSpace(this.#spaceId);
-      this.list = space.getChannels();
+      await this.#space.refresh();
+      this.list = this.#space.channels;
     } finally {
       this.loading = false;
     }
@@ -548,8 +551,8 @@ class ReactiveChannelListImpl {
   }
 }
 
-export function createChannelList(client: RoolClient, spaceId: string): ReactiveChannelList {
-  return new ReactiveChannelListImpl(client, spaceId);
+export function createChannelList(spaceOrPromise: RoolSpace | Promise<RoolSpace>): ReactiveChannelList {
+  return new ReactiveChannelListImpl(spaceOrPromise);
 }
 
 export type ReactiveChannelList = ReactiveChannelListImpl;
