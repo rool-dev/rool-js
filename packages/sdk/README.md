@@ -358,6 +358,7 @@ if (!authenticated) {
 | `logout(): void` | Clear tokens and state |
 | `isAuthenticated(): Promise<boolean>` | Check auth status (validates token) |
 | `getAuthUser(): AuthUser` | Get auth identity from JWT (`{ email, name }`) |
+| `setPassword(password): Promise<void>` | Set or change the current user's password. Requires an authenticated session. Password must be at least 8 characters and contain both letters and either digits or symbols. Throws with a human-readable message on validation or server failure. |
 
 ## AI Agent
 

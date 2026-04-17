@@ -17,8 +17,10 @@ export interface AuthManagerConfig {
 
 export class AuthManager {
   private provider: AuthProvider;
+  private authUrl: string;
 
   constructor(config: AuthManagerConfig) {
+    this.authUrl = config.authUrl.replace(/\/+$/, '');
     if (config.authProvider) {
       this.provider = config.authProvider;
       // Inject auth URL if the provider supports it (e.g. NodeAuthProvider)
@@ -101,6 +103,33 @@ export class AuthManager {
    */
   logout(): void {
     this.provider.logout();
+  }
+
+  /**
+   * Set or change the authenticated user's password.
+   * Requires a live session (Firebase id token). Throws on error.
+   */
+  async setPassword(password: string): Promise<void> {
+    const tokens = await this.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
+
+    const response = await fetch(`${this.authUrl}/set-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokens.accessToken}`,
+      },
+      body: JSON.stringify({ password }),
+    });
+
+    if (!response.ok) {
+      let message = `set-password failed: ${response.status}`;
+      try {
+        const data = await response.json();
+        if (data && typeof data.error === 'string') message = data.error;
+      } catch { /* fall through to default message */ }
+      throw new Error(message);
+    }
   }
 
   /**
