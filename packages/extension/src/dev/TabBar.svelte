@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { ExtensionTab } from './DevHostController.js';
-  import type { PublishedExtensionInfo } from '@rool-dev/sdk';
+  import type { ExtensionInfo } from '@rool-dev/sdk';
 
   interface Props {
     tabs: ExtensionTab[];
     activeTab: string;
-    uninstalledExtensions: PublishedExtensionInfo[];
+    uninstalledExtensions: ExtensionInfo[];
     onSelectTab: (id: string) => void;
     onRemoveExtension: (id: string) => void;
     onInstallExtension: (extensionId: string) => void;

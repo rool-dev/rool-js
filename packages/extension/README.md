@@ -16,8 +16,8 @@ Everything else (Vite config, entry point, HTML, Tailwind CSS) is provided by th
 ```bash
 npx @rool-dev/cli extension create my-extension
 cd my-extension
-pnpm install
-pnpm dev
+npm install
+npx rool-extension dev
 ```
 
 This opens a dev host at `/__rool-host/` that loads your extension in a sandboxed iframe, connected to a real Rool Space.

@@ -3,7 +3,7 @@
   import { DevHostController } from './DevHostController.js';
   import type { ExtensionTab } from './DevHostController.js';
   import type { Manifest } from '../manifest.js';
-  import type { RoolSpaceInfo, PublishedExtensionInfo } from '@rool-dev/sdk';
+  import type { RoolSpaceInfo, ExtensionInfo } from '@rool-dev/sdk';
   import type { Environment } from '../manifest.js';
   import Sidebar from './Sidebar.svelte';
   import AppGrid from './AppGrid.svelte';
@@ -29,13 +29,13 @@
   let placeholderText: string | null = $state('Authenticating...');
   let sidebarCollapsed: boolean = $state(false);
   let env: Environment = $state('prod');
-  let publishedExtensions: PublishedExtensionInfo[] = $state([]);
+  let userExtensions: ExtensionInfo[] = $state([]);
   let installedExtensionIds: string[] = $state([]);
   let tabs: ExtensionTab[] = $state([]);
   let colorScheme: 'light' | 'dark' = $state('light');
-  let publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = $state('idle');
-  let publishMessage: string | null = $state(null);
-  let publishUrl: string | null = $state(null);
+  let uploadState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = $state('idle');
+  let uploadMessage: string | null = $state(null);
+  let uploadUrl: string | null = $state(null);
 
   // UI-only state (not in controller)
   let dropdownOpen: boolean = $state(false);
@@ -55,17 +55,17 @@
     sidebarCollapsed = controller.sidebarCollapsed;
     colorScheme = controller.colorScheme;
     env = controller.env;
-    publishedExtensions = controller.publishedExtensions;
+    userExtensions = controller.userExtensions;
     installedExtensionIds = controller.installedExtensionIds;
     tabs = controller.tabs;
-    publishState = controller.publishState;
-    publishMessage = controller.publishMessage;
-    publishUrl = controller.publishUrl;
+    uploadState = controller.uploadState;
+    uploadMessage = controller.uploadMessage;
+    uploadUrl = controller.uploadUrl;
   }
 
-  // Derived: published apps not yet installed (excluding the local dev app)
+  // Derived: user extensions not yet installed (excluding the local dev extension)
   let uninstalledExtensions = $derived(
-    publishedExtensions.filter((ext) => ext.extensionId !== channelId && !installedExtensionIds.includes(ext.extensionId)),
+    userExtensions.filter((ext) => ext.extensionId !== channelId && !installedExtensionIds.includes(ext.extensionId)),
   );
 
   // Initial sync
@@ -100,9 +100,9 @@
   {statusState}
   {sidebarCollapsed}
   {colorScheme}
-  {publishState}
-  {publishMessage}
-  {publishUrl}
+  {uploadState}
+  {uploadMessage}
+  {uploadUrl}
   bind:dropdownOpen
 />
 

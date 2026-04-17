@@ -6,7 +6,6 @@
 
   interface Props {
     controller: DevHostController;
-    // Reactive copies from the controller (Svelte $state)
     manifest: Manifest | null;
     manifestError: string | null;
     spaces: RoolSpaceInfo[];
@@ -16,9 +15,9 @@
     statusState: 'ok' | 'loading' | 'off';
     sidebarCollapsed: boolean;
     colorScheme: 'light' | 'dark';
-    publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error';
-    publishMessage: string | null;
-    publishUrl: string | null;
+    uploadState: 'idle' | 'building' | 'uploading' | 'done' | 'error';
+    uploadMessage: string | null;
+    uploadUrl: string | null;
     dropdownOpen: boolean;
   }
 
@@ -33,9 +32,9 @@
     statusState,
     sidebarCollapsed,
     colorScheme,
-    publishState,
-    publishMessage,
-    publishUrl,
+    uploadState,
+    uploadMessage,
+    uploadUrl,
     dropdownOpen = $bindable(),
   }: Props = $props();
 
@@ -221,45 +220,45 @@
       </div>
     </div>
 
-    <!-- Publish -->
+    <!-- Upload -->
     {#if manifest}
       <div class="px-4 py-3 border-b border-slate-100">
-        <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Publish</div>
+        <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Upload</div>
         <button
           class="w-full py-1.5 px-3 text-[12px] font-medium rounded-md transition-colors
-            {publishState === 'building' || publishState === 'uploading'
+            {uploadState === 'building' || uploadState === 'uploading'
               ? 'bg-indigo-100 text-indigo-400 cursor-wait'
-              : publishState === 'done'
+              : uploadState === 'done'
                 ? 'bg-green-50 text-green-600 border border-green-200'
-                : publishState === 'error'
+                : uploadState === 'error'
                   ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
                   : 'bg-indigo-500 text-white hover:bg-indigo-600'}"
-          onclick={() => controller.publish()}
-          disabled={publishState === 'building' || publishState === 'uploading'}
+          onclick={() => controller.upload()}
+          disabled={uploadState === 'building' || uploadState === 'uploading'}
         >
-          {#if publishState === 'building'}
+          {#if uploadState === 'building'}
             Building...
-          {:else if publishState === 'uploading'}
-            Publishing...
-          {:else if publishState === 'done'}
-            Published
-          {:else if publishState === 'error'}
-            Retry Publish
+          {:else if uploadState === 'uploading'}
+            Uploading...
+          {:else if uploadState === 'done'}
+            Uploaded
+          {:else if uploadState === 'error'}
+            Retry Upload
           {:else}
-            Publish to {env}
+            Upload to {env}
           {/if}
         </button>
-        {#if publishState === 'done' && publishUrl}
+        {#if uploadState === 'done' && uploadUrl}
           <a
-            href={publishUrl}
+            href={uploadUrl}
             target="_blank"
             rel="noopener noreferrer"
             class="block text-[11px] text-indigo-500 hover:text-indigo-600 mt-1.5 truncate"
           >
-            {publishUrl}
+            {uploadUrl}
           </a>
-        {:else if publishState === 'error' && publishMessage}
-          <div class="text-[11px] text-red-500 mt-1.5">{publishMessage}</div>
+        {:else if uploadState === 'error' && uploadMessage}
+          <div class="text-[11px] text-red-500 mt-1.5">{uploadMessage}</div>
         {/if}
       </div>
     {/if}

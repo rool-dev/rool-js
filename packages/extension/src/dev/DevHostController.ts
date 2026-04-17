@@ -11,15 +11,11 @@
  */
 
 import { RoolClient } from '@rool-dev/sdk';
-import type { RoolSpaceInfo, RoolChannel, PublishedExtensionInfo } from '@rool-dev/sdk';
+import type { RoolSpaceInfo, RoolChannel, ExtensionInfo } from '@rool-dev/sdk';
 import { createBridgeHost, type BridgeHost } from '../host.js';
 import type { BridgeUser, ColorScheme } from '../protocol.js';
 import type { Manifest, Environment } from '../manifest.js';
 import { ENV_URLS } from '../manifest.js';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface ExtensionTab {
   id: string;        // 'local' or the published extension ID
@@ -29,10 +25,6 @@ export interface ExtensionTab {
 }
 
 export type StatusState = 'ok' | 'loading' | 'off';
-
-// ---------------------------------------------------------------------------
-// localStorage helpers
-// ---------------------------------------------------------------------------
 
 function storageGet(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -44,10 +36,6 @@ function storageSet(key: string, value: string | null) {
     else localStorage.setItem(key, value);
   } catch { /* ignore */ }
 }
-
-// ---------------------------------------------------------------------------
-// DevHostController
-// ---------------------------------------------------------------------------
 
 export class DevHostController {
   // --- Config (immutable after construction) ---
@@ -66,13 +54,13 @@ export class DevHostController {
   statusState: StatusState = 'off';
   placeholderText: string | null = 'Authenticating...';
   env: Environment;
-  publishedExtensions: PublishedExtensionInfo[] = [];
+  userExtensions: ExtensionInfo[] = [];
   installedExtensionIds: string[] = [];
   sidebarCollapsed: boolean = false;
   colorScheme: ColorScheme = 'light';
-  publishState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = 'idle';
-  publishMessage: string | null = null;
-  publishUrl: string | null = null;
+  uploadState: 'idle' | 'building' | 'uploading' | 'done' | 'error' = 'idle';
+  uploadMessage: string | null = null;
+  uploadUrl: string | null = null;
 
   // --- Per-tab state (imperative, not rendered directly) ---
   private channels: Record<string, RoolChannel> = {};
@@ -111,10 +99,6 @@ export class DevHostController {
     this.colorScheme = this._getSavedColorScheme();
   }
 
-  // ---------------------------------------------------------------------------
-  // Derived
-  // ---------------------------------------------------------------------------
-
   get tabs(): ExtensionTab[] {
     const localTab: ExtensionTab = {
       id: 'local',
@@ -137,10 +121,6 @@ export class DevHostController {
     return [localTab, ...extensionTabs];
   }
 
-  // ---------------------------------------------------------------------------
-  // Bootstrap
-  // ---------------------------------------------------------------------------
-
   async boot(): Promise<void> {
     const envConfig = ENV_URLS[this.env];
     this.client = new RoolClient({ apiUrl: envConfig.apiUrl, authUrl: envConfig.authUrl });
@@ -162,11 +142,11 @@ export class DevHostController {
 
     const [spaceList, extensionList] = await Promise.all([
       this.client.listSpaces(),
-      this.client.listExtensions().catch(() => [] as PublishedExtensionInfo[]),
+      this.client.listExtensions().catch(() => [] as ExtensionInfo[]),
     ]);
 
     this.spaces = spaceList;
-    this.publishedExtensions = extensionList;
+    this.userExtensions = extensionList;
 
     this.client.on('spaceAdded', (space) => {
       if (!this.spaces.some((s) => s.id === space.id)) {
@@ -199,10 +179,6 @@ export class DevHostController {
       this._onChange();
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Space selection
-  // ---------------------------------------------------------------------------
 
   async selectSpace(spaceId: string): Promise<void> {
     this._destroyAllBridgesAndChannels();
@@ -258,10 +234,6 @@ export class DevHostController {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Extension installation / removal
-  // ---------------------------------------------------------------------------
-
   /**
    * Install an extension in the current space.
    *
@@ -310,21 +282,17 @@ export class DevHostController {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Publishing
-  // ---------------------------------------------------------------------------
-
-  async publish(): Promise<void> {
+  async upload(): Promise<void> {
     if (!this.manifest) {
-      this.publishState = 'error';
-      this.publishMessage = 'No valid manifest found';
+      this.uploadState = 'error';
+      this.uploadMessage = 'No valid manifest found';
       this._onChange();
       return;
     }
 
-    this.publishState = 'building';
-    this.publishMessage = null;
-    this.publishUrl = null;
+    this.uploadState = 'building';
+    this.uploadMessage = null;
+    this.uploadUrl = null;
     this._onChange();
 
     try {
@@ -337,48 +305,44 @@ export class DevHostController {
 
       const zipBlob = await buildRes.blob();
 
-      // Step 2: publish via SDK
-      this.publishState = 'uploading';
+      // Step 2: upload via SDK
+      this.uploadState = 'uploading';
       this._onChange();
 
       const result = await this.client.uploadExtension(this.manifest.id, {
         bundle: zipBlob,
       });
 
-      // Step 3: update published extensions list
-      const existingIdx = this.publishedExtensions.findIndex((a) => a.extensionId === result.extensionId);
+      // Step 3: update user extensions list
+      const existingIdx = this.userExtensions.findIndex((a) => a.extensionId === result.extensionId);
       if (existingIdx >= 0) {
-        this.publishedExtensions = [
-          ...this.publishedExtensions.slice(0, existingIdx),
+        this.userExtensions = [
+          ...this.userExtensions.slice(0, existingIdx),
           result,
-          ...this.publishedExtensions.slice(existingIdx + 1),
+          ...this.userExtensions.slice(existingIdx + 1),
         ];
       } else {
-        this.publishedExtensions = [...this.publishedExtensions, result];
+        this.userExtensions = [...this.userExtensions, result];
       }
 
-      this.publishState = 'done';
-      this.publishUrl = result.url;
+      this.uploadState = 'done';
+      this.uploadUrl = result.url;
       this._onChange();
 
       // Auto-clear success state after 5 seconds
       setTimeout(() => {
-        if (this.publishState === 'done') {
-          this.publishState = 'idle';
-          this.publishUrl = null;
+        if (this.uploadState === 'done') {
+          this.uploadState = 'idle';
+          this.uploadUrl = null;
           this._onChange();
         }
       }, 5000);
     } catch (e) {
-      this.publishState = 'error';
-      this.publishMessage = e instanceof Error ? e.message : String(e);
+      this.uploadState = 'error';
+      this.uploadMessage = e instanceof Error ? e.message : String(e);
       this._onChange();
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Environment switching
-  // ---------------------------------------------------------------------------
 
   async switchEnv(newEnv: Environment): Promise<void> {
     if (newEnv === this.env) return;
@@ -387,15 +351,11 @@ export class DevHostController {
     this._destroyAllBridgesAndChannels();
     this.currentSpaceId = null;
     this.spaces = [];
-    this.publishedExtensions = [];
+    this.userExtensions = [];
     this.installedExtensionIds = [];
     this._onChange();
     await this.boot();
   }
-
-  // ---------------------------------------------------------------------------
-  // Sidebar
-  // ---------------------------------------------------------------------------
 
   toggleSidebar(): void {
     this.sidebarCollapsed = !this.sidebarCollapsed;
@@ -412,10 +372,6 @@ export class DevHostController {
     this._onChange();
   }
 
-  // ---------------------------------------------------------------------------
-  // Iframe registration (called by Svelte action)
-  // ---------------------------------------------------------------------------
-
   registerIframe(tabId: string, el: HTMLIFrameElement): void {
     this.iframeEls[tabId] = el;
     this._bindBridge(tabId);
@@ -425,18 +381,10 @@ export class DevHostController {
     delete this.iframeEls[tabId];
   }
 
-  // ---------------------------------------------------------------------------
-  // Cleanup
-  // ---------------------------------------------------------------------------
-
   logout(): void {
     this.client.logout();
     window.location.reload();
   }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
 
   private get _bridgeUser(): BridgeUser {
     const cu = this.client.currentUser!; // Always available after boot() authenticates

@@ -3,12 +3,12 @@
   import { GridStack } from 'gridstack';
   import type { ExtensionTab } from './DevHostController.js';
   import type { DevHostController } from './DevHostController.js';
-  import type { PublishedExtensionInfo } from '@rool-dev/sdk';
+  import type { ExtensionInfo } from '@rool-dev/sdk';
 
   interface Props {
     controller: DevHostController;
     tabs: ExtensionTab[];
-    uninstalledExtensions: PublishedExtensionInfo[];
+    uninstalledExtensions: ExtensionInfo[];
     onInstallExtension: (extensionId: string) => void;
     onRemoveExtension: (extensionId: string) => void;
   }
