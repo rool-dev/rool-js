@@ -567,10 +567,6 @@ export interface AuthProvider {
   logout: () => void;
   /** Clean up resources (e.g. stop timers) */
   destroy?: () => void;
-  /** Get cached storage data */
-  getStorage: () => Record<string, unknown> | null;
-  /** Set cached storage data */
-  setStorage: (data: Record<string, unknown>) => void;
 }
 
 export interface RoolClientConfig {

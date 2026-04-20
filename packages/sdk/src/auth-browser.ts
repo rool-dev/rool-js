@@ -271,31 +271,6 @@ export class BrowserAuthProvider implements AuthProvider {
         }
     }
 
-    /**
-     * Get cached storage data from localStorage.
-     */
-    getStorage(): Record<string, unknown> | null {
-        try {
-            const key = `${this.storagePrefix}user_storage`;
-            const data = localStorage.getItem(key);
-            return data ? JSON.parse(data) : null;
-        } catch {
-            return null;
-        }
-    }
-
-    /**
-     * Set cached storage data to localStorage.
-     */
-    setStorage(data: Record<string, unknown>): void {
-        try {
-            const key = `${this.storagePrefix}user_storage`;
-            localStorage.setItem(key, JSON.stringify(data));
-        } catch {
-            // Ignore localStorage errors
-        }
-    }
-
     // ===========================================================================
     // Private methods
     // ===========================================================================

@@ -151,18 +151,4 @@ export class AuthManager {
   destroy(): void {
     this.provider.destroy?.();
   }
-
-  /**
-   * Get cached storage data.
-   */
-  getStorage(): Record<string, unknown> | null {
-    return this.provider.getStorage();
-  }
-
-  /**
-   * Set cached storage data.
-   */
-  setStorage(data: Record<string, unknown>): void {
-    this.provider.setStorage(data);
-  }
 }

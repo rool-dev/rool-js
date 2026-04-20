@@ -181,40 +181,6 @@ export class NodeAuthProvider implements AuthProvider {
         this.config.onAuthStateChanged?.(false);
     }
 
-    private get storagePath(): string {
-        const dir = path.dirname(this.credentialsPath);
-        // Scope storage by endpoint to match credentials scoping
-        return path.join(dir, `storage-${this.endpointHash}.json`);
-    }
-
-    /**
-     * Get cached storage data from filesystem.
-     */
-    getStorage(): Record<string, unknown> | null {
-        try {
-            const filePath = this.storagePath;
-            if (!fs.existsSync(filePath)) return null;
-            const data = fs.readFileSync(filePath, 'utf-8');
-            return JSON.parse(data);
-        } catch {
-            return null;
-        }
-    }
-
-    /**
-     * Set cached storage data to filesystem.
-     */
-    setStorage(data: Record<string, unknown>): void {
-        try {
-            const filePath = this.storagePath;
-            const dir = path.dirname(filePath);
-            fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2), { mode: 0o600 });
-        } catch (error) {
-            this.logger.error('[RoolClient] Failed to save storage:', error);
-        }
-    }
-
     // ===========================================================================
     // Private Helpers
     // ===========================================================================

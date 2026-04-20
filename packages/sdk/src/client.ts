@@ -60,7 +60,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   // Open spaces (cached for reuse by openChannel)
   private openSpaces = new Map<string, RoolSpace>();
 
-  // User storage cache (synced to localStorage)
+  // User storage cache (in-memory; populated from server on initialize)
   private _storageCache: Record<string, unknown> = {};
 
   // Current user (fetched during initialize)
@@ -107,9 +107,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       graphqlUrl: this.urls.graphql,
       authManager: this.authManager,
     });
-
-    // Load storage cache from localStorage
-    this.loadStorageCache();
   }
 
   // ===========================================================================
@@ -140,7 +137,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     const user = await this.getCurrentUser();
     this._currentUser = user;
     this._storageCache = user.storage ?? {};
-    this.saveStorageCache();
     await this.ensureSubscribed();
   }
 
@@ -499,11 +495,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   // ===========================================================================
-  // User Storage (server-side localStorage equivalent)
+  // User Storage (server-side key-value storage)
   // ===========================================================================
 
   /**
-   * Get a value from user storage (sync read from local cache).
+   * Get a value from user storage (sync read from in-memory cache).
+   * Cache is populated from the server on initialize().
    * Returns undefined if key doesn't exist.
    */
   getUserStorage<T = unknown>(key: string): T | undefined {
@@ -512,7 +509,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Set a value in user storage.
-   * Updates local cache immediately, then syncs to server.
+   * Updates in-memory cache immediately, then syncs to server.
    * Pass undefined/null to delete the key.
    * Storage is limited to 10MB total.
    */
@@ -523,9 +520,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     } else {
       this._storageCache[key] = value;
     }
-
-    // Persist to localStorage
-    this.saveStorageCache();
 
     // Emit event (local source)
     this.emit('userStorageChanged', { key, value: value ?? null, source: 'local' });
@@ -699,25 +693,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   // ===========================================================================
 
   /**
-   * Load storage cache from auth provider.
-   * @internal
-   */
-  private loadStorageCache(): void {
-    const cached = this.authManager.getStorage();
-    if (cached) {
-      this._storageCache = cached;
-    }
-  }
-
-  /**
-   * Save storage cache via auth provider.
-   * @internal
-   */
-  private saveStorageCache(): void {
-    this.authManager.setStorage(this._storageCache);
-  }
-
-  /**
    * Handle a user storage change from SSE (remote update).
    * Updates cache and emits event if value actually changed.
    * @internal
@@ -733,7 +708,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
         this._storageCache[key] = value;
       }
 
-      this.saveStorageCache();
       this.emit('userStorageChanged', { key, value: value ?? null, source: 'remote' });
     }
   }
