@@ -181,7 +181,8 @@ export class BrowserAuthProvider implements AuthProvider {
     }
 
     private redirectToAuth(flow: 'login' | 'signup', appName: string, params?: Record<string, string>): void {
-        const url = new URL(`${this.authBaseUrl}/${flow}`);
+        const origin = new URL(this.authBaseUrl).origin;
+        const url = new URL(`${origin}/${flow}`);
         const redirectTarget = window.location.origin + window.location.pathname + window.location.search;
         url.searchParams.set('redirect_uri', redirectTarget);
         url.searchParams.set('app_name', appName);
