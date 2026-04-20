@@ -205,6 +205,14 @@ class RoolImpl {
   }
 
   /**
+   * Report an authenticated telemetry event.
+   * Fire-and-forget; errors are logged by the underlying client.
+   */
+  reportEvent(event: string, url?: string): void {
+    this.#client.reportEvent(event, url);
+  }
+
+  /**
    * Search for a user by email.
    */
   searchUser(email: string) {
