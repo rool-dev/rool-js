@@ -538,6 +538,16 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return { ...this._storageCache };
   }
 
+  /**
+   * Report an event to the server.
+   * Fire-and-forget — errors are logged but not propagated.
+   */
+  reportEvent(event: string, url?: string): void {
+    this.graphqlClient.reportEvent(event, url).catch((error) => {
+      this.logger.error('[RoolClient] Failed to report event:', error);
+    });
+  }
+
   // ===========================================================================
   // Media Client (used internally by Space instances)
   // ===========================================================================

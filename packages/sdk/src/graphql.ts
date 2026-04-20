@@ -730,6 +730,15 @@ export class GraphQLClient {
     await this.request(mutation, { key, value: value ?? null });
   }
 
+  async reportEvent(event: string, url?: string): Promise<void> {
+    const mutation = `
+      mutation ReportEvent($event: String!, $url: String) {
+        reportEvent(event: $event, url: $url)
+      }
+    `;
+    await this.request(mutation, { event, url: url ?? null });
+  }
+
   async searchUser(email: string): Promise<UserResult | null> {
     const query = `
       query SearchUser($email: String!) {
