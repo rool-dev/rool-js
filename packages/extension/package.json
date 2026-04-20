@@ -1,6 +1,6 @@
 {
   "name": "@rool-dev/extension",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Svelte-first extension SDK for Rool — reactive channel over iframe bridge",
   "packageManager": "pnpm@10.17.1",
   "type": "module",
