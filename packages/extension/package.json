@@ -32,7 +32,7 @@
     "dev": "svelte-package -i src -o dist --watch",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "clean": "rm -rf dist",
-    "pack:local": "pnpm build && pnpm pack --pack-destination . && mv rool-dev-extension-*.tgz rool-dev-extension-local.tgz"
+    "pack:local": "pnpm build && rm -f rool-dev-extension-local.tgz && pnpm pack --pack-destination . && mv rool-dev-extension-*.tgz rool-dev-extension-local.tgz"
   },
   "publishConfig": {
     "access": "public"
