@@ -53,7 +53,6 @@ type Input =
   | { kind: 'auth_resolved'; tokens: Tokens }
   | { kind: 'auth_failed'; error: Error }
   | { kind: 'message_received'; raw: Record<string, unknown> }
-  | { kind: 'server_closed'; error?: Error }
   | { kind: 'watchdog_stale' }
   | { kind: 'backoff_fired' }
   | { kind: 'online_event' };
@@ -142,12 +141,6 @@ class Subscription<TEvent> {
         this.handleMessage(input.raw);
         return;
 
-      case 'server_closed':
-        if (state.kind !== 'probing' && state.kind !== 'live') return;
-        this.rejectInitIfPending(input.error ?? new Error('Subscription closed before established'));
-        this.enterBackoff();
-        return;
-
       case 'watchdog_stale':
         if (state.kind !== 'probing' && state.kind !== 'live') return;
         this.config.logger.info(`${this.config.logPrefix} heartbeat timeout`);
@@ -196,14 +189,26 @@ class Subscription<TEvent> {
   }
 
   private enterProbing(tokens: Tokens): void {
-    // From awaiting_auth.
-    const client = createClient({
-      url: this.config.graphqlUrl,
-      headers: {
-        Authorization: `Bearer ${tokens.accessToken}`,
-        'X-Rool-Token': tokens.roolToken,
-      },
-    });
+    // From awaiting_auth. The watchdog is the sole liveness detector: every
+    // failure mode manifests as heartbeats no longer arriving, and the
+    // watchdog fires watchdog_stale within HEARTBEAT_TIMEOUT.
+    let client: Client;
+    try {
+      client = createClient({
+        url: this.config.graphqlUrl,
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`,
+          'X-Rool-Token': tokens.roolToken,
+        },
+      });
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.config.logger.error(`${this.config.logPrefix} failed to create client:`, err);
+      this.config.onError(err);
+      this.rejectInitIfPending(err);
+      this.enterBackoff();
+      return;
+    }
 
     this.lastMessageAt = Date.now();
     const watchdog = setInterval(() => {
@@ -214,48 +219,37 @@ class Subscription<TEvent> {
 
     // Indirect unsubscribe so state can be set before client.subscribe() is
     // called, even though the real unsubscribe fn isn't available until it
-    // returns. If a callback fires synchronously during subscribe(), the
-    // state will already be 'probing'.
+    // returns.
     let realUnsubscribe: () => void = () => {};
     const unsubscribe = () => realUnsubscribe();
 
     this.state = { kind: 'probing', client, unsubscribe, watchdog };
     this.config.logger.info(`${this.config.logPrefix} connecting...`);
 
-    try {
-      realUnsubscribe = client.subscribe(
-        { query: this.config.query, variables: this.config.variables },
-        {
-          next: (result) => {
-            const data = result.data?.[this.config.dataField];
-            if (typeof data !== 'string') return;
-            let raw: Record<string, unknown>;
-            try {
-              raw = JSON.parse(data) as Record<string, unknown>;
-            } catch (e) {
-              this.config.logger.error(`${this.config.logPrefix} failed to parse event:`, e);
-              return;
-            }
-            this.handle({ kind: 'message_received', raw });
-          },
-          error: (error: unknown) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            this.handle({ kind: 'server_closed', error: err });
-          },
-          complete: () => {
-            this.handle({ kind: 'server_closed' });
-          },
+    realUnsubscribe = client.subscribe(
+      { query: this.config.query, variables: this.config.variables },
+      {
+        next: (result) => {
+          const data = result.data?.[this.config.dataField];
+          if (typeof data !== 'string') return;
+          let raw: Record<string, unknown>;
+          try {
+            raw = JSON.parse(data) as Record<string, unknown>;
+          } catch (e) {
+            this.config.logger.error(`${this.config.logPrefix} failed to parse event:`, e);
+            return;
+          }
+          this.handle({ kind: 'message_received', raw });
         },
-      );
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.config.logger.error(`${this.config.logPrefix} failed to create subscription:`, err);
-      this.handle({ kind: 'server_closed', error: err });
-    }
+        // error/complete intentionally not observed.
+        error: () => {},
+        complete: () => {},
+      },
+    );
   }
 
   private enterBackoff(): void {
-    // From awaiting_auth (after auth_failed) or probing/live (after server_closed/watchdog_stale).
+    // From awaiting_auth (after auth_failed) or probing/live (after watchdog_stale).
     const prev = this.state;
 
     const delay = this.backoffDelay;

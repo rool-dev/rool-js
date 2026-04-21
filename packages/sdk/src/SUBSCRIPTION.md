@@ -27,7 +27,7 @@ Six states. Each has a defined resource footprint; transitioning in allocates th
 
 ## 2. Inputs
 
-Two external (caller-initiated) and seven internal (delivered by async sources):
+Two external (caller-initiated) and six internal (delivered by async sources):
 
 | Input | Source |
 |---|---|
@@ -36,18 +36,17 @@ Two external (caller-initiated) and seven internal (delivered by async sources):
 | `auth_resolved(tokens)` | `getTokens()` resolved with tokens |
 | `auth_failed(err)` | `getTokens()` returned null or threw |
 | `message_received(raw)` | graphql-sse `next` callback |
-| `server_closed(err?)` | graphql-sse `error` **or** `complete` callback (unified — behavior is identical) |
 | `watchdog_stale` | heartbeat interval detected staleness |
 | `backoff_fired` | retry timer fired |
 | `online_event` | `window` `online` event |
 
-Merging `error` and `complete` into one input simplifies the state machine without losing information; neither callback carries data the transitions care about beyond "the subscription is no longer alive."
+**The watchdog is the sole liveness detector.** Every form of death — server close, auth reject, network drop, silent TCP death — manifests as heartbeats no longer arriving, and the watchdog fires `watchdog_stale` within `HEARTBEAT_TIMEOUT`. The state machine has one death input, tied to the currently-owned watchdog interval, which means it cannot be poked by a signal from any other source.
 
 ---
 
 ## 3. Transition table
 
-Every (state × input) cell has a defined outcome. "Ignore" means no-op. "Impossible" means the input cannot arrive in this state by construction (e.g., no graphql-sse callback can fire before `createClient` is called).
+Every (state × input) cell has a defined outcome. "Ignore" means no-op. "Impossible" means the input cannot arrive in this state by construction (e.g., `message_received` requires a subscription, which only exists in `probing`/`live`).
 
 | Input ↓ / State → | idle | awaiting_auth | probing / live | backoff | closed |
 |---|---|---|---|---|---|
@@ -56,12 +55,11 @@ Every (state × input) cell has a defined outcome. "Ignore" means no-op. "Imposs
 | `auth_resolved` | impossible | create client+subscription, start watchdog → probing | stale, ignore | stale, ignore | ignore |
 | `auth_failed` | impossible | reject init promise if present (§6), → backoff | stale, ignore | stale, ignore | ignore |
 | `message_received` | impossible | impossible | update `lastMessageAt`, reset `backoffDelay`; if event is `connected` and state is `probing` → live (resolve init promise §6, emit `'connected'`); deliver event to consumer | stale, ignore | ignore |
-| `server_closed` | impossible | impossible | teardown → backoff | stale, ignore | ignore |
 | `watchdog_stale` | impossible | impossible | teardown; `backoffDelay = INITIAL` → backoff | impossible (no watchdog in backoff) | impossible |
 | `backoff_fired` | impossible | impossible | impossible (no timer) | → awaiting_auth, start `getTokens` | ignore |
 | `online_event` | ignore | ignore | ignore | `backoffDelay = INITIAL` (timer left alone) | ignore |
 
-"Stale, ignore" covers the case where a late callback from a previous attempt arrives after we've already moved on — e.g., `this.unsubscribe()` synchronously fires `complete`, whose handler reaches the state machine but sees we've already transitioned. Handling this correctly requires the invariants in §4.
+"Stale, ignore" covers the case where a late `message_received` arrives after we've already moved on (e.g., `graphql-sse` delivering a buffered event on a previously-disposed connection). The state check on entry to each handler is sufficient: a stale message lands in the wrong state and is discarded.
 
 ---
 
@@ -69,7 +67,7 @@ Every (state × input) cell has a defined outcome. "Ignore" means no-op. "Imposs
 
 These properties must hold after every transition:
 
-1. **State is updated before side effects.** `this.state = next` executes before any `unsubscribe()` call, `clearInterval`, `clearTimeout`, callback invocation, or promise resolution. This guarantees that re-entrant callbacks (e.g., `complete` fired synchronously by `unsubscribe()`) see the new state and no-op.
+1. **State is updated before side effects.** `this.state = next` executes before any `unsubscribe()` call, `clearInterval`, `clearTimeout`, callback invocation, or promise resolution. Re-entrant callbacks observe the new state and no-op via the state check in `handle()`.
 2. **Resource ownership matches state.** Entering a state allocates its resources; leaving a state releases them. No resource outlives its state.
 3. **Side effects are idempotent.** Teardown calls `unsubscribe()` at most once, `clearInterval` at most once, `clearTimeout` at most once. Reaching `closed` from any state works regardless of what is currently allocated.
 4. **Async callbacks never mutate state directly.** They call `handle(input)`, which runs the transition function. No other code path writes `this.state`.
@@ -87,7 +85,7 @@ These properties must hold after every transition:
 | `online` listener | `start()` (when leaving `idle`) | `stop()` (when entering `closed`) |
 | `backoffDelay` (number, not a resource) | persists across transitions; reset on `message_received` and `online_event`; doubled (capped at `MAX`) when entering `backoff` |
 
-**Watchdog starts at subscription creation, not at first message.** `lastMessageAt` is initialized to `Date.now()` when we enter `probing`. This means if the server never sends anything — not even a heartbeat — we time out after `HEARTBEAT_TIMEOUT` and retry. The current code only starts the watchdog after the first message, which leaves an untimed window where a silently-failing server would hang the subscription.
+**Watchdog starts at subscription creation.** `lastMessageAt` is initialized to `Date.now()` when we enter `probing`. If the server never sends anything — not even a heartbeat — the watchdog fires after `HEARTBEAT_TIMEOUT` and we retry.
 
 ---
 
@@ -96,10 +94,8 @@ These properties must hold after every transition:
 `start()` returns a `Promise<void>` that:
 
 - **Resolves** on the first `probing → live` transition (i.e., the server's `connected` event arrives).
-- **Rejects** if the first attempt fails before any `connected` event — whether the failure is `auth_failed`, `server_closed`, `watchdog_stale`, or `stop()`.
+- **Rejects** if the first attempt fails before any `connected` event — whether the failure is `auth_failed`, `watchdog_stale`, or `stop()`.
 - After resolving or rejecting once, the promise handle is nulled. Subsequent reconnects are silent; consumers learn about them via `onConnectionStateChanged` events.
-
-This unifies the two current managers: `ClientSubscriptionManager.subscribe()` currently resolves as soon as the subscription is kicked off (no server confirmation), while `SpaceSubscriptionManager.subscribe()` resolves on the `connected` event. The new behavior matches the latter — a slightly later resolution in exchange for genuinely meaning "the subscription is live."
 
 ---
 
@@ -114,28 +110,25 @@ The external `onConnectionStateChanged` callback fires on these transitions:
 | `probing` → `live` | `'connected'` |
 | `probing`/`live` → `backoff` | `'disconnected'` then `'reconnecting'` |
 | `probing`/`live` → `closed` | `'disconnected'` |
-| any other → `closed` | (no emission — we weren't connected) |
+| any other → `closed` | (no emission) |
 
-`'connecting'` and `'reconnecting'` are conflated into one state to keep the consumer-facing API small. If that ever needs to split, it's a local change to this table.
+`'connecting'` and `'reconnecting'` are a single consumer-facing state to keep the API small.
 
 ---
 
-## 8. `online` event — kept intentionally weak
+## 8. `online` event
 
-The handler does one thing: reset `backoffDelay` to `INITIAL_RECONNECT_DELAY`. It does **not** cancel the backoff timer, does **not** force a reconnect, does **not** touch state.
+The handler resets `backoffDelay` to `INITIAL_RECONNECT_DELAY`. The pending backoff timer is left alone, state is untouched.
 
-Rationale: this is the minimum fix for "network came back but we're stuck on a 30s backoff." Stronger behavior (e.g., tearing down and reconnecting on any visibility change) re-creates the server-saturation risk that required the last revert.
-
-The watchdog (§5) remains the sole authority on "is this socket alive." It will detect stale sockets on its own cadence; `online` just prevents the backoff value from staying pessimistic across a network outage.
+The watchdog (§5) is the sole authority on socket liveness and detects stale sockets on its own cadence. `online` exists solely to prevent the backoff value from staying pessimistic across a network outage.
 
 ---
 
 ## 9. Deliberate omissions
 
-- **Jitter on backoff.** Easy to add later by multiplying the setTimeout delay by `(0.75 + 0.5 * Math.random())`. Out of scope for this refactor.
-- **Distinguishing `'connecting'` from `'reconnecting'`.** See §7.
-- **Pluggable transport.** The class is written against graphql-sse specifically. Abstracting that is a different, bigger refactor.
-- **Server-driven logout handling.** If auth fails mid-session, we go into backoff and retry indefinitely. The auth manager handles token refresh separately; a future pass could make failed auth after an extended period surface to consumers.
+- **Jitter on backoff.** Easy to add later by multiplying the setTimeout delay by `(0.75 + 0.5 * Math.random())`.
+- **Pluggable transport.** The class is written against graphql-sse specifically.
+- **Server-driven logout handling.** If auth fails mid-session, the state machine goes into backoff and retries indefinitely. The auth manager handles token refresh separately.
 
 ---
 
