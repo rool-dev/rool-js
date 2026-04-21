@@ -59,13 +59,10 @@ Examples:
       const spaces = await client.listSpaces();
       const spaceInfo = spaces.find(s => s.name === opts.space);
       const channelId = generateEntityId();
-      let channel: RoolChannel;
-      if (spaceInfo) {
-        channel = await client.openChannel(spaceInfo.id, channelId);
-      } else {
-        const space = await client.createSpace(opts.space);
-        channel = await space.openChannel(channelId);
-      }
+      const space = spaceInfo
+        ? await client.openSpace(spaceInfo.id)
+        : await client.createSpace(opts.space);
+      const channel: RoolChannel = await space.openChannel(channelId);
 
       try {
         const fileBuffer = fs.readFileSync(filePath);

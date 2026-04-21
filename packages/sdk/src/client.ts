@@ -28,7 +28,6 @@ import type {
   UploadExtensionOptions,
   FindExtensionsOptions,
 } from './types.js';
-import type { RoolChannel } from './channel.js';
 
 type ResolvedUrls = {
   graphql: string;
@@ -272,21 +271,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async listSpaces(): Promise<RoolSpaceInfo[]> {
     return this.graphqlClient.listSpaces();
-  }
-
-  /**
-   * Open a channel on a space.
-   * Convenience method that opens (or reuses) the space, then opens the channel.
-   *
-   * @param spaceId - The ID of the space
-   * @param channelId - The channel ID (created if it doesn't exist)
-   */
-  async openChannel(spaceId: string, channelId: string): Promise<RoolChannel> {
-    // Ensure client subscription is active (for lifecycle events)
-    void this.ensureSubscribed();
-
-    const space = await this.openSpace(spaceId);
-    return space.openChannel(channelId);
   }
 
   /**

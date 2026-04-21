@@ -31,13 +31,10 @@ Examples:
       const spaces = await client.listSpaces();
       const spaceInfo = spaces.find(s => s.name === opts.space);
 
-      let channel: RoolChannel;
-      if (spaceInfo) {
-        channel = await client.openChannel(spaceInfo.id, opts.channel);
-      } else {
-        const space = await client.createSpace(opts.space);
-        channel = await space.openChannel(opts.channel);
-      }
+      const space = spaceInfo
+        ? await client.openSpace(spaceInfo.id)
+        : await client.createSpace(opts.space);
+      const channel: RoolChannel = await space.openChannel(opts.channel);
 
       if (prompt) {
         // One-shot mode

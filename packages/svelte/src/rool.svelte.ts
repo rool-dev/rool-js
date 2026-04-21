@@ -1,5 +1,6 @@
-import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindExtensionsOptions, type ExtensionInfo, type PublishedExtensionInfo, type UploadExtensionOptions } from '@rool-dev/sdk';
-import { wrapChannel, createChannelList, type ReactiveChannel, type ReactiveChannelList } from './channel.svelte.js';
+import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindExtensionsOptions, type ExtensionInfo, type PublishedExtensionInfo, type UploadExtensionOptions } from '@rool-dev/sdk';
+import { createChannelList, type ReactiveChannelList } from './channel.svelte.js';
+import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
 /**
  * Rool client with reactive state for Svelte 5.
@@ -13,7 +14,7 @@ import { wrapChannel, createChannelList, type ReactiveChannel, type ReactiveChan
 class RoolImpl {
   #client: RoolClient;
   #unsubscribers: (() => void)[] = [];
-  #openChannels: Set<ReactiveChannel> = new Set();
+  #openSpaces: Set<ReactiveSpace> = new Set();
 
   // Reactive state
   authenticated = $state<boolean | null>(null); // null = checking, false = not auth, true = auth
@@ -144,41 +145,36 @@ class RoolImpl {
   }
 
   /**
-   * Log out and close all open channels.
+   * Log out and close all open spaces.
    */
   logout(): void {
-    for (const channel of this.#openChannels) {
-      channel.close();
+    for (const space of this.#openSpaces) {
+      space.close();
     }
-    this.#openChannels.clear();
+    this.#openSpaces.clear();
     this.#client.logout();
   }
 
   /**
-   * Open a channel (space + channelId pair).
-   * Returns a ReactiveChannel with reactive `interactions`.
+   * Open a space with a live SSE subscription. Returns a ReactiveSpace.
+   * Call `space.openChannel(channelId)` to get a ReactiveChannel.
+   * Call `space.close()` when done to stop the subscription.
    */
-  async openChannel(spaceId: string, channelId: string): Promise<ReactiveChannel> {
-    const channel = await this.#client.openChannel(spaceId, channelId);
-    const reactiveChannel = wrapChannel(channel);
-    this.#openChannels.add(reactiveChannel);
-    return reactiveChannel;
+  async openSpace(spaceId: string): Promise<ReactiveSpace> {
+    const raw = await this.#client.openSpace(spaceId);
+    const reactive = wrapSpace(raw);
+    this.#openSpaces.add(reactive);
+    return reactive;
   }
 
   /**
-   * Open a space for admin operations.
-   * Returns a lightweight RoolSpace handle (not reactive).
+   * Create a new space. Returns a ReactiveSpace.
    */
-  openSpace(spaceId: string): Promise<RoolSpace> {
-    return this.#client.openSpace(spaceId);
-  }
-
-  /**
-   * Create a new space.
-   * Returns a lightweight RoolSpace handle (not reactive).
-   */
-  createSpace(name: string): Promise<RoolSpace> {
-    return this.#client.createSpace(name);
+  async createSpace(name: string): Promise<ReactiveSpace> {
+    const raw = await this.#client.createSpace(name);
+    const reactive = wrapSpace(raw);
+    this.#openSpaces.add(reactive);
+    return reactive;
   }
 
   /**
@@ -220,11 +216,13 @@ class RoolImpl {
   }
 
   /**
-   * Import a space from a zip archive.
-   * Returns a lightweight RoolSpace handle (not reactive).
+   * Import a space from a zip archive. Returns a ReactiveSpace.
    */
-  importArchive(name: string, archive: Blob): Promise<RoolSpace> {
-    return this.#client.importArchive(name, archive);
+  async importArchive(name: string, archive: Blob): Promise<ReactiveSpace> {
+    const raw = await this.#client.importArchive(name, archive);
+    const reactive = wrapSpace(raw);
+    this.#openSpaces.add(reactive);
+    return reactive;
   }
 
   /**
@@ -329,10 +327,10 @@ class RoolImpl {
    * Clean up resources.
    */
   destroy(): void {
-    for (const channel of this.#openChannels) {
-      channel.close();
+    for (const space of this.#openSpaces) {
+      space.close();
     }
-    this.#openChannels.clear();
+    this.#openSpaces.clear();
 
     for (const unsub of this.#unsubscribers) {
       unsub();

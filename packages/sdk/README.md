@@ -98,10 +98,10 @@ space.on('channelUpdated', (channel) => console.log('Updated:', channel.id));
 space.on('channelDeleted', (channelId) => console.log('Deleted:', channelId));
 
 // Open a channel for object and AI operations
-const channel = await client.openChannel('space-id', 'my-channel');
+const channel = await space.openChannel('my-channel');
 await channel.prompt('Create some planets');
 
-// Or open a channel via the space handle
+// Open another channel on the same space
 const channel2 = await space.openChannel('research');
 await channel2.prompt('Analyze the data');  // Independent channel
 
@@ -123,7 +123,8 @@ For apps that need multiple independent interaction threads (e.g., a chat sideba
 
 ```typescript
 // Default conversation — most apps use this
-const channel = await client.openChannel('space-id', 'main');
+const space = await client.openSpace('space-id');
+const channel = await space.openChannel('main');
 await channel.prompt('Hello');  // Uses 'default' conversation
 
 // Conversation handle — for multi-thread UIs
@@ -577,8 +578,7 @@ const client = new RoolClient({
 | Method | Description |
 |--------|-------------|
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List available spaces |
-| `openSpace(spaceId): Promise<RoolSpace>` | Open a space with live SSE subscription. Caches and reuses open spaces. |
-| `openChannel(spaceId, channelId): Promise<RoolChannel>` | Open a channel on a space |
+| `openSpace(spaceId): Promise<RoolSpace>` | Open a space with live SSE subscription. Caches and reuses open spaces. Call `space.openChannel(channelId)` to get a channel. |
 | `createSpace(name): Promise<RoolSpace>` | Create a new space, returns live handle with SSE subscription |
 | `deleteSpace(id): Promise<void>` | Permanently delete a space (cannot be undone) |
 | `importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |

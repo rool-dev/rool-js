@@ -191,15 +191,17 @@ export class DevHostController {
     this._onChange();
 
     try {
+      // Open the space (live SSE subscription, cached by client)
+      const space = await this.client.openSpace(spaceId);
+
       // Open the local extension's channel
-      const localChannel = await this.client.openChannel(spaceId, this.channelId);
+      const localChannel = await space.openChannel(this.channelId);
       this.channels['local'] = localChannel;
 
       // Apply manifest settings to the local channel
       await this._syncManifest(localChannel, this.manifest);
 
       // Discover installed extensions: channels with an extensionUrl
-      const space = await this.client.openSpace(spaceId);
       const spaceChannels = space.getChannels();
       this.installedExtensionIds = spaceChannels
         .filter((ch) => ch.extensionUrl && ch.id !== this.channelId)
@@ -208,7 +210,7 @@ export class DevHostController {
       // Open channels for each installed extension (server already applied manifest)
       for (const extId of this.installedExtensionIds) {
         try {
-          const ch = await this.client.openChannel(spaceId, extId);
+          const ch = await space.openChannel(extId);
           this.channels[extId] = ch;
         } catch (e) {
           console.error(`Failed to open channel for extension ${extId}:`, e);
@@ -250,7 +252,8 @@ export class DevHostController {
       const channelId = await this.client.installExtension(this.currentSpaceId, extensionId, extensionId);
 
       // Step 2: open channel for live subscription
-      const ch = await this.client.openChannel(this.currentSpaceId, channelId);
+      const space = await this.client.openSpace(this.currentSpaceId);
+      const ch = await space.openChannel(channelId);
       this.channels[extensionId] = ch;
 
       // Step 3: add the card, flush DOM, bind bridge

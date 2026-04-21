@@ -378,8 +378,11 @@ class ReactiveChannelImpl {
   get extensionUrl() { return this.#channel.extensionUrl; }
   get manifest() { return this.#channel.manifest; }
 
+  get isClosed() { return this.#closed; }
+
   // Proxy all methods
   close() {
+    if (this.#closed) return;
     this.#closed = true;
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;

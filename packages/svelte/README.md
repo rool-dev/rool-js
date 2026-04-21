@@ -28,9 +28,12 @@ npm install @rool-dev/svelte
   <button onclick={() => rool.login('My App')}>Login</button>
 {:else}
   <h1>My Spaces</h1>
-  {#each rool.spaces ?? [] as space}
-    <button onclick={async () => channel = await rool.openChannel(space.id, 'main')}>
-      {space.name}
+  {#each rool.spaces ?? [] as spaceInfo}
+    <button onclick={async () => {
+      const space = await rool.openSpace(spaceInfo.id);
+      channel = await space.openChannel('main');
+    }}>
+      {spaceInfo.name}
     </button>
   {/each}
 
@@ -73,7 +76,7 @@ rool.init();              // Process auth callbacks (call on app startup)
 rool.login('My App');     // Redirect to login page
 rool.signup('My App');    // Redirect to signup page
 rool.verify(token);       // Sign in from an email verification link (used by the official Rool app)
-rool.logout();            // Clear auth state and close all channels
+rool.logout();            // Clear auth state and close all open spaces
 rool.destroy();           // Clean up all resources
 ```
 
@@ -128,42 +131,46 @@ Reactive cross-device storage for user preferences. Synced from server on `init(
 
 ### Spaces & Channels
 
+Every space has its own SSE subscription. Open a space, then open channels on it. Call `space.close()` when done — this closes all open channels and stops the subscription.
+
 ```typescript
-// Open a channel — reactive, with SSE (default conversation)
-const channel = await rool.openChannel('space-id', 'my-channel');
-
-// Open a channel with a specific conversation
-const channel = await rool.openChannel('space-id', 'my-channel', 'thread-1');
-
-// Create a space, then open a channel on it
-const space = await rool.createSpace('My New Space');
-const channel = await space.openChannel('main');
-
-// Open a space — live handle with SSE subscription
+// Open a space — reactive, with SSE
 const space = await rool.openSpace('space-id');
+
+// Open channels on the space
+const channel = await space.openChannel('my-channel');
+const other = await space.openChannel('research');  // Independent channel, same space
+
+// Space admin
 await space.rename('New Name');
 await space.addUser(userId, 'editor');
 
-// Delete a space
+// Create a new space
+const fresh = await rool.createSpace('My New Space');
+const ch = await fresh.openChannel('main');
+
+// Import from a zip archive
+const imported = await rool.importArchive('Imported', archiveBlob);
+
+// Delete a space permanently
 await rool.deleteSpace('space-id');
 
-// Import a space from a zip archive
-const space = await rool.importArchive('Imported', archiveBlob);
-
-// Clean up
-channel.close();
+// Clean up — closes all open channels AND stops the subscription
+space.close();
 ```
 
 ### ReactiveChannel
 
-`openChannel` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions` and `objectIds`:
+`space.openChannel()` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions` and `objectIds`:
 
 ```svelte
 <script>
+  let space = $state(null);
   let channel = $state(null);
 
   async function open(spaceId) {
-    channel = await rool.openChannel(spaceId, 'main');
+    space = await rool.openSpace(spaceId);
+    channel = await space.openChannel('main');
   }
 </script>
 
@@ -189,8 +196,11 @@ Track a single object by ID with auto-updates:
   let channel = $state(null);
   let item = $state(null);
 
+  let space = $state(null);
+
   async function open(spaceId, objectId) {
-    channel = await rool.openChannel(spaceId, 'main');
+    space = await rool.openSpace(spaceId);
+    channel = await space.openChannel('main');
     item = channel.object(objectId);
   }
 </script>
@@ -227,8 +237,11 @@ Create auto-updating watches of objects filtered by field values:
   let channel = $state(null);
   let articles = $state(null);
 
+  let space = $state(null);
+
   async function open(spaceId) {
-    channel = await rool.openChannel(spaceId, 'main');
+    space = await rool.openSpace(spaceId);
+    channel = await space.openChannel('main');
     // Create a reactive watch of all objects where type === 'article'
     articles = channel.watch({ collection: 'article' });
   }
@@ -269,34 +282,22 @@ articles.close()   // Stop listening for updates
 
 ### Reactive Channel List
 
-List channels for a space with auto-updates:
+`space.channels` is a reactive `ChannelInfo[]` that auto-updates as channels are created, renamed, or deleted.
 
 ```svelte
 <script>
-  const channelList = rool.channels('space-id');
+  let space = $state(null);
 
-  // Clean up when done
-  import { onDestroy } from 'svelte';
-  onDestroy(() => channelList.close());
+  async function open(spaceId) {
+    space = await rool.openSpace(spaceId);
+  }
 </script>
 
-{#if channelList.loading}
-  <p>Loading channels...</p>
-{:else}
-  {#each channelList.list as ch}
-    <button onclick={() => openChannel(ch.id)}>{ch.name ?? ch.id}</button>
+{#if space}
+  {#each space.channels as ch}
+    <button onclick={() => space.openChannel(ch.id)}>{ch.name ?? ch.id}</button>
   {/each}
 {/if}
-```
-
-```typescript
-// Reactive state
-channelList.list      // $state<ChannelInfo[]>
-channelList.loading   // $state<boolean>
-
-// Methods
-channelList.refresh() // Manual re-fetch
-channelList.close()   // Stop listening for updates
 ```
 
 ### Reactive Conversation Handle
@@ -308,8 +309,11 @@ For apps with multiple independent interaction threads (e.g., chat with threads)
   let channel = $state(null);
   let thread = $state(null);
 
+  let space = $state(null);
+
   async function openThread(spaceId, threadId) {
-    channel = await rool.openChannel(spaceId, 'main');
+    space = await rool.openSpace(spaceId);
+    channel = await space.openChannel('main');
     thread = channel.conversation(threadId);
   }
 </script>
