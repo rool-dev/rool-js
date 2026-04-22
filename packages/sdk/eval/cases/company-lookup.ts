@@ -16,7 +16,6 @@ export const testCase: TestCase = {
 
     try {
       await channel.createCollection('company', [
-        { name: 'type', type: { kind: 'literal', value: 'company' } },
         { name: 'name', type: { kind: 'string' } },
         { name: 'cvr', type: { kind: 'string' } },
       ]);

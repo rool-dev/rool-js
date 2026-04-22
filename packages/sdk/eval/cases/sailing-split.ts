@@ -48,7 +48,6 @@ export const testCase: TestCase = {
 
     try {
       await channel.createCollection('markdown', [
-        { name: 'type', type: { kind: 'literal', value: 'markdown' } },
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },
       ]);

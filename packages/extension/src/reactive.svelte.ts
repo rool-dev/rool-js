@@ -114,8 +114,8 @@ class ReactiveWatchImpl {
   }
 
   #matches(object: RoolObject): boolean {
-    // Collection membership is shape-based and resolved server-side — can't match locally
-    if (this.#options.collection) return true;
+    // Collection filter matches by `type` field
+    if (this.#options.collection && object.type !== this.#options.collection) return false;
 
     const where = this.#options.where;
     if (!where) return true;

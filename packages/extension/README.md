@@ -58,8 +58,8 @@ This opens a dev host at `/__rool-host/` that loads your extension in a sandboxe
 
 The `collections` field declares what collections the extension works with, grouped by access level:
 
-- **`write`** — Collections the extension can create, update, and delete objects in. An object with field definitions creates the collection in the space. `"*"` grants write access to all collections.
-- **`read`** — Collections the extension can read from. An object with field definitions declares the expected shape. `"*"` grants read access to all collections.
+- **`write`** — Collections the extension can create, update, and delete objects in. A field-definition list creates the collection in the space; an empty value grants access to an existing collection. `"*"` grants write access to all collections.
+- **`read`** — Collections the extension can read from. A field-definition list declares the collection schema. `"*"` grants read access to all collections.
 
 `write` implies `read` — no need to list a collection under both.
 

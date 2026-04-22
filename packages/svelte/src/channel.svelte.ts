@@ -7,7 +7,7 @@ import type { RoolChannel, RoolSpace, Interaction, RoolObject, FindObjectsOption
 export interface WatchOptions {
   /** Field requirements for exact matching */
   where?: Record<string, unknown>;
-  /** Filter by collection name. Only returns objects whose shape matches the named collection. */
+  /** Filter by collection name. Returns objects whose `type` field equals the given name. */
   collection?: string;
   /** Maximum number of objects */
   limit?: number;
@@ -101,8 +101,8 @@ class ReactiveWatchImpl {
    * Check if an object matches the `where` filter.
    */
   #matches(object: RoolObject): boolean {
-    // Collection membership is shape-based and resolved server-side — can't match locally
-    if (this.#options.collection) return true;
+    // Collection filter matches by `type` field
+    if (this.#options.collection && object.type !== this.#options.collection) return false;
 
     const where = this.#options.where;
     if (!where) return true;

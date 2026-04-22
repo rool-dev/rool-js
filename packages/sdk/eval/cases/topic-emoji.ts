@@ -19,7 +19,6 @@ export const testCase: TestCase = {
 
     try {
       await channel.createCollection('topic', [
-        { name: 'type', type: { kind: 'literal', value: 'topic' } },
         { name: 'headline', type: { kind: 'string' } },
       ]);
 
