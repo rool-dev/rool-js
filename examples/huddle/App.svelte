@@ -96,6 +96,7 @@
     // Create the user's message
     await channel.createObject({
       data: {
+        type: 'huddle_message',
         huddle: activeHuddleId,
         text,
         sender: channel.userId,
@@ -117,6 +118,7 @@
 
         await channel.createObject({
           data: {
+            type: 'huddle_message',
             huddle: activeHuddleId,
             text: message,
             sender: 'agent',
@@ -128,6 +130,7 @@
       } catch (err) {
         await channel.createObject({
           data: {
+            type: 'huddle_message',
             huddle: activeHuddleId,
             text: `Sorry, something went wrong: ${err instanceof Error ? err.message : String(err)}`,
             sender: 'agent',

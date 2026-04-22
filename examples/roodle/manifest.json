@@ -7,13 +7,11 @@
   "collections": {
     "write": {
       "event": [
-        { "name": "type", "type": { "kind": "literal", "value": "event" } },
         { "name": "title", "type": { "kind": "string" } },
         { "name": "description", "type": { "kind": "maybe", "inner": { "kind": "string" } } },
         { "name": "duration", "type": { "kind": "string" } }
       ],
       "slot": [
-        { "name": "type", "type": { "kind": "literal", "value": "slot" } },
         { "name": "datetime", "type": { "kind": "string" } },
         { "name": "yes", "type": { "kind": "maybe", "inner": { "kind": "array", "inner": { "kind": "string" } } } },
         { "name": "chosen", "type": { "kind": "maybe", "inner": { "kind": "boolean" } } }

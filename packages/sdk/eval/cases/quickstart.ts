@@ -25,6 +25,7 @@ export const testCase: TestCase = {
       // Create objects with AI-generated content using {{placeholders}}
       const { object: sun } = await channel.createObject({
         data: {
+          type: 'body',
           name: 'Sun',
           mass: '{{mass in solar masses}}',
           radius: '{{radius in km}}'
@@ -38,6 +39,7 @@ export const testCase: TestCase = {
 
       const { object: earth } = await channel.createObject({
         data: {
+          type: 'body',
           name: 'Earth',
           mass: '{{mass in Earth masses}}',
           radius: '{{radius in km}}',

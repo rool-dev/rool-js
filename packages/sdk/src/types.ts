@@ -47,13 +47,15 @@ export type SpaceSchema = Record<string, CollectionDef>;
 
 /**
  * Object data - the user content portion of an object.
- * Always contains `id` (the object's unique identifier).
- * Free-form JSON with any additional fields. While `type` is a common convention
- * (e.g., 'article', 'note', 'task'), it's not required by the framework.
- * Consumer applications define their own object schemas.
+ * Always contains `id` (the object's unique identifier) and `type`
+ * (a string naming the collection the object belongs to). The server
+ * validates the object's other fields against that collection's
+ * definition; a missing or unknown `type` is rejected.
+ * Other fields are application-defined.
  */
 export interface RoolObject {
   id: string;
+  type: string;
   [key: string]: unknown;
 }
 
@@ -378,14 +380,14 @@ export interface FindObjectsOptions {
 }
 
 export interface CreateObjectOptions {
-  /** Object data fields. Include `id` for custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
+  /** Object data fields. Must include `type` naming an existing collection. Include `id` for custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
   data: Record<string, unknown>;
   /** If true, the operation won't be recorded in interaction history. */
   ephemeral?: boolean;
 }
 
 export interface UpdateObjectOptions {
-  /** Fields to add or update. Pass null/undefined to delete a field. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
+  /** Fields to add or update. Pass null/undefined to delete a field. Use `{{placeholder}}` for AI-generated content. Setting a new `type` retypes the object — the merged result must conform to the new collection. Fields prefixed with `_` are hidden from AI. */
   data?: Record<string, unknown>;
   /** Natural language instruction for AI to modify content. */
   prompt?: string;

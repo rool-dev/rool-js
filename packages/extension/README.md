@@ -127,7 +127,7 @@ A complete extension that lets users add tasks, mark them done, and ask the AI t
 
   async function addTask() {
     if (!input.trim()) return;
-    await channel.createObject({ data: { title: input, done: false } });
+    await channel.createObject({ data: { type: 'task', title: input, done: false } });
     input = '';
   }
 
@@ -222,11 +222,11 @@ Objects are plain key/value records. `id` is reserved; everything else is applic
 #### createObject / updateObject
 
 ```typescript
-// Create with literal data
-await channel.createObject({ data: { title: 'Hello', status: 'draft' } })
+// Create with literal data — `type` must name a collection in the schema
+await channel.createObject({ data: { type: 'article', title: 'Hello', status: 'draft' } })
 
 // Use {{placeholders}} for AI-generated content
-await channel.createObject({ data: { headline: '{{catchy headline about coffee}}' } })
+await channel.createObject({ data: { type: 'article', headline: '{{catchy headline about coffee}}' } })
 
 // Update fields directly
 await channel.updateObject(id, { data: { status: 'published' } })
@@ -240,8 +240,8 @@ await channel.updateObject(id, { data: { subtitle: null } })
 
 Placeholders are resolved by the AI during the mutation and replaced with concrete values. The `{{...}}` syntax is never stored.
 
-**createObject options:** `data` (required, include `id` for a custom ID), `ephemeral`.
-**updateObject options:** `data`, `prompt`, `ephemeral`.
+**createObject options:** `data` (required, must include `type` naming a collection; include `id` for a custom ID), `ephemeral`.
+**updateObject options:** `data` (setting a new `type` retypes the object), `prompt`, `ephemeral`.
 
 #### findObjects
 
@@ -265,7 +265,7 @@ Options: `where`, `collection`, `prompt`, `limit`, `objectIds`, `order` (`'asc'`
 Fields starting with `_` (e.g., `_ui`) are hidden from AI and ignored by the schema. Use them for UI state, positions, or other data the AI shouldn't see:
 
 ```typescript
-await channel.createObject({ data: { title: 'Note', _ui: { x: 100, y: 200 } } })
+await channel.createObject({ data: { type: 'note', title: 'Note', _ui: { x: 100, y: 200 } } })
 ```
 
 ### AI
@@ -355,7 +355,7 @@ thread.interactions   // $state<Interaction[]> — auto-updates
 
 // All conversation-scoped methods
 await thread.prompt('Hello');
-await thread.createObject({ data: { text: 'Hello' } });
+await thread.createObject({ data: { type: 'note', text: 'Hello' } });
 await thread.setSystemInstruction('Respond in haiku');
 await thread.rename('Research Thread');
 

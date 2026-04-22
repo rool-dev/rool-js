@@ -333,7 +333,7 @@ thread.interactions   // $state<Interaction[]> — auto-updates via SSE
 
 // All conversation-scoped methods
 await thread.prompt('Hello')
-await thread.createObject({ data: { text: 'Note' } })
+await thread.createObject({ data: { type: 'note', text: 'Note' } })
 await thread.setSystemInstruction('Respond in haiku')
 await thread.rename('Research Thread')
 thread.getInteractions()      // Manual read
@@ -371,7 +371,7 @@ channel.channelId
 
 // Object operations
 await channel.getObject(id)
-await channel.createObject({ data: { text: 'Hello' } })
+await channel.createObject({ data: { type: 'note', text: 'Hello' } })
 await channel.updateObject(id, { data: { text: 'Updated' } })
 await channel.deleteObjects([id])
 await channel.findObjects({ collection: 'note' })

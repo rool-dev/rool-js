@@ -115,7 +115,7 @@
         });
       } else {
         await channel.createObject({
-          data: { userId, score, date: new Date().toISOString() },
+          data: { type: 'highscores', userId, score, date: new Date().toISOString() },
         });
       }
 

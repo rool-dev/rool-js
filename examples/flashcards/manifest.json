@@ -8,11 +8,9 @@
   "collections": {
     "write": {
       "topic": [
-        { "name": "type", "type": { "kind": "literal", "value": "topic" } },
         { "name": "name", "type": { "kind": "string" } }
       ],
       "card": [
-        { "name": "type", "type": { "kind": "literal", "value": "card" } },
         { "name": "topic", "type": { "kind": "ref" } },
         { "name": "front", "type": { "kind": "string" } },
         { "name": "back", "type": { "kind": "string" } },

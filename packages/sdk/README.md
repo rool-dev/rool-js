@@ -45,6 +45,7 @@ await channel.createCollection('body', [
 // Create objects with AI-generated content using {{placeholders}}
 const { object: sun } = await channel.createObject({
   data: {
+    type: 'body',  // Must match a collection name
     name: 'Sun',
     mass: '{{mass in solar masses}}',
     radius: '{{radius in km}}'
@@ -53,6 +54,7 @@ const { object: sun } = await channel.createObject({
 
 const { object: earth } = await channel.createObject({
   data: {
+    type: 'body',
     name: 'Earth',
     mass: '{{mass in Earth masses}}',
     radius: '{{radius in km}}',
@@ -186,20 +188,20 @@ thread.getInteractions();  // Returns the blue branch (root → leaf)
 
 ### Objects & References
 
-**Objects** are plain key-value records. The `id` field is reserved; everything else is application-defined.
+**Objects** are plain key-value records. `id` and `type` are reserved; everything else is application-defined. Every object must include a `type` field whose value names a collection in the schema — that binds the object to that collection and determines how it's validated. Create the collection first (see [Collection Schema](#collection-schema)).
 
 ```typescript
-{ id: 'abc123', title: 'Hello World', status: 'draft' }
+{ id: 'abc123', type: 'article', title: 'Hello World', status: 'draft' }
 ```
 
 **References** between objects are data fields whose values are object IDs. The system detects these statistically — any string field whose value matches an existing object ID is recognized as a reference.
 
 ```typescript
 // A planet references a star via the 'orbits' field
-{ id: 'earth', name: 'Earth', orbits: 'sun-01' }
+{ id: 'earth', type: 'body', name: 'Earth', orbits: 'sun-01' }
 
 // An array of references
-{ id: 'team-a', name: 'Alpha', members: ['user-1', 'user-2', 'user-3'] }
+{ id: 'team-a', type: 'team', name: 'Alpha', members: ['user-1', 'user-2', 'user-3'] }
 ```
 
 References are just data — no special API is needed to create or remove them. Set a field to an object ID to create a reference; clear it to remove it.
@@ -212,6 +214,7 @@ Use `{{description}}` in field values to have AI generate content:
 // Create with AI-generated content
 await channel.createObject({
   data: {
+    type: 'article',
     headline: '{{catchy headline about coffee}}',
     body: '{{informative paragraph}}'
   }
@@ -261,6 +264,7 @@ Fields starting with `_` (e.g., `_ui`, `_cache`) are hidden from AI and ignored 
 ```typescript
 await channel.createObject({
   data: {
+    type: 'article',
     title: 'My Article',
     author: "John Doe",
     _ui: { x: 100, y: 200, collapsed: false }
@@ -295,7 +299,7 @@ channel.updateObject(objectId, { prompt: 'expand this' });
 By default, `createObject` generates a 6-character alphanumeric ID. Provide your own via `data.id`:
 
 ```typescript
-await channel.createObject({ data: { id: 'article-42', title: 'The Meaning of Life' } });
+await channel.createObject({ data: { id: 'article-42', type: 'article', title: 'The Meaning of Life' } });
 ```
 
 **Why use custom IDs?**
@@ -305,7 +309,7 @@ await channel.createObject({ data: { id: 'article-42', title: 'The Meaning of Li
 ```typescript
 // Fire-and-forget: create and reference without waiting
 const id = RoolClient.generateId();
-channel.createObject({ data: { id, text: '{{expand this idea}}' } });
+channel.createObject({ data: { id, type: 'note', text: '{{expand this idea}}' } });
 channel.updateObject(parentId, { data: { notes: [...existingNotes, id] } }); // Add reference immediately
 ```
 
@@ -769,7 +773,7 @@ A channel is a named context within a space. All object operations, AI prompts, 
 
 ### Object Operations
 
-Objects are plain key/value records. `id` is the only reserved field; everything else is application-defined. References between objects are data fields whose values are object IDs. All objects must belong to a collection (see below in the schema section). Before adding a new type of object, update the schema in the space.
+Objects are plain key/value records. `id` and `type` are reserved; everything else is application-defined. References between objects are data fields whose values are object IDs. Every object must include a `type` field whose value names a collection in the schema (see [Collection Schema](#collection-schema)) — that binds the object to that collection. Before introducing a new kind of object, create the matching collection.
 
 | Method | Description |
 |--------|-------------|
@@ -785,14 +789,14 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 
 | Option | Description |
 |--------|-------------|
-| `data` | Object data fields (required). Include `id` to use a custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
+| `data` | Object data fields (required). Must include `type` naming an existing collection. Include `id` to use a custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
 | `ephemeral` | If true, the operation won't be recorded in interaction history. Useful for transient operations. |
 
 #### updateObject Options
 
 | Option | Description |
 |--------|-------------|
-| `data` | Fields to add or update. Pass `null`/`undefined` to delete a field. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
+| `data` | Fields to add or update. Pass `null`/`undefined` to delete a field. Use `{{placeholder}}` for AI-generated content. Setting a new `type` retypes the object — the merged result must conform to the new collection. Fields prefixed with `_` are hidden from AI. |
 | `prompt` | Natural language instruction for AI to modify content. |
 | `ephemeral` | If true, the operation won't be recorded in interaction history. Useful for transient operations. |
 
@@ -801,14 +805,14 @@ Objects are plain key/value records. `id` is the only reserved field; everything
 Find objects using structured filters and/or natural language.
 
 - **`where` only** — exact-match filtering, no AI, no credits.
-- **`collection` only** — filter by collection name (shape-based matching), no AI, no credits.
+- **`collection` only** — filter by collection name (matches objects whose `type` field equals the name), no AI, no credits.
 - **`prompt` only** — AI-powered semantic query over all objects.
 - **`where` + `prompt`** — `where` (and `objectIds`) narrow the data set first, then the AI queries within the constrained set.
 
 | Option | Description |
 |--------|-------------|
 | `where` | Exact-match field filter (e.g. `{ status: 'published' }`). Values must match literally — no operators or `{{placeholders}}`. When combined with `prompt`, constrains which objects the AI can see. |
-| `collection` | Filter by collection name. Only returns objects whose shape matches the named collection. |
+| `collection` | Filter by collection name. Returns objects whose `type` field equals the given name. |
 | `prompt` | Natural language query. Triggers AI evaluation (uses credits). |
 | `limit` | Maximum number of results. |
 | `objectIds` | Scope to specific object IDs. Constrains the candidate set in both structured and AI queries. |
@@ -886,11 +890,11 @@ Media URLs in object fields are visible to AI. Both uploaded and AI-generated me
 ```typescript
 // Upload an image
 const url = await channel.uploadMedia(file);
-await channel.createObject({ data: { title: 'Photo', image: url } });
+await channel.createObject({ data: { type: 'photo', title: 'Photo', image: url } });
 
 // Or let AI generate one using a placeholder
 await channel.createObject({
-  data: { title: 'Mascot', image: '{{generate an image of a flying tortoise}}' }
+  data: { type: 'photo', title: 'Mascot', image: '{{generate an image of a flying tortoise}}' }
 });
 
 // Display media (handles auth automatically)
@@ -924,7 +928,9 @@ const response = await channel.fetch('https://api.example.com/submit', {
 
 ### Collection Schema
 
-Collections are types you can use to group objects in a space. Every object must belong to a collection. Collections make up the schema and are stored in the space data, syncing in real time together with the rest of the space. The schema is also visible to the AI agent, which it can use to understand what collections exist and what fields they contain, producing more consistent objects.
+Collections are the types you use to group objects in a space. Every object must belong to a collection: the object's `data.type` field names the collection it belongs to, and the server validates the object's fields against that collection's definition. Renaming a collection cascades to the `type` field of every object bound to it; dropping a collection is blocked while any object is still bound to it.
+
+Collections make up the schema and are stored in the space data, syncing in real time. The schema is visible to the AI agent so it knows which collections exist and what fields they contain, producing more consistent objects.
 
 
 ```typescript

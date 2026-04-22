@@ -22,7 +22,7 @@
     if (!name) return;
     creating = true;
     try {
-      const { object } = await channel.createObject({ data: { name, description: null } });
+      const { object } = await channel.createObject({ data: { type: 'huddle', name, description: null } });
       newName = '';
       onselect(object.id);
     } finally {
