@@ -234,7 +234,7 @@ Placeholders are resolved by the AI during the mutation and replaced with concre
 
 ### Checkpoints & Undo/Redo
 
-Undo/redo works on **checkpoints**, not individual operations. Call `checkpoint()` before making changes to create a restore point.
+Undo/redo works on **checkpoints**, not individual operations. Call `checkpoint()` before making changes to create a restore point. Each checkpoint stores a snapshot of the entire space.
 
 ```typescript
 // Create a checkpoint before user action
@@ -252,9 +252,7 @@ if (await channel.canRedo()) {
 }
 ```
 
-Without a checkpoint, `undo()` has nothing to restore to. Undo always restores the space to the last checkpoint, regardless of how many changes were made since.
-
-In collaborative scenarios, conflicting changes (modified by others since your checkpoint) are silently skipped.
+Checkpoints are **space-wide**: one shared stack across all channels and users. `undo()` restores the entire space — including any work others did since the checkpoint. Stacks are capped at 25 entries; identical-content checkpoints are deduped; a new checkpoint clears the redo stack.
 
 ### Hidden Fields
 

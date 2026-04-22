@@ -426,7 +426,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // ===========================================================================
 
   /**
-   * Create a checkpoint (seal current batch of changes).
+   * Create a checkpoint of the current space state.
+   * Checkpoints are space-wide and shared across channels and users.
    * @returns The checkpoint ID
    */
   async checkpoint(label: string = 'Change'): Promise<string> {
@@ -439,7 +440,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Check if undo is available.
+   * Check if undo is available for this space.
    */
   async canUndo(): Promise<boolean> {
     const status = await this.graphqlClient.checkpointStatus(this._id, this._channelId);
@@ -447,7 +448,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Check if redo is available.
+   * Check if redo is available for this space.
    */
   async canRedo(): Promise<boolean> {
     const status = await this.graphqlClient.checkpointStatus(this._id, this._channelId);
@@ -455,29 +456,26 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Undo the most recent batch of changes.
-   * Reverses your most recent batch (sealed or open).
-   * Conflicting patches (modified by others) are silently skipped.
+   * Restore the space to the most recent checkpoint.
    * @returns true if undo was performed
    */
   async undo(): Promise<boolean> {
     const result = await this.graphqlClient.undo(this._id, this._channelId);
-    // Server broadcasts space_changed, which triggers a reset event
     return result.success;
   }
 
   /**
-   * Redo a previously undone batch of changes.
+   * Reapply the most recently undone checkpoint.
+   * Affects the entire space.
    * @returns true if redo was performed
    */
   async redo(): Promise<boolean> {
     const result = await this.graphqlClient.redo(this._id, this._channelId);
-    // Server broadcasts space_changed, which triggers a reset event
     return result.success;
   }
 
   /**
-   * Clear checkpoint history for this channel.
+   * Clear the space's checkpoint history.
    */
   async clearHistory(): Promise<void> {
     await this.graphqlClient.clearCheckpointHistory(this._id, this._channelId);
