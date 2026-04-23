@@ -778,7 +778,7 @@ Objects are plain key/value records. `id` and `type` are reserved; everything el
 | Method | Description |
 |--------|-------------|
 | `getObject(objectId): Promise<RoolObject \| undefined>` | Get object data, or undefined if not found. |
-| `stat(objectId): RoolObjectStat \| undefined` | Get object stat (audit info: modifiedAt, modifiedBy, modifiedByName), or undefined if not found. Sync read from local cache. |
+| `stat(objectId): RoolObjectStat \| undefined` | Get object stat (audit info: modifiedAt, modifiedBy, modifiedByName, and the channel/conversation/interaction where the last write happened), or undefined if not found. Sync read from local cache. |
 | `findObjects(options): Promise<{ objects, message }>` | Find objects using structured filters and natural language. Results sorted by modifiedAt (desc by default). |
 | `getObjectIds(options?): string[]` | Get all object IDs. Sorted by modifiedAt (desc by default). Options: `{ limit?, order? }`. |
 | `createObject(options): Promise<{ object, message }>` | Create a new object. Returns the object (with AI-filled content) and message. |
@@ -1131,6 +1131,9 @@ interface RoolObjectStat {
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
+  modifiedInChannel: string;                    // Channel ID where the last modification happened
+  modifiedInConversation: string | null;        // Conversation ID, or null if not conversation-scoped
+  modifiedInInteraction: string | null;         // Interaction ID, or null for ephemeral or non-AI writes
 }
 ```
 

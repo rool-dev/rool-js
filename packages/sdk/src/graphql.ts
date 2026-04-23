@@ -152,7 +152,15 @@ export class GraphQLClient {
           linkAccess
           memberCount
           objectIds
-          objectStats
+          objectStatEntries {
+            id
+            modifiedAt
+            modifiedBy
+            modifiedByName
+            modifiedInChannel
+            modifiedInConversation
+            modifiedInInteraction
+          }
           schema
           meta
           channels
@@ -162,13 +170,17 @@ export class GraphQLClient {
     const response = await this.request<{ openSpace: {
       name: string; role: string; userId: string; linkAccess: LinkAccess; memberCount: number;
       objectIds: string[];
-      objectStats: Record<string, RoolObjectStat> | null;
+      objectStatEntries: Array<{ id: string } & RoolObjectStat> | null;
       schema: SpaceSchema | null;
       meta: Record<string, unknown> | null;
       channels: Record<string, Channel> | null;
     } }>(query, { id: spaceId });
 
     const r = response.openSpace;
+    const objectStats: Record<string, RoolObjectStat> = {};
+    for (const { id, ...stat } of r.objectStatEntries ?? []) {
+      objectStats[id] = stat;
+    }
     return {
       name: r.name,
       role: r.role,
@@ -176,7 +188,7 @@ export class GraphQLClient {
       linkAccess: r.linkAccess,
       memberCount: r.memberCount,
       objectIds: r.objectIds,
-      objectStats: r.objectStats ?? {},
+      objectStats,
       schema: r.schema ?? {},
       meta: r.meta ?? {},
       channels: r.channels ?? {},

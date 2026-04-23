@@ -67,6 +67,9 @@ export interface RoolObjectStat {
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
+  modifiedInChannel: string;
+  modifiedInConversation: string | null;
+  modifiedInInteraction: string | null;
 }
 
 /**
