@@ -10,6 +10,7 @@ import { MediaClient } from './media.js';
 import { ExtensionsClient } from './apps.js';
 import { generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
+import { SpaceRouter } from './router.js';
 import { defaultLogger, type Logger } from './logger.js';
 import type {
   RoolClientConfig,
@@ -53,6 +54,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   private urls: ResolvedUrls;
   private authManager: AuthManager;
   private graphqlClient: GraphQLClient;
+  private router: SpaceRouter;
   private subscriptionManager: ClientSubscriptionManager | null = null;
   private logger: Logger;
 
@@ -104,6 +106,11 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
     this.graphqlClient = new GraphQLClient({
       graphqlUrl: this.urls.graphql,
+      authManager: this.authManager,
+    });
+
+    this.router = new SpaceRouter({
+      apiUrl: this.baseUrl,
       authManager: this.authManager,
     });
   }
@@ -288,7 +295,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     // Ensure client subscription is active (for lifecycle events)
     void this.ensureSubscribed();
 
-    const fullData = await this.graphqlClient.openSpaceFull(spaceId);
+    const initialRoute = await this.router.resolve(spaceId);
+    const scopedGraphqlUrl = `${initialRoute.server.replace(/\/+$/, '')}/graphql`;
+    const scopedClient = new GraphQLClient({
+      graphqlUrl: scopedGraphqlUrl,
+      authManager: this.authManager,
+    });
+
+    const fullData = await scopedClient.openSpaceFull(spaceId);
 
     const space = new RoolSpace({
       id: spaceId,
@@ -298,10 +312,11 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       linkAccess: fullData.linkAccess,
       memberCount: fullData.memberCount,
       fullData,
-      graphqlClient: this.graphqlClient,
+      graphqlClient: scopedClient,
       mediaClient: this.mediaClient,
       authManager: this.authManager,
-      graphqlUrl: this.urls.graphql,
+      router: this.router,
+      initialRoute,
       logger: this.logger,
       onClose: () => this.openSpaces.delete(spaceId),
     });

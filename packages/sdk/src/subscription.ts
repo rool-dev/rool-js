@@ -23,7 +23,7 @@ const HEARTBEAT_CHECK_INTERVAL = 1_000;
 // =============================================================================
 
 interface SubscriptionConfig<TEvent> {
-  graphqlUrl: string;
+  getGraphqlUrl: () => Promise<string>;
   authManager: AuthManager;
   logger: Logger;
   logPrefix: string;
@@ -50,7 +50,7 @@ type State =
 type Input =
   | { kind: 'start' }
   | { kind: 'stop' }
-  | { kind: 'auth_resolved'; tokens: Tokens }
+  | { kind: 'auth_resolved'; tokens: Tokens; url: string }
   | { kind: 'auth_failed'; error: Error }
   | { kind: 'message_received'; raw: Record<string, unknown> }
   | { kind: 'watchdog_stale' }
@@ -126,7 +126,7 @@ class Subscription<TEvent> {
 
       case 'auth_resolved':
         if (state.kind !== 'awaiting_auth') return;
-        this.enterProbing(input.tokens);
+        this.enterProbing(input.tokens, input.url);
         return;
 
       case 'auth_failed':
@@ -177,9 +177,12 @@ class Subscription<TEvent> {
     this.state = { kind: 'awaiting_auth' };
     this.config.onConnectionStateChanged('reconnecting');
 
-    this.config.authManager.getTokens().then(
-      (tokens) => {
-        if (tokens) this.handle({ kind: 'auth_resolved', tokens });
+    Promise.all([
+      this.config.authManager.getTokens(),
+      this.config.getGraphqlUrl(),
+    ]).then(
+      ([tokens, url]) => {
+        if (tokens) this.handle({ kind: 'auth_resolved', tokens, url });
         else this.handle({ kind: 'auth_failed', error: new Error('Not authenticated') });
       },
       (err: unknown) => {
@@ -188,14 +191,14 @@ class Subscription<TEvent> {
     );
   }
 
-  private enterProbing(tokens: Tokens): void {
+  private enterProbing(tokens: Tokens, url: string): void {
     // From awaiting_auth. The watchdog is the sole liveness detector: every
     // failure mode manifests as heartbeats no longer arriving, and the
     // watchdog fires watchdog_stale within HEARTBEAT_TIMEOUT.
     let client: Client;
     try {
       client = createClient({
-        url: this.config.graphqlUrl,
+        url,
         headers: {
           Authorization: `Bearer ${tokens.accessToken}`,
           'X-Rool-Token': tokens.roolToken,
@@ -377,7 +380,7 @@ export class ClientSubscriptionManager {
 
   constructor(config: ClientSubscriptionConfig) {
     this.subscription = new Subscription<ClientEvent>({
-      graphqlUrl: config.graphqlUrl,
+      getGraphqlUrl: () => Promise.resolve(config.graphqlUrl),
       authManager: config.authManager,
       logger: config.logger,
       logPrefix: '[RoolClient]',
@@ -463,7 +466,7 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
 // =============================================================================
 
 export interface SpaceSubscriptionConfig {
-  graphqlUrl: string;
+  getGraphqlUrl: () => Promise<string>;
   authManager: AuthManager;
   logger: Logger;
   spaceId: string;
@@ -477,7 +480,7 @@ export class SpaceSubscriptionManager {
 
   constructor(config: SpaceSubscriptionConfig) {
     this.subscription = new Subscription<ChannelEvent>({
-      graphqlUrl: config.graphqlUrl,
+      getGraphqlUrl: config.getGraphqlUrl,
       authManager: config.authManager,
       logger: config.logger,
       logPrefix: `[RoolChannel] Space ${config.spaceId}`,

@@ -12,6 +12,10 @@ export { RoolChannel, ConversationHandle, generateEntityId } from './channel.js'
 // Space class
 export { RoolSpace } from './space.js';
 
+// Space router (shard resolution for space-scoped traffic)
+export { SpaceRouter } from './router.js';
+export type { RouteInfo } from './router.js';
+
 // Event emitter (for extending)
 export { EventEmitter } from './event-emitter.js';
 

@@ -38,6 +38,7 @@ function getTimezone(): string | undefined {
 export interface GraphQLClientConfig {
   graphqlUrl: string;
   authManager: AuthManager;
+  onRefused?: () => Promise<string>;
 }
 
 /** Result from the openSpace full query — space data + all channels */
@@ -61,13 +62,23 @@ interface GraphQLResponse<T> {
 
 export class GraphQLClient {
   private config: GraphQLClientConfig;
+  private _graphqlUrl: string;
 
   constructor(config: GraphQLClientConfig) {
     this.config = config;
+    this._graphqlUrl = config.graphqlUrl;
   }
 
-  private get graphqlUrl(): string {
-    return this.config.graphqlUrl;
+  get graphqlUrl(): string {
+    return this._graphqlUrl;
+  }
+
+  setGraphqlUrl(url: string): void {
+    this._graphqlUrl = url;
+  }
+
+  setOnRefused(onRefused: () => Promise<string>): void {
+    this.config.onRefused = onRefused;
   }
 
   async listSpaces(): Promise<RoolSpaceInfo[]> {
@@ -865,11 +876,12 @@ export class GraphQLClient {
       ) as ArrayBuffer;
     }
 
-    const response = await fetch(this.graphqlUrl, {
-      method: 'POST',
-      headers,
-      body: fetchBody,
-    });
+    let response = await fetch(this._graphqlUrl, { method: 'POST', headers, body: fetchBody });
+
+    if (response.status === 421 && this.config.onRefused) {
+      const newUrl = await this.config.onRefused();
+      response = await fetch(newUrl, { method: 'POST', headers, body: fetchBody });
+    }
 
     if (!response.ok) {
       throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);

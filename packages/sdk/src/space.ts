@@ -9,6 +9,7 @@ import { SpaceSubscriptionManager } from './subscription.js';
 import { RoolChannel } from './channel.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
+import type { SpaceRouter, RouteInfo } from './router.js';
 import type {
   RoolUserRole,
   LinkAccess,
@@ -34,7 +35,8 @@ export interface SpaceConfig {
   graphqlClient: GraphQLClient;
   mediaClient: MediaClient;
   authManager: AuthManager;
-  graphqlUrl: string;
+  router: SpaceRouter;
+  initialRoute: RouteInfo;
   logger: Logger;
   /** Called when the space is closed, so the client can remove it from cache. */
   onClose: () => void;
@@ -78,7 +80,8 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private graphqlClient: GraphQLClient;
   private mediaClient: MediaClient;
   private authManager: AuthManager;
-  private graphqlUrl: string;
+  private router: SpaceRouter;
+  private _route: RouteInfo;
   private logger: Logger;
   private onCloseCallback: () => void;
 
@@ -108,9 +111,12 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this.graphqlClient = config.graphqlClient;
     this.mediaClient = config.mediaClient;
     this.authManager = config.authManager;
-    this.graphqlUrl = config.graphqlUrl;
+    this.router = config.router;
+    this._route = config.initialRoute;
     this.logger = config.logger;
     this.onCloseCallback = config.onClose;
+
+    this.graphqlClient.setOnRefused(() => this.reroute());
 
     // Store full space data
     const fd = config.fullData;
@@ -138,6 +144,8 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   get linkAccess(): LinkAccess { return this._linkAccess; }
   get memberCount(): number { return this._memberCount; }
 
+  get route(): RouteInfo { return this._route; }
+
   /**
    * Live list of channels in this space.
    * Auto-updates via SSE when channels are created, updated, or deleted.
@@ -149,8 +157,15 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   // ===========================================================================
 
   private startSubscription(): void {
+    let firstProbe = true;
     this.subscriptionManager = new SpaceSubscriptionManager({
-      graphqlUrl: this.graphqlUrl,
+      getGraphqlUrl: async () => {
+        if (firstProbe) {
+          firstProbe = false;
+          return this.graphqlClient.graphqlUrl;
+        }
+        return this.reroute();
+      },
       authManager: this.authManager,
       logger: this.logger,
       spaceId: this._id,
@@ -164,6 +179,14 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     });
 
     this._subscriptionReady = this.subscriptionManager.subscribe();
+  }
+
+  private async reroute(): Promise<string> {
+    const route = await this.router.resolve(this._id);
+    this._route = route;
+    const url = `${route.server.replace(/\/+$/, '')}/graphql`;
+    this.graphqlClient.setGraphqlUrl(url);
+    return url;
   }
 
   /** Wait for the subscription to be connected. */
@@ -306,7 +329,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
    */
   async renameChannel(channelId: string, name: string): Promise<void> {
     await this.graphqlClient.renameChannel(this._id, channelId, name);
-    // SSE will deliver a channel_updated event that refreshes the list.
   }
 
   /**
