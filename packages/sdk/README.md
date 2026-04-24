@@ -587,16 +587,15 @@ const client = new RoolClient({
 
 ### Channel Management
 
-Manage channels within a space. Available on both the client and space handles:
+Manage channels on the `RoolSpace` handle:
 
 | Method | Description |
 |--------|-------------|
-| `client.renameChannel(spaceId, channelId, name): Promise<void>` | Rename a channel |
-| `client.deleteChannel(spaceId, channelId): Promise<void>` | Delete a channel and its interaction history |
 | `space.channels: ChannelInfo[]` | Live channel list (auto-updates via SSE) |
 | `space.getChannels(): ChannelInfo[]` | List channels (deprecated — use `space.channels` instead) |
-| `space.deleteChannel(channelId): Promise<void>` | Delete a channel |
-| `channel.rename(name): Promise<void>` | Rename the current channel |
+| `space.renameChannel(channelId, name): Promise<void>` | Rename a channel |
+| `space.deleteChannel(channelId): Promise<void>` | Delete a channel and its interaction history |
+| `channel.rename(name): Promise<void>` | Rename the current open channel |
 
 ### User Storage
 
@@ -731,6 +730,7 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 | `removeUser(userId): Promise<void>` | Remove user from space |
 | `setLinkAccess(linkAccess): Promise<void>` | Set URL sharing level |
 | `getChannels(): ChannelInfo[]` | List channels (deprecated — use `channels` property instead) |
+| `renameChannel(channelId, name): Promise<void>` | Rename a channel |
 | `deleteChannel(channelId): Promise<void>` | Delete a channel |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
 | `refresh(): Promise<void>` | Refresh space data from server |

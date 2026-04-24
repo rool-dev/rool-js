@@ -348,13 +348,13 @@ Conversations are auto-created on first interaction. All conversations share one
 ### Channel Management
 
 ```typescript
-// Rename a channel (thin GraphQL call, no SSE needed)
-await rool.renameChannel('space-id', 'channel-id', 'New Name');
+// Rename a channel on the space handle
+await space.renameChannel('channel-id', 'New Name');
 
 // Delete a channel
-await rool.deleteChannel('space-id', 'channel-id');
+await space.deleteChannel('channel-id');
 
-// Rename from within a channel
+// Rename from within an open channel
 await channel.rename('New Name');
 ```
 

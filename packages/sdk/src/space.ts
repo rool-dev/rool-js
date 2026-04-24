@@ -302,6 +302,14 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   }
 
   /**
+   * Rename a channel in this space.
+   */
+  async renameChannel(channelId: string, name: string): Promise<void> {
+    await this.graphqlClient.renameChannel(this._id, channelId, name);
+    // SSE will deliver a channel_updated event that refreshes the list.
+  }
+
+  /**
    * Delete a channel from this space.
    */
   async deleteChannel(channelId: string): Promise<void> {

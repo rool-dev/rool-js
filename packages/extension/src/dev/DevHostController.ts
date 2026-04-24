@@ -279,9 +279,12 @@ export class DevHostController {
 
     // Delete the channel in the background (fire-and-forget)
     if (this.currentSpaceId) {
-      this.client.deleteChannel(this.currentSpaceId, extensionId).catch((e) => {
-        console.error(`Failed to delete channel for extension ${extensionId}:`, e);
-      });
+      const spaceId = this.currentSpaceId;
+      this.client.openSpace(spaceId)
+        .then((space) => space.deleteChannel(extensionId))
+        .catch((e) => {
+          console.error(`Failed to delete channel for extension ${extensionId}:`, e);
+        });
     }
   }
 

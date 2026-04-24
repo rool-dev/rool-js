@@ -336,22 +336,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Rename a channel in a space.
-   * Lightweight — single GraphQL mutation, no subscription needed.
-   */
-  async renameChannel(spaceId: string, channelId: string, name: string): Promise<void> {
-    await this.graphqlClient.renameChannel(spaceId, channelId, name);
-  }
-
-  /**
-   * Delete a channel from a space.
-   * Lightweight — single GraphQL mutation, no subscription needed.
-   */
-  async deleteChannel(spaceId: string, channelId: string): Promise<void> {
-    await this.graphqlClient.deleteChannel(spaceId, channelId);
-  }
-
-  /**
    * Delete a space.
    * Note: This does not affect any open Channel instances - they become stale.
    */
