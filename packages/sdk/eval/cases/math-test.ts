@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { expectCollectionWithFields } from '../helpers.js';
-import { generateEntityId } from '../../src/channel.js';
 
 
 const EXPECTED_VALUE = (Math.E + Math.PI) ** 4; // ≈ 1179.107099469
@@ -13,7 +12,7 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: math-test');
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       const { objects } = await channel.prompt(`

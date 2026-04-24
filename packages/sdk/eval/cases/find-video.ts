@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { generateEntityId } from '../../src/channel.js';
 
 
 const isYouTubeUrl = (s: unknown): boolean =>
@@ -18,7 +17,7 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: find-video');
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       const { objects } = await channel.prompt(`

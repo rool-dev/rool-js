@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { expectValidUniqueUrls, expectUrlsFetchable } from '../helpers.js';
-import { generateEntityId } from '../../src/channel.js';
 
 /**
  * Tests web search and image URL extraction.
@@ -12,7 +11,7 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: cheese-images');
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       const { objects } = await channel.prompt(`

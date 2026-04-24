@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
-import { generateEntityId } from '../../src/channel.js';
 
 const prompt = `For every markdown node, regenerate prose for the \`text\` field. The shortened text should be at least 30% shorter`;
 
@@ -16,7 +15,7 @@ export const testCase: TestCase = {
     // Import the fixture
     const archive = loadArchiveFixture('electrical');
     const space = await client.importArchive('EVAL: electrical-shorten', archive);
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       // Capture initial state

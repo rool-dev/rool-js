@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { generateEntityId } from '../../src/channel.js';
 
 const prompt = `
 Create three new nodes based on the contents of this topic node.
@@ -18,7 +17,7 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: topic-expand');
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       await channel.createCollection('topic', [

@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { generateEntityId } from '../../src/channel.js';
 
 /**
  * Mirrors the README Quick Start example.
@@ -11,7 +10,7 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: quickstart');
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       // Define the schema

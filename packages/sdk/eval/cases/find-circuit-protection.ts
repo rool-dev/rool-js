@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
-import { generateEntityId } from '../../src/channel.js';
 
 // MZpMsZ is "Wiring and Circuit Protection" - the expected result
 const EXPECTED_NODE_ID = 'MZpMsZ';
@@ -16,7 +15,7 @@ export const testCase: TestCase = {
     // Import the fixture
     const archive = loadArchiveFixture('electrical');
     const space = await client.importArchive('EVAL: find-circuit-protection', archive);
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       // Capture initial state

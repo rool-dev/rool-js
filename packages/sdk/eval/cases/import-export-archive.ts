@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
-import { generateEntityId } from '../../src/channel.js';
 
 /**
  * Tests archive import/export with media files.
@@ -15,7 +14,7 @@ export const testCase: TestCase = {
     // Import the archive
     const archive = loadArchiveFixture('rools-star');
     const space = await client.importArchive('EVAL: import-export-archive', archive);
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       // Verify object count (4 objects: star + 3 planets)

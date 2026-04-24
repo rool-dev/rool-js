@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
-import { generateEntityId } from '../../src/channel.js';
 
 // Expected image-search objects in the electrical fixture
 const EXPECTED_IMAGE_NODE_IDS = new Set(['2TvtH2', '86Trm4']);
@@ -16,7 +15,7 @@ export const testCase: TestCase = {
     // Import the fixture
     const archive = loadArchiveFixture('electrical');
     const space = await client.importArchive('EVAL: find-images', archive);
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
 
     try {
       // Capture initial state

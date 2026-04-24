@@ -11,7 +11,7 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: branching-conversation');
-    const channel = await space.openChannel(generateEntityId());
+    const channel = await space.openChannel('console');
     const conv = channel.conversation(generateEntityId());
 
     try {
