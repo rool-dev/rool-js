@@ -39,7 +39,7 @@ export const testCase: TestCase = {
       expect(value).to.be.closeTo(EXPECTED_VALUE, tolerance);
 
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

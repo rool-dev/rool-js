@@ -43,7 +43,7 @@ export const testCase: TestCase = {
       const finalObjectIds = channel.getObjectIds();
       expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

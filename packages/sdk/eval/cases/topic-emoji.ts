@@ -49,7 +49,7 @@ export const testCase: TestCase = {
       const emoji = (topic!.emoji as string).replace(/\uFE0F/g, '');
       expect(BOAT_EMOJIS.has(emoji), `Expected boat emoji, got: ${topic!.emoji}`).to.be.true;
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

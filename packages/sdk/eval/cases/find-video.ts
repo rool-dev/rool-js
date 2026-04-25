@@ -46,7 +46,7 @@ export const testCase: TestCase = {
       expect(hasCorrectVideo, `Video URL should contain one of: ${KNOWN_VIDEO_IDS.join(', ')}`).to.be.true;
 
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

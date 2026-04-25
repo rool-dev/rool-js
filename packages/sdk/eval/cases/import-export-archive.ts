@@ -65,7 +65,7 @@ export const testCase: TestCase = {
       const ratio = exportedSize / originalSize;
       expect(ratio, `Export size ratio ${ratio} should be close to 1`).to.be.within(0.99, 1.01);
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

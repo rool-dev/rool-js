@@ -37,7 +37,7 @@ export const testCase: TestCase = {
       expect(hasUrlMatching(/dr\.dk/), 'Should have DR URL').to.be.true;
 
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

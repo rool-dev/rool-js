@@ -54,7 +54,7 @@ export const testCase: TestCase = {
         }
       }
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

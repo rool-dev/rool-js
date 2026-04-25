@@ -89,7 +89,7 @@ export const testCase: TestCase = {
         expect(md.parent, `Child ${md.id} should have parent field`).to.equal(nodeId);
       }
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

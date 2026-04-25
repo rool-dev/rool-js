@@ -58,7 +58,7 @@ export const testCase: TestCase = {
       expect(mentionsNumber, `Poem should mention the number ${digit} or its word form`).to.be.true;
 
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

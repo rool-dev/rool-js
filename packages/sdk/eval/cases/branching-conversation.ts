@@ -87,7 +87,7 @@ export const testCase: TestCase = {
 
     } finally {
       conv.close?.();
-      channel.close();
+      space.close();
     }
   },
 };

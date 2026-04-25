@@ -24,7 +24,7 @@ export const testCase: TestCase = {
       expectValidUniqueUrls(objects, 'imageUrl');
       await expectUrlsFetchable(channel, objects, 'imageUrl');
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

@@ -40,7 +40,7 @@ export const testCase: TestCase = {
       // Verify no extra objects were created
       expect(channel.getObjectIds()).to.have.length(1);
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };

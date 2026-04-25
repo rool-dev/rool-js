@@ -72,7 +72,7 @@ export const testCase: TestCase = {
       expect(hasInner, `Inner planets should include Mercury or Venus, got: ${names.join(', ')}`).to.be.true;
 
     } finally {
-      channel.close();
+      space.close();
     }
   },
 };
