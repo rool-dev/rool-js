@@ -179,6 +179,8 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     });
 
     this._subscriptionReady = this.subscriptionManager.subscribe();
+    // .catch prevents a rejection here from crashing Node before the caller awaits it.
+    this._subscriptionReady.catch(() => {});
   }
 
   private async reroute(): Promise<string> {

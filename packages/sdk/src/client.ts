@@ -293,7 +293,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     if (existing) return existing;
 
     // Ensure client subscription is active (for lifecycle events)
-    void this.ensureSubscribed();
+    // .catch prevents a rejection here from crashing Node before the caller awaits it.
+    this.ensureSubscribed().catch(() => {});
 
     const initialRoute = await this.router.resolve(spaceId);
     const scopedGraphqlUrl = `${initialRoute.server.replace(/\/+$/, '')}/graphql`;
@@ -343,8 +344,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Call space.openChannel(channelId) to start working with objects.
    */
   async createSpace(name: string): Promise<RoolSpace> {
-    // Ensure client subscription is active (for lifecycle events)
-    void this.ensureSubscribed();
+    // Prevents a rejection here from crashing Node before the caller awaits it.
+    this.ensureSubscribed().catch(() => {});
 
     const { spaceId } = await this.graphqlClient.createSpace(name);
     return this.openSpace(spaceId);
@@ -371,8 +372,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * Returns a RoolSpace handle.
    */
   async importArchive(name: string, archive: Blob): Promise<RoolSpace> {
-    // Ensure client subscription is active (for lifecycle events)
-    void this.ensureSubscribed();
+    // .catch prevents a rejection here from crashing Node before the caller awaits it.
+    this.ensureSubscribed().catch(() => {});
 
     // Import via REST endpoint (creates the space)
     const spaceId = await this.mediaClient.importArchive(name, archive);
