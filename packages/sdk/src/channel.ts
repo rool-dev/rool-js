@@ -360,7 +360,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       systemInstruction: conv.systemInstruction ?? null,
       createdAt: conv.createdAt,
       createdBy: conv.createdBy,
-      interactionCount: Object.keys(conv.interactions).length,
+      interactionCount: conv.interactions ? Object.keys(conv.interactions).length : 0,
     }));
   }
 
