@@ -1,8 +1,3 @@
-// =============================================================================
-// GraphQL Client
-// Handles all GraphQL queries and mutations for the Rool API
-// =============================================================================
-
 import { gzipSync } from 'fflate';
 import type {
   PromptOptions,
@@ -134,10 +129,6 @@ export class GraphQLClient {
     return { name: r.name, role: r.role, linkAccess: r.linkAccess, memberCount: r.memberCount, channels: channelInfos };
   }
 
-  // ===========================================================================
-  // Space Lifecycle Operations (called from RoolClient)
-  // ===========================================================================
-
   async createSpace(name: string): Promise<{ spaceId: string }> {
     const mutation = `
       mutation CreateSpace($name: String!) {
@@ -178,14 +169,16 @@ export class GraphQLClient {
         }
       }
     `;
-    const response = await this.request<{ openSpace: {
-      name: string; role: string; userId: string; linkAccess: LinkAccess; memberCount: number;
-      objectIds: string[];
-      objectStatEntries: Array<{ id: string } & RoolObjectStat> | null;
-      schema: SpaceSchema | null;
-      meta: Record<string, unknown> | null;
-      channels: Record<string, Channel> | null;
-    } }>(query, { id: spaceId });
+    const response = await this.request<{
+      openSpace: {
+        name: string; role: string; userId: string; linkAccess: LinkAccess; memberCount: number;
+        objectIds: string[];
+        objectStatEntries: Array<{ id: string } & RoolObjectStat> | null;
+        schema: SpaceSchema | null;
+        meta: Record<string, unknown> | null;
+        channels: Record<string, Channel> | null;
+      }
+    }>(query, { id: spaceId });
 
     const r = response.openSpace;
     const objectStats: Record<string, RoolObjectStat> = {};
@@ -244,11 +237,6 @@ export class GraphQLClient {
       name,
     });
   }
-
-  // ===========================================================================
-  // Space Content Operations (called from RoolChannel)
-  // These require channelId for AI context
-  // ===========================================================================
 
   async setSpaceMeta(spaceId: string, meta: Record<string, unknown>, channelId: string, conversationId: string): Promise<void> {
     const mutation = `
@@ -336,10 +324,6 @@ export class GraphQLClient {
     });
   }
 
-  // ===========================================================================
-  // Checkpoint / Undo / Redo Operations
-  // ===========================================================================
-
   async checkpoint(
     spaceId: string,
     label: string | undefined,
@@ -423,10 +407,6 @@ export class GraphQLClient {
     });
   }
 
-  // ===========================================================================
-  // Collection Schema Operations
-  // ===========================================================================
-
   async createCollection(
     spaceId: string,
     name: string,
@@ -491,10 +471,6 @@ export class GraphQLClient {
       conversationId,
     });
   }
-
-  // ===========================================================================
-  // Object Operations
-  // ===========================================================================
 
   async createObject(
     spaceId: string,
@@ -604,10 +580,6 @@ export class GraphQLClient {
     };
   }
 
-  // ===========================================================================
-  // AI Operations
-  // ===========================================================================
-
   async prompt(
     spaceId: string,
     prompt: string,
@@ -642,9 +614,18 @@ export class GraphQLClient {
     return response.prompt;
   }
 
-  // ===========================================================================
-  // User / Collaboration Operations
-  // ===========================================================================
+  async stopInteraction(spaceId: string, interactionId: string): Promise<boolean> {
+    const mutation = `
+      mutation StopInteraction($spaceId: String!, $interactionId: String!) {
+        stopInteraction(spaceId: $spaceId, interactionId: $interactionId)
+      }
+    `;
+    const response = await this.request<{ stopInteraction: boolean }>(mutation, {
+      spaceId,
+      interactionId,
+    });
+    return response.stopInteraction;
+  }
 
   async getCurrentUser(): Promise<CurrentUser> {
     const query = `
@@ -837,10 +818,6 @@ export class GraphQLClient {
     await this.request(mutation, { spaceId, linkAccess });
   }
 
-  // ===========================================================================
-  // Generic Query (escape hatch for app-specific queries)
-  // ===========================================================================
-
   /**
    * Execute an arbitrary GraphQL query or mutation.
    * Use this for app-specific operations not covered by the typed methods.
@@ -851,10 +828,6 @@ export class GraphQLClient {
   ): Promise<T> {
     return this.request<T>(query, variables);
   }
-
-  // ===========================================================================
-  // Private Methods
-  // ===========================================================================
 
   private async request<T>(
     query: string,

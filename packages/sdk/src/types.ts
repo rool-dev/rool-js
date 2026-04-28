@@ -1,12 +1,3 @@
-// =============================================================================
-// Rool Client Types
-// Generic types for space-based applications using the Rool server API
-// =============================================================================
-
-// =============================================================================
-// Collection Schema Types
-// =============================================================================
-
 /**
  * Field type descriptor. Recursive structure supporting primitives,
  * enums, literals, arrays, optionals (maybe), and object references.
@@ -40,10 +31,6 @@ export interface CollectionDef {
  * The full schema for a space — a map of collection names to definitions.
  */
 export type SpaceSchema = Record<string, CollectionDef>;
-
-// =============================================================================
-// Object Types
-// =============================================================================
 
 /**
  * Object data - the user content portion of an object.
@@ -171,10 +158,6 @@ export interface ChannelInfo {
 }
 
 
-// =============================================================================
-// Space Info & User Types
-// =============================================================================
-
 export type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
 
 export type LinkAccess = 'none' | 'viewer' | 'editor';
@@ -220,10 +203,6 @@ export interface CurrentUser {
   storage: Record<string, unknown>;
 }
 
-// =============================================================================
-// Media Types
-// =============================================================================
-
 export interface MediaInfo {
   url: string;
   contentType: string;
@@ -243,10 +222,6 @@ export interface MediaResponse {
   /** Get the response body as a Blob */
   blob(): Promise<Blob>;
 }
-
-// =============================================================================
-// Extension Publishing Types
-// =============================================================================
 
 /**
  * Options for uploading an extension bundle.
@@ -326,10 +301,6 @@ export interface PublishedExtensionInfo {
   updatedAt: string;
 }
 
-// =============================================================================
-// AI / Prompt Types
-// =============================================================================
-
 /**
  * Effort level for AI operations.
  * - 'QUICK': Fast responses, read-only (no object mutations)
@@ -363,6 +334,12 @@ export interface PromptOptions {
    * - **DOCX** — text extracted and read by the AI
    */
   attachments?: Array<File | Blob | { data: string; contentType: string }>;
+  /**
+   * Abort signal to stop the in-flight prompt. When aborted, the server stops
+   * the agent loop and closes the stream; note that any LLM turn already in
+   * flight on Vertex keeps generating server-side and is billed.
+   */
+  signal?: AbortSignal;
 }
 
 export interface FindObjectsOptions {
@@ -398,17 +375,9 @@ export interface UpdateObjectOptions {
   ephemeral?: boolean;
 }
 
-// =============================================================================
-// Subscription / Connection Types
-// =============================================================================
-
 export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
 
 export type RoolEventSource = 'user' | 'agent';
-
-// -----------------------------------------------------------------------------
-// Client-level events (space lifecycle)
-// -----------------------------------------------------------------------------
 
 export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'space_access_changed' | 'user_storage_changed' | 'channel_created' | 'channel_renamed' | 'channel_deleted';
 
@@ -499,10 +468,6 @@ export type ClientEvent =
   | ChannelRenamedClientEvent
   | ChannelDeletedClientEvent;
 
-// -----------------------------------------------------------------------------
-// Channel-level subscription events (wire protocol)
-// -----------------------------------------------------------------------------
-
 export type ChannelEventType =
   | 'connected'
   | 'space_changed'
@@ -545,11 +510,6 @@ export interface ChannelEvent {
   method?: string;
   args?: Record<string, unknown>;
 }
-
-
-// =============================================================================
-// Client Configuration
-// =============================================================================
 
 /**
  * External auth provider interface for Electron or custom auth flows.
@@ -610,10 +570,6 @@ export interface RoolClientConfig {
    */
   logger?: import('./logger.js').Logger;
 }
-
-// =============================================================================
-// Event Types for EventEmitter
-// =============================================================================
 
 /** Source of a user storage change */
 export type UserStorageSource = 'local' | 'remote';
@@ -692,10 +648,6 @@ export interface RoolSpaceEvents {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: (...args: any[]) => void;
 }
-
-// =============================================================================
-// Space Event Types (for RoolChannel EventEmitter)
-// =============================================================================
 
 /**
  * Source of a space change event.
@@ -786,10 +738,6 @@ export interface ChannelEvents {
   [key: string]: (...args: any[]) => void;
 }
 
-
-// =============================================================================
-// Auth Types
-// =============================================================================
 
 export interface AuthTokens {
   accessToken: string;

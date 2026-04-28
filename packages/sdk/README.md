@@ -396,6 +396,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 | `readOnly` | If true, disable mutation tools (create, update, delete). Use for questions. |
 | `parentInteractionId` | Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. Pass `null` to start a new root-level branch. Pass a specific ID to branch from that point (edit/reroll). |
 | `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Uploaded to the media store via `uploadMedia()`. Resulting URLs are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot read their contents. |
+| `signal` | `AbortSignal` to stop the prompt mid-flight. When aborted, the agent loop halts and the streaming response closes. Note that any LLM turn already in flight on Vertex keeps generating server-side and is billed. |
 
 ### Effort Levels
 
@@ -438,6 +439,14 @@ await channel.prompt(
   "Describe what's in this photo and create an object for it",
   { attachments: [file] }
 );
+
+// Cancel a long-running prompt
+const ac = new AbortController();
+cancelButton.onclick = () => ac.abort();
+await channel.prompt("Do a deep analysis...", {
+  effort: 'RESEARCH',
+  signal: ac.signal,
+});
 ```
 
 ### Structured Responses

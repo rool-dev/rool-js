@@ -199,10 +199,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this.emit('reset', { source: 'system' });
   }
 
-  // ===========================================================================
-  // Properties
-  // ===========================================================================
-
   get id(): string {
     return this._id;
   }
@@ -271,10 +267,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   get manifest(): ExtensionManifest | null {
     return this._channel?.manifest ?? null;
   }
-
-  // ===========================================================================
-  // Channel History Access
-  // ===========================================================================
 
   /**
    * Get the active branch of the current conversation as a flat array (root → leaf).
@@ -386,10 +378,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
   }
 
-  // ===========================================================================
-  // Conversations
-  // ===========================================================================
-
   /**
    * Get a handle for a specific conversation within this channel.
    * The handle scopes AI and mutation operations to that conversation's
@@ -400,10 +388,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   conversation(conversationId: string): ConversationHandle {
     return new ConversationHandle(this, conversationId);
   }
-
-  // ===========================================================================
-  // Channel Lifecycle
-  // ===========================================================================
 
   /**
    * Close this channel and clean up resources.
@@ -420,10 +404,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     this.removeAllListeners();
   }
-
-  // ===========================================================================
-  // Undo / Redo (Server-managed checkpoints)
-  // ===========================================================================
 
   /**
    * Create a checkpoint of the current space state.
@@ -480,10 +460,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   async clearHistory(): Promise<void> {
     await this.graphqlClient.clearCheckpointHistory(this._id, this._channelId);
   }
-
-  // ===========================================================================
-  // Object Operations
-  // ===========================================================================
 
   /**
    * Get an object's data by ID.
@@ -684,10 +660,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
   }
 
-  // ===========================================================================
-  // Collection Schema Operations
-  // ===========================================================================
-
   /**
    * Get the current schema for this space.
    * Returns a map of collection names to their definitions.
@@ -780,10 +752,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       throw error;
     }
   }
-
-  // ===========================================================================
-  // System Instructions
-  // ===========================================================================
 
   /**
    * Get the system instruction for the current conversation.
@@ -915,10 +883,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
   }
 
-  // ===========================================================================
-  // Metadata Operations
-  // ===========================================================================
-
   /**
    * Set a space-level metadata value.
    * Metadata is stored in meta and hidden from AI operations.
@@ -953,10 +917,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this._meta;
   }
 
-  // ===========================================================================
-  // AI Operations
-  // ===========================================================================
-
   /**
    * Send a prompt to the AI agent for space manipulation.
    * @returns The message from the AI and the list of objects that were created or modified
@@ -968,7 +928,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   /** @internal */
   async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
     // Upload attachments via media endpoint, then send URLs to the server
-    const { attachments, parentInteractionId: explicitParent, ...rest } = options ?? {};
+    const { attachments, parentInteractionId: explicitParent, signal, ...rest } = options ?? {};
     let attachmentUrls: string[] | undefined;
     if (attachments?.length) {
       attachmentUrls = await Promise.all(
@@ -985,7 +945,27 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     // Optimistically set active leaf before the server call.
     this._activeLeaves.set(conversationId, interactionId);
-    const result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls, interactionId, parentInteractionId });
+
+    let onAbort: (() => void) | undefined;
+    if (signal) {
+      if (signal.aborted) {
+        // Caller aborted before we even started; fire-and-forget the stop so
+        // the server-side prompt (about to start) is cancelled too.
+        this.graphqlClient.stopInteraction(this._id, interactionId).catch(() => { });
+      } else {
+        onAbort = () => {
+          this.graphqlClient.stopInteraction(this._id, interactionId).catch(() => { });
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    }
+
+    let result;
+    try {
+      result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, { ...rest, attachmentUrls, interactionId, parentInteractionId });
+    } finally {
+      if (onAbort) signal!.removeEventListener('abort', onAbort);
+    }
 
     // Collect modified objects — they arrive via SSE events during/after the mutation.
     // Try collecting from buffer first, then fetch any missing from server.
@@ -1018,10 +998,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     };
   }
 
-  // ===========================================================================
-  // Channel Admin
-  // ===========================================================================
-
   /**
    * Rename this channel.
    */
@@ -1045,10 +1021,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       throw error;
     }
   }
-
-  // ===========================================================================
-  // Media Operations
-  // ===========================================================================
 
   /**
    * List all media files for this space.
@@ -1082,10 +1054,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this.mediaClient.delete(this._id, url);
   }
 
-  // ===========================================================================
-  // Proxied Fetch
-  // ===========================================================================
-
   /**
    * Fetch an external URL via the server proxy, bypassing CORS restrictions.
    * Requires editor role or above. Blocked for private/internal IP ranges (SSRF protection).
@@ -1100,10 +1068,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   ): Promise<Response> {
     return this.mediaClient.proxyFetch(this._id, url, init);
   }
-
-  // ===========================================================================
-  // Object Collection (internal)
-  // ===========================================================================
 
   /**
    * Register a collector that resolves when the object arrives via SSE.
@@ -1162,10 +1126,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       this._objectBuffer.set(objectId, object);
     }
   }
-
-  // ===========================================================================
-  // Event Handlers (internal - handles space subscription events)
-  // ===========================================================================
 
   /**
    * Handle a channel event from the subscription.
@@ -1364,10 +1324,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 }
 
-// =============================================================================
-// ConversationHandle — Scoped proxy for a specific conversation
-// =============================================================================
-
 /**
  * A lightweight handle for a specific conversation within a channel.
  *
@@ -1390,10 +1346,6 @@ export class ConversationHandle {
 
   /** The conversation ID this handle is scoped to. */
   get conversationId(): string { return this._conversationId; }
-
-  // ---------------------------------------------------------------------------
-  // Conversation History
-  // ---------------------------------------------------------------------------
 
   /** Get the active branch of this conversation as a flat array (root → leaf). */
   getInteractions(): Interaction[] {
@@ -1430,10 +1382,6 @@ export class ConversationHandle {
     return this._channel._renameConversationImpl(name, this._conversationId);
   }
 
-  // ---------------------------------------------------------------------------
-  // Object Operations (scoped to this conversation's interaction history)
-  // ---------------------------------------------------------------------------
-
   /** Find objects using structured filters and/or natural language. */
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
     return this._channel._findObjectsImpl(options, this._conversationId);
@@ -1454,18 +1402,10 @@ export class ConversationHandle {
     return this._channel._deleteObjectsImpl(objectIds, this._conversationId);
   }
 
-  // ---------------------------------------------------------------------------
-  // AI
-  // ---------------------------------------------------------------------------
-
   /** Send a prompt to the AI agent, scoped to this conversation's history. */
   async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
     return this._channel._promptImpl(text, options, this._conversationId);
   }
-
-  // ---------------------------------------------------------------------------
-  // Schema (scoped to this conversation's interaction history)
-  // ---------------------------------------------------------------------------
 
   /** Create a new collection schema. */
   async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
@@ -1482,11 +1422,6 @@ export class ConversationHandle {
     return this._channel._dropCollectionImpl(name, this._conversationId);
   }
 
-  // ---------------------------------------------------------------------------
-  // Metadata (scoped to this conversation's interaction history)
-  // ---------------------------------------------------------------------------
-
-  /** Set a space-level metadata value. */
   setMetadata(key: string, value: unknown): void {
     return this._channel._setMetadataImpl(key, value, this._conversationId);
   }
