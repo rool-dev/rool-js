@@ -42,4 +42,6 @@ export type {
   ExtensionManifest,
   FindExtensionsOptions,
   RoolSpaceEvents,
+  ProbeRequestEvent,
+  OpenExtensionEvent,
 } from '@rool-dev/sdk';

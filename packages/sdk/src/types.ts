@@ -513,7 +513,9 @@ export type ChannelEventType =
   | 'metadata_updated'
   | 'channel_updated'
   | 'channel_deleted'
-  | 'conversation_updated';
+  | 'conversation_updated'
+  | 'probe_request'
+  | 'open_extension';
 
 
 export interface ChannelEvent {
@@ -538,6 +540,10 @@ export interface ChannelEvent {
   conversation?: Conversation;
   // Connected events
   serverVersion?: number;
+  // Probe events
+  requestId?: string;
+  method?: string;
+  args?: Record<string, unknown>;
 }
 
 
@@ -652,6 +658,23 @@ export interface RoolClientEvents {
  * Space-level events emitted by RoolSpace.
  * Includes channel lifecycle events derived from the space SSE subscription.
  */
+/**
+ * Server-initiated probe against an extension iframe — agent debugging /
+ * inspection operations like `screenshot`, `consoleLogs`, `clickSelector`.
+ * The client runs the probe via the iframe bridge and posts the result
+ * back via `rool.probeResponse(requestId, result, error)`.
+ */
+export interface ProbeRequestEvent {
+  requestId: string;
+  channelId: string;
+  method: string;
+  args: Record<string, unknown>;
+}
+
+export interface OpenExtensionEvent {
+  channelId: string;
+}
+
 export interface RoolSpaceEvents {
   /** A new channel was created in this space */
   channelCreated: (channel: ChannelInfo) => void;
@@ -659,6 +682,10 @@ export interface RoolSpaceEvents {
   channelUpdated: (channel: ChannelInfo) => void;
   /** A channel was deleted from this space */
   channelDeleted: (channelId: string) => void;
+  /** Server requests a probe operation against an extension iframe */
+  probe: (event: ProbeRequestEvent) => void;
+  /** Server requests the client to open an extension in split view */
+  openExtension: (event: OpenExtensionEvent) => void;
   /** SSE connection state changed */
   connectionStateChanged: (state: ConnectionState) => void;
   /** Index signature for EventEmitter compatibility */

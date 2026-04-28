@@ -95,6 +95,8 @@ export type {
   RoolClientConfig,
   RoolClientEvents,
   RoolSpaceEvents,
+  ProbeRequestEvent,
+  OpenExtensionEvent,
   AuthTokens,
   AuthProvider,
 } from './types.js';

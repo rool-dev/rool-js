@@ -468,6 +468,15 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return this.graphqlClient.installExtension(spaceId, extensionId, channelId);
   }
 
+  /**
+   * Respond to a server-initiated probe. Called by the client after running
+   * the probe via the iframe bridge. Pass `result` on success or `error` on
+   * failure (timeout, no bridge, handler threw).
+   */
+  async probeResponse(requestId: string, result?: unknown, error?: string): Promise<boolean> {
+    return this.graphqlClient.probeResponse(requestId, result, error);
+  }
+
   /** Publish a user extension (make it publicly discoverable). */
   async publishToPublic(extensionId: string): Promise<void> {
     return this.graphqlClient.publishExtensionToPublic(extensionId);

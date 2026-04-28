@@ -537,6 +537,10 @@ function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelE
       return { type, spaceId, timestamp, source, channelId: raw.channelId as string, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
     case 'channel_deleted':
       return { type, spaceId, timestamp, source, channelId: raw.channelId as string };
+    case 'probe_request':
+      return { type, spaceId, timestamp, source, requestId: raw.requestId as string, channelId: raw.channelId as string, method: raw.method as string, args: (raw.args as Record<string, unknown>) ?? {} };
+    case 'open_extension':
+      return { type, spaceId, timestamp, source, channelId: raw.channelId as string };
     default:
       logger.warn('[RoolChannel] Unknown space event type:', type);
       return null;

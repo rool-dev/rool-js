@@ -289,6 +289,11 @@ class RoolImpl {
     return this.#client.installExtension(spaceId, extensionId, channelId);
   }
 
+  /** Respond to a server-initiated probe with a method-specific result or error. */
+  probeResponse(requestId: string, result?: unknown, error?: string): Promise<boolean> {
+    return this.#client.probeResponse(requestId, result, error);
+  }
+
   /** Publish a user extension (make it publicly discoverable). */
   publishToPublic(extensionId: string): Promise<void> {
     return this.#client.publishToPublic(extensionId);

@@ -7,7 +7,7 @@
  * Used by both the console's ExtensionHost component and the local dev shell.
  */
 
-import type { BridgeRequest, BridgeInit, BridgeUser, ColorScheme } from './protocol.js';
+import type { BridgeRequest, BridgeInit, BridgeUser, ColorScheme, BridgeProbeResult } from './protocol.js';
 import { isBridgeMessage } from './protocol.js';
 
 /**
@@ -126,6 +126,12 @@ export class BridgeHost {
   private _colorScheme: ColorScheme;
   private eventCleanups: Array<() => void> = [];
   private _destroyed = false;
+  private _pendingProbes = new Map<string, {
+    resolve: (result: unknown) => void;
+    reject: (e: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }>();
+  private _nextProbeId = 0;
 
   constructor(options: BridgeHostOptions) {
     this.channel = options.channel;
@@ -190,7 +196,24 @@ export class BridgeHost {
       await this._handleRequest(event.data as BridgeRequest);
       return;
     }
+
+    if (event.data.type === 'rool:probeResult') {
+      this._handleProbeResult(event.data as BridgeProbeResult);
+      return;
+    }
   };
+
+  private _handleProbeResult(msg: BridgeProbeResult): void {
+    const pending = this._pendingProbes.get(msg.id);
+    if (!pending) return;
+    this._pendingProbes.delete(msg.id);
+    clearTimeout(pending.timer);
+    if (msg.error) {
+      pending.reject(new Error(msg.error));
+    } else {
+      pending.resolve(msg.result);
+    }
+  }
 
   private async _handleRequest(req: BridgeRequest): Promise<void> {
     const { id, method, args, conversationId } = req;
@@ -255,6 +278,32 @@ export class BridgeHost {
   // Color scheme
   // ---------------------------------------------------------------------------
 
+  /**
+   * Run an agent-initiated probe operation against the iframe (e.g. screenshot,
+   * console-log dump, click-by-selector). The extension's probe handler table
+   * dispatches by `method`. Resolves with the method-specific result, rejects
+   * with the iframe's reported error or on timeout.
+   */
+  probe<T = unknown>(method: string, args: Record<string, unknown> = {}, timeoutMs = 15000): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      if (this._destroyed) {
+        reject(new Error('BridgeHost is destroyed'));
+        return;
+      }
+      const id = `probe-${++this._nextProbeId}-${Date.now().toString(36)}`;
+      const timer = setTimeout(() => {
+        this._pendingProbes.delete(id);
+        reject(new Error(`Probe "${method}" timed out`));
+      }, timeoutMs);
+      this._pendingProbes.set(id, {
+        resolve: (result) => resolve(result as T),
+        reject,
+        timer,
+      });
+      this._postToApp({ type: 'rool:probe', id, method, args });
+    });
+  }
+
   /** Update the color scheme and push to the extension iframe. */
   setColorScheme(colorScheme: ColorScheme): void {
     this._colorScheme = colorScheme;
@@ -281,6 +330,11 @@ export class BridgeHost {
       cleanup();
     }
     this.eventCleanups = [];
+    for (const pending of this._pendingProbes.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('BridgeHost destroyed'));
+    }
+    this._pendingProbes.clear();
   }
 }
 

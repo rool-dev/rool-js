@@ -5,8 +5,9 @@
  * properties, matching the @rool-dev/svelte ReactiveChannel API.
  */
 
-import type { BridgeInit, BridgeResponse, BridgeEvent, BridgeUser, ColorScheme } from './protocol.js';
+import type { BridgeInit, BridgeResponse, BridgeEvent, BridgeProbe, BridgeUser, ColorScheme } from './protocol.js';
 import { isBridgeMessage } from './protocol.js';
+import { runProbe } from './probe-handlers.js';
 import type {
   RoolObject,
   RoolObjectStat,
@@ -24,10 +25,6 @@ import type {
   ChannelEvents,
 } from './types.js';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 let _nextId = 0;
 function nextRequestId(): string {
   return `req-${++_nextId}-${Date.now().toString(36)}`;
@@ -36,20 +33,12 @@ function nextRequestId(): string {
 type EventName = keyof ChannelEvents;
 type EventCallback = (...args: unknown[]) => void;
 
-// ---------------------------------------------------------------------------
-// WatchOptions
-// ---------------------------------------------------------------------------
-
 export interface WatchOptions {
   where?: Record<string, unknown>;
   collection?: string;
   limit?: number;
   order?: 'asc' | 'desc';
 }
-
-// ---------------------------------------------------------------------------
-// ReactiveWatch
-// ---------------------------------------------------------------------------
 
 class ReactiveWatchImpl {
   #channel: ReactiveChannelImpl;
@@ -150,10 +139,6 @@ class ReactiveWatchImpl {
 
 export type ReactiveWatch = ReactiveWatchImpl;
 
-// ---------------------------------------------------------------------------
-// ReactiveObject
-// ---------------------------------------------------------------------------
-
 class ReactiveObjectImpl {
   #channel: ReactiveChannelImpl;
   #objectId: string;
@@ -211,17 +196,9 @@ class ReactiveObjectImpl {
 
 export type ReactiveObject = ReactiveObjectImpl;
 
-// ---------------------------------------------------------------------------
-// Color scheme helper
-// ---------------------------------------------------------------------------
-
 function applyColorScheme(scheme: ColorScheme): void {
   document.documentElement.classList.toggle('dark', scheme === 'dark');
 }
-
-// ---------------------------------------------------------------------------
-// ReactiveChannel
-// ---------------------------------------------------------------------------
 
 class ReactiveChannelImpl {
   private _pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
@@ -314,10 +291,6 @@ class ReactiveChannelImpl {
     return this.role === 'viewer';
   }
 
-  // ---------------------------------------------------------------------------
-  // Event emitter
-  // ---------------------------------------------------------------------------
-
   on<E extends EventName>(event: E, callback: (data: ChannelEvents[E]) => void): void {
     let set = this._listeners.get(event);
     if (!set) {
@@ -343,10 +316,6 @@ class ReactiveChannelImpl {
       }
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // postMessage transport
-  // ---------------------------------------------------------------------------
 
   private _call(method: string, ...args: unknown[]): Promise<unknown> {
     return this._callScoped(method, args);
@@ -383,6 +352,11 @@ class ReactiveChannelImpl {
       return;
     }
 
+    if (event.data.type === 'rool:probe') {
+      void this._handleProbe(event.data as BridgeProbe);
+      return;
+    }
+
     if (event.data.type === 'rool:event') {
       const msg = event.data as BridgeEvent;
 
@@ -413,9 +387,15 @@ class ReactiveChannelImpl {
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Object operations
-  // ---------------------------------------------------------------------------
+  private async _handleProbe(req: BridgeProbe): Promise<void> {
+    try {
+      const result = await runProbe(req.method, req.args);
+      window.parent.postMessage({ type: 'rool:probeResult', id: req.id, result }, '*');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      window.parent.postMessage({ type: 'rool:probeResult', id: req.id, error: message }, '*');
+    }
+  }
 
   async getObject(objectId: string): Promise<RoolObject | undefined> {
     return this._call('getObject', objectId) as Promise<RoolObject | undefined>;
@@ -445,10 +425,6 @@ class ReactiveChannelImpl {
     await this._call('deleteObjects', objectIds);
   }
 
-  // ---------------------------------------------------------------------------
-  // Schema
-  // ---------------------------------------------------------------------------
-
   getSchema(): SpaceSchema {
     return this._schema;
   }
@@ -469,10 +445,6 @@ class ReactiveChannelImpl {
     await this._call('dropCollection', name);
     delete this._schema[name];
   }
-
-  // ---------------------------------------------------------------------------
-  // Interactions & system instruction
-  // ---------------------------------------------------------------------------
 
   async getInteractions(): Promise<Interaction[]> {
     return this._call('getInteractions') as Promise<Interaction[]>;
@@ -510,10 +482,6 @@ class ReactiveChannelImpl {
     await this._call('renameConversation', name);
   }
 
-  // ---------------------------------------------------------------------------
-  // Conversations
-  // ---------------------------------------------------------------------------
-
   /**
    * Get a reactive handle for a specific conversation within this channel.
    * Scopes AI and mutation operations to that conversation's interaction history.
@@ -523,10 +491,6 @@ class ReactiveChannelImpl {
     if (this.#closed) throw new Error('Cannot create reactive conversation: channel is closed');
     return new ReactiveConversationHandleImpl(this, conversationId);
   }
-
-  // ---------------------------------------------------------------------------
-  // Metadata
-  // ---------------------------------------------------------------------------
 
   async setMetadata(key: string, value: unknown): Promise<void> {
     await this._call('setMetadata', key, value);
@@ -541,17 +505,9 @@ class ReactiveChannelImpl {
     return { ...this._metadata };
   }
 
-  // ---------------------------------------------------------------------------
-  // AI
-  // ---------------------------------------------------------------------------
-
   async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
     return this._call('prompt', text, options) as Promise<{ message: string; objects: RoolObject[] }>;
   }
-
-  // ---------------------------------------------------------------------------
-  // Undo/redo
-  // ---------------------------------------------------------------------------
 
   async checkpoint(label?: string): Promise<string> {
     return this._call('checkpoint', label) as Promise<string>;
@@ -577,10 +533,6 @@ class ReactiveChannelImpl {
     await this._call('clearHistory');
   }
 
-  // ---------------------------------------------------------------------------
-  // Proxied fetch
-  // ---------------------------------------------------------------------------
-
   /**
    * Fetch an external URL via the server proxy, bypassing CORS restrictions.
    * Requires editor role or above. Blocked for private/internal IP ranges (SSRF protection).
@@ -602,10 +554,6 @@ class ReactiveChannelImpl {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Reactive primitives
-  // ---------------------------------------------------------------------------
-
   object(objectId: string): ReactiveObject {
     if (this.#closed) throw new Error('Cannot create reactive object: channel is closed');
     return new ReactiveObjectImpl(this, objectId);
@@ -615,10 +563,6 @@ class ReactiveChannelImpl {
     if (this.#closed) throw new Error('Cannot create reactive watch: channel is closed');
     return new ReactiveWatchImpl(this, options);
   }
-
-  // ---------------------------------------------------------------------------
-  // Cleanup
-  // ---------------------------------------------------------------------------
 
   destroy(): void {
     this.#closed = true;
@@ -634,10 +578,6 @@ class ReactiveChannelImpl {
 }
 
 export type ReactiveChannel = ReactiveChannelImpl;
-
-// ---------------------------------------------------------------------------
-// ReactiveConversationHandle
-// ---------------------------------------------------------------------------
 
 /**
  * A reactive conversation handle for the extension bridge.
@@ -680,8 +620,6 @@ class ReactiveConversationHandleImpl {
 
   get conversationId(): string { return this.#conversationId; }
 
-  // Conversation history
-
   async getInteractions(): Promise<Interaction[]> {
     return this.#channel._callScoped('getInteractions', [], this.#conversationId) as Promise<Interaction[]>;
   }
@@ -710,8 +648,6 @@ class ReactiveConversationHandleImpl {
     await this.#channel._callScoped('renameConversation', [name], this.#conversationId);
   }
 
-  // Object operations
-
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
     return this.#channel._callScoped('findObjects', [options], this.#conversationId) as Promise<{ objects: RoolObject[]; message: string }>;
   }
@@ -734,8 +670,6 @@ class ReactiveConversationHandleImpl {
     return this.#channel._callScoped('prompt', [text, options], this.#conversationId) as Promise<{ message: string; objects: RoolObject[] }>;
   }
 
-  // Schema
-
   async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
     return this.#channel._callScoped('createCollection', [name, fields], this.#conversationId) as Promise<CollectionDef>;
   }
@@ -747,8 +681,6 @@ class ReactiveConversationHandleImpl {
   async dropCollection(name: string): Promise<void> {
     await this.#channel._callScoped('dropCollection', [name], this.#conversationId);
   }
-
-  // Metadata
 
   async setMetadata(key: string, value: unknown): Promise<void> {
     await this.#channel._callScoped('setMetadata', [key, value], this.#conversationId);
@@ -764,10 +696,6 @@ class ReactiveConversationHandleImpl {
 }
 
 export type ReactiveConversationHandle = ReactiveConversationHandleImpl;
-
-// ---------------------------------------------------------------------------
-// initExtension
-// ---------------------------------------------------------------------------
 
 /**
  * Initialize the extension and return a reactive channel.
@@ -792,7 +720,7 @@ export function initExtension(timeout = 10000): Promise<ReactiveChannel> {
       window.location.href = `https://${domain}/?openExtension=${extensionId}`;
     }
     // Never resolve — the redirect will unload the page
-    return new Promise<ReactiveChannel>(() => {});
+    return new Promise<ReactiveChannel>(() => { });
   }
 
   return new Promise<ReactiveChannel>((resolve, reject) => {

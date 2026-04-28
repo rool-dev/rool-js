@@ -45,6 +45,26 @@ export interface BridgeUser {
 /** Resolved color scheme sent to extensions */
 export type ColorScheme = 'light' | 'dark';
 
+/**
+ * Host → Extension: agent-initiated probe operation against the iframe
+ * (screenshot, console-log dump, click-by-selector, ...).
+ * The extension's probe handler table dispatches by `method`.
+ */
+export interface BridgeProbe {
+  type: 'rool:probe';
+  id: string;
+  method: string;
+  args: Record<string, unknown>;
+}
+
+/** Extension → Host: result of a probe operation */
+export interface BridgeProbeResult {
+  type: 'rool:probeResult';
+  id: string;
+  result?: unknown;
+  error?: string;
+}
+
 /** Host → Extension: handshake response with channel metadata */
 export interface BridgeInit {
   type: 'rool:init';
@@ -65,7 +85,9 @@ export type BridgeMessage =
   | BridgeResponse
   | BridgeEvent
   | BridgeReady
-  | BridgeInit;
+  | BridgeInit
+  | BridgeProbe
+  | BridgeProbeResult;
 
 /** Type guard for bridge messages */
 export function isBridgeMessage(data: unknown): data is BridgeMessage {

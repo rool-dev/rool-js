@@ -762,6 +762,20 @@ export class GraphQLClient {
     await this.request(mutation, { event, url: url ?? null });
   }
 
+  async probeResponse(requestId: string, result?: unknown, error?: string): Promise<boolean> {
+    const mutation = `
+      mutation ProbeResponse($requestId: String!, $result: JSON, $error: String) {
+        probeResponse(requestId: $requestId, result: $result, error: $error)
+      }
+    `;
+    const response = await this.request<{ probeResponse: boolean }>(mutation, {
+      requestId,
+      result: result ?? null,
+      error: error ?? null,
+    });
+    return response.probeResponse;
+  }
+
   async searchUser(email: string): Promise<UserResult | null> {
     const query = `
       query SearchUser($email: String!) {

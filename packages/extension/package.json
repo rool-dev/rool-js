@@ -65,6 +65,7 @@
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@tailwindcss/vite": "^4.2.3",
     "archiver": "^7.0.1",
+    "html-to-image": "^1.11.13",
     "tailwindcss": "^4.2.3",
     "vite": "^8.0.9"
   },
