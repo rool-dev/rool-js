@@ -10,6 +10,9 @@
 import type { BridgeRequest, BridgeInit, BridgeUser, ColorScheme, BridgeProbeResult } from './protocol.js';
 import { isBridgeMessage } from './protocol.js';
 
+export { SnapshotChannel } from './snapshot-channel.js';
+export type { RoolSpaceData, SnapshotChannelOptions } from './snapshot-channel.js';
+
 /**
  * Minimal channel interface accepted by the bridge host.
  * Works with both BridgeableChannel (SDK) and ReactiveChannel (@rool-dev/svelte).
