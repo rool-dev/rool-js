@@ -237,31 +237,6 @@ export class MediaClient {
   }
 
   /**
-   * Export a space as a zip archive containing data and media.
-   * The archive includes data.json with objects, relations, metadata, and channels,
-   * plus a media/ folder with all media files.
-   */
-  async exportArchive(spaceId: string): Promise<Blob> {
-    const tokens = await this.config.authManager.getTokens();
-    if (!tokens) throw new Error('Not authenticated');
-
-    const headers: Record<string, string> = { Authorization: `Bearer ${tokens.accessToken}`, 'X-Rool-Token': tokens.roolToken };
-
-    const exportUrl = `${this.config.backendOrigin}/spaces/${encodeURIComponent(spaceId)}/export`;
-    const response = await fetch(exportUrl, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => response.statusText);
-      throw new Error(`Failed to export space: ${response.status} ${errorText}`);
-    }
-
-    return response.blob();
-  }
-
-  /**
    * Import a space from a zip archive.
    * Creates a new space with the given name and imports objects, relations, and media.
    * Returns the new space ID.

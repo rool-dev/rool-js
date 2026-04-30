@@ -350,9 +350,30 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
   /**
    * Export space data and media as a zip archive.
+   * Targets the owning shard since the server reads from in-memory state.
    */
   async exportArchive(): Promise<Blob> {
-    return this.mediaClient.exportArchive(this._id);
+    const tokens = await this.authManager.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
+
+    const headers = {
+      Authorization: `Bearer ${tokens.accessToken}`,
+      'X-Rool-Token': tokens.roolToken,
+    };
+    const path = `/spaces/${encodeURIComponent(this._id)}/export`;
+    const buildUrl = () => `${this._route.server.replace(/\/+$/, '')}${path}`;
+
+    let response = await fetch(buildUrl(), { method: 'GET', headers });
+    if (response.status === 421) {
+      await this.reroute();
+      response = await fetch(buildUrl(), { method: 'GET', headers });
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`Failed to export space: ${response.status} ${errorText}`);
+    }
+    return response.blob();
   }
 
   // ===========================================================================
