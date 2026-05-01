@@ -1,10 +1,11 @@
 /**
  * Builds the dev host shell into a self-contained ES module bundle.
  *
- * The output (dist/dev/host-shell.js) bundles @rool-dev/sdk and the bridge host
- * so applet developers don't need the SDK in their own node_modules.
+ * Output: dist/dev/host-shell.js
  *
- * Run: pnpm build:host-shell  (or as part of the full build)
+ * Used by `rool-extension dev` (full Sidebar/DevHostController/GraphQL UI).
+ * Bundles @rool-dev/sdk and the bridge host so applet developers don't need
+ * the SDK in their own node_modules.
  */
 
 import { defineConfig } from 'vite';
