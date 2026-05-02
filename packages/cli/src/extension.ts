@@ -29,7 +29,7 @@ function spawnRoolExtension(command: string, args: string[], env: Environment): 
 export function registerExtension(program: Command): void {
   const ext = program
     .command('extension')
-    .description('Create, develop, build, publish, and manage extensions');
+    .description('Create, develop, build, upload, and manage extensions');
 
   ext
     .command('create')
@@ -57,11 +57,13 @@ export function registerExtension(program: Command): void {
     });
 
   ext
-    .command('publish')
-    .description('Build and publish the extension')
-    .action((_opts: object, command: Command) => {
+    .command('upload')
+    .description('Build and upload the extension to your library')
+    .option('-p, --publish', 'also publish to the public marketplace after upload')
+    .action((opts: { publish?: boolean }, command: Command) => {
       const { env } = command.optsWithGlobals() as { env: Environment };
-      spawnRoolExtension('publish', [], env);
+      const args = opts.publish ? ['--publish'] : [];
+      spawnRoolExtension('upload', args, env);
     });
 
   ext

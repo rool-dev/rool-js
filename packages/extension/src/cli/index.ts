@@ -19,9 +19,9 @@ switch (command) {
     await build();
     break;
   }
-  case 'publish': {
-    const { publish } = await import('./publish.js');
-    await publish();
+  case 'upload': {
+    const { upload } = await import('./upload.js');
+    await upload();
     break;
   }
   default:
@@ -31,6 +31,6 @@ Commands:
   init      Create a new extension project
   dev       Start the dev server
   build     Build the extension
-  publish   Build and publish the extension`);
+  upload    Build and upload the extension to your library (--publish to also publish)`);
     process.exit(command ? 1 : 0);
 }

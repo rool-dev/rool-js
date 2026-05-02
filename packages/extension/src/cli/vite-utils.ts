@@ -1,5 +1,5 @@
 /**
- * Shared Vite utilities for the CLI (dev server and publish).
+ * Shared Vite utilities for the CLI (dev server and upload).
  *
  * Node.js only — not included in the browser bundle.
  */
@@ -41,7 +41,7 @@ export function readManifest(root: string): ManifestResult {
 }
 
 /**
- * Strict manifest reading for publish — exits on error.
+ * Strict manifest reading for upload — exits on error.
  */
 export function readManifestOrExit(root: string): Manifest {
   const result = readManifest(root);

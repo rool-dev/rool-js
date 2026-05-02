@@ -450,7 +450,9 @@ const host = createBridgeHost({
 | `rool extension create [name]` | Scaffold a new extension project |
 | `rool extension dev` | Start the dev server with host shell |
 | `rool extension build` | Build the extension |
-| `rool extension publish` | Build and publish the extension |
+| `rool extension upload` | Build and upload the extension to your library (`--publish` to also publish to the marketplace) |
+| `rool extension publish-public <id>` | Publish an existing uploaded extension to the public marketplace |
+| `rool extension unpublish <id>` | Remove an extension from the public marketplace |
 
 ## Exported Types
 

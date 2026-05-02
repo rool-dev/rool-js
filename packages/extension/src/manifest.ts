@@ -2,7 +2,7 @@
  * Shared manifest types and environment config.
  *
  * Browser-safe — no Node.js imports. Used by CLI code, the dev host shell,
- * and the publish command.
+ * and the upload command.
  */
 
 // ---------------------------------------------------------------------------
