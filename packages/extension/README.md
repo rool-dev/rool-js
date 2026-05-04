@@ -453,6 +453,16 @@ const host = createBridgeHost({
 | `rool extension upload` | Build and upload the extension to your library (`--publish` to also publish to the marketplace) |
 | `rool extension publish-public <id>` | Publish an existing uploaded extension to the public marketplace |
 | `rool extension unpublish <id>` | Remove an extension from the public marketplace |
+| `rool extension preview <subcommand>` | Browser-interaction commands against a headless preview of the extension (see below) |
+
+### Preview
+
+`preview` drives a headless browser session loading your extension, useful for visual checks and automation. Sessions are implicit — a daemon is auto-ensured for the extension in the current working directory, with no separate boot step.
+
+| Subcommand | Description |
+|------------|-------------|
+| `preview screenshot --out <path>` | Capture a PNG of the loaded preview to the given path |
+| `preview reset` | Restart the preview with a fresh snapshot (also use after `build` to pick up code changes) |
 
 ## Exported Types
 
