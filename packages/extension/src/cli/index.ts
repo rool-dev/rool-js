@@ -1,13 +1,7 @@
 #!/usr/bin/env node
-/**
- * rool-extension CLI entry point.
- *
- * Top-of-file daemon shortcut: when start.ts re-execs this script with
- * ROOL_PREVIEW_DAEMON=1, hand straight off to the daemon and never run
- * commander. Keeps daemon spawn flat (one node binary, one script, no
- * subcommand juggling across detached processes).
- */
 
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 import { Command } from 'commander';
 
 if (process.env.ROOL_PREVIEW_DAEMON === '1') {
@@ -15,6 +9,9 @@ if (process.env.ROOL_PREVIEW_DAEMON === '1') {
   await previewDaemon();
   process.exit(0);
 }
+
+const envFile = resolve(process.cwd(), '.env');
+if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const program = new Command();
 
@@ -54,49 +51,28 @@ program
     await upload();
   });
 
-const preview = program
+const previewCmd = program
   .command('preview')
   .description(
-    'Headless preview of the extension in cwd against a detached snapshot of the space.\n' +
-    '\n' +
-    'Lifecycle: one daemon per extension (keyed by manifest.id), one chromium tab.\n' +
-    'The space snapshot is loaded once at `start` and held in memory; mutations\n' +
-    'the extension performs accumulate there until `stop`.'
+    'Browser-interaction commands. Subcommands auto-ensure a preview daemon ' +
+    'for the extension in cwd; browser sessions are implict without a separate boot step.',
   );
 
-preview
-  .command('start')
-  .description('Start the headless preview daemon for the extension in cwd.')
-  .option('--width <px>', 'Viewport width in CSS pixels', '1280')
-  .option('--height <px>', 'Viewport height in CSS pixels', '800')
-  .action(async (opts) => {
-    const { previewStart } = await import('./preview/start.js');
-    await previewStart(opts);
-  });
-
-preview
-  .command('stop')
-  .description('Stop the headless preview daemon for the extension in cwd.')
-  .action(async () => {
-    const { previewStop } = await import('./preview/stop.js');
-    await previewStop();
-  });
-
-preview
-  .command('status')
-  .description('List running preview sessions across all extensions.')
-  .action(async () => {
-    const { previewStatus } = await import('./preview/status.js');
-    await previewStatus();
-  });
-
-preview
+previewCmd
   .command('screenshot')
-  .description('Capture a PNG screenshot of the running preview.')
+  .description('Capture a PNG of the loaded preview.')
   .requiredOption('--out <path>', 'Output PNG path')
   .action(async (opts) => {
-    const { previewScreenshot } = await import('./preview/screenshot.js');
-    await previewScreenshot(opts);
+    const { screenshot } = await import('./preview/screenshot.js');
+    await screenshot(opts);
+  });
+
+previewCmd
+  .command('reset')
+  .description('Restart the preview with a fresh snapshot. Use after `build` to pick up code changes.')
+  .action(async () => {
+    const { reset } = await import('./preview/reset.js');
+    await reset();
   });
 
 await program.parseAsync(process.argv);

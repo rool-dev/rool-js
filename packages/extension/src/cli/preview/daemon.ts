@@ -1,24 +1,22 @@
 /**
- * `preview` daemon — long-lived child of `rool-extension preview start`.
+ * `preview` daemon — long-lived child of `rool-extension preview`.
  *
- * Stands up:
- *   - HTTP server on 127.0.0.1:0 serving the host shell, snapshot bundle,
- *     /space/snapshot.json, and the extension dist.
- *   - One chromium-headless-shell process pointed at the host shell URL.
- *
- * Drives Chromium via CDP to attach to the page target and waits for
- * window.__roolReady before writing state.json.
+ * Stands up an HTTP server on 127.0.0.1:0 (extension dist at /, host shell
+ * at /__rool-host/) and one chromium process pointed at the host shell URL.
+ * Drives chromium via CDP, waits for window.__roolReady, then writes
+ * state.json and idles forever.
  *
  * Subsequent `screenshot` / future interaction commands open their own CDP
- * connection to the same browser, attach to the same target, run their op,
- * and disconnect — the daemon stays out of the per-command path so each
- * command is independent and crash-safe. The daemon's only job after
- * bootstrap is to keep chromium alive and the in-memory snapshot state
- * intact.
+ * connection to the same browser and attach to the same target — the daemon
+ * stays out of the per-command path so each command is independent.
  *
- * Lifecycle: started by start.ts via re-exec'ing the CLI script with
- * ROOL_PREVIEW_DAEMON=1; receives all config via env vars (detached spawn
- * loses argv ergonomics). Killed by stop.ts via SIGTERM → SIGKILL.
+ * Mode comes from ROOL_AGENT_MODE (read via lib.isAgentMode()):
+ *   set   → headless chromium against /space/snapshot.json (in-VM agent)
+ *   unset → headed chromium against the synthesized empty snapshot
+ *
+ * Lifecycle: re-exec'd by `preview.ts` with ROOL_PREVIEW_DAEMON=1; takes
+ * extension metadata via ROOL_PREVIEW_* env vars. Killed by `preview.ts`
+ * (when switching extensions) via SIGTERM → SIGKILL.
  */
 
 import { spawn, type ChildProcess } from 'child_process';
@@ -42,22 +40,20 @@ import { fileURLToPath } from 'url';
 import { CdpClient } from './cdp.js';
 import {
   ensureStateDir,
+  isAgentMode,
   sleep,
-  stateFileFor,
-  userDataDirFor,
+  snapshotPaths,
+  STATE_FILE,
+  USER_DATA_DIR,
   type PreviewState,
 } from './lib.js';
 
-const SNAPSHOT_PATH = '/space/snapshot.json';
-const INFO_PATH = '/space/info.json';
 const CHROMIUM_BIN = process.env.ROOL_CHROMIUM ?? 'chromium-headless-shell';
 const READY_TIMEOUT_MS = 30_000;
 const READY_POLL_MS = 100;
 const TARGET_DISCOVERY_TIMEOUT_MS = 5_000;
 const DEVTOOLS_URL_TIMEOUT_MS = 15_000;
 
-// Snapshot host bundle ships next to the CLI in dist/dev/snapshot-host.js.
-// __filename = .../dist/cli/preview/daemon.js  →  .../dist/dev/snapshot-host.js
 const SNAPSHOT_HOST_BUNDLE = resolve(
   fileURLToPath(import.meta.url),
   '../../../dev/snapshot-host.js',
@@ -65,20 +61,20 @@ const SNAPSHOT_HOST_BUNDLE = resolve(
 
 const CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
-  '.js':   'application/javascript; charset=utf-8',
-  '.mjs':  'application/javascript; charset=utf-8',
-  '.css':  'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
-  '.png':  'image/png',
-  '.jpg':  'image/jpeg',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
-  '.gif':  'image/gif',
-  '.svg':  'image/svg+xml',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
   '.webp': 'image/webp',
-  '.ico':  'image/x-icon',
+  '.ico': 'image/x-icon',
   '.woff': 'font/woff',
-  '.woff2':'font/woff2',
-  '.ttf':  'font/ttf',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
 };
 
 interface ServerOpts {
@@ -89,6 +85,8 @@ interface ServerOpts {
   spaceId: string;
   spaceName: string;
 }
+
+const HOST_PREFIX = '/__rool-host';
 
 function contentTypeFor(p: string): string {
   return CONTENT_TYPES[extname(p).toLowerCase()] ?? 'application/octet-stream';
@@ -103,7 +101,9 @@ function escapeHtml(s: string): string {
 }
 
 function buildHostHtml(opts: { channelId: string; spaceId: string; spaceName: string }): string {
-  // Iframe fills the body so a viewport screenshot equals an extension screenshot.
+  // Extension is served at /; snapshot host machinery lives under
+  // /__rool-host/ so the extension's absolute /assets/* paths resolve to
+  // its own dist/ as the iframe expects.
   return `<!DOCTYPE html>
 <html lang="en" style="height:100%">
 <head>
@@ -114,17 +114,16 @@ function buildHostHtml(opts: { channelId: string; spaceId: string; spaceName: st
 </head>
 <body>
   <div id="rool-snapshot-host"
-    data-extension-url="/ext/"
-    data-snapshot-url="/snapshot.json"
+    data-extension-url="/"
+    data-snapshot-url="${HOST_PREFIX}/snapshot.json"
     data-channel-id="${escapeHtml(opts.channelId)}"
     data-space-id="${escapeHtml(opts.spaceId)}"
     data-space-name="${escapeHtml(opts.spaceName)}"></div>
-  <script type="module" src="/snapshot-host.js"></script>
+  <script type="module" src="${HOST_PREFIX}/snapshot-host.js"></script>
 </body>
 </html>`;
 }
 
-/** Resolve a request path under root, refusing escapes via .. */
 function safeJoin(root: string, urlPath: string): string | null {
   const decoded = decodeURIComponent(urlPath.split('?')[0]).replace(/^\/+/, '');
   const target = normalize(join(root, decoded));
@@ -132,74 +131,77 @@ function safeJoin(root: string, urlPath: string): string | null {
   return target;
 }
 
+function serveDistFile(target: string, res: ServerResponse): void {
+  const stat = statSync(target);
+  if (stat.isDirectory()) {
+    const idx = resolve(target, 'index.html');
+    if (existsSync(idx)) {
+      const idxStat = statSync(idx);
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Length': String(idxStat.size),
+      });
+      createReadStream(idx).pipe(res);
+      return;
+    }
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('not found');
+    return;
+  }
+  res.writeHead(200, {
+    'Content-Type': contentTypeFor(target),
+    'Content-Length': String(stat.size),
+  });
+  createReadStream(target).pipe(res);
+}
+
 function handleRequest(req: IncomingMessage, res: ServerResponse, opts: ServerOpts): void {
   const url = req.url ?? '/';
   const pathname = url.split('?')[0];
 
   try {
-    if (pathname === '/' || pathname === '/index.html') {
+    if (pathname === HOST_PREFIX || pathname === `${HOST_PREFIX}/`) {
       const html = buildHostHtml(opts);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
       return;
     }
-    if (pathname === '/snapshot-host.js') {
+    if (pathname === `${HOST_PREFIX}/snapshot-host.js`) {
       const buf = readFileSync(SNAPSHOT_HOST_BUNDLE);
       res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
       res.end(buf);
       return;
     }
-    if (pathname === '/snapshot.json') {
+    if (pathname === `${HOST_PREFIX}/snapshot.json`) {
       const buf = readFileSync(opts.snapshotPath);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(buf);
       return;
     }
-    if (pathname === '/info.json' && existsSync(opts.infoPath)) {
+    if (pathname === `${HOST_PREFIX}/info.json` && existsSync(opts.infoPath)) {
       const buf = readFileSync(opts.infoPath);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(buf);
       return;
     }
-    if (pathname.startsWith('/ext/')) {
-      const subPath = pathname.slice('/ext/'.length) || 'index.html';
-      const target = safeJoin(opts.distDir, subPath);
-      if (!target || !existsSync(target)) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('not found');
-        return;
-      }
-      const stat = statSync(target);
-      if (stat.isDirectory()) {
-        const idx = resolve(target, 'index.html');
-        if (existsSync(idx)) {
-          const idxStat = statSync(idx);
-          res.writeHead(200, {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Content-Length': String(idxStat.size),
-          });
-          createReadStream(idx).pipe(res);
-          return;
-        }
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('not found');
-        return;
-      }
-      res.writeHead(200, {
-        'Content-Type': contentTypeFor(target),
-        'Content-Length': String(stat.size),
-      });
-      createReadStream(target).pipe(res);
+
+    // Everything else is the extension served at /.
+    const subPath = pathname === '/' ? 'index.html' : pathname;
+    const target = safeJoin(opts.distDir, subPath);
+    if (!target || !existsSync(target)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('not found');
       return;
     }
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('not found');
+    serveDistFile(target, res);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end(msg);
   }
 }
+
+export const PREVIEW_HOST_PATH = HOST_PREFIX;
 
 async function startHttpServer(opts: ServerOpts): Promise<{ port: number; url: string; server: Server }> {
   return new Promise((resolveServer, rejectServer) => {
@@ -228,11 +230,11 @@ async function spawnChromium(args: {
   width: number;
   height: number;
   startUrl: string;
+  headless: boolean;
 }): Promise<ChromiumHandle> {
   const argv = [
-    '--headless=new',
+    ...(args.headless ? ['--headless=new'] : []),
     '--disable-gpu',
-    '--no-sandbox',
     '--hide-scrollbars',
     '--no-first-run',
     '--no-default-browser-check',
@@ -244,8 +246,6 @@ async function spawnChromium(args: {
   ];
   const proc = spawn(CHROMIUM_BIN, argv, { stdio: ['ignore', 'pipe', 'pipe'] });
 
-  // Chromium writes its DevTools URL to stderr once it's listening:
-  //   "DevTools listening on ws://127.0.0.1:<port>/devtools/browser/<uuid>"
   return new Promise<ChromiumHandle>((resolveProc, rejectProc) => {
     let buf = '';
     let settled = false;
@@ -263,7 +263,6 @@ async function spawnChromium(args: {
     proc.stderr?.on('data', (chunk: Buffer) => {
       const s = chunk.toString('utf-8');
       buf += s;
-      // Echo chromium logs so they land in daemon.log.
       process.stderr.write(s);
       const m = buf.match(/DevTools listening on (ws:\/\/127\.0\.0\.1:(\d+)\/devtools\/browser\/[A-Za-z0-9-]+)/);
       if (m) settleOk({ browserWsUrl: m[1], cdpPort: Number(m[2]) });
@@ -299,28 +298,31 @@ function required(name: string): string {
 
 export async function previewDaemon(): Promise<void> {
   const extensionId = required('ROOL_PREVIEW_EXTENSION_ID');
-  const cwd = required('ROOL_PREVIEW_CWD');
+  const extensionName = required('ROOL_PREVIEW_EXTENSION_NAME');
   const distDir = required('ROOL_PREVIEW_DIST_DIR');
   const width = Number(required('ROOL_PREVIEW_WIDTH'));
   const height = Number(required('ROOL_PREVIEW_HEIGHT'));
 
-  ensureStateDir(extensionId);
+  const agentMode = isAgentMode();
+  const { snapshotPath, infoPath } = snapshotPaths();
+
+  ensureStateDir();
 
   if (!existsSync(distDir) || !existsSync(resolve(distDir, 'index.html'))) {
     fail(`No built extension at ${distDir} (run \`rool-extension build\` first).`);
   }
-  if (!existsSync(SNAPSHOT_PATH)) {
-    fail(`No space snapshot at ${SNAPSHOT_PATH} (this command runs only inside the sandbox VM).`);
+  if (!existsSync(snapshotPath)) {
+    fail(`Snapshot not found at ${snapshotPath}.`);
   }
   if (!existsSync(SNAPSHOT_HOST_BUNDLE)) {
     fail(`Snapshot host bundle missing at ${SNAPSHOT_HOST_BUNDLE} — package build is incomplete.`);
   }
 
   let spaceId = extensionId;
-  let spaceName = 'Snapshot';
-  if (existsSync(INFO_PATH)) {
+  let spaceName = extensionName;
+  if (existsSync(infoPath)) {
     try {
-      const info = JSON.parse(readFileSync(INFO_PATH, 'utf-8')) as { spaceId?: string; name?: string };
+      const info = JSON.parse(readFileSync(infoPath, 'utf-8')) as { spaceId?: string; name?: string };
       if (info.spaceId) spaceId = info.spaceId;
       if (info.name) spaceName = info.name;
     } catch {
@@ -328,26 +330,31 @@ export async function previewDaemon(): Promise<void> {
     }
   }
 
-  const { port: serverPort, url: hostUrl, server } = await startHttpServer({
+  const { port: serverPort, server } = await startHttpServer({
     distDir,
-    snapshotPath: SNAPSHOT_PATH,
-    infoPath: INFO_PATH,
+    snapshotPath,
+    infoPath,
     channelId: extensionId,
     spaceId,
     spaceName,
   });
+  const hostUrl = `http://127.0.0.1:${serverPort}${HOST_PREFIX}/`;
   console.log(`[preview-daemon] http server listening on ${hostUrl}`);
 
-  const userDataDir = userDataDirFor(extensionId);
-  rmSync(userDataDir, { recursive: true, force: true });
-  mkdirSync(userDataDir, { recursive: true });
+  rmSync(USER_DATA_DIR, { recursive: true, force: true });
+  mkdirSync(USER_DATA_DIR, { recursive: true });
 
-  const chromium = await spawnChromium({ userDataDir, width, height, startUrl: hostUrl });
+  const chromium = await spawnChromium({
+    userDataDir: USER_DATA_DIR,
+    width,
+    height,
+    startUrl: hostUrl,
+    headless: agentMode,
+  });
   console.log(`[preview-daemon] chromium pid=${chromium.proc.pid} cdpPort=${chromium.cdpPort}`);
 
   const cdp = await CdpClient.connect(chromium.browserWsUrl);
 
-  // Wait for the initial page target to be discoverable.
   let pageTarget: { targetId: string; type: string; url: string } | undefined;
   const targetDeadline = Date.now() + TARGET_DISCOVERY_TIMEOUT_MS;
   while (!pageTarget && Date.now() < targetDeadline) {
@@ -364,8 +371,6 @@ export async function previewDaemon(): Promise<void> {
     { targetId: pageTarget.targetId, flatten: true },
   );
 
-  // Poll for window.__roolReady. Surface __roolError if the snapshot host
-  // bootstrap failed (e.g. malformed snapshot.json).
   const readyDeadline = Date.now() + READY_TIMEOUT_MS;
   let ready = false;
   while (Date.now() < readyDeadline) {
@@ -390,25 +395,21 @@ export async function previewDaemon(): Promise<void> {
   }
 
   const state: PreviewState = {
-    extensionId,
     pid: process.pid,
     serverPort,
-    cdpPort: chromium.cdpPort,
     browserWsUrl: chromium.browserWsUrl,
     targetId: pageTarget.targetId,
-    startedAt: Date.now(),
-    width,
-    height,
-    cwd,
+    extensionId,
+    extensionName,
   };
-  writeFileSync(stateFileFor(extensionId), JSON.stringify(state, null, 2));
-  console.log(`[preview-daemon] ready: ${stateFileFor(extensionId)}`);
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+  console.log(`[preview-daemon] ready: ${STATE_FILE}`);
 
   let cleanedUp = false;
   const cleanup = () => {
     if (cleanedUp) return;
     cleanedUp = true;
-    try { rmSync(stateFileFor(extensionId), { force: true }); } catch { /* */ }
+    try { rmSync(STATE_FILE, { force: true }); } catch { /* */ }
     try { server.close(); } catch { /* */ }
     try { cdp.close(); } catch { /* */ }
   };
@@ -429,6 +430,5 @@ export async function previewDaemon(): Promise<void> {
     process.exit(0);
   });
 
-  // Block forever; subsequent commands open their own CDP connections.
   await new Promise<void>(() => { /* never resolves */ });
 }
