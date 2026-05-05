@@ -234,6 +234,8 @@ async function spawnChromium(args: {
 }): Promise<ChromiumHandle> {
   const argv = [
     ...(args.headless ? ['--headless=new'] : []),
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
     '--disable-gpu',
     '--hide-scrollbars',
     '--no-first-run',
