@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 
 if (process.env.ROOL_PREVIEW_DAEMON === '1') {
@@ -13,11 +14,15 @@ if (process.env.ROOL_PREVIEW_DAEMON === '1') {
 const envFile = resolve(process.cwd(), '.env');
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
+const pkgPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../package.json');
+const { version } = JSON.parse(readFileSync(pkgPath, 'utf8')) as { version: string };
+
 const program = new Command();
 
 program
   .name('rool-extension')
-  .description('Build, run, and publish Rool extensions.');
+  .description('Build, run, and publish Rool extensions.')
+  .version(version);
 
 program
   .command('init [name]')
