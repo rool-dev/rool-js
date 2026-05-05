@@ -459,16 +459,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Install an extension into a space.
-   * If extensionId is a user extension you own, wires it directly.
-   * If it's a published extension, copies source and builds a new user extension.
-   * @returns The channel ID
-   */
-  async installExtension(spaceId: string, extensionId: string, channelId: string): Promise<string> {
-    return this.graphqlClient.installExtension(spaceId, extensionId, channelId);
-  }
-
-  /**
    * Respond to a server-initiated probe. Called by the client after running
    * the probe via the iframe bridge. Pass `result` on success or `error` on
    * failure (timeout, no bridge, handler threw).

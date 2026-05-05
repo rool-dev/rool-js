@@ -345,13 +345,19 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   }
 
   // ===========================================================================
+  // Extensions
+  // ===========================================================================
+
+  // Targets owning shard
+  async installExtension(extensionId: string, channelId: string): Promise<string> {
+    return this.graphqlClient.installExtension(this._id, extensionId, channelId);
+  }
+
+  // ===========================================================================
   // Export
   // ===========================================================================
 
-  /**
-   * Export space data and media as a zip archive.
-   * Targets the owning shard since the server reads from in-memory state.
-   */
+  // Targets the owning shard
   async exportArchive(): Promise<Blob> {
     const tokens = await this.authManager.getTokens();
     if (!tokens) throw new Error('Not authenticated');

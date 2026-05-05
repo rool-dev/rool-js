@@ -669,7 +669,6 @@ Discover and install extensions published by other users.
 | Method | Description |
 |--------|-------------|
 | `findExtensions(options?): Promise<PublishedExtensionInfo[]>` | Search the marketplace. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
-| `installExtension(spaceId, extensionId, channelId): Promise<string>` | Install an extension into a space. If you own it, wires it directly. If it's a marketplace extension, copies and builds a new extension in your library. Returns the channel ID. |
 | `publishToPublic(extensionId): Promise<void>` | Publish one of your extensions to the marketplace |
 | `unpublishFromPublic(extensionId): Promise<void>` | Remove from the marketplace (keeps the extension in your library) |
 
@@ -741,6 +740,7 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 | `getChannels(): ChannelInfo[]` | List channels (deprecated — use `channels` property instead) |
 | `renameChannel(channelId, name): Promise<void>` | Rename a channel |
 | `deleteChannel(channelId): Promise<void>` | Delete a channel |
+| `installExtension(extensionId, channelId): Promise<string>` | Install an extension into a channel of this space. If you own it, wires it directly. If it's a marketplace extension, copies and builds a new extension in your library. Returns the channel ID. |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
 | `refresh(): Promise<void>` | Refresh space data from server |
 
