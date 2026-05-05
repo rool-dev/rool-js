@@ -93,6 +93,7 @@ class ReactiveSpaceImpl {
   setLinkAccess(...args: Parameters<RoolSpace['setLinkAccess']>) { return this.#space.setLinkAccess(...args); }
   renameChannel(channelId: string, name: string): Promise<void> { return this.#space.renameChannel(channelId, name); }
   deleteChannel(channelId: string): Promise<void> { return this.#space.deleteChannel(channelId); }
+  installExtension(extensionId: string, channelId: string): Promise<string> { return this.#space.installExtension(extensionId, channelId); }
   exportArchive(): Promise<Blob> { return this.#space.exportArchive(); }
   refresh(): Promise<void> { return this.#space.refresh(); }
 

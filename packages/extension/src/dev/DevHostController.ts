@@ -248,11 +248,11 @@ export class DevHostController {
     if (this.installedExtensionIds.includes(extensionId)) return;
 
     try {
-      // Step 1: install extension (server applies manifest: name, systemInstruction, collections)
-      const channelId = await this.client.installExtension(this.currentSpaceId, extensionId, extensionId);
+      // Step 1: open the space (routes to the owning shard) and install the extension
+      const space = await this.client.openSpace(this.currentSpaceId);
+      const channelId = await space.installExtension(extensionId, extensionId);
 
       // Step 2: open channel for live subscription
-      const space = await this.client.openSpace(this.currentSpaceId);
       const ch = await space.openChannel(channelId);
       this.channels[extensionId] = ch;
 

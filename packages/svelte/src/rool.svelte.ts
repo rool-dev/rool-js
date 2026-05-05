@@ -284,11 +284,6 @@ class RoolImpl {
     return this.#client.findExtensions(options);
   }
 
-  /** Install an extension into a space. */
-  installExtension(spaceId: string, extensionId: string, channelId: string): Promise<string> {
-    return this.#client.installExtension(spaceId, extensionId, channelId);
-  }
-
   /** Respond to a server-initiated probe with a method-specific result or error. */
   probeResponse(requestId: string, result?: unknown, error?: string): Promise<boolean> {
     return this.#client.probeResponse(requestId, result, error);
