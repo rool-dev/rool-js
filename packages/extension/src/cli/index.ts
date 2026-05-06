@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { Command } from 'commander';
+import { isAgentMode } from './preview/lib.js';
 
 if (process.env.ROOL_PREVIEW_DAEMON === '1') {
   const { previewDaemon } = await import('./preview/daemon.js');
@@ -24,6 +25,11 @@ program
   .description('Build, run, and publish Rool extensions.')
   .version(version);
 
+// ---------------------------------------------------------------------------
+// Always available — the core build / observe loop. These are the only
+// commands a coding agent (ROOL_AGENT_MODE=1) ever sees.
+// ---------------------------------------------------------------------------
+
 program
   .command('init [name]')
   .description('Scaffold a new extension project.')
@@ -33,27 +39,11 @@ program
   });
 
 program
-  .command('dev')
-  .description('Start the dev server with the host shell.')
-  .action(async () => {
-    const { dev } = await import('./dev.js');
-    await dev();
-  });
-
-program
   .command('build')
   .description('Build the extension into ./dist.')
   .action(async () => {
     const { build } = await import('./build.js');
     await build();
-  });
-
-program
-  .command('upload')
-  .description('Build and upload the extension to your library. Use --publish to also publish.')
-  .action(async () => {
-    const { upload } = await import('./upload.js');
-    await upload();
   });
 
 const previewCmd = program
@@ -85,5 +75,68 @@ previewCmd
     const { reset } = await import('./preview/reset.js');
     await reset();
   });
+
+// ---------------------------------------------------------------------------
+// Human-only commands — hidden from agents. dev is the legacy human preview
+// (will be replaced by `preview` over time); upload + library/marketplace
+// management aren't part of an agent's build loop.
+// ---------------------------------------------------------------------------
+
+if (!isAgentMode()) {
+  program
+    .command('dev')
+    .description('Start the dev server with the host shell.')
+    .action(async () => {
+      const { dev } = await import('./dev.js');
+      await dev();
+    });
+
+  program
+    .command('upload')
+    .description('Build and upload the extension to your library. Use --publish to also publish.')
+    .action(async () => {
+      const { upload } = await import('./upload.js');
+      await upload();
+    });
+
+  program
+    .command('list')
+    .description('List the extensions in your library.')
+    .option('--env <env>', 'environment (local, dev, prod)', 'prod')
+    .action(async (opts: { env: 'local' | 'dev' | 'prod' }) => {
+      const { list } = await import('./list.js');
+      await list(opts.env);
+    });
+
+  program
+    .command('delete')
+    .description('Permanently delete an extension from your library.')
+    .argument('<extension-id>', 'extension to delete')
+    .option('--env <env>', 'environment (local, dev, prod)', 'prod')
+    .action(async (extensionId: string, opts: { env: 'local' | 'dev' | 'prod' }) => {
+      const { deleteExtension } = await import('./delete.js');
+      await deleteExtension(extensionId, opts.env);
+    });
+
+  program
+    .command('publish-public')
+    .description('Publish an uploaded extension to the public marketplace.')
+    .argument('<extension-id>', 'extension to publish')
+    .option('--env <env>', 'environment (local, dev, prod)', 'prod')
+    .action(async (extensionId: string, opts: { env: 'local' | 'dev' | 'prod' }) => {
+      const { publishPublic } = await import('./publish.js');
+      await publishPublic(extensionId, opts.env);
+    });
+
+  program
+    .command('unpublish')
+    .description('Remove an extension from the public marketplace (keeps it in your library).')
+    .argument('<extension-id>', 'extension to unpublish')
+    .option('--env <env>', 'environment (local, dev, prod)', 'prod')
+    .action(async (extensionId: string, opts: { env: 'local' | 'dev' | 'prod' }) => {
+      const { unpublish } = await import('./publish.js');
+      await unpublish(extensionId, opts.env);
+    });
+}
 
 await program.parseAsync(process.argv);

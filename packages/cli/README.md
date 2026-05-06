@@ -18,14 +18,6 @@ rool <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `extension create [name]` | Create a new Rool extension |
-| `extension dev` | Start the dev server |
-| `extension build` | Build the extension |
-| `extension upload` | Build and upload the extension to your library (`-p`/`--publish` to also publish to the marketplace) |
-| `extension list` | List your extensions |
-| `extension delete <extension-id>` | Delete an extension permanently |
-| `extension publish-public <extension-id>` | Publish an extension to the public marketplace |
-| `extension unpublish <extension-id>` | Remove an extension from the public marketplace |
 | `chat [prompt]` | Chat with a space (interactive if no prompt) |
 | `media upload <file>` | Upload a file to a space and create an object with the media URL |
 | `space list` | List all spaces |
@@ -38,7 +30,6 @@ rool <command> [options]
 
 | Option | Description |
 |--------|-------------|
-| `-e, --env <environment>` | Target environment (`local`, `dev`, `prod`) |
 | `-V, --version` | Show version number |
 | `-h, --help` | Show help for any command |
 
@@ -54,30 +45,6 @@ rool <command> [options]
 ### Examples
 
 ```bash
-# Create a new extension
-rool extension create my-extension
-
-# Start the dev server
-rool extension dev
-
-# Build the extension
-rool extension build
-
-# Build and upload the extension to your library
-rool extension upload
-
-# Upload and also publish to the public marketplace
-rool extension upload --publish
-
-# List your extensions
-rool extension list
-
-# Publish an already-uploaded extension to the marketplace
-rool extension publish-public my-extension
-
-# Remove an extension from the marketplace
-rool extension unpublish my-extension
-
 # Chat with the default space
 rool chat "What is the capital of France?"
 
@@ -118,10 +85,6 @@ rool logout
 ## Authentication
 
 On first use, the CLI opens your browser to authenticate. Credentials are stored in `~/.config/rool/`.
-
-## Version
-
-Current version: `0.1.11`. Use `rool --version` to check your installed version.
 
 ## License
 

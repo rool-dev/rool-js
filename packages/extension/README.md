@@ -14,13 +14,13 @@ Everything else (Vite config, entry point, HTML, Tailwind CSS) is provided by th
 ## Quick Start
 
 ```bash
-npx @rool-dev/cli extension create my-extension
+npx rool-extension init my-extension
 cd my-extension
 npm install
-npx rool-extension dev
+npx rool-extension build
 ```
 
-This opens a dev host at `/__rool-host/` that loads your extension in a sandboxed iframe, connected to a real Rool Space.
+`build` outputs the bundled extension to `./dist`. Run `rool-extension --help` for the rest of the command surface.
 
 ## Manifest
 
@@ -443,26 +443,9 @@ const host = createBridgeHost({
 });
 ```
 
-## CLI Commands
+## Preview
 
-| Command | Description |
-|---------|-------------|
-| `rool extension create [name]` | Scaffold a new extension project |
-| `rool extension dev` | Start the dev server with host shell |
-| `rool extension build` | Build the extension |
-| `rool extension upload` | Build and upload the extension to your library (`--publish` to also publish to the marketplace) |
-| `rool extension publish-public <id>` | Publish an existing uploaded extension to the public marketplace |
-| `rool extension unpublish <id>` | Remove an extension from the public marketplace |
-| `rool extension preview <subcommand>` | Browser-interaction commands against a headless preview of the extension (see below) |
-
-### Preview
-
-`preview` drives a headless browser session loading your extension, useful for visual checks and automation. Sessions are implicit — a daemon is auto-ensured for the extension in the current working directory, with no separate boot step.
-
-| Subcommand | Description |
-|------------|-------------|
-| `preview screenshot --out <path>` | Capture a PNG of the loaded preview to the given path |
-| `preview reset` | Restart the preview with a fresh snapshot (also use after `build` to pick up code changes) |
+`preview` drives a headless browser session loading your extension, useful for visual checks and automation. Sessions are implicit — a daemon is auto-ensured for the extension in the current working directory, with no separate boot step. Run `rool-extension preview --help` for subcommands.
 
 ## Exported Types
 

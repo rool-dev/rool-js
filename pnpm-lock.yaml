@@ -106,9 +106,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@rool-dev/extension':
-        specifier: workspace:*
-        version: link:../extension
       '@rool-dev/sdk':
         specifier: workspace:*
         version: link:../sdk

@@ -1,12 +1,11 @@
 /**
  * rool-extension init [name]
- *
- * Scaffolds a new extension project in the current directory or a named subdirectory.
  */
 
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
-import { resolve, basename, dirname } from 'path';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { isAgentMode } from './preview/lib.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -16,28 +15,31 @@ function getExtensionSdkVersion(): string {
   return pkg.version;
 }
 
-function toId(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+const ENTITY_ID_CHARSET =
+  '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+const ENTITY_ID_LENGTH = 6;
+
+function generateExtensionId(): string {
+  let result = '';
+  for (let i = 0; i < ENTITY_ID_LENGTH; i++) {
+    result += ENTITY_ID_CHARSET[Math.floor(Math.random() * ENTITY_ID_CHARSET.length)];
+  }
+  return result.toLowerCase();
 }
 
 function init() {
   const name = process.argv[3];
-  const dir = name ? resolve(process.cwd(), name) : process.cwd();
-  const appName = name ?? basename(dir);
-  const appId = toId(appName);
+  const appId = generateExtensionId();
+  const appName = name ?? 'New extension';
+  const dir = isAgentMode()
+    ? `/extensions/${appId}`
+    : resolve(process.cwd(), name ?? appId);
 
-  if (name) {
-    if (existsSync(dir)) {
-      console.error(`Directory "${name}" already exists.`);
-      process.exit(1);
-    }
-    mkdirSync(dir, { recursive: true });
-  }
-
-  if (existsSync(resolve(dir, 'manifest.json'))) {
-    console.error('manifest.json already exists in this directory.');
+  if (existsSync(dir)) {
+    console.error(`Directory "${dir}" already exists.`);
     process.exit(1);
   }
+  mkdirSync(dir, { recursive: true });
 
   const manifest = {
     id: appId,
@@ -112,15 +114,18 @@ pnpm dev
   writeFileSync(resolve(dir, 'package.json'), JSON.stringify(packageJson, null, 2) + '\n');
   writeFileSync(resolve(dir, 'AGENTS.md'), agentsMd);
 
-  const relDir = name ?? '.';
-  console.log(`
-  Created extension "${appName}" in ${relDir}/
+  if (isAgentMode()) {
+    console.log(`Created extension template at ${dir}`);
+  } else {
+    console.log(`
+  Created extension "${appName}" (${appId}) in ${dir}
 
   Next steps:
-    ${name ? `cd ${name}` : ''}
+    cd ${dir}
     npm install
     npx rool-extension dev
 `);
+  }
 }
 
 export { init };
