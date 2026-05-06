@@ -56,15 +56,15 @@ npx rool-extension build
 
 ### Collection Access
 
-The `collections` field declares what collections the extension works with, grouped by access level:
+The `collections` field declares the collections the extension works with. Named collections with field definitions are scaffolded into the space's schema when the extension is installed (a collection of the same name is overwritten). The `read` and `write` keys are declarative — they describe the extension's intended use of each collection for marketplace listings and AI context. They are not enforced access control; what the user can actually do with objects is governed by their space role (`viewer`, `editor`, `admin`, `owner`).
 
-- **`write`** — Collections the extension can create, update, and delete objects in. A field-definition list creates the collection in the space; an empty value grants access to an existing collection. `"*"` grants write access to all collections.
-- **`read`** — Collections the extension can read from. A field-definition list declares the collection schema. `"*"` grants read access to all collections.
+- **`write`** — Collections the extension creates, updates, and deletes objects in. Use a field-definition list to scaffold a collection on install. `"*"` declares the extension may write to any collection.
+- **`read`** — Collections the extension only reads from. `"*"` declares the extension may read from any collection.
 
-`write` implies `read` — no need to list a collection under both.
+Don't list the same collection under both — `write` already implies `read`.
 
 ```json
-// Extension with its own collections + read access to everything else
+// Extension with its own scaffolded collection + reads anything else in the space
 "collections": {
   "write": {
     "card": [
@@ -75,12 +75,12 @@ The `collections` field declares what collections the extension works with, grou
   "read": "*"
 }
 
-// Full access to all collections (chat, SQL interface, etc.)
+// Operates on whatever the space already contains
 "collections": {
   "write": "*"
 }
 
-// Read-only access to all collections
+// Pure consumer
 "collections": {
   "read": "*"
 }
@@ -282,7 +282,6 @@ const { message } = await channel.prompt('Summarize', { readOnly: true, effort: 
 | `effort` | `'QUICK'`, `'STANDARD'`, `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | Don't record in interaction history |
 | `readOnly` | Disable mutation tools |
-| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`) |
 
 The AI automatically receives interaction history, recently modified objects, and any objects passed via `objectIds` as context.
 
@@ -312,7 +311,7 @@ await channel.redo()   // deletes again
 Arbitrary key-value storage on the Space (not visible to AI):
 
 ```typescript
-channel.setMetadata('viewport', { zoom: 1.5 })
+await channel.setMetadata('viewport', { zoom: 1.5 })
 channel.getMetadata('viewport')
 channel.getAllMetadata()
 ```
@@ -327,9 +326,14 @@ await channel.setSystemInstruction('Respond in haiku')
 // List all conversations in this channel
 channel.getConversations()
 
-// Delete or rename a conversation
+// Delete a conversation by ID
 await channel.deleteConversation('old-thread')
+
+// Rename the active conversation
 await channel.renameConversation('Research')
+
+// Rename a specific conversation
+await channel.conversation('thread-42').rename('Research')
 ```
 
 ### Conversation Handles
@@ -372,9 +376,11 @@ channel.on('objectCreated', ({ objectId, object, source }) => { ... })
 channel.on('objectUpdated', ({ objectId, object, source }) => { ... })
 channel.on('objectDeleted', ({ objectId, source }) => { ... })
 channel.on('metadataUpdated', ({ metadata, source }) => { ... })
+channel.on('schemaUpdated', ({ schema, source }) => { ... })
 channel.on('channelUpdated', ({ channelId, source }) => { ... })
 channel.on('conversationUpdated', ({ conversationId, channelId, source }) => { ... })
 channel.on('reset', ({ source }) => { ... })
+channel.on('syncError', (error) => { ... })
 ```
 
 `source` is `'local_user'`, `'remote_user'`, `'remote_agent'`, or `'system'`.
@@ -433,14 +439,17 @@ The bridge protocol:
 3. Extension calls channel methods → `rool:request` → host executes → `rool:response`
 4. Host pushes real-time events → `rool:event` → extension updates reactive state
 
-When creating a bridge host, pass `user` so the extension can display the current user's name:
+When creating a bridge host, pass `user` so the extension can display the current user's name. Pass `colorScheme` to set the iframe's initial scheme (defaults to `'light'`), and call `host.setColorScheme(...)` later to push changes:
 
 ```typescript
 const host = createBridgeHost({
   channel,
   iframe,
   user: { id: currentUser.id, name: currentUser.name, email: currentUser.email },
+  colorScheme: 'dark',
 });
+
+host.setColorScheme('light');
 ```
 
 ## Preview
