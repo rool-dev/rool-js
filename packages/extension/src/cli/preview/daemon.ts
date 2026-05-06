@@ -403,6 +403,7 @@ export async function previewDaemon(): Promise<void> {
     targetId: pageTarget.targetId,
     extensionId,
     extensionName,
+    step: 0,
   };
   writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
   console.log(`[preview-daemon] ready: ${STATE_FILE}`);

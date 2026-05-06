@@ -65,8 +65,11 @@ const previewCmd = program
 
 previewCmd
   .command('screenshot')
-  .description('Capture a PNG of the loaded preview.')
-  .requiredOption('--out <path>', 'Output PNG path')
+  .description(
+    'Capture a PNG of the loaded preview. Writes to ./screenshots/NNN-screenshot.png ' +
+    'where NNN is the current session step (auto-incremented per interaction).',
+  )
+  .option('--out <path>', 'Override the output path')
   .action(async (opts) => {
     const { screenshot } = await import('./preview/screenshot.js');
     await screenshot(opts);
@@ -74,7 +77,10 @@ previewCmd
 
 previewCmd
   .command('reset')
-  .description('Restart the preview with a fresh snapshot. Use after `build` to pick up code changes.')
+  .description(
+    'Start a new preview session: restart the daemon with a fresh snapshot, reset the ' +
+    'step counter to 0, and wipe ./screenshots/. Use after `build` to pick up code changes.',
+  )
   .action(async () => {
     const { reset } = await import('./preview/reset.js');
     await reset();

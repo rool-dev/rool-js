@@ -6,7 +6,7 @@
  * so cwd-mismatched commands can give a clear error.
  */
 
-import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import type { Manifest } from '../../manifest.js';
 import { readManifest } from '../vite-utils.js';
@@ -17,6 +17,9 @@ export const LOG_FILE = resolve(STATE_ROOT, 'daemon.log');
 export const USER_DATA_DIR = resolve(STATE_ROOT, 'cdp');
 export const SYNTH_SNAPSHOT_FILE = resolve(STATE_ROOT, 'empty-snapshot.json');
 export const SYNTH_INFO_FILE = resolve(STATE_ROOT, 'empty-snapshot.info.json');
+
+/** cwd-relative directory for default-named interaction artifacts (screenshots, etc). */
+export const ARTIFACTS_DIR = 'screenshots';
 
 
 // hardcoded assumptions when agent owns the preview
@@ -30,6 +33,13 @@ export interface PreviewState {
   targetId: string;
   extensionId: string;
   extensionName: string;
+  /**
+   * Monotonic step counter — incremented by every browser-interaction
+   * command (currently just `screenshot`, future `click`/`console`/etc.).
+   * Used to derive default output filenames so commands don't overwrite
+   * each other. Resets when the daemon restarts.
+   */
+  step: number;
 }
 
 export function isAgentMode(): boolean {
@@ -54,6 +64,24 @@ export function readState(): PreviewState | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Read state, increment the step counter, and write it back. Returns the
+ * new step value. Read-modify-write is not atomic across processes — if
+ * two interaction commands race they may collide on the same number, but
+ * agent / dev usage is sequential in practice.
+ */
+export function nextStep(): number {
+  const state = readState();
+  if (!state) {
+    throw new Error(
+      `No preview daemon running (state file missing at ${STATE_FILE}).`,
+    );
+  }
+  const step = (state.step ?? 0) + 1;
+  writeFileSync(STATE_FILE, JSON.stringify({ ...state, step }, null, 2));
+  return step;
 }
 
 export function isPidAlive(pid: number): boolean {
