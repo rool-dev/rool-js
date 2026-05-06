@@ -115,7 +115,11 @@ pnpm dev
   writeFileSync(resolve(dir, 'AGENTS.md'), agentsMd);
 
   if (isAgentMode()) {
-    console.log(`Created extension template at ${dir}`);
+    console.log(
+      `Initialized extension at ${dir}.\n` +
+      `  manifest.id: "${appId}" — platform handle. The directory name MUST match this id; do not rename.\n` +
+      `  manifest.name: "${appName}" — display name, edit freely in manifest.json.`
+    );
   } else {
     console.log(`
   Created extension "${appName}" (${appId}) in ${dir}
