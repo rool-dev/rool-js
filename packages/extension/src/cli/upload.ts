@@ -5,7 +5,7 @@
  * Rool extension platform. With --publish, also publishes it to the public
  * marketplace.
  *
- * Usage: npx rool-extension upload [--env local|dev|prod] [--publish]
+ * Usage: rool-extension upload [--env local|dev|prod] [--publish]
  */
 
 import { RoolClient } from '@rool-dev/sdk';
@@ -15,31 +15,9 @@ import { ENV_URLS } from '../manifest.js';
 import { readManifestOrExit, formatBytes } from './vite-utils.js';
 import { buildExtension, zipProject } from './build-pipeline.js';
 
-function parseArgs(): { env: Environment; publish: boolean } {
-  const args = process.argv.slice(3); // after 'upload'
-  let env: Environment = 'prod';
-  let publish = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--env' && args[i + 1]) {
-      const val = args[i + 1];
-      if (val !== 'local' && val !== 'dev' && val !== 'prod') {
-        console.error(`Invalid environment: ${val}. Use 'local', 'dev', or 'prod'.`);
-        process.exit(1);
-      }
-      env = val;
-      i++;
-    } else if (args[i] === '--publish' || args[i] === '-p') {
-      publish = true;
-    }
-  }
-
-  return { env, publish };
-}
-
-export async function upload() {
+export async function upload(opts: { env: Environment; publish: boolean }) {
   const cwd = process.cwd();
-  const { env, publish } = parseArgs();
+  const { env, publish } = opts;
   const manifest = readManifestOrExit(cwd);
 
   console.log(`\n  Building ${manifest.name}...\n`);

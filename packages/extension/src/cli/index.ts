@@ -33,9 +33,9 @@ program
 program
   .command('init [name]')
   .description('Scaffold a new extension project.')
-  .action(async () => {
+  .action(async (name?: string) => {
     const { init } = await import('./init.js');
-    init();
+    init(name);
   });
 
 program
@@ -94,9 +94,11 @@ if (!isAgentMode()) {
   program
     .command('upload')
     .description('Build and upload the extension to your library. Use --publish to also publish.')
-    .action(async () => {
+    .option('--env <env>', 'environment (local, dev, prod)', 'prod')
+    .option('-p, --publish', 'also publish to the public marketplace', false)
+    .action(async (opts: { env: 'local' | 'dev' | 'prod'; publish: boolean }) => {
       const { upload } = await import('./upload.js');
-      await upload();
+      await upload(opts);
     });
 
   program

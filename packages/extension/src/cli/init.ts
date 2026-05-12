@@ -27,8 +27,7 @@ function generateExtensionId(): string {
   return result.toLowerCase();
 }
 
-function init() {
-  const name = process.argv[3];
+function init(name?: string) {
   const appId = generateExtensionId();
   const appName = name ?? 'New extension';
   const dir = isAgentMode()
@@ -70,9 +69,6 @@ function init() {
     private: true,
     version: '0.0.0',
     type: 'module',
-    scripts: {
-      dev: 'rool-extension dev',
-    },
     dependencies: {
       '@rool-dev/extension': `^${getExtensionSdkVersion()}`,
     },
@@ -101,12 +97,6 @@ cat node_modules/@rool-dev/extension/README.md
 - \`app.css\` — Optional custom styles (Tailwind v4 is available by default)
 
 Additional \`.svelte\` and \`.ts\` files can be imported from \`App.svelte\`.
-
-## Dev server
-
-\`\`\`
-pnpm dev
-\`\`\`
 `;
 
   writeFileSync(resolve(dir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
@@ -126,8 +116,7 @@ pnpm dev
 
   Next steps:
     cd ${dir}
-    npm install
-    npx rool-extension dev
+    pnpm install
 `);
   }
 }
