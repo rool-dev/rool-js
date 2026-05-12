@@ -10,8 +10,8 @@
 import type { BridgeRequest, BridgeInit, BridgeUser, ColorScheme, BridgeProbeResult } from './protocol.js';
 import { isBridgeMessage } from './protocol.js';
 
-export { SnapshotChannel } from './snapshot-channel.js';
-export type { RoolSpaceData, SnapshotChannelOptions } from './snapshot-channel.js';
+export { FsChannel } from './fs-channel.js';
+export type { FsChannelOptions, FsOverview } from './fs-channel.js';
 
 /**
  * Minimal channel interface accepted by the bridge host.

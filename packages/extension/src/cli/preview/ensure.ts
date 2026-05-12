@@ -1,18 +1,16 @@
 import { spawn } from 'child_process';
 import { existsSync, openSync, readFileSync } from 'fs';
-import { basename, resolve } from 'path';
+import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import type { Manifest } from '../../manifest.js';
 import {
   ensureStateDir,
-  isAgentMode,
   isPidAlive,
   LOG_FILE,
   type PreviewState,
   readState,
   sleep,
 } from './lib.js';
-import { writeEmptySnapshot } from './snapshot-synth.js';
 
 const READY_TIMEOUT_MS = 60_000;
 const STOP_GRACE_MS = 3_000;
@@ -34,8 +32,6 @@ export async function ensurePreview(
     process.exit(1);
   }
 
-  if (!isAgentMode()) checkChromiumSupportsHeaded();
-
   const existing = readState();
   if (existing && isPidAlive(existing.pid)) {
     if (!opts.reset && existing.extensionId === manifest.id) {
@@ -43,8 +39,6 @@ export async function ensurePreview(
     }
     await stopExisting(existing.pid);
   }
-
-  if (!isAgentMode()) writeEmptySnapshot(manifest);
 
   return spawnPreviewDaemon(manifest, distDir);
 }
@@ -108,18 +102,5 @@ async function stopExisting(pid: number): Promise<void> {
   if (isPidAlive(pid)) {
     try { process.kill(pid, 'SIGKILL'); } catch { /* */ }
     await sleep(200);
-  }
-}
-
-function checkChromiumSupportsHeaded(): void {
-  const bin = process.env.ROOL_CHROMIUM ?? 'chromium-headless-shell';
-  const name = basename(bin);
-  if (name === 'chrome-headless-shell' || name === 'chromium-headless-shell') {
-    console.error(
-      `ROOL_CHROMIUM=${bin} is a headless-only build, but local preview runs headed.\n` +
-      `Install full Chrome (e.g. \`npx @puppeteer/browsers install chrome@latest --path ~/.cache/puppeteer\`) ` +
-      `and point ROOL_CHROMIUM at it.`,
-    );
-    process.exit(1);
   }
 }

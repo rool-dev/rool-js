@@ -15,16 +15,9 @@ export const STATE_ROOT = '/tmp/rool-preview';
 export const STATE_FILE = resolve(STATE_ROOT, 'state.json');
 export const LOG_FILE = resolve(STATE_ROOT, 'daemon.log');
 export const USER_DATA_DIR = resolve(STATE_ROOT, 'cdp');
-export const SYNTH_SNAPSHOT_FILE = resolve(STATE_ROOT, 'empty-snapshot.json');
-export const SYNTH_INFO_FILE = resolve(STATE_ROOT, 'empty-snapshot.info.json');
 
 /** cwd-relative directory for default-named interaction artifacts (screenshots, etc). */
 export const ARTIFACTS_DIR = 'screenshots';
-
-
-// hardcoded assumptions when agent owns the preview
-export const AGENT_SNAPSHOT_PATH = '/space/snapshot.json';
-export const AGENT_INFO_PATH = '/space/info.json';
 
 export interface PreviewState {
   pid: number;
@@ -44,13 +37,6 @@ export interface PreviewState {
 
 export function isAgentMode(): boolean {
   return !!process.env['ROOL_AGENT_MODE'];
-}
-
-/** Resolve snapshot + info paths for the current mode. */
-export function snapshotPaths(): { snapshotPath: string; infoPath: string } {
-  return isAgentMode()
-    ? { snapshotPath: AGENT_SNAPSHOT_PATH, infoPath: AGENT_INFO_PATH }
-    : { snapshotPath: SYNTH_SNAPSHOT_FILE, infoPath: SYNTH_INFO_FILE };
 }
 
 export function ensureStateDir(): void {

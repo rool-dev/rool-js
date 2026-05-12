@@ -68,8 +68,8 @@ previewCmd
 previewCmd
   .command('reset')
   .description(
-    'Start a new preview session: restart the daemon with a fresh snapshot, reset the ' +
-    'step counter to 0, and wipe ./screenshots/. Use after `build` to pick up code changes.',
+    'Start a new preview session: restart the daemon, reset the step counter to 0, ' +
+    'and wipe ./screenshots/. Use after `build` to pick up code changes.',
   )
   .action(async () => {
     const { reset } = await import('./preview/reset.js');
@@ -77,20 +77,11 @@ previewCmd
   });
 
 // ---------------------------------------------------------------------------
-// Human-only commands — hidden from agents. dev is the legacy human preview
-// (will be replaced by `preview` over time); upload + library/marketplace
-// management aren't part of an agent's build loop.
+// Human-only commands — upload + library/marketplace management aren't part
+// of an agent's build loop.
 // ---------------------------------------------------------------------------
 
 if (!isAgentMode()) {
-  program
-    .command('dev')
-    .description('Start the dev server with the host shell.')
-    .action(async () => {
-      const { dev } = await import('./dev.js');
-      await dev();
-    });
-
   program
     .command('upload')
     .description('Build and upload the extension to your library. Use --publish to also publish.')

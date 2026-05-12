@@ -1,15 +1,15 @@
 /**
- * SnapshotChannel — a BridgeableChannel backed by an in-memory snapshot.
+ * FsChannel — a BridgeableChannel backed by the in-VM /space FUSE projection.
  *
- * Mirrors the surface of @rool-dev/sdk's RoolChannel that BridgeHost
- * dispatches to (see ALLOWED_METHODS in host.ts), but reads and writes
- * a parsed `RoolSpaceData` JSON object directly. State is scratch:
- * mutations live in memory and die with the page.
+ * All data ops translate to HTTP calls against a small "space proxy" served
+ * by the preview daemon on the same origin. The proxy forwards to the in-VM
+ * rool-space-api.py, injecting bearer auth and actor headers server-side.
+ * Reactivity comes from an SSE stream the daemon pushes whenever it sees
+ * /space change.
  *
- * Designed for the in-VM preview server, where every microVM boots with
- * `/space/snapshot.json` and there is no GraphQL backend reachable.
- *
- * Out of scope (throws): AI prompts, checkpoint/undo/redo, server fetch.
+ * Conversations / interactions are kept in memory: /space doesn't expose
+ * them. Out of scope (throws / no-ops): AI prompts, checkpoint/undo/redo,
+ * server-proxied fetch.
  */
 import type {
   Channel,
@@ -29,10 +29,7 @@ import type {
 } from '@rool-dev/sdk';
 import type { BridgeableChannel } from './host.js';
 
-// Mirror of rool-server's RoolSpaceData. Kept inline to avoid pulling
-// the server package; this is the shape of `/space/snapshot.json`.
-interface RoolObjectEntry {
-  data: Record<string, unknown>;
+interface FsObjectStat {
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
@@ -41,24 +38,25 @@ interface RoolObjectEntry {
   modifiedInInteraction: string | null;
 }
 
-export interface RoolSpaceData {
-  objects: Record<string, RoolObjectEntry>;
-  meta?: Record<string, unknown>;
-  channels?: Record<string, Channel>;
+export interface FsOverview {
+  objectIds: string[];
+  objectStats: Array<{ id: string } & FsObjectStat>;
   schema: SpaceSchema;
+  meta: Record<string, unknown>;
 }
 
-export interface SnapshotChannelOptions {
-  /** Parsed snapshot.json (mutated in place). */
-  data: RoolSpaceData;
-  /** Space id (matches snapshot info.json). */
+export interface FsChannelOptions {
+  /** Base URL of the space proxy, e.g. '/__rool-host/space'. */
+  baseUrl: string;
+  /** Space id (must match what the daemon was started for). */
   spaceId: string;
-  /** Space name (matches snapshot info.json). */
+  /** Space name shown to the extension. */
   spaceName: string;
-  /** Channel id this view operates against. The matching channel record
-   *  must exist in `data.channels[channelId]`, or one will be synthesized. */
+  /** Channel id this view operates against. */
   channelId: string;
-  /** User id to attribute mutations to. Default: 'snapshot-user'. */
+  /** Pre-fetched overview, used to seed the in-memory caches. */
+  overview: FsOverview;
+  /** User id to attribute mutations to. Default: 'preview-user'. */
   userId?: string;
   /** Role exposed to the extension. Default: 'editor'. */
   role?: RoolUserRole;
@@ -96,7 +94,17 @@ class TinyEmitter {
   }
 }
 
-export class SnapshotChannel implements BridgeableChannel {
+interface ServerEvent {
+  type: 'objectChanged' | 'objectDeleted' | 'schemaChanged' | 'metaChanged';
+  objectId?: string;
+  collection?: string;
+  object?: Record<string, unknown>;
+  stat?: FsObjectStat;
+  schema?: SpaceSchema;
+  meta?: Record<string, unknown>;
+}
+
+export class FsChannel implements BridgeableChannel {
   readonly id: string;
   readonly name: string;
   readonly role: RoolUserRole;
@@ -104,33 +112,116 @@ export class SnapshotChannel implements BridgeableChannel {
   readonly userId: string;
   readonly channelId: string;
 
-  private data: RoolSpaceData;
+  private baseUrl: string;
   private conversationId: string;
   private channel: Channel;
+  private schema: SpaceSchema;
+  private meta: Record<string, unknown>;
+  private statsById = new Map<string, FsObjectStat>();
   private activeLeaves = new Map<string, string>();
   private emitter = new TinyEmitter();
+  private events: EventSource | null = null;
 
-  constructor(opts: SnapshotChannelOptions) {
+  constructor(opts: FsChannelOptions) {
     this.id = opts.spaceId;
     this.name = opts.spaceName;
     this.role = opts.role ?? 'editor';
     this.linkAccess = opts.linkAccess ?? 'none';
-    this.userId = opts.userId ?? 'snapshot-user';
+    this.userId = opts.userId ?? 'preview-user';
     this.channelId = opts.channelId;
     this.conversationId = opts.conversationId ?? DEFAULT_CONVERSATION_ID;
-    this.data = opts.data;
+    this.baseUrl = opts.baseUrl.replace(/\/$/, '');
 
-    if (!this.data.channels) this.data.channels = {};
-    let ch = this.data.channels[this.channelId];
-    if (!ch) {
-      ch = {
-        createdAt: Date.now(),
-        createdBy: this.userId,
-        conversations: {},
-      };
-      this.data.channels[this.channelId] = ch;
+    this.schema = opts.overview.schema;
+    this.meta = opts.overview.meta;
+    for (const stat of opts.overview.objectStats) {
+      const { id, ...rest } = stat;
+      this.statsById.set(id, rest);
     }
-    this.channel = ch;
+    this.channel = {
+      createdAt: Date.now(),
+      createdBy: this.userId,
+      conversations: {},
+    };
+
+    this.subscribeToEvents();
+  }
+
+  // --- HTTP helpers -----------------------------------------------------
+
+  private url(path: string): string {
+    return `${this.baseUrl}/v1/spaces/${encodeURIComponent(this.id)}${path}`;
+  }
+
+  private async req<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const res = await fetch(this.url(path), {
+      method,
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    let parsed: unknown;
+    const text = await res.text();
+    if (text) {
+      try { parsed = JSON.parse(text); } catch { parsed = text; }
+    }
+    if (!res.ok) {
+      const errMsg = (parsed && typeof parsed === 'object' && 'error' in parsed)
+        ? String((parsed as { error: unknown }).error)
+        : `HTTP ${res.status}`;
+      throw new Error(errMsg);
+    }
+    return parsed as T;
+  }
+
+  // --- Event stream -----------------------------------------------------
+
+  private subscribeToEvents(): void {
+    if (typeof EventSource === 'undefined') return;
+    const url = `${this.baseUrl}/events`;
+    this.events = new EventSource(url);
+    this.events.onmessage = (ev) => {
+      let parsed: ServerEvent;
+      try { parsed = JSON.parse(ev.data) as ServerEvent; } catch { return; }
+      this.handleServerEvent(parsed);
+    };
+    this.events.onerror = () => {
+      // EventSource auto-reconnects; surface a syncError but keep the
+      // subscription alive.
+      this.emitter.emit('syncError', new Error('Preview event stream disconnected'));
+    };
+  }
+
+  private handleServerEvent(ev: ServerEvent): void {
+    if (ev.type === 'objectChanged' && ev.objectId && ev.object && ev.stat) {
+      const wasKnown = this.statsById.has(ev.objectId);
+      const prev = this.statsById.get(ev.objectId);
+      // Idempotent: skip if the stamp we already have is at least as recent.
+      if (prev && prev.modifiedAt >= ev.stat.modifiedAt) return;
+      this.statsById.set(ev.objectId, ev.stat);
+      const name = wasKnown ? 'objectUpdated' : 'objectCreated';
+      this.emitter.emit(name, {
+        objectId: ev.objectId,
+        object: ev.object as RoolObject,
+        source: 'remote_agent',
+      });
+      return;
+    }
+    if (ev.type === 'objectDeleted' && ev.objectId) {
+      if (!this.statsById.has(ev.objectId)) return;
+      this.statsById.delete(ev.objectId);
+      this.emitter.emit('objectDeleted', { objectId: ev.objectId, source: 'remote_agent' });
+      return;
+    }
+    if (ev.type === 'schemaChanged' && ev.schema) {
+      this.schema = ev.schema;
+      this.emitter.emit('schemaUpdated', { schema: this.schema, source: 'remote_agent' });
+      return;
+    }
+    if (ev.type === 'metaChanged' && ev.meta) {
+      this.meta = ev.meta;
+      this.emitter.emit('metadataUpdated', { metadata: this.meta, source: 'remote_agent' });
+      return;
+    }
   }
 
   // --- BridgeableChannel surface ----------------------------------------
@@ -143,31 +234,36 @@ export class SnapshotChannel implements BridgeableChannel {
   }
 
   conversation(conversationId: string): unknown {
-    return new SnapshotConversationHandle(this, conversationId);
+    return new FsConversationHandle(this, conversationId);
+  }
+
+  destroy(): void {
+    if (this.events) {
+      this.events.close();
+      this.events = null;
+    }
   }
 
   // --- Object reads -----------------------------------------------------
 
   async getObject(objectId: string): Promise<RoolObject | undefined> {
-    const entry = this.data.objects[objectId];
-    return entry ? (entry.data as RoolObject) : undefined;
+    try {
+      const body = await this.req<Record<string, unknown>>('GET', `/objects/${encodeURIComponent(objectId)}`);
+      return body as RoolObject;
+    } catch (e) {
+      if (e instanceof Error && /OBJECT_NOT_FOUND/.test(e.message)) return undefined;
+      throw e;
+    }
   }
 
   stat(objectId: string): RoolObjectStat | undefined {
-    const entry = this.data.objects[objectId];
-    if (!entry) return undefined;
-    return {
-      modifiedAt: entry.modifiedAt,
-      modifiedBy: entry.modifiedBy,
-      modifiedByName: entry.modifiedByName,
-      modifiedInChannel: entry.modifiedInChannel,
-      modifiedInConversation: entry.modifiedInConversation,
-      modifiedInInteraction: entry.modifiedInInteraction,
-    };
+    const s = this.statsById.get(objectId);
+    if (!s) return undefined;
+    return { ...s };
   }
 
   getObjectIds(options?: { limit?: number; order?: 'asc' | 'desc' }): string[] {
-    const entries = Object.entries(this.data.objects);
+    const entries = Array.from(this.statsById.entries());
     entries.sort((a, b) => b[1].modifiedAt - a[1].modifiedAt);
     let ids = entries.map(([id]) => id);
     if (options?.order === 'asc') ids = ids.reverse();
@@ -177,30 +273,22 @@ export class SnapshotChannel implements BridgeableChannel {
 
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
     if (options.prompt) {
-      throw new Error('findObjects with `prompt` (AI) is not supported by SnapshotChannel');
+      throw new Error('findObjects with `prompt` (AI) is not supported in preview');
     }
-    const candidateIds = options.objectIds ?? Object.keys(this.data.objects);
-    const matches: { id: string; entry: RoolObjectEntry }[] = [];
-    for (const id of candidateIds) {
-      const entry = this.data.objects[id];
-      if (!entry) continue;
-      if (options.collection !== undefined && entry.data.type !== options.collection) continue;
-      if (options.where) {
-        let ok = true;
-        for (const [k, v] of Object.entries(options.where)) {
-          if (entry.data[k] !== v) { ok = false; break; }
-        }
-        if (!ok) continue;
-      }
-      matches.push({ id, entry });
-    }
-    matches.sort((a, b) => b.entry.modifiedAt - a.entry.modifiedAt);
-    if (options.order === 'asc') matches.reverse();
-    let limited = matches;
-    if (options.limit !== undefined) limited = matches.slice(0, options.limit);
+    const body = await this.req<{ objects: Array<Record<string, unknown>>; count: number }>(
+      'POST',
+      '/find',
+      {
+        where: options.where,
+        collection: options.collection,
+        objectIds: options.objectIds,
+        order: options.order ?? 'desc',
+        limit: options.limit,
+      },
+    );
     return {
-      objects: limited.map(m => m.entry.data as RoolObject),
-      message: `Found ${limited.length} object(s)`,
+      objects: body.objects as RoolObject[],
+      message: `Found ${body.count} object(s)`,
     };
   }
 
@@ -210,70 +298,49 @@ export class SnapshotChannel implements BridgeableChannel {
     return this.createObjectScoped(options, this.conversationId);
   }
 
-  async createObjectScoped(options: CreateObjectOptions, conversationId: string): Promise<{ object: RoolObject; message: string }> {
-    const { data } = options;
-    const objectId = typeof data.id === 'string' && data.id ? data.id : generateEntityId();
-    if (!/^[a-zA-Z0-9_-]+$/.test(objectId)) {
-      throw new Error(`Invalid object ID "${objectId}"`);
-    }
-    if (this.data.objects[objectId]) {
-      throw new Error(`Object "${objectId}" already exists`);
-    }
-    const dataWithId = { ...data, id: objectId } as RoolObject;
-    const entry: RoolObjectEntry = {
-      data: dataWithId,
-      modifiedAt: Date.now(),
-      modifiedBy: this.userId,
-      modifiedByName: null,
-      modifiedInChannel: this.channelId,
-      modifiedInConversation: conversationId,
-      modifiedInInteraction: null,
-    };
-    this.data.objects[objectId] = entry;
-    this.emitter.emit('objectCreated', { objectId, object: dataWithId, source: 'local_user' });
-    return { object: dataWithId, message: 'Object created' };
+  async createObjectScoped(options: CreateObjectOptions, _conversationId: string): Promise<{ object: RoolObject; message: string }> {
+    const data = { ...options.data };
+    if (typeof data.id !== 'string' || !data.id) data.id = generateEntityId();
+    const objectId = data.id as string;
+    await this.req('POST', '/objects', { data });
+    const created = (await this.getObject(objectId)) ?? (data as RoolObject);
+    this.statsById.set(objectId, this.synthStat());
+    this.emitter.emit('objectCreated', { objectId, object: created, source: 'local_user' });
+    return { object: created, message: 'Object created' };
   }
 
   async updateObject(objectId: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
     return this.updateObjectScoped(objectId, options, this.conversationId);
   }
 
-  async updateObjectScoped(objectId: string, options: UpdateObjectOptions, conversationId: string): Promise<{ object: RoolObject; message: string }> {
+  async updateObjectScoped(objectId: string, options: UpdateObjectOptions, _conversationId: string): Promise<{ object: RoolObject; message: string }> {
     if (options.prompt) {
-      throw new Error('updateObject with `prompt` (AI) is not supported by SnapshotChannel');
+      throw new Error('updateObject with `prompt` (AI) is not supported in preview');
     }
-    const entry = this.data.objects[objectId];
-    if (!entry) throw new Error(`NOT_FOUND: Object "${objectId}" not found`);
-
-    const data = options.data;
-    if (data) {
-      if (data.id !== undefined && data.id !== null && data.id !== objectId) {
-        throw new Error('Cannot change id in updateObject');
+    const set: Record<string, unknown> = {};
+    const remove: string[] = [];
+    if (options.data) {
+      for (const [k, v] of Object.entries(options.data)) {
+        if (k === 'id') continue;
+        if (v === null || v === undefined) remove.push(k);
+        else set[k] = v;
       }
-      const merged: Record<string, unknown> = { ...entry.data };
-      for (const [k, v] of Object.entries(data)) {
-        if (k === 'id' || k.startsWith('_')) continue;
-        if (v === null || v === undefined) delete merged[k];
-        else merged[k] = v;
-      }
-      entry.data = merged;
     }
-    entry.modifiedAt = Date.now();
-    entry.modifiedBy = this.userId;
-    entry.modifiedInChannel = this.channelId;
-    entry.modifiedInConversation = conversationId;
-    entry.modifiedInInteraction = null;
-
-    this.emitter.emit('objectUpdated', { objectId, object: entry.data as RoolObject, source: 'local_user' });
-    return { object: entry.data as RoolObject, message: 'Object updated' };
+    await this.req('PATCH', `/objects/${encodeURIComponent(objectId)}`, { set, remove });
+    const after = await this.getObject(objectId);
+    if (!after) throw new Error(`NOT_FOUND: Object "${objectId}" not found`);
+    this.statsById.set(objectId, this.synthStat());
+    this.emitter.emit('objectUpdated', { objectId, object: after, source: 'local_user' });
+    return { object: after, message: 'Object updated' };
   }
 
   async deleteObjects(objectIds: string[]): Promise<void> {
     for (const id of objectIds) {
-      if (!this.data.objects[id]) throw new Error(`NOT_FOUND: Object "${id}" not found`);
+      if (!this.statsById.has(id)) throw new Error(`NOT_FOUND: Object "${id}" not found`);
     }
+    await this.req('POST', '/objects/_delete', { ids: objectIds });
     for (const id of objectIds) {
-      delete this.data.objects[id];
+      this.statsById.delete(id);
       this.emitter.emit('objectDeleted', { objectId: id, source: 'local_user' });
     }
   }
@@ -281,32 +348,38 @@ export class SnapshotChannel implements BridgeableChannel {
   // --- Schema -----------------------------------------------------------
 
   getSchema(): SpaceSchema {
-    return this.data.schema;
+    return this.schema;
   }
 
   async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
-    if (this.data.schema[name]) throw new Error(`Collection "${name}" already exists`);
-    const def: CollectionDef = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
-    this.data.schema[name] = def;
-    this.emitter.emit('schemaUpdated', { schema: this.data.schema, source: 'local_user' });
-    return def;
+    const res = await this.req<{ name: string; def: CollectionDef }>(
+      'POST', '/schema',
+      { name, fields },
+    );
+    this.schema = { ...this.schema, [name]: res.def };
+    this.emitter.emit('schemaUpdated', { schema: this.schema, source: 'local_user' });
+    return res.def;
   }
 
   async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
-    if (!this.data.schema[name]) throw new Error(`Collection "${name}" not found`);
-    const def: CollectionDef = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
-    this.data.schema[name] = def;
-    this.emitter.emit('schemaUpdated', { schema: this.data.schema, source: 'local_user' });
-    return def;
+    const res = await this.req<{ name: string; def: CollectionDef }>(
+      'PUT', `/schema/${encodeURIComponent(name)}`,
+      { fields },
+    );
+    this.schema = { ...this.schema, [name]: res.def };
+    this.emitter.emit('schemaUpdated', { schema: this.schema, source: 'local_user' });
+    return res.def;
   }
 
   async dropCollection(name: string): Promise<void> {
-    if (!this.data.schema[name]) throw new Error(`Collection "${name}" not found`);
-    delete this.data.schema[name];
-    this.emitter.emit('schemaUpdated', { schema: this.data.schema, source: 'local_user' });
+    await this.req('DELETE', `/schema/${encodeURIComponent(name)}`);
+    const next = { ...this.schema };
+    delete next[name];
+    this.schema = next;
+    this.emitter.emit('schemaUpdated', { schema: this.schema, source: 'local_user' });
   }
 
-  // --- Conversation / interactions --------------------------------------
+  // --- Conversation / interactions (in-memory only) ---------------------
 
   getInteractions(): Interaction[] {
     return this.getInteractionsScoped(this.conversationId);
@@ -351,7 +424,6 @@ export class SnapshotChannel implements BridgeableChannel {
     if (explicit) return explicit;
     const conv = this.channel.conversations[conversationId];
     if (!conv || Array.isArray(conv.interactions)) return undefined;
-    // Default leaf: most recent interaction with no children
     const ixs = Object.values(conv.interactions);
     const childSet = new Set<string>();
     for (const ix of ixs) if (ix.parentId) childSet.add(ix.parentId);
@@ -406,7 +478,6 @@ export class SnapshotChannel implements BridgeableChannel {
   async setSystemInstruction(instruction: string | null): Promise<void> {
     return this.setSystemInstructionScoped(instruction, this.conversationId);
   }
-
   async setSystemInstructionScoped(instruction: string | null, conversationId: string): Promise<void> {
     const conv = this.ensureConversation(conversationId);
     if (instruction === null) delete conv.systemInstruction;
@@ -445,41 +516,50 @@ export class SnapshotChannel implements BridgeableChannel {
   // --- Metadata ---------------------------------------------------------
 
   setMetadata(key: string, value: unknown): void {
-    this.setMetadataScoped(key, value, this.conversationId);
+    void this.setMetadataScoped(key, value, this.conversationId);
   }
-  setMetadataScoped(key: string, value: unknown, _conversationId: string): void {
-    if (!this.data.meta) this.data.meta = {};
-    this.data.meta[key] = value;
-    this.emitter.emit('metadataUpdated', { metadata: this.data.meta, source: 'local_user' });
+  async setMetadataScoped(key: string, value: unknown, _conversationId: string): Promise<void> {
+    const next = { ...this.meta, [key]: value };
+    await this.req('PUT', '/meta', { meta: next });
+    this.meta = next;
+    this.emitter.emit('metadataUpdated', { metadata: this.meta, source: 'local_user' });
   }
 
   getMetadata(key: string): unknown {
-    return this.data.meta?.[key];
+    return this.meta[key];
   }
 
   getAllMetadata(): Record<string, unknown> {
-    return this.data.meta ?? {};
+    return this.meta;
   }
 
-  // --- Out of scope (no server) ----------------------------------------
+  // --- Out of scope -----------------------------------------------------
 
-  async prompt(): Promise<never> { throw new Error('prompt() not supported by SnapshotChannel'); }
-  async checkpoint(): Promise<never> { throw new Error('checkpoint() not supported by SnapshotChannel'); }
+  async prompt(): Promise<never> { throw new Error('prompt() not supported in preview'); }
+  async checkpoint(): Promise<never> { throw new Error('checkpoint() not supported in preview'); }
   async canUndo(): Promise<boolean> { return false; }
   async canRedo(): Promise<boolean> { return false; }
   async undo(): Promise<boolean> { return false; }
   async redo(): Promise<boolean> { return false; }
   async clearHistory(): Promise<void> { /* no-op */ }
-  async fetch(): Promise<never> { throw new Error('fetch() not supported by SnapshotChannel'); }
+  async fetch(): Promise<never> { throw new Error('fetch() not supported in preview'); }
+
+  // --- Internal ---------------------------------------------------------
+
+  private synthStat(): FsObjectStat {
+    return {
+      modifiedAt: Date.now(),
+      modifiedBy: this.userId,
+      modifiedByName: null,
+      modifiedInChannel: this.channelId,
+      modifiedInConversation: this.conversationId,
+      modifiedInInteraction: null,
+    };
+  }
 }
 
-/**
- * Conversation handle delegating to a parent SnapshotChannel with an
- * explicit conversationId. Mirrors the methods BridgeHost dispatches
- * via channel.conversation(id).
- */
-class SnapshotConversationHandle {
-  constructor(private parent: SnapshotChannel, private convId: string) {}
+class FsConversationHandle {
+  constructor(private parent: FsChannel, private convId: string) {}
 
   getInteractions(): Interaction[] { return this.parent.getInteractionsScoped(this.convId); }
   getTree(): Record<string, Interaction> { return this.parent.getTreeScoped(this.convId); }
@@ -495,6 +575,6 @@ class SnapshotConversationHandle {
   async createCollection(name: string, fields: FieldDef[]) { return this.parent.createCollection(name, fields); }
   async alterCollection(name: string, fields: FieldDef[]) { return this.parent.alterCollection(name, fields); }
   async dropCollection(name: string): Promise<void> { return this.parent.dropCollection(name); }
-  setMetadata(k: string, v: unknown): void { this.parent.setMetadataScoped(k, v, this.convId); }
-  async prompt(): Promise<never> { throw new Error('prompt() not supported by SnapshotChannel'); }
+  setMetadata(k: string, v: unknown): void { void this.parent.setMetadataScoped(k, v, this.convId); }
+  async prompt(): Promise<never> { throw new Error('prompt() not supported in preview'); }
 }

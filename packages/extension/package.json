@@ -27,9 +27,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "svelte-package -i src -o dist && chmod +x dist/cli/index.js && vite build -c build/vite.host-shell.config.js && vite build -c build/vite.snapshot-host.config.js",
-    "build:host-shell": "vite build -c build/vite.host-shell.config.js",
-    "build:snapshot-host": "vite build -c build/vite.snapshot-host.config.js",
+    "build": "svelte-package -i src -o dist && chmod +x dist/cli/index.js && vite build -c build/vite.fs-host.config.js",
+    "build:fs-host": "vite build -c build/vite.fs-host.config.js",
     "dev": "svelte-package -i src -o dist --watch",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "clean": "rm -rf dist",
