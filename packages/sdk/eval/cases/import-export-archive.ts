@@ -21,8 +21,8 @@ export const testCase: TestCase = {
       const objectIds = channel.getObjectIds();
       expect(objectIds).to.have.length(4);
 
-      // Verify the star exists
-      const star = await channel.getObject('XIQb6n');
+      // Verify the star exists. Keys are in path-identity form (`<type>/<id>`).
+      const star = await channel.getObject('star/XIQb6n');
       expect(star).to.exist;
       expect(star!.name).to.equal("Rool's Star");
       expect(star!.type).to.equal('star');
@@ -30,7 +30,7 @@ export const testCase: TestCase = {
       expect(star!.image_url).to.include('https://');
 
       // Verify a planet with local media
-      const enki = await channel.getObject('rjP7pk');
+      const enki = await channel.getObject('planet/rjP7pk');
       expect(enki).to.exist;
       expect(enki!.name).to.equal('Enki');
       expect(enki!.type).to.equal('planet');
@@ -39,15 +39,13 @@ export const testCase: TestCase = {
       expect((enki!.image_url as string).length).to.be.greaterThan(0);
 
       // Verify the gas giant
-      const an = await channel.getObject('1KIBtw');
+      const an = await channel.getObject('planet/1KIBtw');
       expect(an).to.exist;
       expect(an!.name).to.equal('An');
       expect(an!.type).to.equal('planet');
 
-      // Verify reference structure — planets reference the star via data fields
-      // The orbits relationship is stored as a data field containing the star's ID
-      const enkiData = JSON.stringify(enki);
-      expect(enkiData).to.include('XIQb6n', 'Enki should reference the star ID in its data');
+      // Verify reference structure — planets reference the star via `orbits`.
+      expect(enki!.orbits).to.equal('star/XIQb6n', 'Enki should reference the star via orbits');
 
       // Verify the uploaded media is fetchable
       const enkiImageUrl = enki!.image_url as string;
