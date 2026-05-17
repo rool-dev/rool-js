@@ -14,13 +14,14 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      await channel.createCollection('company', [
+      const conversation = channel.conversation('company-lookup-eval');
+      await conversation.createCollection('company', [
         { name: 'name', type: { kind: 'string' } },
         { name: 'cvr', type: { kind: 'string' } },
       ]);
 
       // Create object with known company name and placeholder for CVR
-      const { object } = await channel.createObject({
+      const { object } = await conversation.createObject({
         data: {
           type: 'company',
           name: 'Aves ApS',

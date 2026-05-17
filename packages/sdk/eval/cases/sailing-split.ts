@@ -46,13 +46,14 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      await channel.createCollection('markdown', [
+      const conversation = channel.conversation('sailing-split-eval');
+      await conversation.createCollection('markdown', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },
       ]);
 
       // Create the initial markdown node
-      const { object: initialNode } = await channel.createObject({
+      const { object: initialNode } = await conversation.createObject({
         data: {
           type: 'markdown',
           headline: 'History of Sailing',
@@ -63,7 +64,7 @@ export const testCase: TestCase = {
       const nodeId = initialNode.id;
 
       // Run the prompt with the node selected
-      const { objects } = await channel.prompt(prompt, { objectIds: [nodeId] });
+      const { objects } = await conversation.prompt(prompt, { objectIds: [nodeId] });
 
       // Verify the original node was converted to a topic
       const convertedNode = await channel.getObject(nodeId);

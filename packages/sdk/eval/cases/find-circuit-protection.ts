@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
 
-// MZpMsZ is "Wiring and Circuit Protection" - the expected result
-const EXPECTED_NODE_ID = 'MZpMsZ';
+// Article/MZpMsZ is "Wiring and Circuit Protection" - the expected result
+const EXPECTED_NODE_ID = 'Article/MZpMsZ';
 
 /**
  * Tests semantic search using findObjects to locate content about circuit protection.
@@ -13,16 +13,18 @@ export const testCase: TestCase = {
 
   async run(client) {
     // Import the fixture
-    const archive = loadArchiveFixture('electrical');
+    const archive = loadArchiveFixture('electrical-new');
     const space = await client.importArchive('EVAL: find-circuit-protection', archive);
     const channel = await space.openChannel('console');
 
     try {
+      const conversation = channel.conversation('find-circuit-protection-eval');
+
       // Capture initial state
       const initialObjectIds = channel.getObjectIds();
 
       // Use findObjects with semantic search
-      const { objects } = await channel.findObjects({
+      const { objects } = await conversation.findObjects({
         prompt: 'Find objects describing circuit protection',
       });
 
@@ -31,8 +33,8 @@ export const testCase: TestCase = {
       expect(objects[0].id).to.equal(EXPECTED_NODE_ID, 'Should find the circuit protection node');
 
       // Verify the found object has expected content
-      expect(objects[0].headline).to.equal('Wiring and Circuit Protection');
-      expect(objects[0].type).to.equal('markdown');
+      expect(objects[0].name).to.equal('Wiring and Circuit Protection');
+      expect(objects[0].type).to.equal('Article');
 
       // Verify space was not modified
       const finalObjectIds = channel.getObjectIds();

@@ -8,14 +8,6 @@ import type { RoolObject, CollectionDef } from '../src/types.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
- * Load a JSON-LD fixture by name.
- */
-export function loadFixture(name: string): unknown {
-  const filePath = join(__dirname, 'fixtures', `${name}.jsonld`);
-  return JSON.parse(readFileSync(filePath, 'utf-8'));
-}
-
-/**
  * Load a zip archive fixture by name, returns a Blob.
  */
 export function loadArchiveFixture(name: string): Blob {

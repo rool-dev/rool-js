@@ -20,12 +20,13 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      await channel.createCollection('topic', [
+      const conversation = channel.conversation('topic-expand-eval');
+      await conversation.createCollection('topic', [
         { name: 'headline', type: { kind: 'string' } },
       ]);
 
       // Create a single topic node
-      const { object: createdTopic } = await channel.createObject({
+      const { object: createdTopic } = await conversation.createObject({
         data: {
           id: 'Xr4tQw',
           type: 'topic',
@@ -35,7 +36,7 @@ export const testCase: TestCase = {
       const topicId = createdTopic.id;
 
       // Run the prompt with the topic node selected
-      const { objects } = await channel.prompt(prompt, { objectIds: [topicId] });
+      const { objects } = await conversation.prompt(prompt, { objectIds: [topicId] });
 
       // Verify new objects were created (at least 3: 2 image + 1 markdown)
       expect(objects.length).to.be.at.least(3);

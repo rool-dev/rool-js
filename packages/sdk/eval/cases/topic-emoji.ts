@@ -17,12 +17,13 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      await channel.createCollection('topic', [
+      const conversation = channel.conversation('topic-emoji-eval');
+      await conversation.createCollection('topic', [
         { name: 'headline', type: { kind: 'string' } },
       ]);
 
       // Create a single topic node
-      const { object: createdTopic } = await channel.createObject({
+      const { object: createdTopic } = await conversation.createObject({
         data: {
           id: 'Xr4tQw',
           type: 'topic',
@@ -32,7 +33,7 @@ export const testCase: TestCase = {
       const topicId = createdTopic.id;
 
       // Run the prompt with the topic node selected
-      await channel.prompt(prompt, { objectIds: [topicId] });
+      await conversation.prompt(prompt, { objectIds: [topicId] });
 
       // Verify structure unchanged
       const objectIds = channel.getObjectIds();

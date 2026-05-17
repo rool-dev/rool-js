@@ -13,8 +13,10 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
+      const conversation = channel.conversation('quickstart-eval');
+
       // Define the schema
-      await channel.createCollection('body', [
+      await conversation.createCollection('body', [
         { name: 'name', type: { kind: 'string' } },
         { name: 'mass', type: { kind: 'string' } },
         { name: 'radius', type: { kind: 'string' } },
@@ -22,7 +24,7 @@ export const testCase: TestCase = {
       ]);
 
       // Create objects with AI-generated content using {{placeholders}}
-      const { object: sun } = await channel.createObject({
+      const { object: sun } = await conversation.createObject({
         data: {
           type: 'body',
           name: 'Sun',
@@ -36,7 +38,7 @@ export const testCase: TestCase = {
       expect(sun.radius).to.exist;
       expect(sun.orbits).to.not.exist;
 
-      const { object: earth } = await channel.createObject({
+      const { object: earth } = await conversation.createObject({
         data: {
           type: 'body',
           name: 'Earth',
@@ -50,7 +52,7 @@ export const testCase: TestCase = {
       expect(earth.orbits).to.equal(sun.id);
 
       // Use prompt to add remaining planets
-      const { objects } = await channel.prompt(
+      const { objects } = await conversation.prompt(
         'Add the other planets in our solar system, each referencing the Sun'
       );
 
@@ -62,7 +64,7 @@ export const testCase: TestCase = {
       }
 
       // Query with natural language
-      const { objects: innerPlanets } = await channel.findObjects({
+      const { objects: innerPlanets } = await conversation.findObjects({
         prompt: 'planets closer to the sun than Earth'
       });
 

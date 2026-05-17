@@ -15,7 +15,8 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      const { objects } = await channel.prompt(`
+      const conversation = channel.conversation('news-browsers-eval');
+      const { objects } = await conversation.prompt(`
         Create browser objects for BBC, CNN, and dr.dk.
         Each object should have:
         - type: "browser"

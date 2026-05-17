@@ -15,7 +15,8 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      const { objects } = await channel.prompt(`
+      const conversation = channel.conversation('haiku-prompt-eval');
+      const { objects } = await conversation.prompt(`
         Create three markdown nodes with the following fields:
         - type: "markdown"
         - headline: string (title for the haiku)

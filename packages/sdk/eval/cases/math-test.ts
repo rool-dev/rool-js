@@ -15,7 +15,8 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      const { objects } = await channel.prompt(`
+      const conversation = channel.conversation('math-test-eval');
+      const { objects } = await conversation.prompt(`
         Create a new object with:
         - type: "calculation"
         - value: the computed result of (e+pi)^4

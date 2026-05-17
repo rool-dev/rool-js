@@ -14,7 +14,8 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      const { objects } = await channel.prompt(`
+      const conversation = channel.conversation('cheese-images-eval');
+      const { objects } = await conversation.prompt(`
         Create three new nodes, each with a different image of cheese from the web.
         - Each node should store the image URL in an "imageUrl" field.
         - Do not add any edges.

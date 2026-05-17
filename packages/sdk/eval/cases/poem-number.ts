@@ -27,7 +27,8 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      const { objects } = await channel.prompt(`
+      const conversation = channel.conversation('poem-number-eval');
+      const { objects } = await conversation.prompt(`
         Create a markdown object with:
         - headline: a single digit (0-9) representing a randomly chosen number
         - text: a short poem (at least 4 lines) about that number

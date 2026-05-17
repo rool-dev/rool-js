@@ -20,7 +20,8 @@ export const testCase: TestCase = {
     const channel = await space.openChannel('console');
 
     try {
-      const { objects } = await channel.prompt(`
+      const conversation = channel.conversation('find-video-eval');
+      const { objects } = await conversation.prompt(`
         Create a node with ukulele performance of "While My Guitar Gently Weeps" by Jake Shimabukuro.
 
         The node should have:
