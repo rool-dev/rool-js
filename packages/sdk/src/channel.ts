@@ -532,33 +532,34 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   async _createObjectImpl(options: CreateObjectOptions, conversationId: string): Promise<{ object: RoolObject; message: string }> {
     const { data, ephemeral } = options;
 
-    // Use data.id if provided (string), otherwise generate
-    const objectId = typeof data.id === 'string' ? data.id : generateEntityId();
+    const basename = typeof data.id === 'string' ? data.id : generateEntityId();
+    const type = data.type;
 
-    // Validate ID format: alphanumeric, hyphens, underscores only
-    if (!/^[a-zA-Z0-9_-]+$/.test(objectId)) {
-      throw new Error(`Invalid object ID "${objectId}". IDs must contain only alphanumeric characters, hyphens, and underscores.`);
+    if (!/^[a-zA-Z0-9_-]+$/.test(basename)) {
+      throw new Error(`Invalid object ID "${basename}". IDs must contain only alphanumeric characters, hyphens, and underscores.`);
+    }
+    if (typeof type !== 'string' || !type) {
+      throw new Error('createObject: data.type is required');
     }
 
-    const dataWithId = { ...data, id: objectId } as RoolObject;
+    // Server's canonical id is "<type>/<basename>" — predict it locally so the
+    // optimistic event id matches the SSE echo, no dedup workaround needed.
+    const objectId = `${type}/${basename}`;
+    const dataForWire = { ...data, id: basename } as RoolObject;       // server expects basename in data.id
+    const optimisticObject = { ...data, id: objectId } as RoolObject;  // SDK tracks path-form
 
-    // Emit optimistic event and track for dedup
-    this._pendingMutations.set(objectId, dataWithId);
-    this.emit('objectCreated', { objectId, object: dataWithId, source: 'local_user' });
+    this._pendingMutations.set(objectId, optimisticObject);
+    this.emit('objectCreated', { objectId, object: optimisticObject, source: 'local_user' });
 
     try {
-      // Await mutation — server processes AI placeholders before responding.
-      // SSE events arrive during the await and are buffered via _deliverObject.
       const interactionId = generateEntityId();
-      const { message } = await this.graphqlClient.createObject(this.id, dataWithId, this._channelId, conversationId, interactionId, ephemeral);
-      // Collect resolved object from buffer (or wait if not yet arrived)
+      const { message } = await this.graphqlClient.createObject(this.id, dataForWire, this._channelId, conversationId, interactionId, ephemeral);
       const object = await this._collectObject(objectId);
       return { object, message };
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to create object:', error);
       this._pendingMutations.delete(objectId);
       this._cancelCollector(objectId);
-      // Emit reset so UI can recover from the optimistic event
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       this.emit('reset', { source: 'system' });
       throw error;
