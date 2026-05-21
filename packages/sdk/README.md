@@ -9,7 +9,7 @@ The SDK manages authentication, real-time synchronization, and per-space file st
 - **Spaces** — Containers for objects, schema, metadata, channels, and files
 - **Channels** — Named contexts within a space. All object and AI operations go through a channel.
 - **Conversations** — Independent interaction histories within a channel.
-- **Objects** — Key-value records with any fields you define. References between objects are data fields whose values are object IDs.
+- **Objects** — Records addressed by a **location** path (`/space/<collection>/<basename>.json`). The body holds user-defined fields. References between objects are body fields whose values are location strings.
 - **AI operations** — Create, update, or query objects using natural language and `{{placeholders}}`
 - **File storage** — Every space has WebDAV file storage
 
@@ -43,24 +43,20 @@ await channel.createCollection('body', [
   { name: 'orbits', type: { kind: 'maybe', inner: { kind: 'ref' } } },
 ]);
 
-// Create objects with AI-generated content using {{placeholders}}
-const { object: sun } = await channel.createObject({
-  data: {
-    type: 'body',  // Must match a collection name
-    name: 'Sun',
-    mass: '{{mass in solar masses}}',
-    radius: '{{radius in km}}'
-  }
-});
+// Create objects with AI-generated content using {{placeholders}}.
+// First arg is the collection. Second is the body — no `id` or `type`,
+// identity lives in the location.
+const { object: sun } = await channel.createObject('body', {
+  name: 'Sun',
+  mass: '{{mass in solar masses}}',
+  radius: '{{radius in km}}',
+}, { basename: 'sun' });
 
-const { object: earth } = await channel.createObject({
-  data: {
-    type: 'body',
-    name: 'Earth',
-    mass: '{{mass in Earth masses}}',
-    radius: '{{radius in km}}',
-    orbits: sun.id  // Reference to the sun object
-  }
+const { object: earth } = await channel.createObject('body', {
+  name: 'Earth',
+  mass: '{{mass in Earth masses}}',
+  radius: '{{radius in km}}',
+  orbits: sun.location,  // Reference to the sun via its location
 });
 
 // Use the AI agent to work with your data
@@ -68,7 +64,7 @@ const { message, objects } = await channel.prompt(
   'Add the other planets in our solar system, each referencing the Sun'
 );
 console.log(message);  // AI explains what it did
-console.log(`Created ${objects.length} objects`);
+console.log(`Modified ${objects.length} objects`);
 
 // Query with natural language
 const { objects: innerPlanets } = await channel.findObjects({
@@ -187,52 +183,91 @@ thread.getInteractions();  // Returns the blue branch (root → leaf)
 - `prompt()` with no `parentInteractionId` auto-continues from `activeLeafId`
 - `prompt()` with `parentInteractionId: null` starts a new root-level branch
 
-### Objects & References
+### Objects, Locations, and References
 
-**Objects** are plain key-value records. `id` and `type` are reserved; everything else is application-defined. Every object must include a `type` field whose value names a collection in the schema — that binds the object to that collection and determines how it's validated. Create the collection first (see [Collection Schema](#collection-schema)).
+Every object lives at a **location** — a path of the form `/space/<collection>/<basename>.json`. The collection is the parent directory, the basename is the filename without `.json`, and together they fully identify the object.
 
 ```typescript
-{ id: 'abc123', type: 'article', title: 'Hello World', status: 'draft' }
+{
+  location: '/space/article/welcome.json',
+  collection: 'article',
+  basename: 'welcome',
+  body: { title: 'Hello World', status: 'draft' },
+}
 ```
 
-**References** between objects are data fields whose values are object IDs. The system detects these statistically — any string field whose value matches an existing object ID is recognized as a reference.
+**Body** is the user-defined data. It never contains `id` or `type` — identity lives entirely in the location.
+
+**References** between objects are body fields whose values are location strings:
 
 ```typescript
-// A planet references a star via the 'orbits' field
-{ id: 'earth', type: 'body', name: 'Earth', orbits: 'sun-01' }
+// A planet references a star
+{
+  location: '/space/body/earth.json',
+  collection: 'body',
+  basename: 'earth',
+  body: { name: 'Earth', orbits: '/space/body/sun.json' },
+}
 
 // An array of references
-{ id: 'team-a', type: 'team', name: 'Alpha', members: ['user-1', 'user-2', 'user-3'] }
+{
+  location: '/space/team/alpha.json',
+  collection: 'team',
+  basename: 'alpha',
+  body: {
+    name: 'Alpha',
+    members: [
+      '/space/user/alice.json',
+      '/space/user/bob.json',
+      '/space/user/carol.json',
+    ],
+  },
+}
 ```
 
-References are just data — no special API is needed to create or remove them. Set a field to an object ID to create a reference; clear it to remove it.
+References are just data — no special API is needed to create or remove them. Set a field to a location string to create a reference; clear it to remove it.
+
+#### Location helpers
+
+```typescript
+import { loc, parseLocation, normalizeLocation, generateBasename } from '@rool-dev/sdk';
+
+loc('article', 'welcome');                  // '/space/article/welcome.json'
+parseLocation('/space/article/welcome.json'); // { collection: 'article', basename: 'welcome' }
+
+// normalizeLocation accepts canonical or short form and returns canonical
+normalizeLocation('article/welcome');         // '/space/article/welcome.json'
+normalizeLocation('/space/article/welcome.json'); // unchanged
+
+// 6-char random basename — same generator the SDK uses by default
+generateBasename();                           // e.g., 'X7kQ9p'
+```
+
+SDK methods that accept a location (`getObject`, `updateObject`, `deleteObjects`, `moveObject`, etc.) accept either form and normalize internally. SDK return values always use the canonical full form.
 
 ### AI Placeholder Pattern
 
-Use `{{description}}` in field values to have AI generate content:
+Use `{{description}}` in body field values to have AI generate content:
 
 ```typescript
 // Create with AI-generated content
-await channel.createObject({
-  data: {
-    type: 'article',
-    headline: '{{catchy headline about coffee}}',
-    body: '{{informative paragraph}}'
-  }
+await channel.createObject('article', {
+  headline: '{{catchy headline about coffee}}',
+  body: '{{informative paragraph}}',
 });
 
 // Update existing content with AI
-await channel.updateObject('abc123', {
+await channel.updateObject('/space/article/welcome.json', {
   prompt: 'Make the body shorter and more casual'
 });
 
 // Add new AI-generated field to existing object
-await channel.updateObject('abc123', {
+await channel.updateObject('/space/article/welcome.json', {
   data: { summary: '{{one-sentence summary}}' }
 });
 ```
 
-When resolving placeholders, the agent has access to the full object data and the surrounding space context (except for `_`-prefixed fields). Placeholders are instructions, not templates, and do not need to repeat information already present in other fields.
+When resolving placeholders, the agent has access to the full body and the surrounding space context (except for `_`-prefixed fields). Placeholders are instructions, not templates, and do not need to repeat information already present in other fields.
 
 Placeholders are resolved by the AI during the mutation and replaced with concrete values. The `{{...}}` syntax is never stored — it only guides the agent while creating or updating the object.
 
@@ -243,7 +278,7 @@ Undo/redo works on **checkpoints**, not individual operations. Call `checkpoint(
 ```typescript
 // Create a checkpoint before user action
 await channel.checkpoint('Delete object');
-await channel.deleteObjects([objectId]);
+await channel.deleteObjects([location]);
 
 // User can now undo back to the checkpoint
 if (await channel.canUndo()) {
@@ -260,16 +295,13 @@ Checkpoints are **space-wide**: one shared stack across all channels and users. 
 
 ### Hidden Fields
 
-Fields starting with `_` (e.g., `_ui`, `_cache`) are hidden from AI and ignored by the schema — you can add them to any object regardless of its collection definition. Otherwise they behave like normal fields: they sync in real-time, persist to the server, support undo/redo, and are visible to all users of the Space. Use them for UI state, positions, or other data the AI shouldn't see or modify:
+Body fields starting with `_` (e.g., `_ui`, `_cache`) are hidden from AI and ignored by the schema — you can add them to any object regardless of its collection definition. Otherwise they behave like normal fields: they sync in real-time, persist to the server, support undo/redo, and are visible to all users of the space. Use them for UI state, positions, or other data the AI shouldn't see or modify:
 
 ```typescript
-await channel.createObject({
-  data: {
-    type: 'article',
-    title: 'My Article',
-    author: "John Doe",
-    _ui: { x: 100, y: 200, collapsed: false }
-  }
+await channel.createObject('article', {
+  title: 'My Article',
+  author: 'John Doe',
+  _ui: { x: 100, y: 200, collapsed: false }
 });
 ```
 
@@ -284,42 +316,50 @@ Events fire for both local and remote changes. The `source` field indicates orig
 
 ```typescript
 // All UI updates happen in one place, regardless of change source
-channel.on('objectUpdated', ({ objectId, object, source }) => {
-  renderObject(objectId, object);
+channel.on('objectUpdated', ({ location, object, source }) => {
+  renderObject(location, object);
   if (source === 'remote_agent') {
     doLayout(); // AI might have added content
   }
 });
 
 // Caller just makes the change - event handler does the UI work
-channel.updateObject(objectId, { prompt: 'expand this' });
+channel.updateObject(location, { prompt: 'expand this' });
 ```
 
-### Custom Object IDs
+### Locations & Basenames
 
-By default, `createObject` generates a 6-character alphanumeric ID. Provide your own via `data.id`:
+By default, `createObject` mints a 6-character alphanumeric basename. Provide your own via `options.basename` for meaningful identifiers:
 
 ```typescript
-await channel.createObject({ data: { id: 'article-42', type: 'article', title: 'The Meaning of Life' } });
+await channel.createObject('article',
+  { title: 'The Meaning of Life' },
+  { basename: 'meaning-of-life' },
+);
+// → location: /space/article/meaning-of-life.json
 ```
 
-**Why use custom IDs?**
-- **Fire-and-forget creation** — Know the ID immediately without awaiting the response.
-- **Meaningful IDs** — Use domain-specific IDs like `user-123` or `doc-abc` for easier debugging and external references.
+**Why pin a basename?**
+- **Fire-and-forget creation** — Know the location immediately without awaiting the response.
+- **Meaningful identifiers** — Use domain-specific names like `welcome` or `2026-budget` for easier debugging and external references.
 
 ```typescript
 // Fire-and-forget: create and reference without waiting
-const id = RoolClient.generateId();
-channel.createObject({ data: { id, type: 'note', text: '{{expand this idea}}' } });
-channel.updateObject(parentId, { data: { notes: [...existingNotes, id] } }); // Add reference immediately
+const basename = RoolClient.generateBasename();
+const location = loc('note', basename);
+
+channel.createObject('note', { text: '{{expand this idea}}' }, { basename });
+channel.updateObject(parentLocation, {
+  data: { notes: [...existingNotes, location] },
+}); // Add reference immediately
 ```
 
-**Constraints:**
-- Must contain only alphanumeric characters, hyphens (`-`), and underscores (`_`)
-- Must be unique within the space (throws if ID exists)
-- Cannot be changed after creation (immutable)
+**Basename constraints:**
+- Must start with an alphanumeric character.
+- Other characters may be alphanumeric, hyphens (`-`), or underscores (`_`).
+- Must be unique within its collection (throws if the location already exists).
 
-Use `RoolClient.generateId()` when you need an ID before calling `createObject` but don't need it to be meaningful — it gives you a valid random ID without writing your own generator.
+Use `moveObject` to rename an object or move it to a different collection — see [Moving and Renaming](#moving-and-renaming).
 
 ## Authentication
 
@@ -366,7 +406,7 @@ if (!authenticated) {
 
 ## AI Agent
 
-The `prompt()` method is the primary way to invoke the AI agent. The agent has editor-level capabilities — it can create, modify, and delete objects — but cannot see or modify `_`-prefixed fields.
+The `prompt()` method is the primary way to invoke the AI agent. The agent has editor-level capabilities — it can create, modify, move, and delete objects — but cannot see or modify `_`-prefixed fields.
 
 ```typescript
 const { message, objects } = await channel.prompt(
@@ -390,11 +430,11 @@ Returns a message (the AI's response) and the list of objects that were created 
 
 | Option | Description |
 |--------|-------------|
-| `objectIds` | Focus the AI on specific objects (given primary attention in context) |
+| `locations` | Focus the AI on specific objects, identified by location (given primary attention in context). |
 | `responseSchema` | Request structured JSON instead of text summary |
 | `effort` | Effort level: `'QUICK'`, `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | If true, don't record in interaction history (useful for tab completion) |
-| `readOnly` | If true, disable mutation tools (create, update, delete). Use for questions. |
+| `readOnly` | If true, disable mutation tools (create, update, move, delete). Use for questions. |
 | `parentInteractionId` | Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. Pass `null` to start a new root-level branch. Pass a specific ID to branch from that point (edit/reroll). |
 | `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Stored as authenticated space files; resulting `rool-drive:/...` references are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot natively consume their contents, only use shell tools on them. |
 | `signal` | `AbortSignal` to stop the prompt mid-flight. When aborted, the agent loop halts and the streaming response closes. Note that any LLM turn already in flight on Vertex keeps generating server-side and is billed. |
@@ -419,7 +459,7 @@ const { objects } = await channel.prompt(
 // Work with specific objects
 const result = await channel.prompt(
   "Summarize these articles",
-  { objectIds: ['article-1', 'article-2'] }
+  { locations: ['/space/article/intro.json', '/space/article/conclusion.json'] }
 );
 
 // Quick question without mutations (fast model + read-only)
@@ -456,7 +496,11 @@ Use `responseSchema` to get structured JSON instead of a text message:
 
 ```typescript
 const { message } = await channel.prompt("Categorize these items", {
-  objectIds: ['item-1', 'item-2', 'item-3'],
+  locations: [
+    '/space/item/widget.json',
+    '/space/item/gadget.json',
+    '/space/item/gizmo.json',
+  ],
   responseSchema: {
     type: 'object',
     properties: {
@@ -478,7 +522,7 @@ console.log(result.categories, result.summary);
 AI operations automatically receive context:
 - **Interaction history** — Previous interactions and their results from this channel
 - **Recently modified objects** — Objects created or changed recently
-- **Selected objects** — Objects passed via `objectIds` are given primary focus
+- **Selected objects** — Objects passed via `locations` are given primary focus
 
 This context flows automatically — no configuration needed. The AI sees enough history to maintain coherent interactions while respecting the `_`-prefixed field hiding rules.
 
@@ -506,7 +550,7 @@ await space.addUser(user.id, 'editor');
 |------|--------------|
 | `owner` | Full control, can delete space and manage all users |
 | `admin` | All editor capabilities, plus can manage users (except other admins/owners) |
-| `editor` | Can create, modify, and delete objects |
+| `editor` | Can create, modify, move, and delete objects |
 | `viewer` | Read-only access (can query with `prompt` and `findObjects`) |
 
 ### Space Collaboration Methods
@@ -549,6 +593,7 @@ When a user accesses a space via URL, they're granted the corresponding role (`v
 | `currentUser: CurrentUser \| null` | Cached user profile from `initialize()`. Use for sync access to user info (id, email, name, etc.). Returns `null` before `initialize()` is called. |
 | `getCurrentUser(): Promise<CurrentUser>` | Fetch fresh user profile from server (id, email, name, photoUrl, slug, plan, creditsBalance, totalCreditsUsed, createdAt, lastActivity, processedAt, storage) |
 | `updateCurrentUser(input): Promise<CurrentUser>` | Update the current user's profile (`name`, `slug`). Returns the updated user. Slug must be 3–32 chars, start with a letter, and contain only lowercase alphanumeric characters, hyphens, and underscores. |
+| `deleteCurrentUser(): Promise<void>` | Mark the current user's account for deletion (10-minute grace period before irreversible). Logs out the client. |
 | `searchUser(email): Promise<UserResult \| null>` | Find user by exact email address (no partial matching) |
 
 ### Real-time Collaboration
@@ -556,7 +601,7 @@ When a user accesses a space via URL, they're granted the corresponding role (`v
 When multiple users have a space open, changes sync in real-time. The `source` field in events tells you who made the change:
 
 ```typescript
-channel.on('objectUpdated', ({ objectId, object, source }) => {
+channel.on('objectUpdated', ({ location, object, source }) => {
   if (source === 'remote_user') {
     // Another user made this change
     showCollaboratorActivity(object);
@@ -592,6 +637,7 @@ const client = new RoolClient({
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List available spaces |
 | `openSpace(spaceId): Promise<RoolSpace>` | Open a space with live SSE subscription. Caches and reuses open spaces. Call `space.openChannel(channelId)` to get a channel. |
 | `createSpace(name): Promise<RoolSpace>` | Create a new space, returns live handle with SSE subscription |
+| `duplicateSpace(sourceSpaceId, name): Promise<RoolSpace>` | Duplicate an existing space. Returns a handle to the new space. |
 | `deleteSpace(id): Promise<void>` | Permanently delete a space (cannot be undone) |
 | `importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
 | `webdav(spaceId): RoolWebDAV` | Open a WebDAV client for a space's file storage |
@@ -679,7 +725,8 @@ Discover and install extensions published by other users.
 
 | Method | Description |
 |--------|-------------|
-| `RoolClient.generateId(): string` | Generate 6-char alphanumeric ID (static) |
+| `RoolClient.generateBasename(): string` | Generate a 6-char alphanumeric basename for new object identities. |
+| `RoolClient.generateId(): string` | Same as `generateBasename()`; retained for callers minting non-object IDs (interactions, conversations, channels). |
 | `destroy(): void` | Clean up resources |
 
 ### Client Events
@@ -787,49 +834,126 @@ A channel is a named context within a space. All object operations, AI prompts, 
 
 ### Object Operations
 
-Objects are plain key/value records. `id` and `type` are reserved; everything else is application-defined. References between objects are data fields whose values are object IDs. Every object must include a `type` field whose value names a collection in the schema (see [Collection Schema](#collection-schema)) — that binds the object to that collection. Before introducing a new kind of object, create the matching collection.
+Objects are records addressed by location (`/space/<collection>/<basename>.json`). Every object must belong to a collection — create the collection first (see [Collection Schema](#collection-schema)). The body holds user-defined fields only; identity lives in the location.
+
+All methods that accept a location accept either the canonical form or the short form (`collection/basename`).
 
 | Method | Description |
 |--------|-------------|
-| `getObject(objectId): Promise<RoolObject \| undefined>` | Get object data, or undefined if not found. |
-| `stat(objectId): RoolObjectStat \| undefined` | Get object stat (audit info: modifiedAt, modifiedBy, modifiedByName, and the channel/conversation/interaction where the last write happened), or undefined if not found. Sync read from local cache. |
-| `findObjects(options): Promise<{ objects, message }>` | Find objects using structured filters and natural language. Results sorted by modifiedAt (desc by default). |
-| `getObjectIds(options?): string[]` | Get all object IDs. Sorted by modifiedAt (desc by default). Options: `{ limit?, order? }`. |
-| `createObject(options): Promise<{ object, message }>` | Create a new object. Returns the object (with AI-filled content) and message. |
-| `updateObject(objectId, options): Promise<{ object, message }>` | Update an existing object. Returns the updated object and message. |
-| `deleteObjects(objectIds): Promise<void>` | Delete objects. Other objects referencing deleted objects retain stale ref values. |
+| `getObject(location): Promise<RoolObject \| undefined>` | Get an object, or undefined if not found. |
+| `stat(location): RoolObjectStat \| undefined` | Get audit info for an object: when it was last modified, by whom, and where (channel/conversation/interaction). Sync read from local cache. |
+| `findObjects(options): Promise<{ objects, message }>` | Find objects using structured filters and/or natural language. Results sorted by modifiedAt (desc by default). |
+| `getObjectLocations(options?): string[]` | Get all object locations. Sorted by modifiedAt (desc by default). Options: `{ limit?, order? }`. |
+| `createObject(collection, body, options?): Promise<{ object, message }>` | Create a new object in `collection`. The SDK mints a random basename unless you pass `options.basename`. |
+| `updateObject(location, options): Promise<{ object, message }>` | Update an existing object's body. |
+| `moveObject(from, to, options?): Promise<{ object, message }>` | Rename or relocate an object. See [Moving and Renaming](#moving-and-renaming). |
+| `deleteObjects(locations): Promise<void>` | Delete objects by location. Other objects' refs become stale. |
 
-#### createObject Options
+#### createObject
+
+```typescript
+// Auto-generated basename
+const { object } = await channel.createObject('article', {
+  title: 'Hello',
+  body: 'World',
+});
+// → object.location: '/space/article/X7kQ9p.json'
+
+// Pinned basename
+await channel.createObject('article',
+  { title: 'Welcome' },
+  { basename: 'welcome' },
+);
+// → location: '/space/article/welcome.json'
+
+// AI placeholders
+await channel.createObject('article', {
+  headline: '{{catchy headline}}',
+  body: '{{long-form intro}}',
+});
+```
 
 | Option | Description |
 |--------|-------------|
-| `data` | Object data fields (required). Must include `type` naming an existing collection. Include `id` to use a custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
-| `ephemeral` | If true, the operation won't be recorded in interaction history. Useful for transient operations. |
+| `basename` | Specific basename to use. If omitted, the SDK generates a random 6-char one. |
+| `ephemeral` | If true, the operation won't be recorded in interaction history. |
+| `parentInteractionId` | Conversation tree parent. Omit to auto-continue; pass `null` for a new root. |
 
-#### updateObject Options
+The body must not contain `id` or `type` — those names are reserved for identity. The SDK throws if either is present.
+
+#### updateObject
+
+```typescript
+// Add/update fields
+await channel.updateObject('/space/article/welcome.json', {
+  data: { status: 'published' },
+});
+
+// Delete a field (pass null)
+await channel.updateObject('/space/article/welcome.json', {
+  data: { draft: null },
+});
+
+// AI-driven rewrite
+await channel.updateObject('/space/article/welcome.json', {
+  prompt: 'Tighten the intro by 30%.',
+});
+```
 
 | Option | Description |
 |--------|-------------|
-| `data` | Fields to add or update. Pass `null`/`undefined` to delete a field. Use `{{placeholder}}` for AI-generated content. Setting a new `type` retypes the object — the merged result must conform to the new collection. Fields prefixed with `_` are hidden from AI. |
+| `data` | Body fields to add, update, or delete. `null` removes the field. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. |
 | `prompt` | Natural language instruction for AI to modify content. |
-| `ephemeral` | If true, the operation won't be recorded in interaction history. Useful for transient operations. |
+| `ephemeral` | If true, the operation won't be recorded in interaction history. |
+| `parentInteractionId` | Conversation tree parent. Omit to auto-continue; pass `null` for a new root. |
 
-#### findObjects Options
+`data` must not contain `id` or `type` — use `moveObject` to change identity.
+
+#### Moving and Renaming
+
+`moveObject` is how you rename an object (new basename in the same collection) or move it across collections. Pass `options.body` to atomically rewrite the body as part of the move.
+
+```typescript
+// Rename within the same collection
+await channel.moveObject(
+  '/space/article/welcome.json',
+  '/space/article/hello-world.json',
+);
+
+// Move into a different collection
+await channel.moveObject(
+  '/space/draft/post-42.json',
+  '/space/article/post-42.json',
+);
+
+// Move and replace body in one go
+await channel.moveObject(from, to, {
+  body: { title: 'Hello, world', status: 'published' },
+});
+```
+
+| Option | Description |
+|--------|-------------|
+| `body` | Replace the body atomically as part of the move. If omitted, the body is preserved. Must not contain `id` or `type`. |
+| `ephemeral` | If true, the operation won't be recorded in interaction history. |
+| `parentInteractionId` | Conversation tree parent. Omit to auto-continue; pass `null` for a new root. |
+
+#### findObjects
 
 Find objects using structured filters and/or natural language.
 
 - **`where` only** — exact-match filtering, no AI, no credits.
-- **`collection` only** — filter by collection name (matches objects whose `type` field equals the name), no AI, no credits.
+- **`collection` only** — filter by collection name, no AI, no credits.
 - **`prompt` only** — AI-powered semantic query over all objects.
-- **`where` + `prompt`** — `where` (and `objectIds`) narrow the data set first, then the AI queries within the constrained set.
+- **`where` + `prompt`** — `where` (and `locations`) narrow the data set first, then the AI queries within the constrained set.
 
 | Option | Description |
 |--------|-------------|
-| `where` | Exact-match field filter (e.g. `{ status: 'published' }`). Values must match literally — no operators or `{{placeholders}}`. When combined with `prompt`, constrains which objects the AI can see. |
-| `collection` | Filter by collection name. Returns objects whose `type` field equals the given name. |
+| `where` | Exact-match body-field filter (e.g. `{ status: 'published' }`). Values must match literally — no operators or `{{placeholders}}`. When combined with `prompt`, constrains which objects the AI can see. |
+| `collection` | Filter by collection name. |
 | `prompt` | Natural language query. Triggers AI evaluation (uses credits). |
 | `limit` | Maximum number of results. |
-| `objectIds` | Scope to specific object IDs. Constrains the candidate set in both structured and AI queries. |
+| `locations` | Scope to specific object locations. Constrains the candidate set in both structured and AI queries. |
 | `order` | Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). |
 | `ephemeral` | If true, the query won't be recorded in interaction history. Useful for responsive search. |
 
@@ -865,7 +989,7 @@ const { objects } = await channel.findObjects({
 });
 ```
 
-When `where` or `objectIds` are provided with a `prompt`, the AI only sees the filtered subset — not the full space. The returned `message` explains the query result.
+When `where` or `locations` are provided with a `prompt`, the AI only sees the filtered subset — not the full space. The returned `message` explains the query result.
 
 ### Undo/Redo
 
@@ -882,7 +1006,7 @@ See [Checkpoints & Undo/Redo](#checkpoints--undoredo) for semantics.
 
 ### Space Metadata
 
-Store arbitrary data alongside the Space without it being part of the object data (e.g., viewport state, user preferences).
+Store arbitrary data alongside the space without it being part of an object's body (e.g., viewport state, user preferences).
 
 | Method | Description |
 |--------|-------------|
@@ -943,6 +1067,8 @@ Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). `rool-drive:
 | `webdav.lock(pathOrRef, options)` / `webdav.refreshLock(pathOrRef, token)` / `webdav.unlock(token)` | WebDAV Class 2 write locks |
 | `webdav.request(method, path, init?)` | Raw authenticated WebDAV request escape hatch |
 
+> **Note**: file storage `rool-drive:/...` and object locations `/space/...` are two different reference forms. `rool-drive:/...` always points at user-visible files in the space's WebDAV storage. Object locations identify records inside the space (and live at `/space/<collection>/<basename>.json`). They're not interchangeable — pass file refs to WebDAV methods and object locations to channel methods.
+
 #### File references from AI responses
 
 When an agent refers to a user-visible file, the SDK contract is `rool-drive:/path/to/file.ext`. That prefix makes a file reference unambiguous without exposing the authenticated WebDAV URL. In free text, ambiguous characters such as spaces are percent-encoded (`rool-drive:/docs/read%20me.md`).
@@ -978,7 +1104,7 @@ const response = await channel.fetch('https://api.example.com/submit', {
 
 ### Collection Schema
 
-Collections are the types you use to group objects in a space. Every object must belong to a collection: the object's `data.type` field names the collection it belongs to, and the server validates the object's fields against that collection's definition. Renaming a collection cascades to the `type` field of every object bound to it; dropping a collection is blocked while any object is still bound to it.
+Collections are the types you use to group objects in a space. Every object belongs to exactly one collection: the collection is the parent directory of its location, and the server validates the object's body against that collection's definition. Renaming a collection changes the location of every object bound to it; dropping a collection is blocked while any object still lives there.
 
 Collections make up the schema and are stored in the space data, syncing in real time. The schema is visible to the AI agent so it knows which collections exist and what fields they contain, producing more consistent objects.
 
@@ -1023,7 +1149,7 @@ await channel.dropCollection('article');
 | `string` | Text value | `{ kind: 'string' }` |
 | `number` | Numeric value | `{ kind: 'number' }` |
 | `boolean` | True/false | `{ kind: 'boolean' }` |
-| `ref` | Reference to another object | `{ kind: 'ref' }` |
+| `ref` | Reference to another object (location string) | `{ kind: 'ref' }` |
 | `enum` | One of a set of values | `{ kind: 'enum', values: ['a', 'b'] }` |
 | `literal` | Exact value | `{ kind: 'literal', value: 'fixed' }` |
 | `array` | List of values | `{ kind: 'array', inner: { kind: 'string' } }` |
@@ -1065,10 +1191,11 @@ Semantic events describe what changed. Events fire for both local changes and re
 // - 'remote_agent': AI agent made the change
 // - 'system': Resync after error
 
-// Object events
-channel.on('objectCreated', ({ objectId, object, source }) => void)
-channel.on('objectUpdated', ({ objectId, object, source }) => void)
-channel.on('objectDeleted', ({ objectId, source }) => void)
+// Object events — payload includes the full RoolObject
+channel.on('objectCreated', ({ location, object, source }) => void)
+channel.on('objectUpdated', ({ location, object, source }) => void)
+channel.on('objectDeleted', ({ location, source }) => void)
+channel.on('objectMoved',   ({ from, to, object, source }) => void)
 
 // Space metadata
 channel.on('metadataUpdated', ({ metadata, source }) => void)
@@ -1095,7 +1222,7 @@ AI operations may fail due to rate limiting or other transient errors. Check `er
 
 ```typescript
 try {
-  await channel.updateObject(objectId, { prompt: 'expand this' });
+  await channel.updateObject(location, { prompt: 'expand this' });
 } catch (error) {
   if (error.message.includes('temporarily unavailable')) {
     showToast('Service busy, please try again in a moment');
@@ -1129,7 +1256,7 @@ Channel management (listing, renaming, deleting channels) is done via the client
 
 The `ai` field in interactions distinguishes AI-generated responses from synthetic confirmations:
 - `ai: true` — AI processed this operation (prompt, or createObject/updateObject with placeholders)
-- `ai: false` — System confirmation only (e.g., "Created object abc123")
+- `ai: false` — System confirmation only (e.g., "Created object /space/note/welcome.json")
 
 ### Tool Calls
 
@@ -1167,17 +1294,19 @@ type SpaceSchema = Record<string, CollectionDef>;
 ### Object Data
 
 ```typescript
-// RoolObject represents the object data you work with
-// Always contains `id`, plus any additional fields
-// Fields prefixed with _ are hidden from AI
-// References between objects are fields whose values are object IDs
+// An object — identity in the envelope, data in body. Body never contains
+// `id` or `type`; references between objects are body fields whose values
+// are location strings.
 interface RoolObject {
-  id: string;
-  [key: string]: unknown;
+  location: string;        // "/space/<collection>/<basename>.json"
+  collection: string;
+  basename: string;
+  body: Record<string, unknown>;
 }
 
-// Object stat - audit information returned by channel.stat()
+// Object stat — audit information returned by channel.stat()
 interface RoolObjectStat {
+  location: string;
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
@@ -1249,19 +1378,19 @@ interface ToolCall {
 type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
 
 interface Interaction {
-  id: string;                    // Unique ID for this interaction
-  parentId: string | null;       // Parent in conversation tree (null = root)
+  id: string;                              // Unique ID for this interaction
+  parentId: string | null;                 // Parent in conversation tree (null = root)
   timestamp: number;
-  userId: string;                // Who performed this interaction
-  userName?: string | null;      // Display name at time of interaction
-  operation: 'prompt' | 'createObject' | 'updateObject' | 'deleteObjects';
-  input: string;                 // What the user did: prompt text or action description
-  output: string | null;         // AI response or confirmation message (may be partial when streaming)
-  status: InteractionStatus;     // Lifecycle status (pending → streaming → done/error)
-  ai: boolean;                   // Whether AI was invoked (vs synthetic confirmation)
-  modifiedObjectIds: string[];   // Objects affected by this interaction
-  toolCalls: ToolCall[];         // Tools called during this interaction (for AI prompts)
-  attachments?: string[];        // rool-drive:/... file references attached by the user
+  userId: string;                          // Who performed this interaction
+  userName?: string | null;                // Display name at time of interaction
+  operation: 'prompt' | 'createObject' | 'updateObject' | 'moveObject' | 'deleteObjects';
+  input: string;                           // What the user did: prompt text or action description
+  output: string | null;                   // AI response or confirmation message (may be partial when streaming)
+  status: InteractionStatus;               // Lifecycle status (pending → streaming → done/error)
+  ai: boolean;                             // Whether AI was invoked (vs synthetic confirmation)
+  modifiedObjectLocations: string[];       // Locations of objects affected by this interaction
+  toolCalls: ToolCall[];                   // Tools called during this interaction (for AI prompts)
+  attachments?: string[];                  // rool-drive:/... file references attached by the user
 }
 ```
 
@@ -1284,13 +1413,14 @@ type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
 type PromptEffort = 'QUICK' | 'STANDARD' | 'REASONING' | 'RESEARCH';
 
 interface PromptOptions {
-  objectIds?: string[];      // Scope to specific objects
+  locations?: string[];                                                  // Scope to specific objects
   responseSchema?: Record<string, unknown>;
-  effort?: PromptEffort;     // Effort level (default: 'STANDARD')
-  ephemeral?: boolean;       // Don't record in interaction history
-  readOnly?: boolean;        // Disable mutation tools (default: false)
-  parentInteractionId?: string | null;  // Branch from a specific interaction (omit to auto-continue)
-  attachments?: Array<File | Blob | { data: string; contentType: string }>;  // Files to attach
+  effort?: PromptEffort;                                                 // Effort level (default: 'STANDARD')
+  ephemeral?: boolean;                                                   // Don't record in interaction history
+  readOnly?: boolean;                                                    // Disable mutation tools (default: false)
+  parentInteractionId?: string | null;                                   // Branch from a specific interaction (omit to auto-continue)
+  attachments?: Array<File | Blob | { data: string; contentType: string }>; // Files to attach
+  signal?: AbortSignal;                                                  // Cancel an in-flight prompt
 }
 ```
 

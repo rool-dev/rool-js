@@ -18,38 +18,44 @@ export const testCase: TestCase = {
 
     try {
       // Verify object count (4 objects: star + 3 planets)
-      const objectIds = channel.getObjectIds();
-      expect(objectIds).to.have.length(4);
+      const locations = channel.getObjectLocations();
+      expect(locations).to.have.length(4);
 
-      // Verify the star exists. Keys are in path-identity form (`<type>/<id>`).
-      const star = await channel.getObject('star/XIQb6n');
+      const starLocation = '/space/star/XIQb6n.json';
+
+      // Verify the star exists.
+      const star = await channel.getObject(starLocation);
       expect(star).to.exist;
-      expect(star!.name).to.equal("Rool's Star");
-      expect(star!.type).to.equal('star');
+      expect(star!.body.name).to.equal("Rool's Star");
+      expect(star!.collection).to.equal('star');
       // External URL should be preserved
-      expect(star!.image_url).to.include('https://');
+      expect(star!.body.image_url).to.include('https://');
 
       // Verify a planet with a local file
       const enki = await channel.getObject('planet/rjP7pk');
       expect(enki).to.exist;
-      expect(enki!.name).to.equal('Enki');
-      expect(enki!.type).to.equal('planet');
+      expect(enki!.body.name).to.equal('Enki');
+      expect(enki!.collection).to.equal('planet');
       // Local file should have an image_url
-      expect(enki!.image_url).to.be.a('string');
-      expect((enki!.image_url as string).length).to.be.greaterThan(0);
+      expect(enki!.body.image_url).to.be.a('string');
+      expect((enki!.body.image_url as string).length).to.be.greaterThan(0);
 
       // Verify the gas giant
       const an = await channel.getObject('planet/1KIBtw');
       expect(an).to.exist;
-      expect(an!.name).to.equal('An');
-      expect(an!.type).to.equal('planet');
+      expect(an!.body.name).to.equal('An');
+      expect(an!.collection).to.equal('planet');
 
       // Verify reference structure — planets reference the star via `orbits`.
-      expect(enki!.orbits).to.equal('star/XIQb6n', 'Enki should reference the star via orbits');
+      expect(enki!.body.orbits).to.equal(starLocation, 'Enki should reference the star via orbits');
 
-      // Verify the uploaded file is fetchable
-      const enkiImageUrl = enki!.image_url as string;
-      const response = await space.webdav.fetch(enkiImageUrl);
+      // Verify the uploaded file is fetchable. After import the server rewrites
+      // archive `files/...` paths to full WebDAV URLs; extract the path portion
+      // (everything after `/dav/<spaceId>/`) and fetch via the WebDAV client.
+      const enkiImageUrl = enki!.body.image_url as string;
+      expect(enkiImageUrl).to.match(/\/dav\/[^/]+\/[^/]+\.png$/, 'image_url should be a WebDAV URL');
+      const filePath = new URL(enkiImageUrl).pathname.split('/').slice(3).map(decodeURIComponent).join('/');
+      const response = await space.webdav.get(filePath);
       const blob = await response.blob();
       expect(blob.size).to.be.greaterThan(10000); // ~70KB image
       expect(response.headers.get('content-type')).to.equal('image/png');

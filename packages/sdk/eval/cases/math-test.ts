@@ -31,9 +31,9 @@ export const testCase: TestCase = {
       expectCollectionWithFields(channel, ['value']);
 
       // Value should be a number
-      expect(calc.value).to.be.a('number');
+      expect(calc.body.value).to.be.a('number');
 
-      const value = calc.value as number;
+      const value = calc.body.value as number;
 
       // Allow 0.01% tolerance for floating point
       const tolerance = EXPECTED_VALUE * 0.00001;

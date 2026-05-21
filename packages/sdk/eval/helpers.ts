@@ -42,24 +42,24 @@ export function expectCollectionWithFields(space: RoolChannel, fields: string[])
 }
 
 /**
- * Assert that all objects have valid, unique URLs in the specified field.
+ * Assert that all objects have valid, unique URLs in the specified body field.
  */
 export function expectValidUniqueUrls(objects: RoolObject[], field: string): void {
   const urls: string[] = [];
 
   for (const obj of objects) {
-    const value = obj[field];
-    expect(value, `Object ${obj.id} missing ${field}`).to.be.a('string');
+    const value = obj.body[field];
+    expect(value, `Object ${obj.location} missing ${field}`).to.be.a('string');
 
     const url = value as string;
-    expect(url.trim().length, `Object ${obj.id} has empty ${field}`).to.be.greaterThan(0);
+    expect(url.trim().length, `Object ${obj.location} has empty ${field}`).to.be.greaterThan(0);
 
     // Validate URL format
     let parsed: URL;
     try {
       parsed = new URL(url);
     } catch {
-      expect.fail(`Object ${obj.id} has invalid URL in ${field}: ${url}`);
+      expect.fail(`Object ${obj.location} has invalid URL in ${field}: ${url}`);
     }
     expect(parsed!.protocol, `URL should be http(s): ${url}`).to.match(/^https?:$/);
 
@@ -72,19 +72,19 @@ export function expectValidUniqueUrls(objects: RoolObject[], field: string): voi
 }
 
 /**
- * Assert that all URLs in the specified field are fetchable.
+ * Assert that all URLs in the specified body field are fetchable.
  */
 export async function expectUrlsFetchable(channel: RoolChannel, objects: RoolObject[], field: string): Promise<void> {
   for (const obj of objects) {
-    const url = obj[field] as string;
+    const url = obj.body[field] as string;
     if (!url) continue;
 
     try {
       const response = await channel.fetch(url);
       const blob = await response.blob();
-      expect(blob.size, `URL returned empty content for ${obj.id}: ${url}`).to.be.greaterThan(0);
+      expect(blob.size, `URL returned empty content for ${obj.location}: ${url}`).to.be.greaterThan(0);
     } catch (error) {
-      expect.fail(`Failed to fetch URL for ${obj.id}: ${url} - ${error}`);
+      expect.fail(`Failed to fetch URL for ${obj.location}: ${url} - ${error}`);
     }
   }
 }

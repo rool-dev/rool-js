@@ -2,8 +2,10 @@ import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
 
-// Article/MZpMsZ is "Wiring and Circuit Protection" - the expected result
-const EXPECTED_NODE_ID = 'Article/MZpMsZ';
+// "Wiring and Circuit Protection" — the expected result.
+// The fixture imports as v1 (bare IDs); the server migrates basenames into
+// the Article collection, so the canonical location is below.
+const EXPECTED_LOCATION = '/space/Article/MZpMsZ.json';
 
 /**
  * Tests semantic search using findObjects to locate content about circuit protection.
@@ -21,7 +23,7 @@ export const testCase: TestCase = {
       const conversation = channel.conversation('find-circuit-protection-eval');
 
       // Capture initial state
-      const initialObjectIds = channel.getObjectIds();
+      const initialLocations = channel.getObjectLocations();
 
       // Use findObjects with semantic search
       const { objects } = await conversation.findObjects({
@@ -30,15 +32,15 @@ export const testCase: TestCase = {
 
       // Should find exactly the circuit protection node
       expect(objects.length).to.equal(1, 'Should find exactly 1 object');
-      expect(objects[0].id).to.equal(EXPECTED_NODE_ID, 'Should find the circuit protection node');
+      expect(objects[0].location).to.equal(EXPECTED_LOCATION, 'Should find the circuit protection node');
 
       // Verify the found object has expected content
-      expect(objects[0].name).to.equal('Wiring and Circuit Protection');
-      expect(objects[0].type).to.equal('Article');
+      expect(objects[0].body.name).to.equal('Wiring and Circuit Protection');
+      expect(objects[0].collection).to.equal('Article');
 
       // Verify space was not modified
-      const finalObjectIds = channel.getObjectIds();
-      expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
+      const finalLocations = channel.getObjectLocations();
+      expect(finalLocations.sort()).to.deep.equal(initialLocations.sort());
     } finally {
       space.close();
     }

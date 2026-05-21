@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import type { TestCase } from '../types.js';
 
 const prompt = `
-Create three new nodes based on the contents of this topic node.
-- Two that has type "image" with relevant images from the net
-- One with type "markdown" with an info to the topic
+Create three new objects based on the contents of this topic.
+- Two in the "image" collection with relevant images from the net
+- One in the "markdown" collection with an info text for the topic
 
-Each new node should have a "parent" field referencing the topic node's ID.
+Each new object should have a "parent" field whose value is the location of this topic.
 `;
 
 /**
@@ -26,32 +26,30 @@ export const testCase: TestCase = {
       ]);
 
       // Create a single topic node
-      const { object: createdTopic } = await conversation.createObject({
-        data: {
-          id: 'Xr4tQw',
-          type: 'topic',
-          headline: 'Types of Sailboats',
-        },
-      });
-      const topicId = createdTopic.id;
+      const { object: createdTopic } = await conversation.createObject(
+        'topic',
+        { headline: 'Types of Sailboats' },
+        { basename: 'sailboats' },
+      );
+      const topicLocation = createdTopic.location;
 
       // Run the prompt with the topic node selected
-      const { objects } = await conversation.prompt(prompt, { objectIds: [topicId] });
+      const { objects } = await conversation.prompt(prompt, { locations: [topicLocation] });
 
       // Verify new objects were created (at least 3: 2 image + 1 markdown)
       expect(objects.length).to.be.at.least(3);
 
-      // Count by type
-      const imageCount = objects.filter(o => o.type === 'image').length;
-      const markdownCount = objects.filter(o => o.type === 'markdown').length;
+      // Count by collection
+      const imageCount = objects.filter(o => o.collection === 'image').length;
+      const markdownCount = objects.filter(o => o.collection === 'markdown').length;
 
-      expect(imageCount).to.be.equal(2, 'Should have 2 image nodes');
-      expect(markdownCount).to.equal(1, 'Should have exactly 1 markdown node');
+      expect(imageCount).to.be.equal(2, 'Should have 2 image objects');
+      expect(markdownCount).to.equal(1, 'Should have exactly 1 markdown object');
 
       // Verify each child references the topic via "parent"
       for (const obj of objects) {
-        if (obj.id !== topicId) {
-          expect(obj.parent, `Child ${obj.id} should have parent field`).to.equal(topicId);
+        if (obj.location !== topicLocation) {
+          expect(obj.body.parent, `Child ${obj.location} should have parent field`).to.equal(topicLocation);
         }
       }
     } finally {

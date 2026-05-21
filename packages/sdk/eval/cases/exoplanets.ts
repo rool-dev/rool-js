@@ -23,21 +23,21 @@ Create a knowledge graph with collections named star and planet. The planet coll
 Then add the star PSR B1257+12 and the exoplanets orbiting it. Set the name field to the popular name for each of the exoplanets
       `);
 
-      // Should create 4 objects: 1 topic + 3 planets
+      // Should create 4 objects: 1 star + 3 planets
       expect(objects).to.have.length(4);
 
       // Should have a star
-      const star = objects.find(obj => obj.type == "star");
-      expect(star, 'Should have a star object node').to.exist;
+      const star = objects.find(obj => obj.collection === 'star');
+      expect(star, 'Should have a star object').to.exist;
 
       // Should have all three planets and should reference the star
-      const planets = objects.filter(obj => obj.type === 'planet');
+      const planets = objects.filter(obj => obj.collection === 'planet');
       expect(planets, 'Should have three planet objects').to.have.length(3);
 
       for (const name of PLANET_NAMES) {
-        const planet = planets.find(p => typeof p.name === 'string' && p.name.toLowerCase().includes(name));
+        const planet = planets.find(p => typeof p.body.name === 'string' && (p.body.name as string).toLowerCase().includes(name));
         expect(planet, `Should have planet "${name}"`).to.exist;
-        expect(planet!.orbits, `Planet "${name}" should reference the star`).to.equal(star!.id);
+        expect(planet!.body.orbits, `Planet "${name}" should reference the star`).to.equal(star!.location);
       }
 
     } finally {

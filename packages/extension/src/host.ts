@@ -37,6 +37,7 @@ const FORWARDED_EVENTS = [
   'objectCreated',
   'objectUpdated',
   'objectDeleted',
+  'objectMoved',
   'metadataUpdated',
   'schemaUpdated',
   'channelUpdated',
@@ -46,14 +47,15 @@ const FORWARDED_EVENTS = [
 ] as const;
 
 // Channel methods the extension can call.
-// Sync methods (getObjectIds, getSchema, etc.) are wrapped as async on the host side.
+// Sync methods (getObjectLocations, getSchema, etc.) are wrapped as async on the host side.
 const ALLOWED_METHODS = new Set([
   'getObject',
   'stat',
   'findObjects',
-  'getObjectIds',
+  'getObjectLocations',
   'createObject',
   'updateObject',
+  'moveObject',
   'deleteObjects',
   'getSchema',
   'createCollection',
@@ -93,6 +95,7 @@ const CONVERSATION_METHODS = new Set([
   'findObjects',
   'createObject',
   'updateObject',
+  'moveObject',
   'deleteObjects',
   'prompt',
   'createCollection',

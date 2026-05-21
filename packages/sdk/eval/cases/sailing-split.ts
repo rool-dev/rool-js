@@ -24,15 +24,14 @@ sailing had ended.
 Today sailing is primarily recreational, spanning offshore racing, cruising, and coastal day-sailing.
 Its appeal endures through the challenge of mastering wind and water and the unique freedom it offers.`;
 
-const prompt = `Convert the selected markdown node into a topic node, keeping the same headline.
-Then create markdown child nodes for each logical segment of the original text.
-Each child should have a "parent" field referencing the topic node's ID.
+const prompt = `Move the selected markdown object into the topic collection, keeping the same headline.
+Then create markdown child objects for each logical segment of the original text.
+Each child should have a "parent" field whose value is the location of the topic object.
 
 Each object should have:
-- type: "markdown" | "topic"
 - headline: string
 - text: string
-- parent: <id> (for children only)
+- parent: <topic location> (for children only)
 `;
 
 /**
@@ -53,41 +52,41 @@ export const testCase: TestCase = {
       ]);
 
       // Create the initial markdown node
-      const { object: initialNode } = await conversation.createObject({
-        data: {
-          type: 'markdown',
-          headline: 'History of Sailing',
-          text: SAILING_TEXT,
-        },
-        ephemeral: true,
-      });
-      const nodeId = initialNode.id;
+      const { object: initialNode } = await conversation.createObject('markdown', {
+        headline: 'History of Sailing',
+        text: SAILING_TEXT,
+      }, { ephemeral: true });
+      const initialLocation = initialNode.location;
 
       // Run the prompt with the node selected
-      const { objects } = await conversation.prompt(prompt, { objectIds: [nodeId] });
+      const { objects } = await conversation.prompt(prompt, { locations: [initialLocation] });
 
-      // Verify the original node was converted to a topic
-      const convertedNode = await channel.getObject(nodeId);
-      expect(convertedNode!.type).to.equal('topic', 'Original node should be converted to topic');
-      expect(convertedNode!.headline).to.equal('History of Sailing', 'Headline should be preserved');
+      // Original markdown location should no longer resolve (it was moved into topic/)
+      const stillThere = await channel.getObject(initialLocation);
+      expect(stillThere, 'Original markdown location should be empty after move').to.be.undefined;
 
-      // Find new markdown children
+      // Find the topic object the agent produced
+      const topic = objects.find(o => o.collection === 'topic');
+      expect(topic, 'Should produce a topic object').to.exist;
+      expect(topic!.body.headline).to.equal('History of Sailing', 'Headline should be preserved');
+
+      // Find new markdown children (anything in the markdown collection that's not the original)
       const newMarkdowns = objects.filter(
-        o => o.id !== nodeId && o.type === 'markdown'
+        o => o.collection === 'markdown' && o.location !== initialLocation
       );
       expect(newMarkdowns.length).to.be.at.least(2, 'Should create at least 2 markdown children');
 
       // Verify each new markdown has required fields
       for (const md of newMarkdowns) {
-        expect(md.headline).to.be.a('string');
-        expect((md.headline as string).length).to.be.greaterThan(0, 'Markdown should have headline');
-        expect(md.text).to.be.a('string');
-        expect((md.text as string).length).to.be.greaterThan(0, 'Markdown should have text');
+        expect(md.body.headline).to.be.a('string');
+        expect((md.body.headline as string).length).to.be.greaterThan(0, 'Markdown should have headline');
+        expect(md.body.text).to.be.a('string');
+        expect((md.body.text as string).length).to.be.greaterThan(0, 'Markdown should have text');
       }
 
-      // Verify each child references the topic via "parent"
+      // Verify each child references the topic via "parent" (location string)
       for (const md of newMarkdowns) {
-        expect(md.parent, `Child ${md.id} should have parent field`).to.equal(nodeId);
+        expect(md.body.parent, `Child ${md.location} should have parent field`).to.equal(topic!.location);
       }
     } finally {
       space.close();

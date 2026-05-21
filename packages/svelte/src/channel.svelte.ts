@@ -1,4 +1,18 @@
-import type { RoolChannel, RoolSpace, Interaction, RoolObject, FindObjectsOptions, ChannelInfo, ConversationInfo, ConversationHandle, ConversationUpdatedEvent } from '@rool-dev/sdk';
+import type {
+  RoolChannel,
+  RoolSpace,
+  Interaction,
+  RoolObject,
+  FindObjectsOptions,
+  ChannelInfo,
+  ConversationInfo,
+  ConversationHandle,
+  ConversationUpdatedEvent,
+  ObjectCreatedEvent,
+  ObjectUpdatedEvent,
+  ObjectDeletedEvent,
+  ObjectMovedEvent,
+} from '@rool-dev/sdk';
 
 /**
  * Options for creating a reactive watch.
@@ -7,7 +21,7 @@ import type { RoolChannel, RoolSpace, Interaction, RoolObject, FindObjectsOption
 export interface WatchOptions {
   /** Field requirements for exact matching */
   where?: Record<string, unknown>;
-  /** Filter by collection name. Returns objects whose `type` field equals the given name. */
+  /** Filter by collection name. */
   collection?: string;
   /** Maximum number of objects */
   limit?: number;
@@ -23,7 +37,7 @@ class ReactiveWatchImpl {
   #channel: RoolChannel;
   #options: WatchOptions;
   #unsubscribers: (() => void)[] = [];
-  #currentIds = new Set<string>();
+  #currentLocations = new Set<string>();
 
   // Reactive state
   objects = $state<RoolObject[]>([]);
@@ -39,8 +53,7 @@ class ReactiveWatchImpl {
     // Initial fetch
     this.refresh();
 
-    // Subscribe to object events
-    const onObjectCreated = ({ object }: { object: RoolObject }) => {
+    const onObjectCreated = ({ object }: ObjectCreatedEvent) => {
       if (this.#matches(object)) {
         this.refresh();
       }
@@ -48,31 +61,37 @@ class ReactiveWatchImpl {
     this.#channel.on('objectCreated', onObjectCreated);
     this.#unsubscribers.push(() => this.#channel.off('objectCreated', onObjectCreated));
 
-    const onObjectUpdated = ({ objectId, object }: { objectId: string; object: RoolObject }) => {
-      const wasInCollection = this.#currentIds.has(objectId);
+    const onObjectUpdated = ({ location, object }: ObjectUpdatedEvent) => {
+      const wasInCollection = this.#currentLocations.has(location);
       const nowMatches = this.#matches(object);
 
       if (wasInCollection && nowMatches) {
         // Update in place (merge to preserve fields from partial optimistic updates)
-        const index = this.objects.findIndex((o) => o.id === objectId);
+        const index = this.objects.findIndex((o) => o.location === location);
         if (index !== -1) {
-          this.objects[index] = { ...this.objects[index], ...object };
+          this.objects[index] = {
+            ...this.objects[index],
+            ...object,
+            body: { ...this.objects[index].body, ...object.body },
+          };
         }
       } else if (wasInCollection && !nowMatches) {
-        // Check if the mismatch is due to missing keys (partial optimistic update)
-        // vs. genuinely changed values that no longer satisfy the filter.
+        // Check if the mismatch is due to missing keys in body (partial optimistic update)
         const where = this.#options.where;
-        const isPartialUpdate = where && Object.keys(where).some((key) => !(key in object));
+        const isPartialUpdate = where && Object.keys(where).some((key) => !(key in object.body));
         if (isPartialUpdate) {
-          // Partial update — merge onto existing object instead of removing
-          const index = this.objects.findIndex((o) => o.id === objectId);
+          const index = this.objects.findIndex((o) => o.location === location);
           if (index !== -1) {
-            this.objects[index] = { ...this.objects[index], ...object };
+            this.objects[index] = {
+              ...this.objects[index],
+              ...object,
+              body: { ...this.objects[index].body, ...object.body },
+            };
           }
         } else {
           // Genuine mismatch — remove from collection
-          this.objects = this.objects.filter((o) => o.id !== objectId);
-          this.#currentIds.delete(objectId);
+          this.objects = this.objects.filter((o) => o.location !== location);
+          this.#currentLocations.delete(location);
         }
       } else if (!wasInCollection && nowMatches) {
         // Add to collection (re-fetch to respect limit/order)
@@ -82,33 +101,41 @@ class ReactiveWatchImpl {
     this.#channel.on('objectUpdated', onObjectUpdated);
     this.#unsubscribers.push(() => this.#channel.off('objectUpdated', onObjectUpdated));
 
-    const onObjectDeleted = ({ objectId }: { objectId: string }) => {
-      if (this.#currentIds.has(objectId)) {
-        this.objects = this.objects.filter((o) => o.id !== objectId);
-        this.#currentIds.delete(objectId);
+    const onObjectDeleted = ({ location }: ObjectDeletedEvent) => {
+      if (this.#currentLocations.has(location)) {
+        this.objects = this.objects.filter((o) => o.location !== location);
+        this.#currentLocations.delete(location);
       }
     };
     this.#channel.on('objectDeleted', onObjectDeleted);
     this.#unsubscribers.push(() => this.#channel.off('objectDeleted', onObjectDeleted));
 
-    // Handle full resets
+    const onObjectMoved = ({ from, object }: ObjectMovedEvent) => {
+      const wasInCollection = this.#currentLocations.has(from);
+      const nowMatches = this.#matches(object);
+      if (wasInCollection || nowMatches) {
+        this.refresh();
+      }
+    };
+    this.#channel.on('objectMoved', onObjectMoved);
+    this.#unsubscribers.push(() => this.#channel.off('objectMoved', onObjectMoved));
+
     const onReset = () => this.refresh();
     this.#channel.on('reset', onReset);
     this.#unsubscribers.push(() => this.#channel.off('reset', onReset));
   }
 
   /**
-   * Check if an object matches the `where` filter.
+   * Check if an object matches the filter (collection + where on body).
    */
   #matches(object: RoolObject): boolean {
-    // Collection filter matches by `type` field
-    if (this.#options.collection && object.type !== this.#options.collection) return false;
+    if (this.#options.collection && object.collection !== this.#options.collection) return false;
 
     const where = this.#options.where;
     if (!where) return true;
 
     for (const [key, value] of Object.entries(where)) {
-      if (object[key] !== value) return false;
+      if (object.body[key] !== value) return false;
     }
     return true;
   }
@@ -124,19 +151,16 @@ class ReactiveWatchImpl {
         collection: this.#options.collection,
         limit: this.#options.limit,
         order: this.#options.order,
-        ephemeral: true, // Don't pollute interaction history
+        ephemeral: true,
       };
       const { objects } = await this.#channel.findObjects(findOptions);
       this.objects = objects;
-      this.#currentIds = new Set(objects.map((o) => o.id));
+      this.#currentLocations = new Set(objects.map((o) => o.location));
     } finally {
       this.loading = false;
     }
   }
 
-  /**
-   * Stop listening for updates and clean up.
-   */
   close(): void {
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;
@@ -150,71 +174,71 @@ export type ReactiveWatch = ReactiveWatchImpl;
  */
 class ReactiveObjectImpl {
   #channel: RoolChannel;
-  #objectId: string;
+  #location: string;
   #unsubscribers: (() => void)[] = [];
 
   // Reactive state
   data = $state<RoolObject | undefined>(undefined);
   loading = $state(true);
 
-  constructor(channel: RoolChannel, objectId: string) {
+  constructor(channel: RoolChannel, location: string) {
     this.#channel = channel;
-    this.#objectId = objectId;
+    this.#location = location;
     this.#setup();
   }
 
   #setup() {
-    // Initial fetch
     this.refresh();
 
-    // Listen for updates to this specific object
-    const onObjectUpdated = ({ objectId, object }: { objectId: string; object: RoolObject }) => {
-      if (objectId === this.#objectId) {
+    const onObjectUpdated = ({ location, object }: ObjectUpdatedEvent) => {
+      if (location === this.#location) {
         this.data = object;
       }
     };
     this.#channel.on('objectUpdated', onObjectUpdated);
     this.#unsubscribers.push(() => this.#channel.off('objectUpdated', onObjectUpdated));
 
-    // Listen for creation (in case object didn't exist initially)
-    const onObjectCreated = ({ object }: { object: RoolObject }) => {
-      if (object.id === this.#objectId) {
+    const onObjectCreated = ({ location, object }: ObjectCreatedEvent) => {
+      if (location === this.#location) {
         this.data = object;
       }
     };
     this.#channel.on('objectCreated', onObjectCreated);
     this.#unsubscribers.push(() => this.#channel.off('objectCreated', onObjectCreated));
 
-    // Listen for deletion
-    const onObjectDeleted = ({ objectId }: { objectId: string }) => {
-      if (objectId === this.#objectId) {
+    const onObjectDeleted = ({ location }: ObjectDeletedEvent) => {
+      if (location === this.#location) {
         this.data = undefined;
       }
     };
     this.#channel.on('objectDeleted', onObjectDeleted);
     this.#unsubscribers.push(() => this.#channel.off('objectDeleted', onObjectDeleted));
 
-    // Handle full resets
+    const onObjectMoved = ({ from, to, object }: ObjectMovedEvent) => {
+      if (from === this.#location) {
+        // Object moved away from this location; data is gone.
+        this.data = undefined;
+      } else if (to === this.#location) {
+        this.data = object;
+      }
+    };
+    this.#channel.on('objectMoved', onObjectMoved);
+    this.#unsubscribers.push(() => this.#channel.off('objectMoved', onObjectMoved));
+
     const onReset = () => this.refresh();
     this.#channel.on('reset', onReset);
     this.#unsubscribers.push(() => this.#channel.off('reset', onReset));
   }
 
-  /**
-   * Re-fetch the object from the channel.
-   */
   async refresh(): Promise<void> {
     this.loading = true;
     try {
-      this.data = await this.#channel.getObject(this.#objectId);
+      this.data = await this.#channel.getObject(this.#location);
     } finally {
       this.loading = false;
     }
   }
 
-  /**
-   * Stop listening for updates and clean up.
-   */
   close(): void {
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;
@@ -227,12 +251,6 @@ export type ReactiveObject = ReactiveObjectImpl;
 // ReactiveConversationHandle
 // ---------------------------------------------------------------------------
 
-/**
- * A reactive conversation handle that auto-updates interactions when the
- * conversation changes. Wraps the SDK's ConversationHandle with $state.
- *
- * Call `close()` when done to stop listening for updates.
- */
 class ReactiveConversationHandleImpl {
   #handle: ConversationHandle;
   #conversationId: string;
@@ -245,10 +263,8 @@ class ReactiveConversationHandleImpl {
     this.#conversationId = conversationId;
     this.#handle = channel.conversation(conversationId);
 
-    // Initial load
     this.interactions = this.#handle.getInteractions();
 
-    // Listen for updates to this conversation
     const onConversationUpdated = (event: ConversationUpdatedEvent) => {
       if (event.conversationId === this.#conversationId) {
         this.interactions = this.#handle.getInteractions();
@@ -257,7 +273,6 @@ class ReactiveConversationHandleImpl {
     channel.on('conversationUpdated', onConversationUpdated);
     this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
 
-    // Handle full resets
     const onReset = () => {
       this.interactions = this.#handle.getInteractions();
     };
@@ -280,6 +295,7 @@ class ReactiveConversationHandleImpl {
   findObjects(...args: Parameters<ConversationHandle['findObjects']>) { return this.#handle.findObjects(...args); }
   createObject(...args: Parameters<ConversationHandle['createObject']>) { return this.#handle.createObject(...args); }
   updateObject(...args: Parameters<ConversationHandle['updateObject']>) { return this.#handle.updateObject(...args); }
+  moveObject(...args: Parameters<ConversationHandle['moveObject']>) { return this.#handle.moveObject(...args); }
   deleteObjects(...args: Parameters<ConversationHandle['deleteObjects']>) { return this.#handle.deleteObjects(...args); }
 
   // AI
@@ -293,9 +309,6 @@ class ReactiveConversationHandleImpl {
   // Metadata
   setMetadata(...args: Parameters<ConversationHandle['setMetadata']>) { return this.#handle.setMetadata(...args); }
 
-  /**
-   * Stop listening for updates and clean up.
-   */
   close(): void {
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;
@@ -315,41 +328,39 @@ class ReactiveChannelImpl {
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
-  objectIds = $state<string[]>([]);
+  objectLocations = $state<string[]>([]);
   collections = $state<string[]>([]);
   conversations = $state<ConversationInfo[]>([]);
 
   constructor(channel: RoolChannel) {
     this.#channel = channel;
     this.interactions = channel.getInteractions();
-    this.objectIds = channel.getObjectIds();
+    this.objectLocations = channel.getObjectLocations();
     this.collections = Object.keys(channel.getSchema());
     this.conversations = channel.getConversations();
 
-    // Subscribe to channel updates → refresh interactions
     const onChannelUpdated = () => {
       this.interactions = channel.getInteractions();
     };
     channel.on('channelUpdated', onChannelUpdated);
     this.#unsubscribers.push(() => channel.off('channelUpdated', onChannelUpdated));
 
-    // Subscribe to conversation updates → refresh conversations
     const onConversationUpdated = () => {
       this.conversations = channel.getConversations();
     };
     channel.on('conversationUpdated', onConversationUpdated);
     this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
 
-    // Subscribe to object events for objectIds
-    const refreshObjectIds = () => {
-      this.objectIds = channel.getObjectIds();
+    const refreshObjectLocations = () => {
+      this.objectLocations = channel.getObjectLocations();
     };
-    channel.on('objectCreated', refreshObjectIds);
-    this.#unsubscribers.push(() => channel.off('objectCreated', refreshObjectIds));
-    channel.on('objectDeleted', refreshObjectIds);
-    this.#unsubscribers.push(() => channel.off('objectDeleted', refreshObjectIds));
+    channel.on('objectCreated', refreshObjectLocations);
+    this.#unsubscribers.push(() => channel.off('objectCreated', refreshObjectLocations));
+    channel.on('objectDeleted', refreshObjectLocations);
+    this.#unsubscribers.push(() => channel.off('objectDeleted', refreshObjectLocations));
+    channel.on('objectMoved', refreshObjectLocations);
+    this.#unsubscribers.push(() => channel.off('objectMoved', refreshObjectLocations));
 
-    // Subscribe to schema updates for collections
     const onSchemaUpdated = () => {
       this.collections = Object.keys(channel.getSchema());
     };
@@ -358,7 +369,7 @@ class ReactiveChannelImpl {
 
     const onReset = () => {
       this.interactions = channel.getInteractions();
-      this.objectIds = channel.getObjectIds();
+      this.objectLocations = channel.getObjectLocations();
       this.collections = Object.keys(channel.getSchema());
       this.conversations = channel.getConversations();
     };
@@ -380,7 +391,6 @@ class ReactiveChannelImpl {
 
   get isClosed() { return this.#closed; }
 
-  // Proxy all methods
   close() {
     if (this.#closed) return;
     this.#closed = true;
@@ -393,9 +403,10 @@ class ReactiveChannelImpl {
   getObject(...args: Parameters<RoolChannel['getObject']>) { return this.#channel.getObject(...args); }
   stat(...args: Parameters<RoolChannel['stat']>) { return this.#channel.stat(...args); }
   findObjects(...args: Parameters<RoolChannel['findObjects']>) { return this.#channel.findObjects(...args); }
-  getObjectIds(...args: Parameters<RoolChannel['getObjectIds']>) { return this.#channel.getObjectIds(...args); }
+  getObjectLocations(...args: Parameters<RoolChannel['getObjectLocations']>) { return this.#channel.getObjectLocations(...args); }
   createObject(...args: Parameters<RoolChannel['createObject']>) { return this.#channel.createObject(...args); }
   updateObject(...args: Parameters<RoolChannel['updateObject']>) { return this.#channel.updateObject(...args); }
+  moveObject(...args: Parameters<RoolChannel['moveObject']>) { return this.#channel.moveObject(...args); }
   deleteObjects(...args: Parameters<RoolChannel['deleteObjects']>) { return this.#channel.deleteObjects(...args); }
 
   // AI
@@ -450,17 +461,15 @@ class ReactiveChannelImpl {
   // Reactive primitives
 
   /**
-   * Create a reactive object that auto-updates when the object changes.
-   * Throws if the channel has been closed.
+   * Create a reactive object that auto-updates when the object at this location changes.
    */
-  object(objectId: string): ReactiveObject {
+  object(location: string): ReactiveObject {
     if (this.#closed) throw new Error('Cannot create reactive object: channel is closed');
-    return new ReactiveObjectImpl(this.#channel, objectId);
+    return new ReactiveObjectImpl(this.#channel, location);
   }
 
   /**
    * Create a reactive watch that auto-updates when matching objects change.
-   * Throws if the channel has been closed.
    */
   watch(options: WatchOptions): ReactiveWatch {
     if (this.#closed) throw new Error('Cannot create reactive watch: channel is closed');
@@ -477,8 +486,6 @@ export type ReactiveChannel = ReactiveChannelImpl;
 
 /**
  * A reactive list of channels for a space that auto-updates via SSE events.
- * Can be constructed with a RoolSpace directly or a Promise<RoolSpace>
- * (starts with an empty list and loading=true until the space resolves).
  */
 class ReactiveChannelListImpl {
   #space: RoolSpace | null = null;
@@ -503,7 +510,6 @@ class ReactiveChannelListImpl {
     this.list = space.channels;
     this.loading = false;
 
-    // Listen for channel lifecycle events on the space
     const onChannelCreated = (channel: ChannelInfo) => {
       this.list = [...this.list, channel];
     };
@@ -525,9 +531,6 @@ class ReactiveChannelListImpl {
     this.#unsubscribers.push(() => space.off('channelDeleted', onChannelDeleted));
   }
 
-  /**
-   * Refresh the channel list from the space.
-   */
   async refresh(): Promise<void> {
     if (!this.#space) return;
     this.loading = true;
@@ -539,9 +542,6 @@ class ReactiveChannelListImpl {
     }
   }
 
-  /**
-   * Stop listening for updates and clean up.
-   */
   close(): void {
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;

@@ -21,25 +21,22 @@ export const testCase: TestCase = {
       ]);
 
       // Create object with known company name and placeholder for CVR
-      const { object } = await conversation.createObject({
-        data: {
-          type: 'company',
-          name: 'Aves ApS',
-          cvr: '{{CVR number for this Danish company}}',
-        },
+      const { object } = await conversation.createObject('company', {
+        name: 'Aves ApS',
+        cvr: '{{CVR number for this Danish company}}',
       });
 
       // Verify the object was created
-      expect(object.type).to.equal('company');
-      expect(object.name).to.equal('Aves ApS');
+      expect(object.collection).to.equal('company');
+      expect(object.body.name).to.equal('Aves ApS');
 
       // Verify CVR was filled in correctly
-      expect(object.cvr).to.be.a('string');
-      const cvr = String(object.cvr).replace(/\s/g, ''); // Remove any spaces
+      expect(object.body.cvr).to.be.a('string');
+      const cvr = String(object.body.cvr).replace(/\s/g, ''); // Remove any spaces
       expect(cvr).to.equal('29530335', 'CVR number should be 29530335');
 
       // Verify no extra objects were created
-      expect(channel.getObjectIds()).to.have.length(1);
+      expect(channel.getObjectLocations()).to.have.length(1);
     } finally {
       space.close();
     }

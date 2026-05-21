@@ -93,7 +93,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private openChannels = new Map<string, RoolChannel>();
 
   // Full space data (for channel creation)
-  private _objectIds: string[];
+  private _objectLocations: string[];
   private _objectStats: Record<string, RoolObjectStat>;
   private _schema: SpaceSchema;
   private _meta: Record<string, unknown>;
@@ -121,7 +121,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
     // Store full space data
     const fd = config.fullData;
-    this._objectIds = fd.objectIds;
+    this._objectLocations = fd.objectLocations;
     this._objectStats = fd.objectStats;
     this._schema = fd.schema;
     this._meta = fd.meta;
@@ -236,7 +236,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       role: this._role,
       linkAccess: this._linkAccess,
       userId: this._userId,
-      objectIds: this._objectIds,
+      objectLocations: this._objectLocations,
       objectStats: this._objectStats,
       schema: this._schema,
       meta: this._meta,
@@ -501,12 +501,12 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
         channel._applyResyncData({
           meta: result.meta,
           schema: result.schema,
-          objectIds: result.objectIds,
+          objectLocations: result.objectLocations,
           objectStats: result.objectStats,
           channel: channelData,
         });
       }
-      this.logger.info(`[RoolSpace] Space ${this._id} resync complete (${result.objectIds.length} objects)`);
+      this.logger.info(`[RoolSpace] Space ${this._id} resync complete (${result.objectLocations.length} objects)`);
     }).catch((error) => {
       this.logger.error(`[RoolSpace] Space ${this._id} resync failed:`, error);
     });
@@ -520,7 +520,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this._role = data.role as RoolUserRole;
     this._linkAccess = data.linkAccess;
     this._memberCount = data.memberCount;
-    this._objectIds = data.objectIds;
+    this._objectLocations = data.objectLocations;
     this._objectStats = data.objectStats;
     this._schema = data.schema;
     this._meta = data.meta;

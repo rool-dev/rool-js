@@ -31,7 +31,7 @@ export const testCase: TestCase = {
       expectCollectionWithFields(channel, ['headline', 'url']);
 
       const hasUrlMatching = (pattern: RegExp): boolean =>
-        objects.some(obj => typeof obj.url === 'string' && pattern.test(obj.url as string));
+        objects.some(obj => typeof obj.body.url === 'string' && pattern.test(obj.body.url as string));
 
       expect(hasUrlMatching(/bbc\.(com|co\.uk)/), 'Should have BBC URL').to.be.true;
       expect(hasUrlMatching(/cnn\.com/), 'Should have CNN URL').to.be.true;

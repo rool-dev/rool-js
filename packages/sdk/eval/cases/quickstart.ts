@@ -24,32 +24,26 @@ export const testCase: TestCase = {
       ]);
 
       // Create objects with AI-generated content using {{placeholders}}
-      const { object: sun } = await conversation.createObject({
-        data: {
-          type: 'body',
-          name: 'Sun',
-          mass: '{{mass in solar masses}}',
-          radius: '{{radius in km}}'
-        }
-      });
+      const { object: sun } = await conversation.createObject('body', {
+        name: 'Sun',
+        mass: '{{mass in solar masses}}',
+        radius: '{{radius in km}}',
+      }, { basename: 'sun' });
 
-      expect(sun.name).to.equal('Sun');
-      expect(sun.mass).to.exist;
-      expect(sun.radius).to.exist;
-      expect(sun.orbits).to.not.exist;
+      expect(sun.body.name).to.equal('Sun');
+      expect(sun.body.mass).to.exist;
+      expect(sun.body.radius).to.exist;
+      expect(sun.body.orbits).to.not.exist;
 
-      const { object: earth } = await conversation.createObject({
-        data: {
-          type: 'body',
-          name: 'Earth',
-          mass: '{{mass in Earth masses}}',
-          radius: '{{radius in km}}',
-          orbits: sun.id
-        }
-      });
+      const { object: earth } = await conversation.createObject('body', {
+        name: 'Earth',
+        mass: '{{mass in Earth masses}}',
+        radius: '{{radius in km}}',
+        orbits: sun.location,
+      }, { basename: 'earth' });
 
-      expect(earth.name).to.equal('Earth');
-      expect(earth.orbits).to.equal(sun.id);
+      expect(earth.body.name).to.equal('Earth');
+      expect(earth.body.orbits).to.equal(sun.location);
 
       // Use prompt to add remaining planets
       const { objects } = await conversation.prompt(
@@ -60,7 +54,7 @@ export const testCase: TestCase = {
 
       // Every prompted planet should reference the sun
       for (const obj of objects) {
-        expect(obj.orbits, `${obj.name} should orbit the Sun`).to.equal(sun.id);
+        expect(obj.body.orbits, `${obj.body.name} should orbit the Sun`).to.equal(sun.location);
       }
 
       // Query with natural language
@@ -69,7 +63,7 @@ export const testCase: TestCase = {
       });
 
       expect(innerPlanets.length).to.be.at.least(2, 'Should find at least 2 inner planets');
-      const names = innerPlanets.map(p => String(p.name).toLowerCase());
+      const names = innerPlanets.map(p => String(p.body.name).toLowerCase());
       const hasInner = names.some(n => n === 'mercury' || n === 'venus');
       expect(hasInner, `Inner planets should include Mercury or Venus, got: ${names.join(', ')}`).to.be.true;
 

@@ -524,9 +524,11 @@ function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelE
       return { type, spaceId, timestamp, source };
     case 'object_created':
     case 'object_updated':
-      return { type, spaceId, timestamp, source, objectId: raw.objectId as string, object: raw.object as RoolObject, objectStat: raw.objectStat as RoolObjectStat | undefined };
+      return { type, spaceId, timestamp, source, location: raw.location as string, object: raw.object as RoolObject, objectStat: raw.objectStat as RoolObjectStat | undefined };
     case 'object_deleted':
-      return { type, spaceId, timestamp, source, objectId: raw.objectId as string };
+      return { type, spaceId, timestamp, source, location: raw.location as string };
+    case 'object_moved':
+      return { type, spaceId, timestamp, source, from: raw.from as string, to: raw.to as string, object: raw.object as RoolObject, objectStat: raw.objectStat as RoolObjectStat | undefined };
     case 'schema_updated':
       return { type, spaceId, timestamp, source, schema: raw.schema as SpaceSchema };
     case 'metadata_updated':

@@ -20,35 +20,34 @@ export const testCase: TestCase = {
       const conversation = channel.conversation('topic-emoji-eval');
       await conversation.createCollection('topic', [
         { name: 'headline', type: { kind: 'string' } },
+        { name: 'emoji', type: { kind: 'maybe', inner: { kind: 'string' } } },
       ]);
 
       // Create a single topic node
-      const { object: createdTopic } = await conversation.createObject({
-        data: {
-          id: 'Xr4tQw',
-          type: 'topic',
-          headline: 'Types of Sailboats',
-        },
-      });
-      const topicId = createdTopic.id;
+      const { object: createdTopic } = await conversation.createObject(
+        'topic',
+        { headline: 'Types of Sailboats' },
+        { basename: 'sailboats' },
+      );
+      const topicLocation = createdTopic.location;
 
       // Run the prompt with the topic node selected
-      await conversation.prompt(prompt, { objectIds: [topicId] });
+      await conversation.prompt(prompt, { locations: [topicLocation] });
 
-      // Verify structure unchanged
-      const objectIds = channel.getObjectIds();
-      expect(objectIds).to.have.length(1);
-      expect(objectIds[0]).to.equal(topicId);
+      // Verify structure unchanged (still exactly one object, at the same location)
+      const locations = channel.getObjectLocations();
+      expect(locations).to.have.length(1);
+      expect(locations[0]).to.equal(topicLocation);
 
       // Verify emoji was added and is boat-related
-      const topic = await channel.getObject(topicId);
-      expect(topic!.type).to.equal('topic');
-      expect(topic!.headline).to.equal('Types of Sailboats');
-      expect(topic!.emoji).to.be.a('string');
+      const topic = await channel.getObject(topicLocation);
+      expect(topic!.collection).to.equal('topic');
+      expect(topic!.body.headline).to.equal('Types of Sailboats');
+      expect(topic!.body.emoji).to.be.a('string');
 
       // Normalize emoji (remove variation selectors)
-      const emoji = (topic!.emoji as string).replace(/\uFE0F/g, '');
-      expect(BOAT_EMOJIS.has(emoji), `Expected boat emoji, got: ${topic!.emoji}`).to.be.true;
+      const emoji = (topic!.body.emoji as string).replace(/\uFE0F/g, '');
+      expect(BOAT_EMOJIS.has(emoji), `Expected boat emoji, got: ${topic!.body.emoji}`).to.be.true;
     } finally {
       space.close();
     }

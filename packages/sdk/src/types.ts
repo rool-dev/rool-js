@@ -33,24 +33,30 @@ export interface CollectionDef {
 export type SpaceSchema = Record<string, CollectionDef>;
 
 /**
- * Object data - the user content portion of an object.
- * Always contains `id` (the object's unique identifier) and `type`
- * (a string naming the collection the object belongs to). The server
- * validates the object's other fields against that collection's
- * definition; a missing or unknown `type` is rejected.
- * Other fields are application-defined.
+ * An object in a space.
+ *
+ * Identity lives in the envelope (`location`, `collection`, `basename`). The
+ * `body` holds the user-defined fields; it never contains identity. References
+ * between objects are body fields whose values are location strings.
  */
 export interface RoolObject {
-  id: string;
-  type: string;
-  [key: string]: unknown;
+  /** Canonical location: `/space/<collection>/<basename>.json`. */
+  location: string;
+  /** Collection name (parent directory of the location). */
+  collection: string;
+  /** Basename (filename of the location without `.json`). */
+  basename: string;
+  /** User-defined fields. Never contains identity. */
+  body: Record<string, unknown>;
 }
 
 /**
- * Object stat - audit information about an object.
- * Returned by space.stat(objectId).
+ * Audit information for an object — when it was last modified, by whom,
+ * and where (channel/conversation/interaction). Returned by `channel.stat`.
  */
 export interface RoolObjectStat {
+  /** Object location these stats apply to. */
+  location: string;
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
@@ -87,12 +93,13 @@ export interface Interaction {
   timestamp: number;
   userId: string;
   userName?: string | null;  // Display name at time of interaction
-  operation: 'prompt' | 'createObject' | 'updateObject' | 'deleteObjects';
+  operation: 'prompt' | 'createObject' | 'updateObject' | 'moveObject' | 'deleteObjects';
   input: string;
   output: string | null;
   status: InteractionStatus;
   ai: boolean;
-  modifiedObjectIds: string[];
+  /** Locations of objects affected by this interaction. */
+  modifiedObjectLocations: string[];
   toolCalls: ToolCall[];
   /** rool-drive:/ file references attached by the user (images, documents, etc.) */
   attachments?: string[];
@@ -291,7 +298,8 @@ export interface PublishedExtensionInfo {
 export type PromptEffort = 'QUICK' | 'STANDARD' | 'REASONING' | 'RESEARCH';
 
 export interface PromptOptions {
-  objectIds?: string[];
+  /** Focus the AI on specific objects, by location. */
+  locations?: string[];
   responseSchema?: Record<string, unknown>;
   /** Effort level for the AI operation. Defaults to 'STANDARD'. */
   effort?: PromptEffort;
@@ -323,16 +331,16 @@ export interface PromptOptions {
 }
 
 export interface FindObjectsOptions {
-  /** Exact-match field filter (e.g. `{ type: 'article' }`). No operators or placeholders — values must match literally. When combined with `prompt`, constrains which objects the AI can see. */
+  /** Exact-match field filter (e.g. `{ status: 'published' }`). No operators or placeholders — values must match literally. */
   where?: Record<string, unknown>;
-  /** Filter by collection name. Returns objects whose `type` field equals the given name. */
+  /** Filter by collection name. Returns objects in the matching collection. */
   collection?: string;
-  /** Natural language query. Triggers AI evaluation (uses credits). When combined with `where`/`objectIds`, the AI only sees the pre-filtered set. */
+  /** Natural language query. Triggers AI evaluation (uses credits). When combined with `where`/`locations`, the AI only sees the pre-filtered set. */
   prompt?: string;
   /** Maximum number of results. Only applies to structured filtering (no `prompt`); the AI controls its own result size. */
   limit?: number;
-  /** Scope search to specific object IDs. Constrains the candidate set in both structured and AI queries. */
-  objectIds?: string[];
+  /** Scope search to specific object locations. Constrains the candidate set in both structured and AI queries. */
+  locations?: string[];
   /** Sort order by modifiedAt. Default: 'desc' (most recent first). Only applies to structured filtering (no `prompt`). */
   order?: 'asc' | 'desc';
   /** If true, the query won't be recorded in interaction history. Useful for responsive search. */
@@ -340,19 +348,32 @@ export interface FindObjectsOptions {
 }
 
 export interface CreateObjectOptions {
-  /** Object data fields. Must include `type` naming an existing collection. Include `id` for custom ID. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
-  data: Record<string, unknown>;
+  /** Specific basename to use. If omitted, the SDK generates a random one. */
+  basename?: string;
   /** If true, the operation won't be recorded in interaction history. */
   ephemeral?: boolean;
+  /** Parent interaction in the conversation tree. Omit to auto-continue; pass null for a new root. */
+  parentInteractionId?: string | null;
 }
 
 export interface UpdateObjectOptions {
-  /** Fields to add or update. Pass null/undefined to delete a field. Use `{{placeholder}}` for AI-generated content. Setting a new `type` retypes the object — the merged result must conform to the new collection. Fields prefixed with `_` are hidden from AI. */
+  /** Fields to add or update. Pass null/undefined to delete a field. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
   data?: Record<string, unknown>;
   /** Natural language instruction for AI to modify content. */
   prompt?: string;
   /** If true, the operation won't be recorded in interaction history. */
   ephemeral?: boolean;
+  /** Parent interaction in the conversation tree. Omit to auto-continue; pass null for a new root. */
+  parentInteractionId?: string | null;
+}
+
+export interface MoveObjectOptions {
+  /** Replace the body atomically as part of the move. If omitted, the body is preserved. */
+  body?: Record<string, unknown>;
+  /** If true, the operation won't be recorded in interaction history. */
+  ephemeral?: boolean;
+  /** Parent interaction in the conversation tree. Omit to auto-continue; pass null for a new root. */
+  parentInteractionId?: string | null;
 }
 
 export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
@@ -454,6 +475,7 @@ export type ChannelEventType =
   | 'object_created'
   | 'object_updated'
   | 'object_deleted'
+  | 'object_moved'
   | 'schema_updated'
   | 'metadata_updated'
   | 'channel_updated'
@@ -469,10 +491,13 @@ export interface ChannelEvent {
   timestamp: number;
   source: RoolEventSource;
   // Object events
-  objectId?: string;
+  location?: string;
   object?: RoolObject;
   /** Object stat (audit info) — present on object_created and object_updated events */
   objectStat?: RoolObjectStat;
+  // object_moved
+  from?: string;
+  to?: string;
   // Schema events
   schema?: SpaceSchema;
   // Metadata events
@@ -589,10 +614,6 @@ export interface RoolClientEvents {
 }
 
 /**
- * Space-level events emitted by RoolSpace.
- * Includes channel lifecycle events derived from the space SSE subscription.
- */
-/**
  * Server-initiated probe against an extension iframe — agent debugging /
  * inspection operations like `screenshot`, `consoleLogs`, `clickSelector`.
  * The client runs the probe via the iframe bridge and posts the result
@@ -637,19 +658,26 @@ export interface RoolSpaceEvents {
 export type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
 
 export interface ObjectCreatedEvent {
-  objectId: string;
+  location: string;
   object: RoolObject;
   source: ChangeSource;
 }
 
 export interface ObjectUpdatedEvent {
-  objectId: string;
+  location: string;
   object: RoolObject;
   source: ChangeSource;
 }
 
 export interface ObjectDeletedEvent {
-  objectId: string;
+  location: string;
+  source: ChangeSource;
+}
+
+export interface ObjectMovedEvent {
+  from: string;
+  to: string;
+  object: RoolObject;
   source: ChangeSource;
 }
 
@@ -683,7 +711,7 @@ export interface ConversationUpdatedEvent {
  * Channel-level events (content changes within a specific channel).
  *
  * Semantic events describe what changed:
- * - `objectCreated`, `objectUpdated`, `objectDeleted`: Object changes
+ * - `objectCreated`, `objectUpdated`, `objectDeleted`, `objectMoved`: Object changes
  * - `metadataUpdated`: Space metadata changes
  * - `channelUpdated`: Channel metadata changed (name, extensionUrl)
  * - `conversationUpdated`: Conversation interaction history changed
@@ -699,6 +727,8 @@ export interface ChannelEvents {
   objectUpdated: (event: ObjectUpdatedEvent) => void;
   /** An object was deleted */
   objectDeleted: (event: ObjectDeletedEvent) => void;
+  /** An object was moved (renamed / relocated) */
+  objectMoved: (event: ObjectMovedEvent) => void;
   /** Space metadata was updated */
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Collection schema was updated */

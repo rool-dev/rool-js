@@ -31,13 +31,13 @@ export const testCase: TestCase = {
       expectCollectionWithFields(channel, ['headline', 'text']);
 
       for (const obj of objects) {
-        expect(obj.headline).to.be.a('string');
-        expect((obj.headline as string).length).to.be.greaterThan(0);
-        expect(obj.text).to.be.a('string');
-        expect((obj.text as string).length).to.be.greaterThan(0);
+        expect(obj.body.headline).to.be.a('string');
+        expect((obj.body.headline as string).length).to.be.greaterThan(0);
+        expect(obj.body.text).to.be.a('string');
+        expect((obj.body.text as string).length).to.be.greaterThan(0);
 
         // Text should have at least 3 lines (haiku structure)
-        const lines = (obj.text as string)
+        const lines = (obj.body.text as string)
           .split(/\r?\n/)
           .map(l => l.trim())
           .filter(Boolean);

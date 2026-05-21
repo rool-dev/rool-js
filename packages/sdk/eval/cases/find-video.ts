@@ -35,14 +35,14 @@ export const testCase: TestCase = {
 
       const video = objects[0];
 
-      expect(video.headline).to.be.a('string');
-      expect((video.headline as string).length).to.be.greaterThan(0);
-      expect(video.text).to.be.a('string');
-      expect((video.text as string).length).to.be.greaterThan(20);
+      expect(video.body.headline).to.be.a('string');
+      expect((video.body.headline as string).length).to.be.greaterThan(0);
+      expect(video.body.text).to.be.a('string');
+      expect((video.body.text as string).length).to.be.greaterThan(20);
 
-      expect(isYouTubeUrl(video.videoUrl), 'Should be a YouTube URL').to.be.true;
+      expect(isYouTubeUrl(video.body.videoUrl), 'Should be a YouTube URL').to.be.true;
 
-      const url = video.videoUrl as string;
+      const url = video.body.videoUrl as string;
       const hasCorrectVideo = KNOWN_VIDEO_IDS.some(id => url.toLowerCase().includes(id.toLowerCase()));
       expect(hasCorrectVideo, `Video URL should contain one of: ${KNOWN_VIDEO_IDS.join(', ')}`).to.be.true;
 

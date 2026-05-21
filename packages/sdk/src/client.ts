@@ -5,6 +5,7 @@ import { ClientSubscriptionManager } from './subscription.js';
 import { RestClient } from './rest.js';
 import { ExtensionsClient } from './apps.js';
 import { RoolWebDAV, type SpaceFileStorageUsage } from './webdav.js';
+import { generateBasename } from './locations.js';
 import { generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
 import { SpaceRouter } from './router.js';
@@ -356,6 +357,24 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
+   * Duplicate an existing space. Returns a handle to the new space.
+   */
+  async duplicateSpace(sourceSpaceId: string, name: string): Promise<RoolSpace> {
+    this.ensureSubscribed().catch(() => { });
+    const { spaceId } = await this.graphqlClient.duplicateSpace(sourceSpaceId, name);
+    return this.openSpace(spaceId);
+  }
+
+  /**
+   * Mark the current user for deletion (10-minute grace period).
+   * Irrecoverable after the grace period elapses.
+   */
+  async deleteCurrentUser(): Promise<void> {
+    await this.graphqlClient.deleteCurrentUser();
+    this.logout();
+  }
+
+  /**
    * Import a space from a zip archive.
    * Creates a new space with the given name and imports objects, relations, and files.
    * Returns a RoolSpace handle.
@@ -577,9 +596,21 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
 
   /**
-   * Generate a unique entity ID.
-   * 6-character alphanumeric string (62^6 = 56.8 billion possible values).
-   * Also available as top-level generateEntityId() export.
+   * Generate a 6-character alphanumeric basename for object identity.
+   * Useful when you want to mint a location before calling `createObject`
+   * (e.g., for fire-and-forget creation patterns).
+   *
+   * @example
+   *   const basename = RoolClient.generateBasename();
+   *   await channel.createObject('article', { title: 'Hello' }, { basename });
+   */
+  static generateBasename(): string {
+    return generateBasename();
+  }
+
+  /**
+   * @deprecated Use {@link RoolClient.generateBasename} for object basenames.
+   * Retained for callers minting interaction or channel IDs.
    */
   static generateId(): string {
     return generateEntityId();

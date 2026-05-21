@@ -21,16 +21,16 @@ export const testCase: TestCase = {
       const conversation = channel.conversation('electrical-shorten-eval');
 
       // Capture initial state
-      const initialObjectIds = channel.getObjectIds();
+      const initialLocations = channel.getObjectLocations();
       const initialArticleBodyLengths = new Map<string, number>();
       const initialUntouchedData = new Map<string, string>();
 
-      for (const id of initialObjectIds) {
-        const obj = await channel.getObject(id);
-        if (obj!.type === 'Article' && typeof obj!.articleBody === 'string') {
-          initialArticleBodyLengths.set(id, (obj!.articleBody as string).length);
+      for (const location of initialLocations) {
+        const obj = await channel.getObject(location);
+        if (obj!.collection === 'Article' && typeof obj!.body.articleBody === 'string') {
+          initialArticleBodyLengths.set(location, (obj!.body.articleBody as string).length);
         } else {
-          initialUntouchedData.set(id, JSON.stringify(obj));
+          initialUntouchedData.set(location, JSON.stringify(obj));
         }
       }
 
@@ -38,29 +38,29 @@ export const testCase: TestCase = {
       await conversation.prompt(prompt);
 
       // Verify structure unchanged: same objects
-      const finalObjectIds = channel.getObjectIds();
-      expect(finalObjectIds.sort()).to.deep.equal(initialObjectIds.sort());
+      const finalLocations = channel.getObjectLocations();
+      expect(finalLocations.sort()).to.deep.equal(initialLocations.sort());
 
       // Verify objects without articleBody are unchanged
-      for (const [id, initialData] of initialUntouchedData) {
-        const finalObj = await channel.getObject(id);
+      for (const [location, initialData] of initialUntouchedData) {
+        const finalObj = await channel.getObject(location);
         expect(JSON.stringify(finalObj)).to.equal(
           initialData,
-          `Object ${id} (no articleBody) should be unchanged`
+          `Object ${location} (no articleBody) should be unchanged`
         );
       }
 
       // Verify articleBody was shortened
-      for (const [id, initialLength] of initialArticleBodyLengths) {
-        const finalObj = await channel.getObject(id);
-        expect(finalObj!.type).to.equal('Article');
-        expect(finalObj!.articleBody).to.be.a('string');
+      for (const [location, initialLength] of initialArticleBodyLengths) {
+        const finalObj = await channel.getObject(location);
+        expect(finalObj!.collection).to.equal('Article');
+        expect(finalObj!.body.articleBody).to.be.a('string');
 
-        const finalLength = (finalObj!.articleBody as string).length;
-        expect(finalLength).to.be.greaterThan(0, `Object ${id} articleBody should not be empty`);
+        const finalLength = (finalObj!.body.articleBody as string).length;
+        expect(finalLength).to.be.greaterThan(0, `Object ${location} articleBody should not be empty`);
         expect(finalLength).to.be.lessThan(
           initialLength,
-          `Object ${id} articleBody should be shorter (was ${initialLength}, now ${finalLength})`
+          `Object ${location} articleBody should be shorter (was ${initialLength}, now ${finalLength})`
         );
       }
     } finally {

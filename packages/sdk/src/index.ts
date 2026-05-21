@@ -7,6 +7,10 @@ export { RoolChannel, ConversationHandle, generateEntityId } from './channel.js'
 // Space class
 export { RoolSpace } from './space.js';
 
+// Location helpers
+export { loc, parseLocation, normalizeLocation, isLocation, generateBasename } from './locations.js';
+export type { ParsedLocation } from './locations.js';
+
 // WebDAV client
 export { ROOL_DRIVE_REF_PREFIX, RoolWebDAV, WebDAVError } from './webdav.js';
 export type {
@@ -74,9 +78,11 @@ export type {
 
   // AI types
   PromptOptions,
+  PromptEffort,
   FindObjectsOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  MoveObjectOptions,
 
   // Connection types
   ConnectionState,
@@ -87,6 +93,7 @@ export type {
   ObjectCreatedEvent,
   ObjectUpdatedEvent,
   ObjectDeletedEvent,
+  ObjectMovedEvent,
   MetadataUpdatedEvent,
   SchemaUpdatedEvent,
   ChannelUpdatedEvent,

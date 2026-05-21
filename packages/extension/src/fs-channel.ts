@@ -26,7 +26,9 @@ import type {
   FindObjectsOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  MoveObjectOptions,
 } from '@rool-dev/sdk';
+import { loc, parseLocation, normalizeLocation, generateBasename } from '@rool-dev/sdk';
 import type { BridgeableChannel } from './host.js';
 
 interface FsObjectStat {
@@ -39,8 +41,8 @@ interface FsObjectStat {
 }
 
 export interface FsOverview {
-  objectIds: string[];
-  objectStats: Array<{ id: string } & FsObjectStat>;
+  objectLocations: string[];
+  objectStats: Array<{ location: string } & FsObjectStat>;
   schema: SpaceSchema;
   meta: Record<string, unknown>;
 }
@@ -95,13 +97,23 @@ class TinyEmitter {
 }
 
 interface ServerEvent {
-  type: 'objectChanged' | 'objectDeleted' | 'schemaChanged' | 'metaChanged';
-  objectId?: string;
-  collection?: string;
-  object?: Record<string, unknown>;
+  type: 'objectChanged' | 'objectDeleted' | 'objectMoved' | 'schemaChanged' | 'metaChanged';
+  /** Canonical location of the affected object. */
+  location?: string;
+  /** Source location for moves. */
+  from?: string;
+  /** Destination location for moves. */
+  to?: string;
+  /** Body of the object (no id/type). */
+  body?: Record<string, unknown>;
   stat?: FsObjectStat;
   schema?: SpaceSchema;
   meta?: Record<string, unknown>;
+}
+
+function objectFromBody(location: string, body: Record<string, unknown>): RoolObject {
+  const { collection, basename } = parseLocation(location);
+  return { location, collection, basename, body };
 }
 
 export class FsChannel implements BridgeableChannel {
@@ -117,7 +129,7 @@ export class FsChannel implements BridgeableChannel {
   private channel: Channel;
   private schema: SpaceSchema;
   private meta: Record<string, unknown>;
-  private statsById = new Map<string, FsObjectStat>();
+  private statsByLocation = new Map<string, FsObjectStat>();
   private activeLeaves = new Map<string, string>();
   private emitter = new TinyEmitter();
   private events: EventSource | null = null;
@@ -135,8 +147,8 @@ export class FsChannel implements BridgeableChannel {
     this.schema = opts.overview.schema;
     this.meta = opts.overview.meta;
     for (const stat of opts.overview.objectStats) {
-      const { id, ...rest } = stat;
-      this.statsById.set(id, rest);
+      const { location, ...rest } = stat;
+      this.statsByLocation.set(location, rest);
     }
     this.channel = {
       createdAt: Date.now(),
@@ -185,31 +197,40 @@ export class FsChannel implements BridgeableChannel {
       this.handleServerEvent(parsed);
     };
     this.events.onerror = () => {
-      // EventSource auto-reconnects; surface a syncError but keep the
-      // subscription alive.
       this.emitter.emit('syncError', new Error('Preview event stream disconnected'));
     };
   }
 
   private handleServerEvent(ev: ServerEvent): void {
-    if (ev.type === 'objectChanged' && ev.objectId && ev.object && ev.stat) {
-      const wasKnown = this.statsById.has(ev.objectId);
-      const prev = this.statsById.get(ev.objectId);
+    if (ev.type === 'objectChanged' && ev.location && ev.body && ev.stat) {
+      const wasKnown = this.statsByLocation.has(ev.location);
+      const prev = this.statsByLocation.get(ev.location);
       // Idempotent: skip if the stamp we already have is at least as recent.
       if (prev && prev.modifiedAt >= ev.stat.modifiedAt) return;
-      this.statsById.set(ev.objectId, ev.stat);
+      this.statsByLocation.set(ev.location, ev.stat);
       const name = wasKnown ? 'objectUpdated' : 'objectCreated';
       this.emitter.emit(name, {
-        objectId: ev.objectId,
-        object: ev.object as RoolObject,
+        location: ev.location,
+        object: objectFromBody(ev.location, ev.body),
         source: 'remote_agent',
       });
       return;
     }
-    if (ev.type === 'objectDeleted' && ev.objectId) {
-      if (!this.statsById.has(ev.objectId)) return;
-      this.statsById.delete(ev.objectId);
-      this.emitter.emit('objectDeleted', { objectId: ev.objectId, source: 'remote_agent' });
+    if (ev.type === 'objectDeleted' && ev.location) {
+      if (!this.statsByLocation.has(ev.location)) return;
+      this.statsByLocation.delete(ev.location);
+      this.emitter.emit('objectDeleted', { location: ev.location, source: 'remote_agent' });
+      return;
+    }
+    if (ev.type === 'objectMoved' && ev.from && ev.to && ev.body && ev.stat) {
+      this.statsByLocation.delete(ev.from);
+      this.statsByLocation.set(ev.to, ev.stat);
+      this.emitter.emit('objectMoved', {
+        from: ev.from,
+        to: ev.to,
+        object: objectFromBody(ev.to, ev.body),
+        source: 'remote_agent',
+      });
       return;
     }
     if (ev.type === 'schemaChanged' && ev.schema) {
@@ -246,102 +267,161 @@ export class FsChannel implements BridgeableChannel {
 
   // --- Object reads -----------------------------------------------------
 
-  async getObject(objectId: string): Promise<RoolObject | undefined> {
+  async getObject(location: string): Promise<RoolObject | undefined> {
+    const canonical = normalizeLocation(location);
     try {
-      const body = await this.req<Record<string, unknown>>('GET', `/objects/${encodeURIComponent(objectId)}`);
-      return body as RoolObject;
+      const body = await this.req<Record<string, unknown>>(
+        'GET',
+        `/objects/${encodeURIComponent(canonical)}`,
+      );
+      return objectFromBody(canonical, body);
     } catch (e) {
       if (e instanceof Error && /OBJECT_NOT_FOUND/.test(e.message)) return undefined;
       throw e;
     }
   }
 
-  stat(objectId: string): RoolObjectStat | undefined {
-    const s = this.statsById.get(objectId);
+  stat(location: string): RoolObjectStat | undefined {
+    const canonical = normalizeLocation(location);
+    const s = this.statsByLocation.get(canonical);
     if (!s) return undefined;
-    return { ...s };
+    return { location: canonical, ...s };
   }
 
-  getObjectIds(options?: { limit?: number; order?: 'asc' | 'desc' }): string[] {
-    const entries = Array.from(this.statsById.entries());
+  getObjectLocations(options?: { limit?: number; order?: 'asc' | 'desc' }): string[] {
+    const entries = Array.from(this.statsByLocation.entries());
     entries.sort((a, b) => b[1].modifiedAt - a[1].modifiedAt);
-    let ids = entries.map(([id]) => id);
-    if (options?.order === 'asc') ids = ids.reverse();
-    if (options?.limit !== undefined) ids = ids.slice(0, options.limit);
-    return ids;
+    let locs = entries.map(([location]) => location);
+    if (options?.order === 'asc') locs = locs.reverse();
+    if (options?.limit !== undefined) locs = locs.slice(0, options.limit);
+    return locs;
   }
 
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
     if (options.prompt) {
       throw new Error('findObjects with `prompt` (AI) is not supported in preview');
     }
-    const body = await this.req<{ objects: Array<Record<string, unknown>>; count: number }>(
+    const body = await this.req<{ objects: Array<{ location: string; body: Record<string, unknown> }>; count: number }>(
       'POST',
       '/find',
       {
         where: options.where,
         collection: options.collection,
-        objectIds: options.objectIds,
+        locations: options.locations?.map(normalizeLocation),
         order: options.order ?? 'desc',
         limit: options.limit,
       },
     );
     return {
-      objects: body.objects as RoolObject[],
+      objects: body.objects.map(o => objectFromBody(o.location, o.body)),
       message: `Found ${body.count} object(s)`,
     };
   }
 
   // --- Object writes ----------------------------------------------------
 
-  async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this.createObjectScoped(options, this.conversationId);
+  async createObject(
+    collection: string,
+    body: Record<string, unknown>,
+    options?: CreateObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this.createObjectScoped(collection, body, options, this.conversationId);
   }
 
-  async createObjectScoped(options: CreateObjectOptions, _conversationId: string): Promise<{ object: RoolObject; message: string }> {
-    const data = { ...options.data };
-    if (typeof data.id !== 'string' || !data.id) data.id = generateEntityId();
-    const objectId = data.id as string;
-    await this.req('POST', '/objects', { data });
-    const created = (await this.getObject(objectId)) ?? (data as RoolObject);
-    this.statsById.set(objectId, this.synthStat());
-    this.emitter.emit('objectCreated', { objectId, object: created, source: 'local_user' });
+  async createObjectScoped(
+    collection: string,
+    body: Record<string, unknown>,
+    options: CreateObjectOptions | undefined,
+    _conversationId: string,
+  ): Promise<{ object: RoolObject; message: string }> {
+    if ('id' in body || 'type' in body) {
+      throw new Error('createObject: body must not contain `id` or `type` — identity is the location.');
+    }
+    const basename = options?.basename ?? generateBasename();
+    const location = loc(collection, basename);
+    await this.req('POST', '/objects', { location, body });
+    const created = (await this.getObject(location)) ?? objectFromBody(location, body);
+    this.statsByLocation.set(location, this.synthStat());
+    this.emitter.emit('objectCreated', { location, object: created, source: 'local_user' });
     return { object: created, message: 'Object created' };
   }
 
-  async updateObject(objectId: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this.updateObjectScoped(objectId, options, this.conversationId);
+  async updateObject(
+    location: string,
+    options: UpdateObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this.updateObjectScoped(location, options, this.conversationId);
   }
 
-  async updateObjectScoped(objectId: string, options: UpdateObjectOptions, _conversationId: string): Promise<{ object: RoolObject; message: string }> {
+  async updateObjectScoped(
+    location: string,
+    options: UpdateObjectOptions,
+    _conversationId: string,
+  ): Promise<{ object: RoolObject; message: string }> {
     if (options.prompt) {
       throw new Error('updateObject with `prompt` (AI) is not supported in preview');
     }
+    const canonical = normalizeLocation(location);
     const set: Record<string, unknown> = {};
     const remove: string[] = [];
     if (options.data) {
+      if ('id' in options.data || 'type' in options.data) {
+        throw new Error('updateObject: data must not contain `id` or `type`.');
+      }
       for (const [k, v] of Object.entries(options.data)) {
-        if (k === 'id') continue;
         if (v === null || v === undefined) remove.push(k);
         else set[k] = v;
       }
     }
-    await this.req('PATCH', `/objects/${encodeURIComponent(objectId)}`, { set, remove });
-    const after = await this.getObject(objectId);
-    if (!after) throw new Error(`NOT_FOUND: Object "${objectId}" not found`);
-    this.statsById.set(objectId, this.synthStat());
-    this.emitter.emit('objectUpdated', { objectId, object: after, source: 'local_user' });
+    await this.req('PATCH', `/objects/${encodeURIComponent(canonical)}`, { set, remove });
+    const after = await this.getObject(canonical);
+    if (!after) throw new Error(`NOT_FOUND: Object "${canonical}" not found`);
+    this.statsByLocation.set(canonical, this.synthStat());
+    this.emitter.emit('objectUpdated', { location: canonical, object: after, source: 'local_user' });
     return { object: after, message: 'Object updated' };
   }
 
-  async deleteObjects(objectIds: string[]): Promise<void> {
-    for (const id of objectIds) {
-      if (!this.statsById.has(id)) throw new Error(`NOT_FOUND: Object "${id}" not found`);
+  async moveObject(
+    from: string,
+    to: string,
+    options?: MoveObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this.moveObjectScoped(from, to, options, this.conversationId);
+  }
+
+  async moveObjectScoped(
+    from: string,
+    to: string,
+    options: MoveObjectOptions | undefined,
+    _conversationId: string,
+  ): Promise<{ object: RoolObject; message: string }> {
+    const fromLoc = normalizeLocation(from);
+    const toLoc = normalizeLocation(to);
+    if (options?.body && ('id' in options.body || 'type' in options.body)) {
+      throw new Error('moveObject: body must not contain `id` or `type`.');
     }
-    await this.req('POST', '/objects/_delete', { ids: objectIds });
-    for (const id of objectIds) {
-      this.statsById.delete(id);
-      this.emitter.emit('objectDeleted', { objectId: id, source: 'local_user' });
+    await this.req('POST', '/objects/_move', { from: fromLoc, to: toLoc, body: options?.body });
+    const moved = (await this.getObject(toLoc)) ?? objectFromBody(toLoc, options?.body ?? {});
+    this.statsByLocation.delete(fromLoc);
+    this.statsByLocation.set(toLoc, this.synthStat());
+    this.emitter.emit('objectMoved', {
+      from: fromLoc,
+      to: toLoc,
+      object: moved,
+      source: 'local_user',
+    });
+    return { object: moved, message: 'Object moved' };
+  }
+
+  async deleteObjects(locations: string[]): Promise<void> {
+    const canonical = locations.map(normalizeLocation);
+    for (const location of canonical) {
+      if (!this.statsByLocation.has(location)) throw new Error(`NOT_FOUND: Object "${location}" not found`);
+    }
+    await this.req('POST', '/objects/_delete', { locations: canonical });
+    for (const location of canonical) {
+      this.statsByLocation.delete(location);
+      this.emitter.emit('objectDeleted', { location, source: 'local_user' });
     }
   }
 
@@ -546,6 +626,11 @@ export class FsChannel implements BridgeableChannel {
 
   // --- Internal ---------------------------------------------------------
 
+  /** @internal */
+  _generateInteractionId(): string {
+    return generateEntityId();
+  }
+
   private synthStat(): FsObjectStat {
     return {
       modifiedAt: Date.now(),
@@ -569,9 +654,16 @@ class FsConversationHandle {
   async setSystemInstruction(i: string | null): Promise<void> { return this.parent.setSystemInstructionScoped(i, this.convId); }
   async rename(name: string): Promise<void> { return this.parent.renameConversationScoped(name, this.convId); }
   async findObjects(o: FindObjectsOptions) { return this.parent.findObjects(o); }
-  async createObject(o: CreateObjectOptions) { return this.parent.createObjectScoped(o, this.convId); }
-  async updateObject(id: string, o: UpdateObjectOptions) { return this.parent.updateObjectScoped(id, o, this.convId); }
-  async deleteObjects(ids: string[]): Promise<void> { return this.parent.deleteObjects(ids); }
+  async createObject(collection: string, body: Record<string, unknown>, options?: CreateObjectOptions) {
+    return this.parent.createObjectScoped(collection, body, options, this.convId);
+  }
+  async updateObject(location: string, options: UpdateObjectOptions) {
+    return this.parent.updateObjectScoped(location, options, this.convId);
+  }
+  async moveObject(from: string, to: string, options?: MoveObjectOptions) {
+    return this.parent.moveObjectScoped(from, to, options, this.convId);
+  }
+  async deleteObjects(locations: string[]): Promise<void> { return this.parent.deleteObjects(locations); }
   async createCollection(name: string, fields: FieldDef[]) { return this.parent.createCollection(name, fields); }
   async alterCollection(name: string, fields: FieldDef[]) { return this.parent.alterCollection(name, fields); }
   async dropCollection(name: string): Promise<void> { return this.parent.dropCollection(name); }

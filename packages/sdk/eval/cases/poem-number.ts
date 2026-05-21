@@ -43,16 +43,16 @@ export const testCase: TestCase = {
       const poem = objects[0];
 
       // Headline should be a single digit
-      expect(poem.headline).to.match(/^[0-9]$/, 'Headline should be a single digit');
+      expect(poem.body.headline).to.match(/^[0-9]$/, 'Headline should be a single digit');
 
       // Text should be multi-line (at least 4 lines)
-      const text = poem.text as string;
+      const text = poem.body.text as string;
       expect(text).to.be.a('string');
       const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
       expect(lines.length).to.be.at.least(4, 'Poem should have at least 4 lines');
 
       // Poem should reference the number
-      const digit = poem.headline as string;
+      const digit = poem.body.headline as string;
       const lowerText = text.toLowerCase();
       const words = DIGIT_TO_WORDS[digit] || [];
       const mentionsNumber = lowerText.includes(digit) || words.some(word => lowerText.includes(word));
