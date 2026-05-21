@@ -21,16 +21,17 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "rool-extension": "./dist/cli/index.js"
+    "rool-extension": "./bin/rool-extension.js"
   },
   "files": [
+    "bin",
     "dist"
   ],
   "scripts": {
     "build": "svelte-package -i src -o dist && chmod +x dist/cli/index.js && vite build -c build/vite.fs-host.config.js",
     "build:fs-host": "vite build -c build/vite.fs-host.config.js",
     "dev": "svelte-package -i src -o dist --watch",
-    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "typecheck": "pnpm --filter @rool-dev/sdk build && svelte-check --tsconfig ./tsconfig.json",
     "clean": "rm -rf dist",
     "pack:local": "pnpm build && rm -f rool-dev-extension-local.tgz && pnpm pack --pack-destination . && mv rool-dev-extension-*.tgz rool-dev-extension-local.tgz"
   },
