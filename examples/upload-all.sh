@@ -23,12 +23,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+pnpm --dir "$ROOT_DIR" --filter @rool-dev/extension build
 
 for dir in "$SCRIPT_DIR"/*/; do
   [ -f "$dir/manifest.json" ] || continue
   name="$(basename "$dir")"
   echo "==> Uploading $name $ENV_FLAG $PUBLISH_FLAG"
-  (cd "$dir" && rool-extension upload $ENV_FLAG $PUBLISH_FLAG)
+  pnpm --dir "$dir" exec rool-extension upload $ENV_FLAG $PUBLISH_FLAG
 done
 
 echo "Done."
