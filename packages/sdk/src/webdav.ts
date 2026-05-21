@@ -27,6 +27,15 @@ export interface WebDAVConfig {
   authManager: AuthManager;
 }
 
+export interface SpaceFileStorageUsage {
+  /** Bytes currently used by files in this space. */
+  usedBytes: number;
+  /** Bytes still available, or null when the plan has no storage limit. */
+  availableBytes: number | null;
+  /** Total storage limit, or null when the plan has no storage limit. */
+  limitBytes: number | null;
+}
+
 export interface WebDAVRequestInit extends RequestInit {
   /** Treat the path as a collection URL, i.e. include the trailing slash. */
   collection?: boolean;
@@ -192,6 +201,29 @@ export class RoolWebDAV {
 
     const xml = await response.text();
     return parseMultiStatus(xml, this.spaceId);
+  }
+
+  /** Return WebDAV quota usage for this space. */
+  async getStorageUsage(): Promise<SpaceFileStorageUsage> {
+    const result = await this.propfind('', {
+      depth: '0',
+      props: ['quota-used-bytes', 'quota-available-bytes'],
+    });
+    const props = result.responses[0]?.props;
+    const usedBytes = props?.quotaUsedBytes;
+    if (typeof usedBytes !== 'number') {
+      throw new Error('Storage usage response missing quota-used-bytes');
+    }
+
+    const availableBytes = typeof props?.quotaAvailableBytes === 'number'
+      ? props.quotaAvailableBytes
+      : null;
+
+    return {
+      usedBytes,
+      availableBytes,
+      limitBytes: availableBytes === null ? null : usedBytes + availableBytes,
+    };
   }
 
   async get(path: WebDAVPathInput, options: {

@@ -595,6 +595,7 @@ const client = new RoolClient({
 | `deleteSpace(id): Promise<void>` | Permanently delete a space (cannot be undone) |
 | `importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
 | `webdav(spaceId): RoolWebDAV` | Open a WebDAV client for a space's file storage |
+| `getSpaceStorageUsage(spaceId): Promise<SpaceFileStorageUsage>` | Get WebDAV quota usage for a space |
 
 ### Channel Management
 
@@ -745,6 +746,7 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 | `deleteChannel(channelId): Promise<void>` | Delete a channel |
 | `installExtension(extensionId, channelId): Promise<string>` | Install an extension into a channel of this space. If you own it, wires it directly. If it's a marketplace extension, copies and builds a new extension in your library. Returns the channel ID. |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
+| `getStorageUsage(): Promise<SpaceFileStorageUsage>` | Get WebDAV quota usage for this space |
 | `refresh(): Promise<void>` | Refresh space data from server |
 
 ### Space Events
@@ -913,6 +915,11 @@ console.log(await file.text());
 
 const ref = webdav.ref('docs/read me.md'); // "rool-drive:/docs/read%20me.md"
 const sameFile = await webdav.get(ref);
+
+const usage = await space.getStorageUsage();
+console.log(usage.usedBytes);
+console.log(usage.availableBytes); // null means unlimited
+console.log(usage.limitBytes);     // null means unlimited
 ```
 
 Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). `rool-drive:/...` references percent-encode path segments for use in text; `webdav.path('rool-drive:/docs/read%20me.md')` returns `docs/read me.md`. The WebDAV methods accept either paths or refs and normalize them to paths. `PUT` writes an exact path and does not create parent collections; create parents with `mkcol()` first. Helpers preserve WebDAV status semantics: non-success responses throw `WebDAVError` with `status`, `statusText`, and `body`.
@@ -920,7 +927,10 @@ Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). `rool-drive:
 | Method | Description |
 |--------|-------------|
 | `client.webdav(spaceId)` | Create a WebDAV client for a space |
+| `client.getSpaceStorageUsage(spaceId)` | Get WebDAV quota usage for a space |
 | `space.webdav` | WebDAV client for an open space |
+| `space.getStorageUsage()` | Get WebDAV quota usage for an open space |
+| `webdav.getStorageUsage()` | Get WebDAV quota usage through the WebDAV client |
 | `webdav.ref(path)` | Create a `rool-drive:/...` reference |
 | `webdav.path(pathOrRef)` | Normalize a path or `rool-drive:/...` reference to a path |
 | `webdav.propfind(pathOrRef, options)` | Read properties/list collections; explicit `depth` required |

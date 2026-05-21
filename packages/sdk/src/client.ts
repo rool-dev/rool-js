@@ -4,7 +4,7 @@ import { GraphQLClient } from './graphql.js';
 import { ClientSubscriptionManager } from './subscription.js';
 import { RestClient } from './rest.js';
 import { ExtensionsClient } from './apps.js';
-import { RoolWebDAV } from './webdav.js';
+import { RoolWebDAV, type SpaceFileStorageUsage } from './webdav.js';
 import { generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
 import { SpaceRouter } from './router.js';
@@ -382,6 +382,11 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       spaceId,
       authManager: this.authManager,
     });
+  }
+
+  /** Return file-storage quota usage for a space. */
+  async getSpaceStorageUsage(spaceId: string): Promise<SpaceFileStorageUsage> {
+    return this.webdav(spaceId).getStorageUsage();
   }
 
 

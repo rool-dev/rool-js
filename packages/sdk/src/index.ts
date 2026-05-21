@@ -11,6 +11,7 @@ export { RoolSpace } from './space.js';
 export { ROOL_DRIVE_REF_PREFIX, RoolWebDAV, WebDAVError } from './webdav.js';
 export type {
   RoolDriveRef,
+  SpaceFileStorageUsage,
   WebDAVActiveLock,
   WebDAVDepth,
   WebDAVLockDepth,

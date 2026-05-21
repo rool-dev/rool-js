@@ -4,7 +4,7 @@ import type { GraphQLClient, OpenSpaceFullResult } from './graphql.js';
 import type { RestClient } from './rest.js';
 import { SpaceSubscriptionManager } from './subscription.js';
 import { RoolChannel } from './channel.js';
-import { RoolWebDAV } from './webdav.js';
+import { RoolWebDAV, type SpaceFileStorageUsage } from './webdav.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 import type { SpaceRouter, RouteInfo } from './router.js';
@@ -151,6 +151,11 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       spaceId: this._id,
       authManager: this.authManager,
     });
+  }
+
+  /** Return file-storage quota usage for this space. */
+  async getStorageUsage(): Promise<SpaceFileStorageUsage> {
+    return this.webdav.getStorageUsage();
   }
 
   /**
