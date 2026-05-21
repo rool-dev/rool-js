@@ -1,13 +1,10 @@
-// =============================================================================
-// Rool Client
-// =============================================================================
-
 import { EventEmitter } from './event-emitter.js';
 import { AuthManager } from './auth.js';
 import { GraphQLClient } from './graphql.js';
 import { ClientSubscriptionManager } from './subscription.js';
-import { MediaClient } from './media.js';
+import { RestClient } from './rest.js';
 import { ExtensionsClient } from './apps.js';
+import { RoolWebDAV } from './webdav.js';
 import { generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
 import { SpaceRouter } from './router.js';
@@ -32,9 +29,9 @@ import type {
 
 type ResolvedUrls = {
   graphql: string;
-  media: string;
   auth: string;
   extensions: string;
+  webdav: string;
 };
 
 /**
@@ -90,9 +87,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.baseUrl = apiOrigin;
     this.urls = {
       graphql: config.graphqlUrl ?? `${apiOrigin}/graphql`,
-      media: config.mediaUrl ?? `${apiOrigin}/media`,
       auth: config.authUrl ?? `${authOrigin}/auth`,
       extensions: `${apiOrigin}/user-extensions`,
+      webdav: `${apiOrigin}/dav`,
     };
 
     this.authManager = new AuthManager({
@@ -115,9 +112,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     });
   }
 
-  // ===========================================================================
-  // Initialization
-  // ===========================================================================
 
   /**
    * Initialize the client - should be called on app startup.
@@ -160,9 +154,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.removeAllListeners();
   }
 
-  // ===========================================================================
-  // Authentication
-  // ===========================================================================
 
   /**
    * Initiate login by redirecting to auth page.
@@ -269,9 +260,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return this._currentUser;
   }
 
-  // ===========================================================================
-  // Space Lifecycle
-  // ===========================================================================
 
   /**
    * List all spaces accessible to the user.
@@ -294,7 +282,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
     // Ensure client subscription is active (for lifecycle events)
     // .catch prevents a rejection here from crashing Node before the caller awaits it.
-    this.ensureSubscribed().catch(() => {});
+    this.ensureSubscribed().catch(() => { });
 
     const initialRoute = await this.router.resolve(spaceId);
     const scopedGraphqlUrl = `${initialRoute.server.replace(/\/+$/, '')}/graphql`;
@@ -314,8 +302,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       memberCount: fullData.memberCount,
       fullData,
       graphqlClient: scopedClient,
-      mediaClient: this.mediaClient,
+      restClient: this.restClient,
       authManager: this.authManager,
+      webdavUrl: this.urls.webdav,
       router: this.router,
       initialRoute,
       logger: this.logger,
@@ -345,7 +334,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async createSpace(name: string): Promise<RoolSpace> {
     // Prevents a rejection here from crashing Node before the caller awaits it.
-    this.ensureSubscribed().catch(() => {});
+    this.ensureSubscribed().catch(() => { });
 
     const { spaceId } = await this.graphqlClient.createSpace(name);
     return this.openSpace(spaceId);
@@ -368,23 +357,33 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Import a space from a zip archive.
-   * Creates a new space with the given name and imports objects, relations, and media.
+   * Creates a new space with the given name and imports objects, relations, and files.
    * Returns a RoolSpace handle.
    */
   async importArchive(name: string, archive: Blob): Promise<RoolSpace> {
     // .catch prevents a rejection here from crashing Node before the caller awaits it.
-    this.ensureSubscribed().catch(() => {});
+    this.ensureSubscribed().catch(() => { });
 
     // Import via REST endpoint (creates the space)
-    const spaceId = await this.mediaClient.importArchive(name, archive);
+    const spaceId = await this.restClient.importArchive(name, archive);
 
     // Open the space to get its data
     return this.openSpace(spaceId);
   }
 
-  // ===========================================================================
-  // User Operations
-  // ===========================================================================
+  /**
+   * Open a WebDAV client for a space's user-visible files.
+   * Paths are relative to the space root; collection helpers normalize to
+   * trailing-slash WebDAV URLs where appropriate.
+   */
+  webdav(spaceId: string): RoolWebDAV {
+    return new RoolWebDAV({
+      webdavUrl: this.urls.webdav,
+      spaceId,
+      authManager: this.authManager,
+    });
+  }
+
 
   /**
    * Get the current Rool user from the server.
@@ -414,13 +413,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return user;
   }
 
-  // ===========================================================================
-  // Extension Publishing
-  // ===========================================================================
 
-  // ===========================================================================
-  // User Extensions (your personal library)
-  // ===========================================================================
 
   /**
    * Upload or update a user extension bundle.
@@ -446,9 +439,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return this.extensionsClient.get(extensionId);
   }
 
-  // ===========================================================================
-  // Published Extensions (public discovery & install)
-  // ===========================================================================
 
   /**
    * Search published extensions. With a query, performs semantic search.
@@ -477,9 +467,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return this.graphqlClient.unpublishExtensionFromPublic(extensionId);
   }
 
-  // ===========================================================================
-  // User Storage (server-side key-value storage)
-  // ===========================================================================
 
   /**
    * Get a value from user storage (sync read from in-memory cache).
@@ -531,21 +518,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     });
   }
 
-  // ===========================================================================
-  // Media Client (used internally by Space instances)
-  // ===========================================================================
 
-  private get mediaClient(): MediaClient {
-    return new MediaClient({
-      mediaUrl: this.urls.media,
-      backendOrigin: new URL(this.urls.media).origin,
+  private get restClient(): RestClient {
+    return new RestClient({
+      apiUrl: this.baseUrl,
       authManager: this.authManager,
     });
   }
 
-  // ===========================================================================
-  // Extensions Client (used for extension publishing)
-  // ===========================================================================
 
   private get extensionsClient(): ExtensionsClient {
     return new ExtensionsClient({
@@ -554,9 +534,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     });
   }
 
-  // ===========================================================================
-  // Subscriptions (internal - auto-managed)
-  // ===========================================================================
 
   /**
    * Ensure the client-level event subscription is active.
@@ -593,9 +570,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     }
   }
 
-  // ===========================================================================
-  // Utilities
-  // ===========================================================================
 
   /**
    * Generate a unique entity ID.
@@ -617,9 +591,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return this.graphqlClient.query<T>(query, variables);
   }
 
-  // ===========================================================================
-  // Private Methods - Event Handling
-  // ===========================================================================
 
   /**
    * Handle a client-level event from the subscription.
@@ -681,9 +652,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     }
   }
 
-  // ===========================================================================
-  // Private Methods - User Storage Cache
-  // ===========================================================================
 
   /**
    * Handle a user storage change from SSE (remote update).

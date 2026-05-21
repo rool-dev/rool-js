@@ -72,15 +72,15 @@ export function expectValidUniqueUrls(objects: RoolObject[], field: string): voi
 }
 
 /**
- * Assert that all URLs in the specified field are actually fetchable via space.fetchMedia().
+ * Assert that all URLs in the specified field are fetchable.
  */
-export async function expectUrlsFetchable(space: RoolChannel, objects: RoolObject[], field: string): Promise<void> {
+export async function expectUrlsFetchable(channel: RoolChannel, objects: RoolObject[], field: string): Promise<void> {
   for (const obj of objects) {
     const url = obj[field] as string;
     if (!url) continue;
 
     try {
-      const response = await space.fetchMedia(url);
+      const response = await channel.fetch(url);
       const blob = await response.blob();
       expect(blob.size, `URL returned empty content for ${obj.id}: ${url}`).to.be.greaterThan(0);
     } catch (error) {

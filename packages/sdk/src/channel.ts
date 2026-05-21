@@ -1,6 +1,7 @@
 import { EventEmitter } from './event-emitter.js';
 import type { GraphQLClient } from './graphql.js';
-import type { MediaClient } from './media.js';
+import type { RestClient } from './rest.js';
+import type { RoolWebDAV } from './webdav.js';
 import type { Logger } from './logger.js';
 import type {
   RoolObject,
@@ -11,8 +12,6 @@ import type {
   FindObjectsOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
-  MediaInfo,
-  MediaResponse,
   ChangeSource,
   ChannelEvent,
   Interaction,
@@ -66,6 +65,85 @@ function findDefaultLeaf(interactions: Record<string, Interaction> | Interaction
   return best?.id;
 }
 
+interface AttachmentUpload {
+  filename: string;
+  contentType: string;
+  body: BodyInit;
+}
+
+function attachmentBody(
+  file: File | Blob | { data: string; contentType: string },
+  index: number
+): AttachmentUpload {
+  if (isFile(file)) {
+    return {
+      filename: safeAttachmentFilename(file.name, index, file.type),
+      contentType: file.type || 'application/octet-stream',
+      body: file,
+    };
+  }
+
+  if (isBlob(file)) {
+    const contentType = file.type || 'application/octet-stream';
+    return {
+      filename: safeAttachmentFilename(`attachment-${index + 1}`, index, contentType),
+      contentType,
+      body: file,
+    };
+  }
+
+  return {
+    filename: safeAttachmentFilename(`attachment-${index + 1}`, index, file.contentType),
+    contentType: file.contentType,
+    body: base64Body(file.data),
+  };
+}
+
+function isFile(value: unknown): value is File {
+  return typeof File !== 'undefined' && value instanceof File;
+}
+
+function isBlob(value: unknown): value is Blob {
+  return typeof Blob !== 'undefined' && value instanceof Blob;
+}
+
+function safeAttachmentFilename(name: string, index: number, contentType: string): string {
+  const fallback = `attachment.${extensionForContentType(contentType)}`;
+  const leaf = name.split(/[/\\]/).pop() || fallback;
+  const cleaned = leaf.replace(/[\x00-\x1f\x7f]/g, '').replace(/\s+/g, '_');
+  const safe = cleaned.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+$/, '') || fallback;
+  return `${index + 1}-${safe}`;
+}
+
+function extensionForContentType(contentType: string): string {
+  if (contentType === 'image/png') return 'png';
+  if (contentType === 'image/jpeg') return 'jpg';
+  if (contentType === 'image/gif') return 'gif';
+  if (contentType === 'image/webp') return 'webp';
+  if (contentType === 'image/svg+xml') return 'svg';
+  if (contentType === 'application/pdf') return 'pdf';
+  if (contentType === 'text/markdown') return 'md';
+  if (contentType === 'text/plain') return 'txt';
+  if (contentType === 'text/csv') return 'csv';
+  if (contentType === 'text/html') return 'html';
+  if (contentType === 'application/json') return 'json';
+  if (contentType === 'application/xml') return 'xml';
+  return 'bin';
+}
+
+function base64Body(data: string): ArrayBuffer {
+  const clean = data.includes(',') ? data.slice(data.indexOf(',') + 1) : data;
+  if (typeof Buffer !== 'undefined') {
+    const buffer = Buffer.from(clean, 'base64');
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+  }
+
+  const binary = atob(clean);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
 // Default timeout for waiting on SSE object events (30 seconds)
 const OBJECT_COLLECT_TIMEOUT = 30000;
 
@@ -89,7 +167,8 @@ export interface ChannelConfig {
   /** Channel ID for this channel (required). */
   channelId: string;
   graphqlClient: GraphQLClient;
-  mediaClient: MediaClient;
+  restClient: RestClient;
+  webdav: RoolWebDAV;
   logger: Logger;
   onClose: () => void;
 }
@@ -122,7 +201,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _conversationId: string;
   private _closed: boolean = false;
   private graphqlClient: GraphQLClient;
-  private mediaClient: MediaClient;
+  private restClient: RestClient;
+  private webdav: RoolWebDAV;
   private onCloseCallback: () => void;
   private logger: Logger;
 
@@ -155,7 +235,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._channelId = config.channelId;
     this._conversationId = 'default';
     this.graphqlClient = config.graphqlClient;
-    this.mediaClient = config.mediaClient;
+    this.restClient = config.restClient;
+    this.webdav = config.webdav;
     this.logger = config.logger;
     this.onCloseCallback = config.onClose;
 
@@ -928,12 +1009,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   /** @internal */
   async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
-    // Upload attachments via media endpoint, then send URLs to the server
+    // Attachments become rool-drive:/ file references stored on the interaction.
     const { attachments, parentInteractionId: explicitParent, signal, ...rest } = options ?? {};
+    const interactionId = generateEntityId();
     let attachmentUrls: string[] | undefined;
     if (attachments?.length) {
       attachmentUrls = await Promise.all(
-        attachments.map(file => this.mediaClient.upload(this._id, file))
+        attachments.map((file, index) => this.uploadAttachment(file, interactionId, index))
       );
     }
 
@@ -941,8 +1023,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const parentInteractionId = explicitParent !== undefined
       ? explicitParent
       : (this._getActiveLeafImpl(conversationId) ?? null);
-
-    const interactionId = generateEntityId();
 
     // Optimistically set active leaf before the server call.
     this._activeLeaves.set(conversationId, interactionId);
@@ -1024,38 +1104,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * List all media files for this space.
-   */
-  async listMedia(): Promise<MediaInfo[]> {
-    return this.mediaClient.list(this._id);
-  }
-
-  /**
-   * Upload a file to this space. Returns the URL.
-   */
-  async uploadMedia(
-    file: File | Blob | { data: string; contentType: string }
-  ): Promise<string> {
-    return this.mediaClient.upload(this._id, file);
-  }
-
-  /**
-   * Fetch any URL, returning headers and a blob() method (like fetch Response).
-   * Adds auth headers for backend media URLs, fetches external URLs via server proxy if CORS blocks.
-   * Pass `{ forceProxy: true }` to skip the direct fetch and go straight through the server proxy.
-   */
-  async fetchMedia(url: string, options?: { forceProxy?: boolean }): Promise<MediaResponse> {
-    return this.mediaClient.fetch(this._id, url, options);
-  }
-
-  /**
-   * Delete a media file by URL.
-   */
-  async deleteMedia(url: string): Promise<void> {
-    return this.mediaClient.delete(this._id, url);
-  }
-
-  /**
    * Fetch an external URL via the server proxy, bypassing CORS restrictions.
    * Requires editor role or above. Blocked for private/internal IP ranges (SSRF protection).
    *
@@ -1067,7 +1115,28 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     url: string,
     init?: { method?: string; headers?: Record<string, string>; body?: unknown }
   ): Promise<Response> {
-    return this.mediaClient.proxyFetch(this._id, url, init);
+    return this.restClient.proxyFetch(this._id, url, init);
+  }
+
+  private async uploadAttachment(
+    file: File | Blob | { data: string; contentType: string },
+    interactionId: string,
+    index: number
+  ): Promise<string> {
+    await this.ensureCollection('attachments');
+    const directory = `attachments/${interactionId}`;
+    await this.ensureCollection(directory);
+
+    const attachment = attachmentBody(file, index);
+    const path = `${directory}/${attachment.filename}`;
+    await this.webdav.put(path, attachment.body, { contentType: attachment.contentType });
+    return this.webdav.ref(path);
+  }
+
+  private async ensureCollection(path: string): Promise<void> {
+    const response = await this.webdav.request('MKCOL', path, { collection: true });
+    if (response.status === 201 || response.status === 405) return;
+    throw new Error(`Failed to create collection ${path}: ${response.status} ${await response.text()}`);
   }
 
   /**

@@ -431,12 +431,6 @@ class ReactiveChannelImpl {
   alterCollection(...args: Parameters<RoolChannel['alterCollection']>) { return this.#channel.alterCollection(...args); }
   dropCollection(...args: Parameters<RoolChannel['dropCollection']>) { return this.#channel.dropCollection(...args); }
 
-  // Media
-  uploadMedia(...args: Parameters<RoolChannel['uploadMedia']>) { return this.#channel.uploadMedia(...args); }
-  fetchMedia(...args: Parameters<RoolChannel['fetchMedia']>) { return this.#channel.fetchMedia(...args); }
-  deleteMedia(...args: Parameters<RoolChannel['deleteMedia']>) { return this.#channel.deleteMedia(...args); }
-  listMedia() { return this.#channel.listMedia(); }
-
   // Proxied fetch
   fetch(...args: Parameters<RoolChannel['fetch']>) { return this.#channel.fetch(...args); }
 

@@ -94,7 +94,7 @@ export interface Interaction {
   ai: boolean;
   modifiedObjectIds: string[];
   toolCalls: ToolCall[];
-  /** Media URLs attached by the user (uploaded images, documents, etc.) */
+  /** rool-drive:/ file references attached by the user (images, documents, etc.) */
   attachments?: string[];
 }
 
@@ -203,26 +203,6 @@ export interface CurrentUser {
   storage: Record<string, unknown>;
 }
 
-export interface MediaInfo {
-  url: string;
-  contentType: string;
-  size: number;
-  createdAt: string;
-}
-
-/**
- * Response from fetchMedia, similar to fetch() Response.
- * Headers are available immediately; call blob() to get the body.
- */
-export interface MediaResponse {
-  /** MIME type from Content-Type header */
-  contentType: string;
-  /** Size in bytes from Content-Length header, or null if not available */
-  size: number | null;
-  /** Get the response body as a Blob */
-  blob(): Promise<Blob>;
-}
-
 /**
  * Options for uploading an extension bundle.
  */
@@ -323,9 +303,9 @@ export interface PromptOptions {
   readOnly?: boolean;
   /**
    * User-attached files to upload and make visible to the AI.
-   * Accepts the same types as `uploadMedia()`: File, Blob, or `{ data, contentType }` for base64.
-   * Files are uploaded to the media store; the resulting URLs are sent to the server
-   * and stored on the interaction's `attachments` field.
+   * Accepts File, Blob, or `{ data, contentType }` for base64.
+   * The server stores them as authenticated space files; the resulting
+   * rool-drive:/ references are sent to the server and stored on the interaction's `attachments` field.
    *
    * Supported file types:
    * - **Images** (JPEG, PNG, GIF, WebP, SVG) — viewed natively by the AI
@@ -554,8 +534,6 @@ export interface RoolClientConfig {
   baseUrl?: string;
   /** Override GraphQL endpoint (default: `{apiUrl}/graphql`) */
   graphqlUrl?: string;
-  /** Override media endpoint (default: `{apiUrl}/media`) */
-  mediaUrl?: string;
   /** Override auth endpoint (derived from `apiUrl` by stripping `api.` prefix) */
   authUrl?: string;
   /**

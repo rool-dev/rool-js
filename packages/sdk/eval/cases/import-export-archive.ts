@@ -3,12 +3,12 @@ import type { TestCase } from '../types.js';
 import { loadArchiveFixture } from '../helpers.js';
 
 /**
- * Tests archive import/export with media files.
- * Imports a zip archive containing JSON-LD and media, verifies structure,
+ * Tests archive import/export with files.
+ * Imports a zip archive containing JSON-LD and files, verifies structure,
  * exports back to archive, and compares sizes.
  */
 export const testCase: TestCase = {
-  description: 'Imports archive with media, verifies data, and round-trips correctly',
+  description: 'Imports archive with files, verifies data, and round-trips correctly',
 
   async run(client) {
     // Import the archive
@@ -29,12 +29,12 @@ export const testCase: TestCase = {
       // External URL should be preserved
       expect(star!.image_url).to.include('https://');
 
-      // Verify a planet with local media
+      // Verify a planet with a local file
       const enki = await channel.getObject('planet/rjP7pk');
       expect(enki).to.exist;
       expect(enki!.name).to.equal('Enki');
       expect(enki!.type).to.equal('planet');
-      // Local media should have an image_url (fetchMedia will resolve it)
+      // Local file should have an image_url
       expect(enki!.image_url).to.be.a('string');
       expect((enki!.image_url as string).length).to.be.greaterThan(0);
 
@@ -47,12 +47,12 @@ export const testCase: TestCase = {
       // Verify reference structure — planets reference the star via `orbits`.
       expect(enki!.orbits).to.equal('star/XIQb6n', 'Enki should reference the star via orbits');
 
-      // Verify the uploaded media is fetchable
+      // Verify the uploaded file is fetchable
       const enkiImageUrl = enki!.image_url as string;
-      const response = await channel.fetchMedia(enkiImageUrl);
+      const response = await space.webdav.fetch(enkiImageUrl);
       const blob = await response.blob();
       expect(blob.size).to.be.greaterThan(10000); // ~70KB image
-      expect(response.contentType).to.equal('image/png');
+      expect(response.headers.get('content-type')).to.equal('image/png');
 
       // Export back to archive (exportArchive is on the space, not the channel)
       const exported = await space.exportArchive();

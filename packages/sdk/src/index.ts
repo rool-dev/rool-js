@@ -1,8 +1,3 @@
-// =============================================================================
-// Rool Client
-// Generic TypeScript client library for the Rool server API
-// =============================================================================
-
 // Main client
 export { RoolClient } from './client.js';
 
@@ -11,6 +6,24 @@ export { RoolChannel, ConversationHandle, generateEntityId } from './channel.js'
 
 // Space class
 export { RoolSpace } from './space.js';
+
+// WebDAV client
+export { ROOL_DRIVE_REF_PREFIX, RoolWebDAV, WebDAVError } from './webdav.js';
+export type {
+  RoolDriveRef,
+  WebDAVActiveLock,
+  WebDAVDepth,
+  WebDAVLockDepth,
+  WebDAVLockResult,
+  WebDAVMultiStatus,
+  WebDAVPathInput,
+  WebDAVPropName,
+  WebDAVProps,
+  WebDAVPropstat,
+  WebDAVRequestInit,
+  WebDAVResponse,
+  WebDAVWriteResult,
+} from './webdav.js';
 
 // Space router (shard resolution for space-scoped traffic)
 export { SpaceRouter } from './router.js';
@@ -44,10 +57,6 @@ export type {
   UserResult,
   CurrentUser,
   AuthUser,
-
-  // Media types
-  MediaInfo,
-  MediaResponse,
 
   // Extension types
   UploadExtensionOptions,

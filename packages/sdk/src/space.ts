@@ -1,12 +1,10 @@
-// =============================================================================
-// RoolSpace — Space handle with real-time subscription
-// =============================================================================
 
 import { EventEmitter } from './event-emitter.js';
 import type { GraphQLClient, OpenSpaceFullResult } from './graphql.js';
-import type { MediaClient } from './media.js';
+import type { RestClient } from './rest.js';
 import { SpaceSubscriptionManager } from './subscription.js';
 import { RoolChannel } from './channel.js';
+import { RoolWebDAV } from './webdav.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 import type { SpaceRouter, RouteInfo } from './router.js';
@@ -33,8 +31,9 @@ export interface SpaceConfig {
   /** Full space data from openSpaceFull */
   fullData: OpenSpaceFullResult;
   graphqlClient: GraphQLClient;
-  mediaClient: MediaClient;
+  restClient: RestClient;
   authManager: AuthManager;
+  webdavUrl: string;
   router: SpaceRouter;
   initialRoute: RouteInfo;
   logger: Logger;
@@ -78,8 +77,9 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private _channels: ChannelInfo[];
   private _knownChannelIds: Set<string>;
   private graphqlClient: GraphQLClient;
-  private mediaClient: MediaClient;
+  private restClient: RestClient;
   private authManager: AuthManager;
+  private webdavUrl: string;
   private router: SpaceRouter;
   private _route: RouteInfo;
   private logger: Logger;
@@ -109,8 +109,9 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this._linkAccess = config.linkAccess;
     this._memberCount = config.memberCount;
     this.graphqlClient = config.graphqlClient;
-    this.mediaClient = config.mediaClient;
+    this.restClient = config.restClient;
     this.authManager = config.authManager;
+    this.webdavUrl = config.webdavUrl;
     this.router = config.router;
     this._route = config.initialRoute;
     this.logger = config.logger;
@@ -134,9 +135,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this.startSubscription();
   }
 
-  // ===========================================================================
-  // Properties
-  // ===========================================================================
 
   get id(): string { return this._id; }
   get name(): string { return this._name; }
@@ -146,15 +144,21 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
   get route(): RouteInfo { return this._route; }
 
+  /** WebDAV client for this space's user-visible files. */
+  get webdav(): RoolWebDAV {
+    return new RoolWebDAV({
+      webdavUrl: this.webdavUrl,
+      spaceId: this._id,
+      authManager: this.authManager,
+    });
+  }
+
   /**
    * Live list of channels in this space.
    * Auto-updates via SSE when channels are created, updated, or deleted.
    */
   get channels(): ChannelInfo[] { return this._channels; }
 
-  // ===========================================================================
-  // Subscription
-  // ===========================================================================
 
   private startSubscription(): void {
     let firstProbe = true;
@@ -196,9 +200,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     return this._subscriptionReady ?? Promise.resolve();
   }
 
-  // ===========================================================================
-  // Channel Lifecycle
-  // ===========================================================================
 
   /**
    * Open a channel on this space.
@@ -237,7 +238,8 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       channel: channelData,
       channelId,
       graphqlClient: this.graphqlClient,
-      mediaClient: this.mediaClient,
+      restClient: this.restClient,
+      webdav: this.webdav,
       logger: this.logger,
       onClose: () => this.unregisterChannel(channelId),
     });
@@ -254,9 +256,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this.openChannels.delete(channelId);
   }
 
-  // ===========================================================================
-  // Space Admin
-  // ===========================================================================
 
   /**
    * Rename this space.
@@ -273,9 +272,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     await this.graphqlClient.deleteSpace(this._id);
   }
 
-  // ===========================================================================
-  // User Management
-  // ===========================================================================
 
   /**
    * List users with access to this space.
@@ -313,9 +309,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     }
   }
 
-  // ===========================================================================
-  // Channel Management
-  // ===========================================================================
 
   /**
    * List channels in this space.
@@ -344,18 +337,12 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     delete this._channelData[channelId];
   }
 
-  // ===========================================================================
-  // Extensions
-  // ===========================================================================
 
   // Targets owning shard
   async installExtension(extensionId: string, channelId: string): Promise<string> {
     return this.graphqlClient.installExtension(this._id, extensionId, channelId);
   }
 
-  // ===========================================================================
-  // Export
-  // ===========================================================================
 
   // Targets the owning shard
   async exportArchive(): Promise<Blob> {
@@ -382,9 +369,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     return response.blob();
   }
 
-  // ===========================================================================
-  // Refresh
-  // ===========================================================================
 
   /**
    * Refresh space data from the server.
@@ -395,9 +379,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this.applyFullData(data);
   }
 
-  // ===========================================================================
-  // Cleanup
-  // ===========================================================================
 
   /**
    * Close the space subscription and all open channels.
@@ -420,9 +401,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this.onCloseCallback();
   }
 
-  // ===========================================================================
-  // Event Routing (internal)
-  // ===========================================================================
 
   /**
    * Handle a space event from the SSE subscription.

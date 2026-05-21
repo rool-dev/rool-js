@@ -4,13 +4,14 @@ The TypeScript SDK for Rool, a persistent and collaborative environment for orga
 
 > **Building a new Rool extension?** Start with [`@rool-dev/extension`](/extension/) — it handles hosting, dev server, and gives you a reactive Svelte channel out of the box. This SDK is for advanced use cases: integrating Rool into an existing application, building Node.js scripts, or working outside the extension sandbox.
 
-The SDK manages authentication, real-time synchronization, and media storage. Core primitives:
+The SDK manages authentication, real-time synchronization, and per-space file storage. Core primitives:
 
-- **Spaces** — Containers for objects, schema, metadata, and channels
+- **Spaces** — Containers for objects, schema, metadata, channels, and files
 - **Channels** — Named contexts within a space. All object and AI operations go through a channel.
 - **Conversations** — Independent interaction histories within a channel.
 - **Objects** — Key-value records with any fields you define. References between objects are data fields whose values are object IDs.
 - **AI operations** — Create, update, or query objects using natural language and `{{placeholders}}`
+- **File storage** — Every space has WebDAV file storage
 
 ## Installation
 
@@ -82,11 +83,11 @@ channel.close();
 
 ### Spaces and Channels
 
-A **space** is a container that holds objects, schema, metadata, and channels. A **channel** is a named context within a space — it's the handle you use for all object and AI operations. Each channel contains one or more **conversations**, each with independent interaction history.
+A **space** is a container that holds objects, schema, metadata, channels, and files. A **channel** is a named context within a space — it's the handle you use for all object and AI operations. Each channel contains one or more **conversations**, each with independent interaction history.
 
 There are two main handles:
-- **`RoolSpace`** — Live handle with SSE subscription for user management, link access, channel management, export, and channel lifecycle events. Extends `EventEmitter`.
-- **`RoolChannel`** — Full real-time handle for objects, AI prompts, media, schema, and undo/redo.
+- **`RoolSpace`** — Live handle with SSE subscription for user management, link access, channel management, file storage, export, and channel lifecycle events. Extends `EventEmitter`.
+- **`RoolChannel`** — Full real-time handle for objects, AI prompts, schema, and undo/redo.
 
 ```typescript
 // Open a space — live handle with SSE subscription
@@ -395,7 +396,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 | `ephemeral` | If true, don't record in interaction history (useful for tab completion) |
 | `readOnly` | If true, disable mutation tools (create, update, delete). Use for questions. |
 | `parentInteractionId` | Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. Pass `null` to start a new root-level branch. Pass a specific ID to branch from that point (edit/reroll). |
-| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Uploaded to the media store via `uploadMedia()`. Resulting URLs are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot read their contents. |
+| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Stored as authenticated space files; resulting `rool-drive:/...` references are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot natively consume their contents, only use shell tools on them. |
 | `signal` | `AbortSignal` to stop the prompt mid-flight. When aborted, the agent loop halts and the streaming response closes. Note that any LLM turn already in flight on Vertex keeps generating server-side and is billed. |
 
 ### Effort Levels
@@ -593,6 +594,7 @@ const client = new RoolClient({
 | `createSpace(name): Promise<RoolSpace>` | Create a new space, returns live handle with SSE subscription |
 | `deleteSpace(id): Promise<void>` | Permanently delete a space (cannot be undone) |
 | `importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
+| `webdav(spaceId): RoolWebDAV` | Open a WebDAV client for a space's file storage |
 
 ### Channel Management
 
@@ -710,7 +712,7 @@ client.on('spaceRenamed', (id, name) => {
 
 ## RoolSpace API
 
-A space handle with a live SSE subscription. Extends `EventEmitter`. Manages user access, link sharing, channels, and export. The `channels` property auto-updates via SSE, and channel lifecycle events fire in real-time.
+A space handle with a live SSE subscription. Extends `EventEmitter`. Manages user access, link sharing, channels, file storage, and export. The `channels` property auto-updates via SSE, and channel lifecycle events fire in real-time.
 
 `openSpace()` caches and reuses open spaces — calling it twice with the same ID returns the same instance. Call `close()` when done to stop the subscription and close all open channels.
 
@@ -724,6 +726,7 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 | `linkAccess: LinkAccess` | URL sharing level |
 | `memberCount: number` | Number of users with access to the space |
 | `channels: ChannelInfo[]` | Live channel list (auto-updates via SSE) |
+| `webdav: RoolWebDAV` | WebDAV client for this space's file storage |
 
 ### Methods
 
@@ -885,34 +888,62 @@ Store arbitrary data alongside the Space without it being part of the object dat
 | `getMetadata(key): unknown` | Get metadata value, or undefined if key not set |
 | `getAllMetadata(): Record<string, unknown>` | Get all metadata |
 
-### Media
+### Space File Storage
 
-Media URLs in object fields are visible to AI. Both uploaded and AI-generated media work the same way — use `fetchMedia` to retrieve them for display.
+Every space has authenticated file storage. WebDAV is the SDK surface for that storage: paths are relative to the space root, collection operations use WebDAV collection semantics, and `rool-drive:/...` references are the text-safe way to point at files.
+
+Use `client.webdav(spaceId)` when you only have an ID, or `space.webdav` when you already have an open space.
+
+```typescript
+const webdav = client.webdav('space-id');
+
+await webdav.mkcol('docs');
+await webdav.put('docs/readme.md', '# Hello', {
+  contentType: 'text/markdown',
+  ifNoneMatch: '*',
+});
+
+const listing = await webdav.propfind('docs/', {
+  depth: '1',
+  props: ['displayname', 'getcontentlength', 'getcontenttype', 'getetag'],
+});
+
+const file = await webdav.get('docs/readme.md');
+console.log(await file.text());
+
+const ref = webdav.ref('docs/read me.md'); // "rool-drive:/docs/read%20me.md"
+const sameFile = await webdav.get(ref);
+```
+
+Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). `rool-drive:/...` references percent-encode path segments for use in text; `webdav.path('rool-drive:/docs/read%20me.md')` returns `docs/read me.md`. The WebDAV methods accept either paths or refs and normalize them to paths. `PUT` writes an exact path and does not create parent collections; create parents with `mkcol()` first. Helpers preserve WebDAV status semantics: non-success responses throw `WebDAVError` with `status`, `statusText`, and `body`.
 
 | Method | Description |
 |--------|-------------|
-| `uploadMedia(file): Promise<string>` | Upload file, returns URL |
-| `fetchMedia(url, options?): Promise<MediaResponse>` | Fetch any URL, returns headers and blob() method (adds auth for backend URLs, works for external URLs too). Pass `{ forceProxy: true }` to skip the direct fetch and route through the server proxy immediately. |
-| `deleteMedia(url): Promise<void>` | Delete media file by URL |
-| `listMedia(): Promise<MediaInfo[]>` | List all media with metadata |
+| `client.webdav(spaceId)` | Create a WebDAV client for a space |
+| `space.webdav` | WebDAV client for an open space |
+| `webdav.ref(path)` | Create a `rool-drive:/...` reference |
+| `webdav.path(pathOrRef)` | Normalize a path or `rool-drive:/...` reference to a path |
+| `webdav.propfind(pathOrRef, options)` | Read properties/list collections; explicit `depth` required |
+| `webdav.get(pathOrRef, options?)` / `webdav.head(pathOrRef)` | Read a file, including optional byte ranges for `get` |
+| `webdav.put(pathOrRef, body, options?)` | Write an exact file path; parents must already exist |
+| `webdav.mkcol(path)` | Create one collection |
+| `webdav.copy(source, destination, options?)` | Copy a file or collection within the same space |
+| `webdav.move(source, destination, options?)` | Move a file or collection within the same space |
+| `webdav.delete(pathOrRef, options?)` | Delete a file or collection |
+| `webdav.lock(pathOrRef, options)` / `webdav.refreshLock(pathOrRef, token)` / `webdav.unlock(token)` | WebDAV Class 2 write locks |
+| `webdav.request(method, path, init?)` | Raw authenticated WebDAV request escape hatch |
+
+#### File references from AI responses
+
+When an agent refers to a user-visible file, the SDK contract is `rool-drive:/path/to/file.ext`. That prefix makes a file reference unambiguous without exposing the authenticated WebDAV URL. In free text, ambiguous characters such as spaces are percent-encoded (`rool-drive:/docs/read%20me.md`).
 
 ```typescript
-// Upload an image
-const url = await channel.uploadMedia(file);
-await channel.createObject({ data: { type: 'photo', title: 'Photo', image: url } });
-
-// Or let AI generate one using a placeholder
-await channel.createObject({
-  data: { type: 'photo', title: 'Mascot', image: '{{generate an image of a flying tortoise}}' }
-});
-
-// Display media (handles auth automatically)
-const response = await channel.fetchMedia(object.image);
-if (response.contentType.startsWith('image/')) {
-  const blob = await response.blob();
-  img.src = URL.createObjectURL(blob);
-}
+const response = await space.webdav.get('rool-drive:/docs/readme.md');
+const blob = await response.blob();
+img.src = URL.createObjectURL(blob);
 ```
+
+Plain relative strings like `docs/readme.md` are valid WebDAV paths when you already know you are working with file storage. In user text or agent output, use `rool-drive:/docs/readme.md` so clients do not have to guess whether a string is a file. Prefer `webdav.ref(path)` rather than building refs by hand.
 
 ### Proxied Fetch
 
@@ -994,7 +1025,7 @@ Export and import space data as zip archives for backup, portability, or migrati
 
 | Method | Description |
 |--------|-------------|
-| `space.exportArchive(): Promise<Blob>` | Export objects, metadata, channels, and media as a zip archive |
+| `space.exportArchive(): Promise<Blob>` | Export objects, metadata, channels, and files as a zip archive |
 | `client.importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
 
 **Export:**
@@ -1011,7 +1042,7 @@ const space = await client.importArchive('Imported Data', archiveBlob);
 const channel = await space.openChannel('main');
 ```
 
-The archive format bundles `data.json` (with objects, metadata, and channels) and a `media/` folder containing all media files. Media URLs are rewritten to relative paths within the archive and restored on import.
+The archive bundles `data.json` (objects, metadata, and channels) together with the space file storage. File references are rewritten to relative paths within the archive and restored on import.
 
 ### Channel Events
 
@@ -1220,7 +1251,7 @@ interface Interaction {
   ai: boolean;                   // Whether AI was invoked (vs synthetic confirmation)
   modifiedObjectIds: string[];   // Objects affected by this interaction
   toolCalls: ToolCall[];         // Tools called during this interaction (for AI prompts)
-  attachments?: string[];        // Media URLs attached by the user (images, documents, etc.)
+  attachments?: string[];        // rool-drive:/... file references attached by the user
 }
 ```
 
@@ -1234,8 +1265,6 @@ interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId:
 interface SpaceMember { id: string; email: string; role: RoolUserRole; photoUrl: string | null; }
 interface UserResult { id: string; email: string; name: string | null; photoUrl: string | null; }
 interface CurrentUser { id: string; email: string; name: string | null; photoUrl: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }
-interface MediaInfo { url: string; contentType: string; size: number; createdAt: string; }
-interface MediaResponse { contentType: string; size: number | null; blob(): Promise<Blob>; }
 type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
 ```
 
@@ -1251,7 +1280,7 @@ interface PromptOptions {
   ephemeral?: boolean;       // Don't record in interaction history
   readOnly?: boolean;        // Disable mutation tools (default: false)
   parentInteractionId?: string | null;  // Branch from a specific interaction (omit to auto-continue)
-  attachments?: Array<File | Blob | { data: string; contentType: string }>;  // Files to attach (uploaded to media store)
+  attachments?: Array<File | Blob | { data: string; contentType: string }>;  // Files to attach
 }
 ```
 
