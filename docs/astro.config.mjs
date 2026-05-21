@@ -22,7 +22,6 @@ export default defineConfig({
             { label: 'Extension', link: '/extension/' },
             { label: 'SDK', link: '/sdk/' },
             { label: 'Svelte', link: '/svelte/' },
-            { label: 'CLI', link: '/cli/' },
           ],
         },
       ],

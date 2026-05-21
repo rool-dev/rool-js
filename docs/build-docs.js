@@ -6,7 +6,7 @@
  * Static pages (index.md) are checked into git directly.
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'fs';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -14,8 +14,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = dirname(__dirname);
 const contentDir = `${__dirname}/src/content/docs`;
 
-// Ensure content directory exists
+// Ensure content directory exists and remove stale generated docs.
 mkdirSync(contentDir, { recursive: true });
+rmSync(`${contentDir}/cli.md`, { force: true });
 
 function getVersion(pkgPath) {
   const pkg = JSON.parse(readFileSync(`${root}/${pkgPath}/package.json`, 'utf-8'));
@@ -48,10 +49,6 @@ title: ${title}
 // SDK README → sdk.md (will be at /sdk/)
 const sdkReadme = readFileSync(`${root}/packages/sdk/README.md`, 'utf-8');
 writeFileSync(`${contentDir}/sdk.md`, transform(sdkReadme, 'Rool SDK', 'packages/sdk'));
-
-// CLI README → cli.md (will be at /cli/)
-const cliReadme = readFileSync(`${root}/packages/cli/README.md`, 'utf-8');
-writeFileSync(`${contentDir}/cli.md`, transform(cliReadme, 'Rool CLI', 'packages/cli'));
 
 // Svelte README → svelte.md (will be at /svelte/)
 const svelteReadme = readFileSync(`${root}/packages/svelte/README.md`, 'utf-8');

@@ -14,7 +14,7 @@ Everything else (Vite config, entry point, HTML, Tailwind CSS) is provided by th
 ## Quick Start
 
 ```bash
-npx rool-extension init my-extension
+npx @rool-dev/extension init my-extension
 cd my-extension
 npm install
 npx rool-extension build

@@ -34,8 +34,8 @@ coverage/
 docs/dist/
 docs/.astro/
 docs/src/content/docs/sdk.md
-docs/src/content/docs/cli.md
 docs/src/content/docs/svelte.md
+docs/src/content/docs/extension.md
 docs/public/llms.txt
 
 # Lockfile (regenerated)

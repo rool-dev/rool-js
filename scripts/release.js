@@ -18,7 +18,6 @@ const root = join(__dirname, '..');
 
 const packages = [
   'packages/sdk/package.json',
-  'packages/cli/package.json',
   'packages/svelte/package.json',
   'packages/extension/package.json',
 ];

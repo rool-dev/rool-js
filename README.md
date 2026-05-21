@@ -1,15 +1,27 @@
 # Rool JavaScript
 
-Official TypeScript SDK and CLI for working with [Rool](https://rool.dev) Spaces.
+Official TypeScript SDK and extension toolkit for working with [Rool](https://rool.dev) Spaces.
 
 ## Packages
 
 | Package | Description | npm |
 |---------|-------------|-----|
 | [@rool-dev/sdk](./packages/sdk) | TypeScript SDK for building Rool applications | [![npm](https://img.shields.io/npm/v/@rool-dev/sdk)](https://www.npmjs.com/package/@rool-dev/sdk) |
-| [@rool-dev/cli](./packages/cli) | Command-line interface for Rool | [![npm](https://img.shields.io/npm/v/@rool-dev/cli)](https://www.npmjs.com/package/@rool-dev/cli) |
+| [@rool-dev/svelte](./packages/svelte) | Svelte 5 bindings for the SDK | [![npm](https://img.shields.io/npm/v/@rool-dev/svelte)](https://www.npmjs.com/package/@rool-dev/svelte) |
+| [@rool-dev/extension](./packages/extension) | Extension SDK and CLI for building Rool extensions | [![npm](https://img.shields.io/npm/v/@rool-dev/extension)](https://www.npmjs.com/package/@rool-dev/extension) |
 
 ## Quick Start
+
+### Extension
+
+```bash
+npx @rool-dev/extension init my-extension
+cd my-extension
+npm install
+npx rool-extension build
+```
+
+See the [Extension documentation](./packages/extension/README.md) for full API reference and CLI usage.
 
 ### SDK
 
@@ -29,15 +41,6 @@ await space.createObject({
 ```
 
 See the [SDK documentation](./packages/sdk/README.md) for full API reference.
-
-### CLI
-
-```bash
-npm install -g @rool-dev/cli
-rool --help
-```
-
-See the [CLI documentation](./packages/cli/README.md) for usage.
 
 ## Development
 

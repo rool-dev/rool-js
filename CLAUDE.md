@@ -1,13 +1,12 @@
 # rool-js
 
-Official TypeScript SDK and CLI for the Rool platform. This is a pnpm monorepo.
+Official TypeScript SDK and extension toolkit for the Rool platform. This is a pnpm monorepo.
 
 ## Packages
 
 | Package | Path | npm |
 |---------|------|-----|
 | @rool-dev/sdk | `packages/sdk/` | TypeScript SDK |
-| @rool-dev/cli | `packages/cli/` | Command-line interface |
 | @rool-dev/svelte | `packages/svelte/` | Svelte wrapper |
 | @rool-dev/extension | `packages/extension/` | Extension SDK & CLI |
 
@@ -18,10 +17,10 @@ Official TypeScript SDK and CLI for the Rool platform. This is a pnpm monorepo.
 
 ## Package-specific instructions
 - @packages/sdk/CLAUDE.md
-- @packages/cli/CLAUDE.md
+- @packages/svelte/CLAUDE.md
 
 ## Development
-The CLI depends on the SDK via `workspace:*`. Changes to the SDK are immediately available to the CLI during development.
+Packages depend on the SDK via `workspace:*`. Changes to the SDK are immediately available during development.
 
 ```bash
 pnpm install
@@ -29,7 +28,7 @@ pnpm build
 ```
 
 ## Docs Site
-The `docs/` folder is a Starlight (Astro) site. The SDK, CLI, and Svelte doc pages are **generated from package READMEs** by `docs/build-docs.js` at build time (`pnpm docs:build`). The generated files (`docs/src/content/docs/{sdk,cli,svelte}.md` and `docs/public/llms.txt`) are gitignored. Static pages like `index.md` are checked in directly. **Do not edit the generated doc pages — edit the package READMEs instead.**
+The `docs/` folder is a Starlight (Astro) site. The SDK, Svelte, and Extension doc pages are **generated from package READMEs** by `docs/build-docs.js` at build time (`pnpm docs:build`). The generated files (`docs/src/content/docs/{sdk,svelte,extension}.md` and `docs/public/llms.txt`) are gitignored. Static pages like `index.md` are checked in directly. **Do not edit the generated doc pages — edit the package READMEs instead.**
 
 ## Publishing
 All packages share a single version number and are published together under the `@rool-dev` scope.

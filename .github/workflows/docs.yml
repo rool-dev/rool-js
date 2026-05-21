@@ -36,8 +36,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build SDK and CLI (needed for README generation)
-        run: pnpm --filter @rool-dev/cli... build
+      - name: Build packages
+        run: pnpm build
 
       - name: Build docs
         run: pnpm docs:build
