@@ -19,7 +19,7 @@
   let messagesWatch: ReactiveWatch | null = $state(null);
 
   let activeHuddleId = $state<string | null>(null);
-  let activeHuddle = $derived(huddlesWatch?.objects.find((h) => h.id === activeHuddleId));
+  let activeHuddle = $derived(huddlesWatch?.objects.find((h) => h.location === activeHuddleId));
   let sidebarOpen = $state(false);
 
   // Persist active huddle selection (channel.spaceId read inside effect avoids top-level warning)
@@ -49,8 +49,8 @@
   $effect(() => {
     const huddles = huddlesWatch?.objects ?? [];
     if (huddles.length === 0) return;
-    if (!activeHuddleId || !huddles.some((h) => h.id === activeHuddleId)) {
-      activeHuddleId = huddles[0].id;
+    if (!activeHuddleId || !huddles.some((h) => h.location === activeHuddleId)) {
+      activeHuddleId = huddles[0].location;
     }
   });
 
@@ -76,9 +76,9 @@
   let mentions = $derived.by(() => {
     const senders = new Map<string, string>();
     for (const msg of messagesWatch?.objects ?? []) {
-      const sender = msg.sender as string;
+      const sender = msg.body.sender as string;
       if (sender !== 'agent') {
-        senders.set(sender, msg.senderName as string);
+        senders.set(sender, msg.body.senderName as string);
       }
     }
     return [
@@ -94,50 +94,41 @@
     const senderName = channel.user.name ?? channel.userId;
 
     // Create the user's message
-    await channel.createObject({
-      data: {
-        type: 'huddle_message',
-        huddle: activeHuddleId,
-        text,
-        sender: channel.userId,
-        senderName,
-        timestamp: Date.now(),
-        fromAgent: false,
-      },
+    await channel.createObject('huddle_message', {
+      huddle: activeHuddleId,
+      text,
+      sender: channel.userId,
+      senderName,
+      timestamp: Date.now(),
+      fromAgent: false,
     });
 
     // If @rool is mentioned anywhere, invoke the agent
     if (mentionsRool) {
       isSending = true;
       try {
-        const messageIds = messagesWatch?.objects.map((m) => m.id) ?? [];
+        const messageLocations = messagesWatch?.objects.map((m) => m.location) ?? [];
         const { message } = await channel.prompt(text, {
-          objectIds: [activeHuddleId, ...messageIds],
+          locations: [activeHuddleId, ...messageLocations],
           ephemeral: true,
         });
 
-        await channel.createObject({
-          data: {
-            type: 'huddle_message',
-            huddle: activeHuddleId,
-            text: message,
-            sender: 'agent',
-            senderName: 'Rool',
-            timestamp: Date.now(),
-            fromAgent: true,
-          },
+        await channel.createObject('huddle_message', {
+          huddle: activeHuddleId,
+          text: message,
+          sender: 'agent',
+          senderName: 'Rool',
+          timestamp: Date.now(),
+          fromAgent: true,
         });
       } catch (err) {
-        await channel.createObject({
-          data: {
-            type: 'huddle_message',
-            huddle: activeHuddleId,
-            text: `Sorry, something went wrong: ${err instanceof Error ? err.message : String(err)}`,
-            sender: 'agent',
-            senderName: 'Rool',
-            timestamp: Date.now(),
-            fromAgent: true,
-          },
+        await channel.createObject('huddle_message', {
+          huddle: activeHuddleId,
+          text: `Sorry, something went wrong: ${err instanceof Error ? err.message : String(err)}`,
+          sender: 'agent',
+          senderName: 'Rool',
+          timestamp: Date.now(),
+          fromAgent: true,
         });
       } finally {
         isSending = false;
@@ -149,26 +140,26 @@
   // Delete huddle (cascade messages)
   // ---------------------------------------------------------------------------
 
-  async function deleteHuddle(huddleId: string) {
-    const messageIds = messagesWatch && activeHuddleId === huddleId
-      ? messagesWatch.objects.map((m) => m.id)
+  async function deleteHuddle(huddleLocation: string) {
+    const messageLocations = messagesWatch && activeHuddleId === huddleLocation
+      ? messagesWatch.objects.map((m) => m.location)
       : [];
 
     // If deleting a different huddle, fetch its messages
-    let idsToDelete = [huddleId, ...messageIds];
-    if (activeHuddleId !== huddleId) {
+    let toDelete = [huddleLocation, ...messageLocations];
+    if (activeHuddleId !== huddleLocation) {
       const { objects } = await channel.findObjects({
         collection: 'huddle_message',
-        where: { huddle: huddleId },
+        where: { huddle: huddleLocation },
         ephemeral: true,
       });
-      idsToDelete = [huddleId, ...objects.map((m) => m.id)];
+      toDelete = [huddleLocation, ...objects.map((m) => m.location)];
     }
 
-    if (activeHuddleId === huddleId) {
+    if (activeHuddleId === huddleLocation) {
       activeHuddleId = null;
     }
-    await channel.deleteObjects(idsToDelete);
+    await channel.deleteObjects(toDelete);
   }
 </script>
 
@@ -213,9 +204,9 @@
       </button>
       {#if activeHuddle}
         <Icon icon="mdi:pound" class="w-4 h-4 text-slate-400" />
-        <span class="font-semibold text-slate-700 dark:text-neutral-100 text-sm">{activeHuddle.name}</span>
-        {#if activeHuddle.description}
-          <span class="text-xs text-slate-400 hidden sm:inline">&mdash; {activeHuddle.description}</span>
+        <span class="font-semibold text-slate-700 dark:text-neutral-100 text-sm">{activeHuddle.body.name}</span>
+        {#if activeHuddle.body.description}
+          <span class="text-xs text-slate-400 hidden sm:inline">&mdash; {activeHuddle.body.description}</span>
         {/if}
       {:else}
         <span class="text-sm text-slate-400">Select a huddle</span>
@@ -226,7 +217,7 @@
       <MessageFeed
         messages={messagesWatch}
         currentUserId={channel.userId}
-        huddleName={String(activeHuddle?.name ?? '')}
+        huddleName={String(activeHuddle?.body.name ?? '')}
         {isSending}
       />
       <MessageInput

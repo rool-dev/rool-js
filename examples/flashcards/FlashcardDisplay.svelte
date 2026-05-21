@@ -1,13 +1,8 @@
 <script lang="ts">
   import type { RoolObject } from '@rool-dev/extension';
 
-  interface Card extends RoolObject {
-    front: string;
-    back: string;
-  }
-
   interface Props {
-    card: Card;
+    card: RoolObject;
     isLoading: boolean;
     onReview: (quality: number) => void;
     onDismiss: () => void;
@@ -33,7 +28,7 @@
     <!-- Front face -->
     <div class="bg-white dark:bg-neutral-900 rounded-xl shadow-lg border border-slate-200 dark:border-neutral-700 backface-hidden">
       <div class="p-8 min-h-50 flex items-center justify-center">
-        <p class="text-lg text-center text-slate-800 dark:text-neutral-100">{card.front}</p>
+        <p class="text-lg text-center text-slate-800 dark:text-neutral-100">{card.body.front}</p>
       </div>
       <div class="px-8 pb-8">
         <button
@@ -48,7 +43,7 @@
     <!-- Back face -->
     <div class="absolute inset-0 bg-white dark:bg-neutral-900 rounded-xl shadow-lg border border-slate-200 dark:border-neutral-700 backface-hidden rotate-y-180">
       <div class="p-8 min-h-50 flex items-center justify-center">
-        <p class="text-lg text-center text-slate-800 dark:text-neutral-100">{card.back}</p>
+        <p class="text-lg text-center text-slate-800 dark:text-neutral-100">{card.body.back}</p>
       </div>
       <div class="px-8 pb-8 space-y-3">
         <p class="text-xs text-center text-slate-400 dark:text-neutral-500 uppercase tracking-wider">How did you do?</p>

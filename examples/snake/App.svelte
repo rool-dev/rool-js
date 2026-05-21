@@ -110,12 +110,14 @@
       });
 
       if (objects.length > 0) {
-        await channel.updateObject(objects[0].id, {
+        await channel.updateObject(objects[0].location, {
           data: { score, date: new Date().toISOString() },
         });
       } else {
-        await channel.createObject({
-          data: { type: 'highscores', userId, score, date: new Date().toISOString() },
+        await channel.createObject('highscores', {
+          userId,
+          score,
+          date: new Date().toISOString(),
         });
       }
 
@@ -130,7 +132,7 @@
     try {
       const { objects } = await channel.findObjects({ collection: 'highscores' });
       highScores = objects
-        .map(o => ({ userId: o.userId as string, score: o.score as number }))
+        .map(o => ({ userId: o.body.userId as string, score: o.body.score as number }))
         .filter(h => typeof h.score === 'number')
         .sort((a, b) => b.score - a.score)
         .slice(0, 10);

@@ -11,15 +11,13 @@
 
   let { channel }: Props = $props();
 
-  interface Event extends RoolObject {
-    type: 'event';
+  interface EventBody {
     title: string;
     description?: string;
     duration: string;
   }
 
-  interface Slot extends RoolObject {
-    type: 'slot';
+  interface SlotBody {
     datetime: string;
     yes?: string[];
     chosen?: boolean;
@@ -30,8 +28,8 @@
   let slotsCollection: ReactiveWatch | undefined = $state();
 
   $effect(() => {
-    const ec = channel.watch({ where: { type: 'event' }, limit: 1 });
-    const sc = channel.watch({ where: { type: 'slot' } });
+    const ec = channel.watch({ collection: 'event', limit: 1 });
+    const sc = channel.watch({ collection: 'slot' });
     eventCollection = ec;
     slotsCollection = sc;
     return () => { ec.close(); sc.close(); };
@@ -51,17 +49,20 @@
   let formDatePrefs = $state('');
 
   // Derived
-  let event = $derived((eventCollection?.objects[0] ?? null) as Event | null);
-  let slots = $derived((slotsCollection?.objects ?? []) as Slot[]);
+  let event = $derived<RoolObject | null>(eventCollection?.objects[0] ?? null);
+  let eventBody = $derived<EventBody | null>(event ? (event.body as unknown as EventBody) : null);
+  let slots = $derived<RoolObject[]>(slotsCollection?.objects ?? []);
   let isOrganizer = $derived(channel.role === 'owner');
   let currentInteractions = $derived(channel.interactions ?? []);
-  let sortedSlots = $derived([...slots].sort((a, b) => a.datetime.localeCompare(b.datetime)));
+  let sortedSlots = $derived([...slots].sort((a, b) =>
+    String(a.body.datetime ?? '').localeCompare(String(b.body.datetime ?? ''))
+  ));
   let collectionsLoading = $derived(!eventCollection || !slotsCollection || eventCollection.loading || slotsCollection.loading);
 
   // Set system instruction when event is available
   $effect(() => {
-    if (event) {
-      channel.setSystemInstruction(buildSystemInstruction(event.title, event.description, event.duration));
+    if (eventBody) {
+      channel.setSystemInstruction(buildSystemInstruction(eventBody.title, eventBody.description, eventBody.duration));
     }
   });
 
@@ -106,15 +107,15 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     isCreatingPlan = true;
     try {
       // Create event object
-      await channel.createObject({
-        data: {
-          type: 'event',
+      await channel.createObject(
+        'event',
+        {
           title: formTitle.trim(),
           description: formDescription.trim() || undefined,
-          duration: formDuration
+          duration: formDuration,
         },
-        ephemeral: true
-      });
+        { ephemeral: true },
+      );
 
       // Set system instruction
       await channel.setSystemInstruction(
@@ -161,14 +162,14 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
 
-  async function confirmSlot(slot: Slot) {
+  async function confirmSlot(slot: RoolObject) {
     if (isSending) return;
-    const currentYes = slot.yes ?? [];
+    const currentYes = (slot.body.yes as string[] | undefined) ?? [];
     const userName = channel.userId;
     if (currentYes.includes(userName)) return;
     isSending = true;
     try {
-      await channel.updateObject(slot.id, {
+      await channel.updateObject(slot.location, {
         data: { yes: [...currentYes, userName] },
         ephemeral: true
       });
@@ -177,13 +178,13 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     }
   }
 
-  async function rejectSlot(slot: Slot) {
+  async function rejectSlot(slot: RoolObject) {
     if (isSending) return;
     isSending = true;
     try {
-      await channel.deleteObjects([slot.id]);
+      await channel.deleteObjects([slot.location]);
       await channel.prompt(
-        `I can't make ${formatSlotDateTime(slot.datetime)}. Create a replacement time slot.`,
+        `I can't make ${formatSlotDateTime(String(slot.body.datetime))}. Create a replacement time slot.`,
         { ephemeral: true }
       );
     } finally {
@@ -191,12 +192,12 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
     }
   }
 
-  async function finalizeSlot(slot: Slot) {
+  async function finalizeSlot(slot: RoolObject) {
     if (isSending || !isOrganizer) return;
     isSending = true;
     try {
       await channel.checkpoint('Finalize event');
-      await channel.prompt(`I have chosen ${formatSlotDateTime(slot.datetime)} as the final time. Remove the other options.`);
+      await channel.prompt(`I have chosen ${formatSlotDateTime(String(slot.body.datetime))} as the final time. Remove the other options.`);
     } finally {
       isSending = false;
     }
@@ -328,9 +329,9 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
       {#if event}
         <div class="bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 p-2 sm:p-4 mb-2 sm:mb-4 relative">
           <div class="flex items-center justify-between gap-2">
-            <h2 class="text-sm sm:text-lg font-semibold text-slate-800 dark:text-neutral-100 truncate">{event.title}</h2>
+            <h2 class="text-sm sm:text-lg font-semibold text-slate-800 dark:text-neutral-100 truncate">{eventBody?.title}</h2>
             <div class="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-500 dark:text-neutral-400 shrink-0">
-              {#if event.description}
+              {#if eventBody?.description}
                 <button
                   class="sm:hidden p-1 -m-1 text-slate-400 dark:text-neutral-500 hover:text-slate-600 dark:hover:text-neutral-300"
                   onclick={() => showDescription = !showDescription}
@@ -341,8 +342,8 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
               {/if}
               <span class="flex items-center gap-1">
                 <Icon icon="mdi:clock-outline" class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span class="hidden sm:inline">{event.duration}</span>
-                <span class="sm:hidden">{event.duration.replace(' hour', 'h').replace(' minutes', 'm')}</span>
+                <span class="hidden sm:inline">{eventBody?.duration}</span>
+                <span class="sm:hidden">{eventBody?.duration.replace(' hour', 'h').replace(' minutes', 'm')}</span>
               </span>
               {#if isOrganizer}
                 <span class="flex items-center gap-1 text-amber-600 dark:text-amber-400">
@@ -352,17 +353,17 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
               {/if}
             </div>
           </div>
-          {#if event.description}
-            <p class="hidden sm:block text-sm text-slate-500 dark:text-neutral-400 mt-1">{event.description}</p>
+          {#if eventBody?.description}
+            <p class="hidden sm:block text-sm text-slate-500 dark:text-neutral-400 mt-1">{eventBody.description}</p>
           {/if}
-          {#if showDescription && event.description}
+          {#if showDescription && eventBody?.description}
             <button
               class="sm:hidden fixed inset-0 z-40"
               onclick={() => showDescription = false}
               aria-label="Close tooltip"
             ></button>
             <div class="sm:hidden absolute right-2 top-full mt-1 z-50 bg-slate-800 dark:bg-neutral-700 text-white text-xs rounded-lg px-3 py-2 max-w-64 shadow-lg">
-              {event.description}
+              {eventBody.description}
             </div>
           {/if}
         </div>
@@ -373,7 +374,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
         <div class="mb-3 sm:mb-4">
           <h3 class="text-xs sm:text-sm font-semibold text-slate-500 dark:text-neutral-400 uppercase tracking-wider mb-2 sm:mb-3">Available Times</h3>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
-            {#each sortedSlots as slot (slot.id)}
+            {#each sortedSlots as slot (slot.location)}
               <div animate:flip={{ duration: 200 }}>
               <SlotCard
                 {slot}

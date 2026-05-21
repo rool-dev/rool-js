@@ -2,15 +2,8 @@
   import type { RoolObject } from '@rool-dev/extension';
   import Icon from '@iconify/svelte';
 
-  interface Slot extends RoolObject {
-    type: 'slot';
-    datetime: string;
-    yes?: string[];
-    chosen?: boolean;
-  }
-
   interface Props {
-    slot: Slot;
+    slot: RoolObject;
     isOrganizer: boolean;
     onConfirm: () => void;
     onReject: () => void;
@@ -20,6 +13,10 @@
   }
 
   let { slot, isOrganizer, onConfirm, onReject, onFinalize, onReopen, disabled }: Props = $props();
+
+  let datetime = $derived(String(slot.body.datetime ?? ''));
+  let yesArray = $derived(slot.body.yes as string[] | undefined);
+  let chosen = $derived(Boolean(slot.body.chosen));
 
   function formatDate(datetime: string): string {
     const date = new Date(datetime);
@@ -32,7 +29,7 @@
   }
 </script>
 
-{#if slot.chosen}
+{#if chosen}
   <!-- Chosen slot -->
   <div class="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40 border-2 border-emerald-400 dark:border-emerald-600 rounded-xl p-2 sm:p-4 shadow-md">
     <div class="flex items-center justify-center gap-1 text-emerald-600 dark:text-emerald-400 mb-1 sm:mb-2">
@@ -41,13 +38,13 @@
     </div>
 
     <div class="text-center mb-1 sm:mb-3">
-      <div class="text-base sm:text-xl font-bold text-emerald-800 dark:text-emerald-200">{formatDate(slot.datetime)}</div>
-      <div class="text-xs sm:text-sm font-medium text-emerald-600 dark:text-emerald-400">{formatTime(slot.datetime)}</div>
+      <div class="text-base sm:text-xl font-bold text-emerald-800 dark:text-emerald-200">{formatDate(datetime)}</div>
+      <div class="text-xs sm:text-sm font-medium text-emerald-600 dark:text-emerald-400">{formatTime(datetime)}</div>
     </div>
 
-    {#if slot.yes?.length}
+    {#if yesArray?.length}
       <div class="text-center text-xs sm:text-sm text-emerald-700 dark:text-emerald-300 mb-1 sm:mb-3">
-        {slot.yes.length} {slot.yes.length === 1 ? 'attendee' : 'attendees'}
+        {yesArray.length} {yesArray.length === 1 ? 'attendee' : 'attendees'}
       </div>
     {/if}
 
@@ -66,8 +63,8 @@
   <!-- Regular slot -->
   <div class="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-xl p-2 sm:p-4 shadow-sm hover:shadow-md transition-shadow">
     <div class="text-center mb-2 sm:mb-3">
-      <div class="text-sm sm:text-lg font-semibold text-slate-800 dark:text-neutral-100">{formatDate(slot.datetime)}</div>
-      <div class="text-xs sm:text-sm text-slate-500 dark:text-neutral-400">{formatTime(slot.datetime)}</div>
+      <div class="text-sm sm:text-lg font-semibold text-slate-800 dark:text-neutral-100">{formatDate(datetime)}</div>
+      <div class="text-xs sm:text-sm text-slate-500 dark:text-neutral-400">{formatTime(datetime)}</div>
     </div>
 
     <div class="flex gap-1.5 sm:gap-2 justify-center">
@@ -79,8 +76,8 @@
         title="I can make this time"
       >
         <Icon icon="mdi:check" class="w-4 h-4" />
-        {#if slot.yes?.length}
-          <span class="font-semibold">{slot.yes.length}</span>
+        {#if yesArray?.length}
+          <span class="font-semibold">{yesArray.length}</span>
         {:else}
           <span class="hidden sm:inline">Works</span>
         {/if}

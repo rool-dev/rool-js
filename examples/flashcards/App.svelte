@@ -11,8 +11,8 @@
 
   let { channel }: Props = $props();
 
-  interface Card extends RoolObject {
-    topic: string;
+  interface CardBody {
+    topic: string;     // location of the topic object
     front: string;
     back: string;
     dueAt: number;
@@ -24,7 +24,7 @@
   // State
   let topicsCollection: ReactiveWatch | undefined = $state();
   let cardsCollection: ReactiveWatch | undefined = $state();
-  let selectedTopicId = $state<string | null>(null);
+  let selectedTopicLocation = $state<string | null>(null);
   let isLoading = $state(false);
   let isGenerating = $state(false);
   let newTopicName = $state('');
@@ -32,34 +32,37 @@
 
   // Watch all topics
   $effect(() => {
-    const w = channel.watch({ where: { type: 'topic' } });
+    const w = channel.watch({ collection: 'topic' });
     topicsCollection = w;
     return () => w.close();
   });
 
   // Derived state
-  let topics = $derived(topicsCollection?.objects ?? []);
-  let cards = $derived((cardsCollection?.objects ?? []) as Card[]);
+  let topics = $derived<RoolObject[]>(topicsCollection?.objects ?? []);
+  let cards = $derived<RoolObject[]>(cardsCollection?.objects ?? []);
   let dueCards = $derived.by(() => {
     const now = Date.now();
     return cards
-      .filter((c) => !c.dueAt || c.dueAt <= now)
-      .sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
+      .filter((c) => {
+        const due = c.body.dueAt as number | undefined;
+        return !due || due <= now;
+      })
+      .sort((a, b) => ((a.body.dueAt as number) ?? 0) - ((b.body.dueAt as number) ?? 0));
   });
   let currentCard = $derived(dueCards[0]);
-  let selectedTopic = $derived(topics.find((t) => t.id === selectedTopicId));
+  let selectedTopic = $derived(topics.find((t) => t.location === selectedTopicLocation));
   let collectionsLoading = $derived(!topicsCollection || topicsCollection.loading);
 
-  function selectTopic(topicId: string) {
+  function selectTopic(topicLocation: string) {
     cardsCollection?.close();
-    selectedTopicId = topicId;
-    cardsCollection = channel.watch({ where: { type: 'card', topic: topicId } });
+    selectedTopicLocation = topicLocation;
+    cardsCollection = channel.watch({ collection: 'card', where: { topic: topicLocation } });
   }
 
   function deselectTopic() {
     cardsCollection?.close();
     cardsCollection = undefined;
-    selectedTopicId = null;
+    selectedTopicLocation = null;
   }
 
   async function createTopic() {
@@ -69,11 +72,11 @@
     isGenerating = true;
     try {
       await channel.checkpoint('Create topic');
-      const { object: topic } = await channel.createObject({ data: { type: 'topic', name: topicName } });
+      const { object: topic } = await channel.createObject('topic', { name: topicName });
       await channel.prompt(
-        `Generate 5 flashcards for "${topicName}". Cover different aspects of the topic. Set the topic field to "${topic.id}".`
+        `Generate 5 flashcards for "${topicName}". Cover different aspects of the topic. Set the topic field to "${topic.location}".`
       );
-      selectTopic(topic.id);
+      selectTopic(topic.location);
       newTopicName = '';
       showNewTopicForm = false;
     } catch (err) {
@@ -84,12 +87,12 @@
   }
 
   async function generateMoreCards() {
-    if (!selectedTopicId || !selectedTopic || isGenerating) return;
+    if (!selectedTopicLocation || !selectedTopic || isGenerating) return;
 
     isGenerating = true;
     try {
       await channel.prompt(
-        `Generate 3 more flashcards for "${selectedTopic.name}". Make them different from existing cards. Set the topic field to "${selectedTopicId}".`
+        `Generate 3 more flashcards for "${selectedTopic.body.name}". Make them different from existing cards. Set the topic field to "${selectedTopicLocation}".`
       );
     } catch (err) {
       console.error('Failed to generate cards:', err);
@@ -102,13 +105,14 @@
     if (!currentCard) return;
 
     const card = currentCard;
-    const updated = calculateNextReview(quality, card);
+    const body = card.body as unknown as CardBody;
+    const updated = calculateNextReview(quality, body);
 
     isLoading = true;
     try {
       await channel.checkpoint('Review card');
-      await channel.updateObject(card.id, {
-        data: { ...updated, reviewCount: (card.reviewCount ?? 0) + 1 }
+      await channel.updateObject(card.location, {
+        data: { ...updated, reviewCount: (body.reviewCount ?? 0) + 1 }
       });
     } catch (err) {
       console.error('Failed to update card:', err);
@@ -123,7 +127,7 @@
     isLoading = true;
     try {
       await channel.checkpoint('Dismiss card');
-      await channel.deleteObjects([currentCard.id]);
+      await channel.deleteObjects([currentCard.location]);
     } catch (err) {
       console.error('Failed to dismiss card:', err);
     } finally {
@@ -142,12 +146,12 @@
     {#each topics as topic}
       <button
         class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors
-          {showSelected && selectedTopicId === topic.id
+          {showSelected && selectedTopicLocation === topic.location
             ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium'
             : 'text-slate-600 dark:text-neutral-300 hover:bg-slate-100 dark:hover:bg-neutral-800'}"
-        onclick={() => selectTopic(topic.id)}
+        onclick={() => selectTopic(topic.location)}
       >
-        {topic.name}
+        {topic.body.name}
       </button>
     {/each}
   {/if}
@@ -207,7 +211,7 @@
 
   <!-- Main content area -->
   <div class="flex-1 p-4 md:p-6 flex flex-col">
-    {#if selectedTopicId}
+    {#if selectedTopicLocation}
       <!-- Topic header -->
       <div class="mb-4 flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 min-w-0">
@@ -218,7 +222,7 @@
           >
             <Icon icon="mdi:chevron-left" class="w-5 h-5" />
           </button>
-          <h2 class="text-lg font-semibold text-slate-800 dark:text-neutral-100 truncate">{selectedTopic?.name ?? ''}</h2>
+          <h2 class="text-lg font-semibold text-slate-800 dark:text-neutral-100 truncate">{selectedTopic?.body.name ?? ''}</h2>
         </div>
         <span class="text-sm text-slate-500 dark:text-neutral-400 shrink-0">{dueCards.length} due</span>
       </div>
@@ -233,7 +237,7 @@
         </div>
       {:else if currentCard}
         <div class="flex-1 flex flex-col items-center justify-center">
-          {#key currentCard.id}
+          {#key currentCard.location}
             <div in:fly={{ x: 50, duration: 200 }}>
               <FlashcardDisplay card={currentCard} {isLoading} onReview={submitReview} onDismiss={dismissCard} />
             </div>

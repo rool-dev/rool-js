@@ -1,6 +1,10 @@
 // Main export
 export { createRool, generateId } from './rool.svelte.js';
 
+// Location helpers — re-exported from the SDK for convenience
+export { loc, parseLocation, normalizeLocation, isLocation, generateBasename } from '@rool-dev/sdk';
+export type { ParsedLocation } from '@rool-dev/sdk';
+
 // Reactive wrappers
 export { wrapChannel } from './channel.svelte.js';
 export { wrapSpace } from './space.svelte.js';
@@ -29,6 +33,7 @@ export type {
   PromptOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  MoveObjectOptions,
   FieldType,
   FieldDef,
   CollectionDef,

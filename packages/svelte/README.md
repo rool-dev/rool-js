@@ -56,7 +56,7 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.connectionState` | SSE connection state |
 | `rool.userStorage` | User storage (cross-device preferences) |
 | `channel.interactions` | Channel interactions (auto-updates) |
-| `channel.objectIds` | All object IDs in the space (auto-updates on create/delete) |
+| `channel.objectLocations` | All object locations in the space (auto-updates on create/delete/move) |
 | `channel.collections` | Collection names from the schema (auto-updates) |
 | `channel.conversations` | Conversations in this channel (auto-updates on create/delete/rename) |
 | `thread.interactions` | Interactions for a specific conversation (auto-updates) |
@@ -161,7 +161,7 @@ space.close();
 
 ### ReactiveChannel
 
-`space.openChannel()` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions` and `objectIds`:
+`space.openChannel()` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions` and `objectLocations`:
 
 ```svelte
 <script>
@@ -189,7 +189,7 @@ space.close();
 
 ### Reactive Object
 
-Track a single object by ID with auto-updates:
+Track a single object by location with auto-updates:
 
 ```svelte
 <script>
@@ -198,10 +198,10 @@ Track a single object by ID with auto-updates:
 
   let space = $state(null);
 
-  async function open(spaceId, objectId) {
+  async function open(spaceId, location) {
     space = await rool.openSpace(spaceId);
     channel = await space.openChannel('main');
-    item = channel.object(objectId);
+    item = channel.object(location);  // e.g. '/space/article/welcome.json'
   }
 </script>
 
@@ -209,7 +209,7 @@ Track a single object by ID with auto-updates:
   {#if item.loading}
     <p>Loading...</p>
   {:else if item.data}
-    <div>{item.data.title}</div>
+    <div>{item.data.body.title}</div>
   {:else}
     <p>Object not found</p>
   {/if}
@@ -242,7 +242,7 @@ Create auto-updating watches of objects filtered by field values:
   async function open(spaceId) {
     space = await rool.openSpace(spaceId);
     channel = await space.openChannel('main');
-    // Create a reactive watch of all objects where type === 'article'
+    // Create a reactive watch of all objects in the 'article' collection
     articles = channel.watch({ collection: 'article' });
   }
 </script>
@@ -252,7 +252,7 @@ Create auto-updating watches of objects filtered by field values:
     <p>Loading...</p>
   {:else}
     {#each articles.objects as article}
-      <div>{article.title}</div>
+      <div>{article.body.title}</div>
     {/each}
   {/if}
 {/if}
@@ -333,7 +333,7 @@ thread.interactions   // $state<Interaction[]> — auto-updates via SSE
 
 // All conversation-scoped methods
 await thread.prompt('Hello')
-await thread.createObject({ data: { type: 'note', text: 'Note' } })
+await thread.createObject('note', { text: 'Note' })
 await thread.setSystemInstruction('Respond in haiku')
 await thread.rename('Research Thread')
 thread.getInteractions()      // Manual read
@@ -369,11 +369,13 @@ channel.name
 channel.role
 channel.channelId
 
-// Object operations
-await channel.getObject(id)
-await channel.createObject({ data: { type: 'note', text: 'Hello' } })
-await channel.updateObject(id, { data: { text: 'Updated' } })
-await channel.deleteObjects([id])
+// Object operations — addressed by location (`/space/<collection>/<basename>.json`)
+await channel.getObject(location)
+await channel.createObject('note', { text: 'Hello' })
+await channel.createObject('note', { text: 'Hello' }, { basename: 'welcome' })
+await channel.updateObject(location, { data: { text: 'Updated' } })
+await channel.moveObject(from, to)
+await channel.deleteObjects([location])
 await channel.findObjects({ collection: 'note' })
 
 // AI
@@ -415,10 +417,15 @@ See the [SDK documentation](../sdk/README.md) for complete API details.
 ### Utilities
 
 ```typescript
-import { generateId } from '@rool-dev/svelte';
+import { generateBasename, loc, parseLocation, normalizeLocation } from '@rool-dev/svelte';
 
-// Generate a 6-character alphanumeric ID
-const id = generateId();
+// 6-character alphanumeric basename
+const basename = generateBasename();
+
+// Build / parse location strings
+const location = loc('article', basename);        // '/space/article/<basename>.json'
+const parts = parseLocation(location);            // { collection, basename }
+const canonical = normalizeLocation('article/welcome'); // '/space/article/welcome.json'
 ```
 
 ## Exported Types
@@ -447,6 +454,7 @@ import type {
   PromptOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  MoveObjectOptions,
   FieldType,
   FieldDef,
   CollectionDef,

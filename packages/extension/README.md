@@ -103,7 +103,7 @@ App.svelte receives a single prop — a `ReactiveChannel`:
 
 <div>
   <p>Connected to: {channel.spaceName}</p>
-  <p>Objects: {channel.objectIds.length}</p>
+  <p>Objects: {channel.objectLocations.length}</p>
   <button onclick={() => channel.prompt('Hello')}>Send</button>
 </div>
 ```
@@ -127,7 +127,7 @@ A complete extension that lets users add tasks, mark them done, and ask the AI t
 
   async function addTask() {
     if (!input.trim()) return;
-    await channel.createObject({ data: { type: 'task', title: input, done: false } });
+    await channel.createObject('task', { title: input, done: false });
     input = '';
   }
 
@@ -145,11 +145,11 @@ A complete extension that lets users add tasks, mark them done, and ask the AI t
   <button onclick={generate} class="px-3 py-1 bg-violet-600 text-white rounded">AI Generate</button>
 </div>
 
-{#each tasks.objects as task (task.id)}
+{#each tasks.objects as task (task.location)}
   <label class="flex items-center gap-2 py-1">
-    <input type="checkbox" checked={task.done}
-      onchange={() => channel.updateObject(task.id, { data: { done: !task.done } })} />
-    <span class:line-through={task.done}>{task.title}</span>
+    <input type="checkbox" checked={task.body.done}
+      onchange={() => channel.updateObject(task.location, { data: { done: !task.body.done } })} />
+    <span class:line-through={task.body.done}>{task.body.title}</span>
   </label>
 {/each}
 ```
@@ -187,7 +187,7 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 | Property | Type | Description |
 |----------|------|-------------|
 | `interactions` | `Interaction[]` | Channel interaction history (auto-updates) |
-| `objectIds` | `string[]` | All object IDs in the space (auto-updates on create/delete) |
+| `objectLocations` | `string[]` | All object locations in the space (auto-updates on create/delete/move) |
 | `collections` | `string[]` | Collection names from the schema (auto-updates) |
 | `conversations` | `ConversationInfo[]` | Conversations in this channel (auto-updates on create/delete/rename) |
 | `colorScheme` | `ColorScheme` | Host's color scheme: `'light'` or `'dark'` (auto-updates on toggle) |
@@ -207,41 +207,55 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 
 ### Object Operations
 
-Objects are plain key/value records. `id` is reserved; everything else is application-defined. References between objects are data fields whose values are object IDs.
+Every object lives at a **location** — a path of the form `/space/<collection>/<basename>.json`. Identity lives on the envelope (`location`, `collection`, `basename`); the `body` holds the user-defined fields and never contains `id` or `type`. References between objects are body fields whose values are location strings.
+
+Methods that take a location accept either the canonical full form or the short form (`<collection>/<basename>`).
 
 | Method | Description |
 |--------|-------------|
-| `getObject(id)` | Get object data, or undefined if not found |
+| `getObject(location)` | Get the object, or undefined if not found |
 | `findObjects(options)` | Find objects using filters and/or natural language (see below) |
-| `getObjectIds(options?)` | Get all object IDs. Options: `{ limit?, order? }` |
-| `createObject(options)` | Create a new object. Returns `{ object, message }` |
-| `updateObject(id, options)` | Update an existing object. Returns `{ object, message }` |
-| `deleteObjects(ids)` | Delete objects by ID |
-| `stat(id)` | Get audit info (modifiedAt, modifiedBy) from local cache |
+| `getObjectLocations(options?)` | Get all object locations. Options: `{ limit?, order? }` |
+| `createObject(collection, body, options?)` | Create a new object. Returns `{ object, message }` |
+| `updateObject(location, options)` | Update an existing object's body. Returns `{ object, message }` |
+| `moveObject(from, to, options?)` | Rename or relocate an object. Returns `{ object, message }` |
+| `deleteObjects(locations)` | Delete objects by location |
+| `stat(location)` | Get audit info (modifiedAt, modifiedBy, etc.) from local cache |
 
-#### createObject / updateObject
+#### createObject / updateObject / moveObject
 
 ```typescript
-// Create with literal data — `type` must name a collection in the schema
-await channel.createObject({ data: { type: 'article', title: 'Hello', status: 'draft' } })
+// Create with an auto-generated basename — body must not contain id or type
+await channel.createObject('article', { title: 'Hello', status: 'draft' })
+
+// Pin the basename
+await channel.createObject('article', { title: 'Hello' }, { basename: 'welcome' })
+// → location: /space/article/welcome.json
 
 // Use {{placeholders}} for AI-generated content
-await channel.createObject({ data: { type: 'article', headline: '{{catchy headline about coffee}}' } })
+await channel.createObject('article', { headline: '{{catchy headline about coffee}}' })
 
 // Update fields directly
-await channel.updateObject(id, { data: { status: 'published' } })
+await channel.updateObject(location, { data: { status: 'published' } })
 
 // Update via AI instruction
-await channel.updateObject(id, { prompt: 'Make it shorter and more casual' })
+await channel.updateObject(location, { prompt: 'Make it shorter and more casual' })
 
 // Delete a field by setting it to null
-await channel.updateObject(id, { data: { subtitle: null } })
+await channel.updateObject(location, { data: { subtitle: null } })
+
+// Rename within a collection (or move across collections)
+await channel.moveObject(location, '/space/article/hello-world.json')
+
+// Move and rewrite the body atomically
+await channel.moveObject(location, newLocation, { body: { title: 'Hello, world' } })
 ```
 
 Placeholders are resolved by the AI during the mutation and replaced with concrete values. The `{{...}}` syntax is never stored.
 
-**createObject options:** `data` (required, must include `type` naming a collection; include `id` for a custom ID), `ephemeral`.
-**updateObject options:** `data` (setting a new `type` retypes the object), `prompt`, `ephemeral`.
+**createObject options:** `basename` (auto-generated if omitted), `ephemeral`, `parentInteractionId`. Body must not contain `id` or `type`.
+**updateObject options:** `data` (body fields to add, update, or delete via `null`), `prompt`, `ephemeral`, `parentInteractionId`. Use `moveObject` to change identity.
+**moveObject options:** `body` (atomically replace body), `ephemeral`, `parentInteractionId`.
 
 #### findObjects
 
@@ -258,14 +272,14 @@ await channel.findObjects({ prompt: 'notes about climate solutions' })
 await channel.findObjects({ collection: 'note', prompt: 'most urgent', limit: 5 })
 ```
 
-Options: `where`, `collection`, `prompt`, `limit`, `objectIds`, `order` (`'asc'` | `'desc'`), `ephemeral`.
+Options: `where`, `collection`, `prompt`, `limit`, `locations`, `order` (`'asc'` | `'desc'`), `ephemeral`.
 
 #### Hidden Fields
 
-Fields starting with `_` (e.g., `_ui`) are hidden from AI and ignored by the schema. Use them for UI state, positions, or other data the AI shouldn't see:
+Body fields starting with `_` (e.g., `_ui`) are hidden from AI and ignored by the schema. Use them for UI state, positions, or other data the AI shouldn't see:
 
 ```typescript
-await channel.createObject({ data: { type: 'note', title: 'Note', _ui: { x: 100, y: 200 } } })
+await channel.createObject('note', { title: 'Note', _ui: { x: 100, y: 200 } })
 ```
 
 ### AI
@@ -277,13 +291,13 @@ const { message } = await channel.prompt('Summarize', { readOnly: true, effort: 
 
 | Option | Description |
 |--------|-------------|
-| `objectIds` | Focus on specific objects |
+| `locations` | Focus on specific objects by location |
 | `responseSchema` | Request structured JSON response |
 | `effort` | `'QUICK'`, `'STANDARD'`, `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | Don't record in interaction history |
 | `readOnly` | Disable mutation tools |
 
-The AI automatically receives interaction history, recently modified objects, and any objects passed via `objectIds` as context.
+The AI automatically receives interaction history, recently modified objects, and any objects passed via `locations` as context.
 
 ### Schema
 
@@ -301,7 +315,7 @@ await channel.dropCollection('task')
 
 ```typescript
 await channel.checkpoint('Before delete')
-await channel.deleteObjects([id])
+await channel.deleteObjects([location])
 await channel.undo()   // restores deleted object
 await channel.redo()   // deletes again
 ```
@@ -359,7 +373,7 @@ thread.interactions   // $state<Interaction[]> — auto-updates
 
 // All conversation-scoped methods
 await thread.prompt('Hello');
-await thread.createObject({ data: { type: 'note', text: 'Hello' } });
+await thread.createObject('note', { text: 'Hello' });
 await thread.setSystemInstruction('Respond in haiku');
 await thread.rename('Research Thread');
 
@@ -372,9 +386,10 @@ Conversations are auto-created on first interaction — no explicit create step 
 ### Events
 
 ```typescript
-channel.on('objectCreated', ({ objectId, object, source }) => { ... })
-channel.on('objectUpdated', ({ objectId, object, source }) => { ... })
-channel.on('objectDeleted', ({ objectId, source }) => { ... })
+channel.on('objectCreated', ({ location, object, source }) => { ... })
+channel.on('objectUpdated', ({ location, object, source }) => { ... })
+channel.on('objectDeleted', ({ location, source }) => { ... })
+channel.on('objectMoved',   ({ from, to, object, source }) => { ... })
 channel.on('metadataUpdated', ({ metadata, source }) => { ... })
 channel.on('schemaUpdated', ({ schema, source }) => { ... })
 channel.on('channelUpdated', ({ channelId, source }) => { ... })
@@ -396,8 +411,8 @@ Auto-updating filtered object list:
   const tasks = channel.watch({ collection: 'task' });
 </script>
 
-{#each tasks.objects as task}
-  <div>{task.title}</div>
+{#each tasks.objects as task (task.location)}
+  <div>{task.body.title}</div>
 {/each}
 ```
 
@@ -408,17 +423,17 @@ Auto-updating filtered object list:
 
 Methods: `watch.refresh()`, `watch.close()`.
 
-#### `channel.object(id)`
+#### `channel.object(location)`
 
 Single reactive object subscription:
 
 ```svelte
 <script>
-  const item = channel.object('abc123');
+  const item = channel.object('/space/note/welcome.json');
 </script>
 
 {#if item.data}
-  <div>{item.data.title}</div>
+  <div>{item.data.body.title}</div>
 {/if}
 ```
 
@@ -482,6 +497,11 @@ import type {
   FindObjectsOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  MoveObjectOptions,
+  ObjectCreatedEvent,
+  ObjectUpdatedEvent,
+  ObjectDeletedEvent,
+  ObjectMovedEvent,
   ChangeSource,
   RoolUserRole,
   LinkAccess,

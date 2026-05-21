@@ -7,15 +7,30 @@
 
 // -- Objects ------------------------------------------------------------------
 
+/**
+ * An object in a space. Identity lives in the envelope; body holds the
+ * user-defined fields and never contains `id` or `type`. References between
+ * objects are body fields whose values are location strings.
+ */
 export interface RoolObject {
-  id: string;
-  [key: string]: unknown;
+  /** Canonical location: `/space/<collection>/<basename>.json`. */
+  location: string;
+  /** Collection name (parent directory of the location). */
+  collection: string;
+  /** Basename (filename of the location without `.json`). */
+  basename: string;
+  /** User-defined fields. Never contains identity. */
+  body: Record<string, unknown>;
 }
 
 export interface RoolObjectStat {
+  location: string;
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
+  modifiedInChannel: string;
+  modifiedInConversation: string | null;
+  modifiedInInteraction: string | null;
 }
 
 // -- Schema -------------------------------------------------------------------
@@ -58,12 +73,12 @@ export interface Interaction {
   timestamp: number;
   userId: string;
   userName?: string | null;
-  operation: 'prompt' | 'createObject' | 'updateObject' | 'deleteObjects';
+  operation: 'prompt' | 'createObject' | 'updateObject' | 'moveObject' | 'deleteObjects';
   input: string;
   output: string | null;
   status: InteractionStatus;
   ai: boolean;
-  modifiedObjectIds: string[];
+  modifiedObjectLocations: string[];
   toolCalls: ToolCall[];
   attachments?: string[];
 }
@@ -73,7 +88,8 @@ export interface Interaction {
 export type PromptEffort = 'QUICK' | 'STANDARD' | 'REASONING' | 'RESEARCH';
 
 export interface PromptOptions {
-  objectIds?: string[];
+  /** Focus the AI on specific objects, by location. */
+  locations?: string[];
   responseSchema?: Record<string, unknown>;
   effort?: PromptEffort;
   ephemeral?: boolean;
@@ -88,20 +104,31 @@ export interface FindObjectsOptions {
   collection?: string;
   prompt?: string;
   limit?: number;
-  objectIds?: string[];
+  /** Scope search to specific object locations. */
+  locations?: string[];
   order?: 'asc' | 'desc';
   ephemeral?: boolean;
 }
 
 export interface CreateObjectOptions {
-  data: Record<string, unknown>;
+  /** Specific basename to use. If omitted, the SDK generates a random one. */
+  basename?: string;
   ephemeral?: boolean;
+  parentInteractionId?: string | null;
 }
 
 export interface UpdateObjectOptions {
   data?: Record<string, unknown>;
   prompt?: string;
   ephemeral?: boolean;
+  parentInteractionId?: string | null;
+}
+
+export interface MoveObjectOptions {
+  /** Replace the body atomically as part of the move. If omitted, body is preserved. */
+  body?: Record<string, unknown>;
+  ephemeral?: boolean;
+  parentInteractionId?: string | null;
 }
 
 // -- Events -------------------------------------------------------------------
@@ -120,10 +147,35 @@ export interface ConversationInfo {
   interactionCount: number;
 }
 
+export interface ObjectCreatedEvent {
+  location: string;
+  object: RoolObject;
+  source: ChangeSource;
+}
+
+export interface ObjectUpdatedEvent {
+  location: string;
+  object: RoolObject;
+  source: ChangeSource;
+}
+
+export interface ObjectDeletedEvent {
+  location: string;
+  source: ChangeSource;
+}
+
+export interface ObjectMovedEvent {
+  from: string;
+  to: string;
+  object: RoolObject;
+  source: ChangeSource;
+}
+
 export interface ChannelEvents {
-  objectCreated: { objectId: string; object: RoolObject; source: ChangeSource };
-  objectUpdated: { objectId: string; object: RoolObject; source: ChangeSource };
-  objectDeleted: { objectId: string; source: ChangeSource };
+  objectCreated: ObjectCreatedEvent;
+  objectUpdated: ObjectUpdatedEvent;
+  objectDeleted: ObjectDeletedEvent;
+  objectMoved: ObjectMovedEvent;
   metadataUpdated: { metadata: Record<string, unknown>; source: ChangeSource };
   schemaUpdated: { schema: SpaceSchema; source: ChangeSource };
   channelUpdated: { channelId: string; source: ChangeSource };

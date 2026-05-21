@@ -22,9 +22,9 @@
     if (!name) return;
     creating = true;
     try {
-      const { object } = await channel.createObject({ data: { type: 'huddle', name, description: null } });
+      const { object } = await channel.createObject('huddle', { name, description: null });
       newName = '';
-      onselect(object.id);
+      onselect(object.location);
     } finally {
       creating = false;
     }
@@ -66,23 +66,23 @@
 
   <!-- Huddle list -->
   <div class="flex-1 overflow-auto py-1">
-    {#each huddles?.objects ?? [] as huddle (huddle.id)}
+    {#each huddles?.objects ?? [] as huddle (huddle.location)}
       <div
         class="group flex items-center gap-1 mx-2 my-0.5 px-3 py-2 rounded-lg cursor-pointer transition-colors
-          {activeHuddleId === huddle.id
+          {activeHuddleId === huddle.location
             ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300'
             : 'text-slate-600 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-800'}"
       >
         <button
           class="flex-1 text-left text-sm truncate min-w-0 flex items-center gap-2"
-          onclick={() => { onselect(huddle.id); onclose(); }}
+          onclick={() => { onselect(huddle.location); onclose(); }}
         >
           <Icon icon="mdi:pound" class="w-4 h-4 shrink-0 opacity-50" />
-          {huddle.name}
+          {huddle.body.name}
         </button>
         <button
           class="p-0.5 rounded text-slate-400 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all shrink-0"
-          onclick={(e) => { e.stopPropagation(); ondelete(huddle.id); }}
+          onclick={(e) => { e.stopPropagation(); ondelete(huddle.location); }}
           title="Delete huddle"
         >
           <Icon icon="mdi:close" class="w-3.5 h-3.5" />

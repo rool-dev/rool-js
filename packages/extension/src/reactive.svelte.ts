@@ -20,9 +20,14 @@ import type {
   FindObjectsOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
+  MoveObjectOptions,
   RoolUserRole,
   LinkAccess,
   ChannelEvents,
+  ObjectCreatedEvent,
+  ObjectUpdatedEvent,
+  ObjectDeletedEvent,
+  ObjectMovedEvent,
 } from './types.js';
 
 let _nextId = 0;
@@ -44,7 +49,7 @@ class ReactiveWatchImpl {
   #channel: ReactiveChannelImpl;
   #options: WatchOptions;
   #unsubscribers: (() => void)[] = [];
-  #currentIds = new Set<string>();
+  #currentLocations = new Set<string>();
 
   objects = $state<RoolObject[]>([]);
   loading = $state(true);
@@ -58,28 +63,40 @@ class ReactiveWatchImpl {
   #setup() {
     this.refresh();
 
-    const onObjectCreated = ({ object }: { object: RoolObject }) => {
+    const onObjectCreated = ({ object }: ObjectCreatedEvent) => {
       if (this.#matches(object)) this.refresh();
     };
     this.#channel.on('objectCreated', onObjectCreated);
     this.#unsubscribers.push(() => this.#channel.off('objectCreated', onObjectCreated));
 
-    const onObjectUpdated = ({ objectId, object }: { objectId: string; object: RoolObject }) => {
-      const wasIn = this.#currentIds.has(objectId);
+    const onObjectUpdated = ({ location, object }: ObjectUpdatedEvent) => {
+      const wasIn = this.#currentLocations.has(location);
       const nowMatches = this.#matches(object);
 
       if (wasIn && nowMatches) {
-        const i = this.objects.findIndex((o) => o.id === objectId);
-        if (i !== -1) this.objects[i] = { ...this.objects[i], ...object };
+        const i = this.objects.findIndex((o) => o.location === location);
+        if (i !== -1) {
+          this.objects[i] = {
+            ...this.objects[i],
+            ...object,
+            body: { ...this.objects[i].body, ...object.body },
+          };
+        }
       } else if (wasIn && !nowMatches) {
         const where = this.#options.where;
-        const isPartial = where && Object.keys(where).some((k) => !(k in object));
+        const isPartial = where && Object.keys(where).some((k) => !(k in object.body));
         if (isPartial) {
-          const i = this.objects.findIndex((o) => o.id === objectId);
-          if (i !== -1) this.objects[i] = { ...this.objects[i], ...object };
+          const i = this.objects.findIndex((o) => o.location === location);
+          if (i !== -1) {
+            this.objects[i] = {
+              ...this.objects[i],
+              ...object,
+              body: { ...this.objects[i].body, ...object.body },
+            };
+          }
         } else {
-          this.objects = this.objects.filter((o) => o.id !== objectId);
-          this.#currentIds.delete(objectId);
+          this.objects = this.objects.filter((o) => o.location !== location);
+          this.#currentLocations.delete(location);
         }
       } else if (!wasIn && nowMatches) {
         this.refresh();
@@ -88,14 +105,22 @@ class ReactiveWatchImpl {
     this.#channel.on('objectUpdated', onObjectUpdated);
     this.#unsubscribers.push(() => this.#channel.off('objectUpdated', onObjectUpdated));
 
-    const onObjectDeleted = ({ objectId }: { objectId: string }) => {
-      if (this.#currentIds.has(objectId)) {
-        this.objects = this.objects.filter((o) => o.id !== objectId);
-        this.#currentIds.delete(objectId);
+    const onObjectDeleted = ({ location }: ObjectDeletedEvent) => {
+      if (this.#currentLocations.has(location)) {
+        this.objects = this.objects.filter((o) => o.location !== location);
+        this.#currentLocations.delete(location);
       }
     };
     this.#channel.on('objectDeleted', onObjectDeleted);
     this.#unsubscribers.push(() => this.#channel.off('objectDeleted', onObjectDeleted));
+
+    const onObjectMoved = ({ from, object }: ObjectMovedEvent) => {
+      const wasIn = this.#currentLocations.has(from);
+      const nowMatches = this.#matches(object);
+      if (wasIn || nowMatches) this.refresh();
+    };
+    this.#channel.on('objectMoved', onObjectMoved);
+    this.#unsubscribers.push(() => this.#channel.off('objectMoved', onObjectMoved));
 
     const onReset = () => this.refresh();
     this.#channel.on('reset', onReset);
@@ -103,13 +128,12 @@ class ReactiveWatchImpl {
   }
 
   #matches(object: RoolObject): boolean {
-    // Collection filter matches by `type` field
-    if (this.#options.collection && object.type !== this.#options.collection) return false;
+    if (this.#options.collection && object.collection !== this.#options.collection) return false;
 
     const where = this.#options.where;
     if (!where) return true;
     for (const [key, value] of Object.entries(where)) {
-      if (object[key] !== value) return false;
+      if (object.body[key] !== value) return false;
     }
     return true;
   }
@@ -125,7 +149,7 @@ class ReactiveWatchImpl {
         ephemeral: true,
       });
       this.objects = objects;
-      this.#currentIds = new Set(objects.map((o) => o.id));
+      this.#currentLocations = new Set(objects.map((o) => o.location));
     } finally {
       this.loading = false;
     }
@@ -141,38 +165,45 @@ export type ReactiveWatch = ReactiveWatchImpl;
 
 class ReactiveObjectImpl {
   #channel: ReactiveChannelImpl;
-  #objectId: string;
+  #location: string;
   #unsubscribers: (() => void)[] = [];
 
   data = $state<RoolObject | undefined>(undefined);
   loading = $state(true);
 
-  constructor(channel: ReactiveChannelImpl, objectId: string) {
+  constructor(channel: ReactiveChannelImpl, location: string) {
     this.#channel = channel;
-    this.#objectId = objectId;
+    this.#location = location;
     this.#setup();
   }
 
   #setup() {
     this.refresh();
 
-    const onObjectUpdated = ({ objectId, object }: { objectId: string; object: RoolObject }) => {
-      if (objectId === this.#objectId) this.data = object;
+    const onObjectUpdated = ({ location, object }: ObjectUpdatedEvent) => {
+      if (location === this.#location) this.data = object;
     };
     this.#channel.on('objectUpdated', onObjectUpdated);
     this.#unsubscribers.push(() => this.#channel.off('objectUpdated', onObjectUpdated));
 
-    const onObjectCreated = ({ object }: { object: RoolObject }) => {
-      if (object.id === this.#objectId) this.data = object;
+    const onObjectCreated = ({ location, object }: ObjectCreatedEvent) => {
+      if (location === this.#location) this.data = object;
     };
     this.#channel.on('objectCreated', onObjectCreated);
     this.#unsubscribers.push(() => this.#channel.off('objectCreated', onObjectCreated));
 
-    const onObjectDeleted = ({ objectId }: { objectId: string }) => {
-      if (objectId === this.#objectId) this.data = undefined;
+    const onObjectDeleted = ({ location }: ObjectDeletedEvent) => {
+      if (location === this.#location) this.data = undefined;
     };
     this.#channel.on('objectDeleted', onObjectDeleted);
     this.#unsubscribers.push(() => this.#channel.off('objectDeleted', onObjectDeleted));
+
+    const onObjectMoved = ({ from, to, object }: ObjectMovedEvent) => {
+      if (from === this.#location) this.data = undefined;
+      else if (to === this.#location) this.data = object;
+    };
+    this.#channel.on('objectMoved', onObjectMoved);
+    this.#unsubscribers.push(() => this.#channel.off('objectMoved', onObjectMoved));
 
     const onReset = () => this.refresh();
     this.#channel.on('reset', onReset);
@@ -182,7 +213,7 @@ class ReactiveObjectImpl {
   async refresh(): Promise<void> {
     this.loading = true;
     try {
-      this.data = await this.#channel.getObject(this.#objectId);
+      this.data = await this.#channel.getObject(this.#location);
     } finally {
       this.loading = false;
     }
@@ -220,7 +251,7 @@ class ReactiveChannelImpl {
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
-  objectIds = $state<string[]>([]);
+  objectLocations = $state<string[]>([]);
   collections = $state<string[]>([]);
   conversations = $state<ConversationInfo[]>([]);
   colorScheme = $state<ColorScheme>('light');
@@ -242,7 +273,7 @@ class ReactiveChannelImpl {
 
     // Load initial data
     this.getInteractions().then((list) => { this.interactions = list; });
-    this._call('getObjectIds').then((ids) => { this.objectIds = ids as string[]; });
+    this._call('getObjectLocations').then((locs) => { this.objectLocations = locs as string[]; });
     this.getConversations().then((list) => { this.conversations = list; });
     this.collections = Object.keys(this._schema);
 
@@ -260,14 +291,16 @@ class ReactiveChannelImpl {
     this.on('conversationUpdated', onConversationUpdated);
     this.#unsubscribers.push(() => this.off('conversationUpdated', onConversationUpdated));
 
-    // Subscribe to object events → refresh objectIds
-    const refreshObjectIds = () => {
-      this._call('getObjectIds').then((ids) => { this.objectIds = ids as string[]; });
+    // Subscribe to object events → refresh objectLocations
+    const refreshObjectLocations = () => {
+      this._call('getObjectLocations').then((locs) => { this.objectLocations = locs as string[]; });
     };
-    this.on('objectCreated', refreshObjectIds);
-    this.#unsubscribers.push(() => this.off('objectCreated', refreshObjectIds));
-    this.on('objectDeleted', refreshObjectIds);
-    this.#unsubscribers.push(() => this.off('objectDeleted', refreshObjectIds));
+    this.on('objectCreated', refreshObjectLocations);
+    this.#unsubscribers.push(() => this.off('objectCreated', refreshObjectLocations));
+    this.on('objectDeleted', refreshObjectLocations);
+    this.#unsubscribers.push(() => this.off('objectDeleted', refreshObjectLocations));
+    this.on('objectMoved', refreshObjectLocations);
+    this.#unsubscribers.push(() => this.off('objectMoved', refreshObjectLocations));
 
     // Subscribe to schema updates → refresh collections
     const onSchemaUpdated = () => {
@@ -279,7 +312,7 @@ class ReactiveChannelImpl {
     // Full resets
     const onReset = () => {
       this.getInteractions().then((list) => { this.interactions = list; });
-      this._call('getObjectIds').then((ids) => { this.objectIds = ids as string[]; });
+      this._call('getObjectLocations').then((locs) => { this.objectLocations = locs as string[]; });
       this.getConversations().then((list) => { this.conversations = list; });
       this.collections = Object.keys(this._schema);
     };
@@ -397,32 +430,47 @@ class ReactiveChannelImpl {
     }
   }
 
-  async getObject(objectId: string): Promise<RoolObject | undefined> {
-    return this._call('getObject', objectId) as Promise<RoolObject | undefined>;
+  async getObject(location: string): Promise<RoolObject | undefined> {
+    return this._call('getObject', location) as Promise<RoolObject | undefined>;
   }
 
-  async stat(objectId: string): Promise<RoolObjectStat | undefined> {
-    return this._call('stat', objectId) as Promise<RoolObjectStat | undefined>;
+  async stat(location: string): Promise<RoolObjectStat | undefined> {
+    return this._call('stat', location) as Promise<RoolObjectStat | undefined>;
   }
 
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
     return this._call('findObjects', options) as Promise<{ objects: RoolObject[]; message: string }>;
   }
 
-  async getObjectIds(options?: { limit?: number; order?: 'asc' | 'desc' }): Promise<string[]> {
-    return this._call('getObjectIds', options) as Promise<string[]>;
+  async getObjectLocations(options?: { limit?: number; order?: 'asc' | 'desc' }): Promise<string[]> {
+    return this._call('getObjectLocations', options) as Promise<string[]>;
   }
 
-  async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._call('createObject', options) as Promise<{ object: RoolObject; message: string }>;
+  async createObject(
+    collection: string,
+    body: Record<string, unknown>,
+    options?: CreateObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this._call('createObject', collection, body, options) as Promise<{ object: RoolObject; message: string }>;
   }
 
-  async updateObject(objectId: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._call('updateObject', objectId, options) as Promise<{ object: RoolObject; message: string }>;
+  async updateObject(
+    location: string,
+    options: UpdateObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this._call('updateObject', location, options) as Promise<{ object: RoolObject; message: string }>;
   }
 
-  async deleteObjects(objectIds: string[]): Promise<void> {
-    await this._call('deleteObjects', objectIds);
+  async moveObject(
+    from: string,
+    to: string,
+    options?: MoveObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this._call('moveObject', from, to, options) as Promise<{ object: RoolObject; message: string }>;
+  }
+
+  async deleteObjects(locations: string[]): Promise<void> {
+    await this._call('deleteObjects', locations);
   }
 
   getSchema(): SpaceSchema {
@@ -554,9 +602,9 @@ class ReactiveChannelImpl {
     });
   }
 
-  object(objectId: string): ReactiveObject {
+  object(location: string): ReactiveObject {
     if (this.#closed) throw new Error('Cannot create reactive object: channel is closed');
-    return new ReactiveObjectImpl(this, objectId);
+    return new ReactiveObjectImpl(this, location);
   }
 
   watch(options: WatchOptions): ReactiveWatch {
@@ -652,16 +700,31 @@ class ReactiveConversationHandleImpl {
     return this.#channel._callScoped('findObjects', [options], this.#conversationId) as Promise<{ objects: RoolObject[]; message: string }>;
   }
 
-  async createObject(options: CreateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this.#channel._callScoped('createObject', [options], this.#conversationId) as Promise<{ object: RoolObject; message: string }>;
+  async createObject(
+    collection: string,
+    body: Record<string, unknown>,
+    options?: CreateObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this.#channel._callScoped('createObject', [collection, body, options], this.#conversationId) as Promise<{ object: RoolObject; message: string }>;
   }
 
-  async updateObject(objectId: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this.#channel._callScoped('updateObject', [objectId, options], this.#conversationId) as Promise<{ object: RoolObject; message: string }>;
+  async updateObject(
+    location: string,
+    options: UpdateObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this.#channel._callScoped('updateObject', [location, options], this.#conversationId) as Promise<{ object: RoolObject; message: string }>;
   }
 
-  async deleteObjects(objectIds: string[]): Promise<void> {
-    await this.#channel._callScoped('deleteObjects', [objectIds], this.#conversationId);
+  async moveObject(
+    from: string,
+    to: string,
+    options?: MoveObjectOptions,
+  ): Promise<{ object: RoolObject; message: string }> {
+    return this.#channel._callScoped('moveObject', [from, to, options], this.#conversationId) as Promise<{ object: RoolObject; message: string }>;
+  }
+
+  async deleteObjects(locations: string[]): Promise<void> {
+    await this.#channel._callScoped('deleteObjects', [locations], this.#conversationId);
   }
 
   // AI
@@ -701,7 +764,7 @@ export type ReactiveConversationHandle = ReactiveConversationHandleImpl;
  * Initialize the extension and return a reactive channel.
  *
  * Sends `rool:ready` to the host, waits for the handshake, and returns
- * a reactive channel with $state properties (interactions, objectIds)
+ * a reactive channel with $state properties (interactions, objectLocations)
  * and reactive primitives (object(), watch()).
  *
  * If the extension is opened directly (not in an iframe), redirects to the Rool

@@ -15,7 +15,7 @@
   let container: HTMLElement | undefined = $state();
 
   let sorted = $derived(
-    [...messages.objects].sort((a, b) => (a.timestamp as number) - (b.timestamp as number))
+    [...messages.objects].sort((a, b) => (a.body.timestamp as number) - (b.body.timestamp as number))
   );
 
   // Auto-scroll when new messages arrive
@@ -53,9 +53,9 @@
       <p class="text-slate-500 dark:text-neutral-400 text-sm">Start the conversation. Type <code class="bg-slate-100 dark:bg-neutral-800 px-1 rounded text-teal-600 dark:text-teal-400">@rool</code> to talk to the AI.</p>
     </div>
   {:else}
-    {#each sorted as msg (msg.id)}
-      {@const isOwn = msg.sender === currentUserId}
-      {@const isAgent = msg.fromAgent === true}
+    {#each sorted as msg (msg.location)}
+      {@const isOwn = msg.body.sender === currentUserId}
+      {@const isAgent = msg.body.fromAgent === true}
 
       <div class="flex items-start gap-2.5 {isOwn && !isAgent ? 'flex-row-reverse' : ''}">
         <!-- Avatar -->
@@ -64,7 +64,7 @@
           {#if isAgent}
             <Icon icon="mdi:robot-outline" class="w-4 h-4" />
           {:else}
-            {initials(String(msg.senderName ?? '?'))}
+            {initials(String(msg.body.senderName ?? '?'))}
           {/if}
         </div>
 
@@ -72,9 +72,9 @@
         <div class="max-w-[75%] min-w-0">
           <div class="flex items-baseline gap-2 mb-0.5 {isOwn && !isAgent ? 'flex-row-reverse' : ''}">
             <span class="text-xs font-semibold {isAgent ? 'text-violet-600 dark:text-violet-400' : 'text-slate-700 dark:text-neutral-100'}">
-              {isAgent ? 'Rool' : msg.senderName || 'Unknown'}
+              {isAgent ? 'Rool' : msg.body.senderName || 'Unknown'}
             </span>
-            <span class="text-[10px] text-slate-400">{formatTime(msg.timestamp)}</span>
+            <span class="text-[10px] text-slate-400">{formatTime(msg.body.timestamp)}</span>
           </div>
           <div class="rounded-2xl px-3.5 py-2 text-sm
             {isAgent
@@ -83,9 +83,9 @@
                 ? 'bg-teal-500 text-white rounded-tr-md'
                 : 'bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 text-slate-700 dark:text-neutral-200 rounded-tl-md'}">
             {#if isAgent}
-              <SvelteMarkdown source={String(msg.text ?? '')} />
+              <SvelteMarkdown source={String(msg.body.text ?? '')} />
             {:else}
-              <p class="whitespace-pre-wrap">{msg.text}</p>
+              <p class="whitespace-pre-wrap">{msg.body.text}</p>
             {/if}
           </div>
         </div>
