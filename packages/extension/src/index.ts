@@ -24,6 +24,8 @@ export type {
   InteractionStatus,
   ConversationInfo,
   ToolCall,
+  RunningToolCall,
+  FinishedToolCall,
   PromptOptions,
   PromptEffort,
   FindObjectsOptions,

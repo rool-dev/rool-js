@@ -66,12 +66,23 @@ export interface RoolObjectStat {
 }
 
 /**
- * A tool call record - captures what the agent did during an interaction.
+ * A tool call record is keyed by id; running calls have no result, finished calls have a string result.
  */
-export interface ToolCall {
+export type ToolCall = RunningToolCall | FinishedToolCall;
+
+export interface RunningToolCall {
+  id: string;
   name: string;      // Tool name ("create_object", "update_object", etc.)
   input: unknown;    // Original args (verbatim)
-  result?: string;   // Stringified, truncated result (absent while tool is running)
+  status: 'running';
+}
+
+export interface FinishedToolCall {
+  id: string;
+  name: string;      // Tool name ("create_object", "update_object", etc.)
+  input: unknown;    // Original args (verbatim)
+  status: 'done';
+  result: string;    // Stringified, truncated result
 }
 
 /**

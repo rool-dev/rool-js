@@ -107,6 +107,9 @@ export type {
   ConversationInfo,
   Interaction,
   InteractionStatus,
+  ToolCall,
+  RunningToolCall,
+  FinishedToolCall,
 
   // Config types
   RoolClientConfig,

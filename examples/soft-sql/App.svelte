@@ -101,7 +101,7 @@
                   <Icon icon="mdi:chevron-right" class="w-4 h-4 text-emerald-500 mt-0.5" />
                   <div>
                     <span class="font-mono text-slate-700 dark:text-neutral-200">{toolCall.name}</span>
-                    {#if toolCall.result}
+                    {#if toolCall.status === 'done'}
                       <p class="text-slate-400 dark:text-neutral-500 text-xs mt-1 font-mono truncate max-w-md">{toolCall.result}</p>
                     {/if}
                   </div>

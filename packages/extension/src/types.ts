@@ -58,10 +58,22 @@ export type SpaceSchema = Record<string, CollectionDef>;
 
 // -- Interactions -------------------------------------------------------------
 
-export interface ToolCall {
+/** A tool call record is keyed by id; running calls have no result, finished calls have a string result. */
+export type ToolCall = RunningToolCall | FinishedToolCall;
+
+export interface RunningToolCall {
+  id: string;
   name: string;
   input: unknown;
-  result?: string;
+  status: 'running';
+}
+
+export interface FinishedToolCall {
+  id: string;
+  name: string;
+  input: unknown;
+  status: 'done';
+  result: string;
 }
 
 export type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';

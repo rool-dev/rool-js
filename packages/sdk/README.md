@@ -1260,7 +1260,7 @@ The `ai` field in interactions distinguishes AI-generated responses from synthet
 
 ### Tool Calls
 
-The `toolCalls` array captures what the AI agent did during execution. The `conversationUpdated` event fires when each tool starts and completes. A tool call without a `result` is still running; once `result` is present, the tool has finished.
+The `toolCalls` array captures what the AI agent did during execution. The `conversationUpdated` event fires when each tool starts and completes. A tool call with `status: 'running'` has no result; once `status: 'done'`, `result` contains the truncated result string.
 
 ## Data Types
 
@@ -1369,11 +1369,20 @@ Note: `Channel` and `ChannelInfo` are data types describing the stored channel m
 ### Interaction Types
 
 ```typescript
-interface ToolCall {
-  name: string;      // Tool name (e.g., "create_object", "update_object", "search_web")
-  input: unknown;    // Arguments passed to the tool
-  result?: string;   // Truncated result (absent while tool is running)
-}
+type ToolCall =
+  | {
+      id: string;
+      name: string;      // Tool name (e.g., "create_object", "update_object", "search_web")
+      input: unknown;    // Arguments passed to the tool
+      status: 'running';
+    }
+  | {
+      id: string;
+      name: string;
+      input: unknown;
+      status: 'done';
+      result: string;    // Truncated result
+    };
 
 type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
 
