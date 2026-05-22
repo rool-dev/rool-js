@@ -811,24 +811,6 @@ export class GraphQLClient {
     await this.request(mutation, { spaceId, linkAccess });
   }
 
-  async spaceExec(spaceId: string, command: string): Promise<{ stdout: string; stderr: string; exitCode: number; durationMs: number }> {
-    const mutation = `
-      mutation SpaceExec($spaceId: String!, $command: String!) {
-        spaceExec(spaceId: $spaceId, command: $command) {
-          stdout
-          stderr
-          exitCode
-          durationMs
-        }
-      }
-    `;
-    const result = await this.request<{ spaceExec: { stdout: string; stderr: string; exitCode: number; durationMs: number } }>(mutation, {
-      spaceId,
-      command,
-    });
-    return result.spaceExec;
-  }
-
   /**
    * Execute an arbitrary GraphQL query or mutation.
    * Use this for app-specific operations not covered by the typed methods.
