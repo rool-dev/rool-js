@@ -218,13 +218,13 @@ export class GraphQLClient {
 
   async setSpaceMeta(spaceId: string, meta: Record<string, unknown>, channelId: string, conversationId: string): Promise<void> {
     const mutation = `
-      mutation SetSpaceMeta($id: String!, $meta: String!, $channelId: String!, $conversationId: String!) {
+      mutation SetSpaceMeta($id: String!, $meta: JSON!, $channelId: String!, $conversationId: String!) {
         setSpaceMeta(id: $id, meta: $meta, channelId: $channelId, conversationId: $conversationId)
       }
     `;
     await this.request(mutation, {
       id: spaceId,
-      meta: JSON.stringify(meta),
+      meta,
       channelId,
       conversationId,
     });
@@ -379,19 +379,18 @@ export class GraphQLClient {
     conversationId: string,
   ): Promise<CollectionDef> {
     const mutation = `
-      mutation CreateCollection($spaceId: String!, $name: String!, $fields: String!, $channelId: String!, $conversationId: String!) {
+      mutation CreateCollection($spaceId: String!, $name: String!, $fields: JSON!, $channelId: String!, $conversationId: String!) {
         createCollection(spaceId: $spaceId, name: $name, fields: $fields, channelId: $channelId, conversationId: $conversationId)
       }
     `;
-    const result = await this.request<{ createCollection: string }>(mutation, {
+    const result = await this.request<{ createCollection: CollectionDef }>(mutation, {
       spaceId,
       name,
-      fields: JSON.stringify(fields),
+      fields,
       channelId,
       conversationId,
     });
-    const parsed = JSON.parse(result.createCollection);
-    return parsed[name] as CollectionDef;
+    return result.createCollection;
   }
 
   async alterCollection(
@@ -402,19 +401,18 @@ export class GraphQLClient {
     conversationId: string,
   ): Promise<CollectionDef> {
     const mutation = `
-      mutation AlterCollection($spaceId: String!, $name: String!, $fields: String!, $channelId: String!, $conversationId: String!) {
+      mutation AlterCollection($spaceId: String!, $name: String!, $fields: JSON!, $channelId: String!, $conversationId: String!) {
         alterCollection(spaceId: $spaceId, name: $name, fields: $fields, channelId: $channelId, conversationId: $conversationId)
       }
     `;
-    const result = await this.request<{ alterCollection: string }>(mutation, {
+    const result = await this.request<{ alterCollection: CollectionDef }>(mutation, {
       spaceId,
       name,
-      fields: JSON.stringify(fields),
+      fields,
       channelId,
       conversationId,
     });
-    const parsed = JSON.parse(result.alterCollection);
-    return parsed[name] as CollectionDef;
+    return result.alterCollection;
   }
 
   async dropCollection(
@@ -441,7 +439,7 @@ export class GraphQLClient {
     options?: { ephemeral?: boolean; parentInteractionId?: string | null },
   ): Promise<{ location: string; object: RoolObject | null; message: string }> {
     const mutation = `
-      mutation CreateObject($spaceId: String!, $location: String!, $body: String!, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
+      mutation CreateObject($spaceId: String!, $location: String!, $body: JSON!, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
         createObject(spaceId: $spaceId, location: $location, body: $body, channelId: $channelId, conversationId: $conversationId, interactionId: $interactionId, ephemeral: $ephemeral, parentInteractionId: $parentInteractionId) {
           location
           object { ${SPACE_OBJECT_FIELDS} }
@@ -452,7 +450,7 @@ export class GraphQLClient {
     const result = await this.request<{ createObject: { location: string; object: RoolObject | null; message: string } }>(mutation, {
       spaceId,
       location,
-      body: JSON.stringify(body),
+      body,
       channelId,
       conversationId,
       interactionId,
@@ -471,7 +469,7 @@ export class GraphQLClient {
     options?: { patch?: Record<string, unknown>; prompt?: string; ephemeral?: boolean; parentInteractionId?: string | null },
   ): Promise<{ location: string; object: RoolObject | null; message: string }> {
     const mutation = `
-      mutation UpdateObject($spaceId: String!, $location: String!, $patch: String, $prompt: String, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
+      mutation UpdateObject($spaceId: String!, $location: String!, $patch: JSON, $prompt: String, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
         updateObject(spaceId: $spaceId, location: $location, patch: $patch, prompt: $prompt, channelId: $channelId, conversationId: $conversationId, interactionId: $interactionId, ephemeral: $ephemeral, parentInteractionId: $parentInteractionId) {
           location
           object { ${SPACE_OBJECT_FIELDS} }
@@ -482,7 +480,7 @@ export class GraphQLClient {
     const result = await this.request<{ updateObject: { location: string; object: RoolObject | null; message: string } }>(mutation, {
       spaceId,
       location,
-      patch: options?.patch ? JSON.stringify(options.patch) : undefined,
+      patch: options?.patch,
       prompt: options?.prompt,
       channelId,
       conversationId,
@@ -503,7 +501,7 @@ export class GraphQLClient {
     options?: { body?: Record<string, unknown>; ephemeral?: boolean; parentInteractionId?: string | null },
   ): Promise<{ location: string; object: RoolObject | null; message: string }> {
     const mutation = `
-      mutation MoveObject($spaceId: String!, $from: String!, $to: String!, $body: String, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
+      mutation MoveObject($spaceId: String!, $from: String!, $to: String!, $body: JSON, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
         moveObject(spaceId: $spaceId, from: $from, to: $to, body: $body, channelId: $channelId, conversationId: $conversationId, interactionId: $interactionId, ephemeral: $ephemeral, parentInteractionId: $parentInteractionId) {
           location
           object { ${SPACE_OBJECT_FIELDS} }
@@ -515,7 +513,7 @@ export class GraphQLClient {
       spaceId,
       from,
       to,
-      body: options?.body ? JSON.stringify(options.body) : undefined,
+      body: options?.body,
       channelId,
       conversationId,
       interactionId,
@@ -542,7 +540,7 @@ export class GraphQLClient {
     conversationId: string,
   ): Promise<{ objects: RoolObject[]; message: string }> {
     const query = `
-      query FindObjects($spaceId: String!, $where: String, $collection: String, $prompt: String, $limit: Int, $locations: [String!]!, $order: String, $channelId: String!, $conversationId: String!, $ephemeral: Boolean!) {
+      query FindObjects($spaceId: String!, $where: JSON, $collection: String, $prompt: String, $limit: Int, $locations: [String!]!, $order: String, $channelId: String!, $conversationId: String!, $ephemeral: Boolean!) {
         findObjects(spaceId: $spaceId, where: $where, collection: $collection, prompt: $prompt, limit: $limit, locations: $locations, order: $order, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral) {
           objects { ${SPACE_OBJECT_FIELDS} }
           message
@@ -553,7 +551,7 @@ export class GraphQLClient {
       findObjects: { objects: RoolObject[]; message: string }
     }>(query, {
       spaceId,
-      where: options.where ? JSON.stringify(options.where) : undefined,
+      where: options.where,
       collection: options.collection,
       prompt: options.prompt,
       limit: options.limit,

@@ -70,6 +70,10 @@ function makeDeferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
 class Subscription<TEvent> {
   private config: SubscriptionConfig<TEvent>;
   private state: State = { kind: 'idle' };
@@ -234,15 +238,8 @@ class Subscription<TEvent> {
       {
         next: (result) => {
           const data = result.data?.[this.config.dataField];
-          if (typeof data !== 'string') return;
-          let raw: Record<string, unknown>;
-          try {
-            raw = JSON.parse(data) as Record<string, unknown>;
-          } catch (e) {
-            this.config.logger.error(`${this.config.logPrefix} failed to parse event:`, e);
-            return;
-          }
-          this.handle({ kind: 'message_received', raw });
+          if (!isRecord(data)) return;
+          this.handle({ kind: 'message_received', raw: data });
         },
         // error/complete intentionally not observed.
         error: () => {},
