@@ -5,7 +5,7 @@ import type { RestClient } from './rest.js';
 import { SpaceSubscriptionManager } from './subscription.js';
 import { RoolChannel } from './channel.js';
 import { RoolWebDAV, type SpaceFileStorageUsage } from './webdav.js';
-import { resolveMachineRef, type MachineRef } from './machine.js';
+import type { MachineResource } from './machine.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 import type { SpaceRouter, RouteInfo } from './router.js';
@@ -159,14 +159,13 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     return this.webdav.getStorageUsage();
   }
 
-  /** Fetch a user-visible machine resource through the current space. */
-  async fetchMachineResource(ref: MachineRef | string, options?: {
+  /** Fetch a user-visible machine file resource through the current space. */
+  async fetchMachineResource(resource: MachineResource, options?: {
     range?: string | { start: number; end?: number };
     signal?: AbortSignal;
   }): Promise<Response> {
-    const resolved = resolveMachineRef(ref);
-    if (resolved.kind !== 'file') throw new Error(`Machine ref is not fetchable: ${resolved.kind}`);
-    return this.webdav.get(resolved.filePath, options);
+    if (resource.kind !== 'file') throw new Error('Machine resource is not fetchable');
+    return this.webdav.get(resource.path.slice('/rool-drive/'.length), options);
   }
 
   /**

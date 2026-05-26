@@ -11,9 +11,9 @@ export { RoolSpace } from './space.js';
 export { loc, parseLocation, normalizeLocation, isLocation, generateBasename } from './locations.js';
 export type { ParsedLocation } from './locations.js';
 
-// Machine resource links
-export { MACHINE_REF_PREFIX, MACHINE_REF_SCHEME, machineRef, parseMachineRef, resolveMachineRef, resolveMachineHref } from './machine.js';
-export type { MachineRef, ResolvedMachineRef } from './machine.js';
+// Machine resources
+export { resolveMachineResource } from './machine.js';
+export type { MachineResource } from './machine.js';
 
 // WebDAV client
 export { RoolWebDAV, WebDAVError } from './webdav.js';

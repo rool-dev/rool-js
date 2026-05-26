@@ -25,7 +25,7 @@ import type {
   ExtensionManifest,
 } from './types.js';
 import { generateBasename, loc, normalizeLocation, parseLocation } from './locations.js';
-import { machineRef } from './machine.js';
+import { resolveMachineResource, type MachineResource } from './machine.js';
 
 // 6-character alphanumeric ID — used for interactionIds, conversationIds, etc.
 const ENTITY_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -1018,9 +1018,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     let attachmentRefs: string[] | undefined;
     if (attachments?.length) {
-      attachmentRefs = await Promise.all(
+      const resources = await Promise.all(
         attachments.map((file) => this.uploadAttachment(file, conversationId))
       );
+      attachmentRefs = resources.map((resource) => `rool-machine:${resource.path.split('/').map(encodeURIComponent).join('/')}`);
     }
 
     // Auto-continue from active leaf if no explicit parent provided
@@ -1117,7 +1118,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private async uploadAttachment(
     file: File | Blob | { data: string; contentType: string },
     conversationId: string
-  ): Promise<string> {
+  ): Promise<MachineResource> {
     await this.ensureCollection('attachments');
     const directory = `attachments/${conversationId}`;
     await this.ensureCollection(directory);
@@ -1125,7 +1126,9 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const attachment = attachmentBody(file);
     const path = `${directory}/${attachment.filename}`;
     await this.webdav.put(path, attachment.body, { contentType: attachment.contentType });
-    return machineRef(`/rool-drive/${path}`);
+    const resource = resolveMachineResource(`/rool-drive/${path}`);
+    if (!resource) throw new Error('Failed to resolve uploaded attachment');
+    return resource;
   }
 
   private async ensureCollection(path: string): Promise<void> {

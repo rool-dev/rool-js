@@ -247,18 +247,16 @@ SDK methods that accept a location (`getObject`, `updateObject`, `deleteObjects`
 #### Machine resource links
 
 ```typescript
-import { machineRef, parseMachineRef, resolveMachineRef, resolveMachineHref } from '@rool-dev/sdk';
+import { resolveMachineResource } from '@rool-dev/sdk';
 
-const objectRef = machineRef('/space/article/welcome.json');
-parseMachineRef(objectRef);        // '/space/article/welcome.json'
-resolveMachineRef(objectRef).kind; // 'object'
+const objectResource = resolveMachineResource('/space/article/welcome.json');
+// { kind: 'object', path: '/space/article/welcome.json' }
 
-const fileRef = machineRef('/rool-drive/docs/readme.md');
-resolveMachineRef(fileRef).kind;   // 'file'
-resolveMachineHref(fileRef)?.kind; // 'file' — safe for browser/Markdown hrefs
+const fileResource = resolveMachineResource('/rool-drive/docs/readme.md');
+// { kind: 'file', path: '/rool-drive/docs/readme.md' }
 ```
 
-`rool-machine:` is the canonical URI scheme for user-visible resources from the Rool machine filesystem. `resolveMachineRef()` classifies canonical refs as `object`, `file`, or `unsupported`; `resolveMachineHref()` does the same for browser/Markdown href attributes and returns `null` for non-machine links. Fetch file refs through `space.fetchMachineResource(ref)`.
+`rool-machine:` is the canonical URI scheme for user-visible resources from the Rool machine filesystem. `resolveMachineResource()` accepts either canonical `rool-machine:/...` URIs or bare machine paths such as `/rool-drive/...`, and returns the resource kind plus machine path. Fetch file resources through `space.fetchMachineResource(resource)`.
 
 ### AI Placeholder Pattern
 
@@ -809,7 +807,7 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 | `installExtension(extensionId, channelId): Promise<string>` | Install an extension into a channel of this space. If you own it, wires it directly. If it's a marketplace extension, copies and builds a new extension in your library. Returns the channel ID. |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
 | `getStorageUsage(): Promise<SpaceFileStorageUsage>` | Get WebDAV quota usage for this space |
-| `fetchMachineResource(ref): Promise<Response>` | Fetch a resolved `rool-machine:/rool-drive/...` file through this space |
+| `fetchMachineResource(resource): Promise<Response>` | Fetch a resolved file `MachineResource` through this space |
 | `refresh(): Promise<void>` | Refresh space data from server |
 
 ### Space Events
@@ -1030,12 +1028,12 @@ Store arbitrary data alongside the space without it being part of an object's bo
 
 ### Space File Storage
 
-Every space has authenticated file storage. WebDAV is the SDK surface for that storage: paths are relative to the space root and collection operations use WebDAV collection semantics. Human/AI file links use `rool-machine:/rool-drive/...`; fetch those links with `space.fetchMachineResource(ref)`.
+Every space has authenticated file storage. WebDAV is the SDK surface for that storage: paths are relative to the space root and collection operations use WebDAV collection semantics. Human/AI file links use `rool-machine:/rool-drive/...`; resolve those links with `resolveMachineResource()` and fetch file resources with `space.fetchMachineResource(resource)`.
 
 Use `client.webdav(spaceId)` when you only have an ID, or `space.webdav` when you already have an open space.
 
 ```typescript
-import { machineRef } from '@rool-dev/sdk';
+import { resolveMachineResource } from '@rool-dev/sdk';
 
 const webdav = client.webdav('space-id');
 
@@ -1053,8 +1051,9 @@ const listing = await webdav.propfind('docs/', {
 const file = await webdav.get('docs/readme.md');
 console.log(await file.text());
 
-const ref = machineRef('/rool-drive/docs/read me.md'); // "rool-machine:/rool-drive/docs/read%20me.md"
-const sameFile = await space.fetchMachineResource(ref);
+const resource = resolveMachineResource('/rool-drive/docs/read me.md');
+if (!resource || resource.kind !== 'file') throw new Error('not a file');
+const sameFile = await space.fetchMachineResource(resource);
 
 const usage = await space.getStorageUsage();
 console.log(usage.usedBytes);
@@ -1062,7 +1061,7 @@ console.log(usage.availableBytes); // null means unlimited
 console.log(usage.limitBytes);     // null means unlimited
 ```
 
-Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). WebDAV methods accept WebDAV paths only. Build human/AI file links with `machineRef('/rool-drive/...')` and fetch them with `space.fetchMachineResource(ref)`. `PUT` writes an exact path and does not create parent collections; create parents with `mkcol()` first. Helpers preserve WebDAV status semantics: non-success responses throw `WebDAVError` with `status`, `statusText`, and `body`.
+Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). WebDAV methods accept WebDAV paths only. User-facing file links should use `rool-machine:/rool-drive/...`; resolve either that URI or a bare `/rool-drive/...` machine path with `resolveMachineResource()` and fetch the resulting file resource with `space.fetchMachineResource(resource)`. `PUT` writes an exact path and does not create parent collections; create parents with `mkcol()` first. Helpers preserve WebDAV status semantics: non-success responses throw `WebDAVError` with `status`, `statusText`, and `body`.
 
 | Method | Description |
 |--------|-------------|
@@ -1082,19 +1081,21 @@ Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). WebDAV metho
 | `webdav.lock(path, options)` / `webdav.refreshLock(path, token)` / `webdav.unlock(token)` | WebDAV Class 2 write locks |
 | `webdav.request(method, path, init?)` | Raw authenticated WebDAV request escape hatch |
 
-> **Note**: machine file refs `rool-machine:/rool-drive/...` and object machine refs `rool-machine:/space/...` are two supported machine reference forms. `rool-machine:/rool-drive/...` points at user-visible files in the space's WebDAV storage and is fetched with `space.fetchMachineResource(ref)`. Object locations identify records inside the space (and live at `/space/<collection>/<basename>.json`). They're not interchangeable.
+> **Note**: `resolveMachineResource()` returns either a file resource or an object resource. File resources point at user-visible files in the space's WebDAV storage and can be fetched with `space.fetchMachineResource(resource)`. Object resources identify records inside the space. They're not interchangeable.
 
 #### File references from AI responses
 
 When an agent refers to a user-visible file, the SDK contract is `rool-machine:/rool-drive/path/to/file.ext`. That prefix makes a file reference unambiguous without exposing the authenticated WebDAV URL. In free text, ambiguous characters such as spaces are percent-encoded (`rool-machine:/rool-drive/docs/read%20me.md`).
 
 ```typescript
-const response = await space.fetchMachineResource('rool-machine:/rool-drive/docs/readme.md');
+const resource = resolveMachineResource('rool-machine:/rool-drive/docs/readme.md');
+if (!resource || resource.kind !== 'file') throw new Error('not a file');
+const response = await space.fetchMachineResource(resource);
 const blob = await response.blob();
 img.src = URL.createObjectURL(blob);
 ```
 
-Plain relative strings like `docs/readme.md` are valid WebDAV paths when you already know you are working with file storage. In user text or agent output, use `rool-machine:/rool-drive/docs/readme.md` so clients do not have to guess whether a string is a file. Prefer `machineRef('/rool-drive/docs/readme.md')` rather than building refs by hand.
+Plain relative strings like `docs/readme.md` are valid WebDAV paths when you already know you are working with file storage. In user text or agent output, use `rool-machine:/rool-drive/docs/readme.md` so clients do not have to guess whether a string is a file.
 
 ### Proxied Fetch
 
