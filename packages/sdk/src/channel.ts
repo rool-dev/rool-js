@@ -75,12 +75,11 @@ interface AttachmentUpload {
 }
 
 function attachmentBody(
-  file: File | Blob | { data: string; contentType: string },
-  index: number
+  file: File | Blob | { data: string; contentType: string }
 ): AttachmentUpload {
   if (isFile(file)) {
     return {
-      filename: safeAttachmentFilename(file.name, index, file.type),
+      filename: safeAttachmentFilename(file.name, file.type),
       contentType: file.type || 'application/octet-stream',
       body: file,
     };
@@ -89,14 +88,14 @@ function attachmentBody(
   if (isBlob(file)) {
     const contentType = file.type || 'application/octet-stream';
     return {
-      filename: safeAttachmentFilename(`attachment-${index + 1}`, index, contentType),
+      filename: safeAttachmentFilename('attachment', contentType),
       contentType,
       body: file,
     };
   }
 
   return {
-    filename: safeAttachmentFilename(`attachment-${index + 1}`, index, file.contentType),
+    filename: safeAttachmentFilename('attachment', file.contentType),
     contentType: file.contentType,
     body: base64Body(file.data),
   };
@@ -110,12 +109,11 @@ function isBlob(value: unknown): value is Blob {
   return typeof Blob !== 'undefined' && value instanceof Blob;
 }
 
-function safeAttachmentFilename(name: string, index: number, contentType: string): string {
+function safeAttachmentFilename(name: string, contentType: string): string {
   const fallback = `attachment.${extensionForContentType(contentType)}`;
   const leaf = name.split(/[/\\]/).pop() || fallback;
   const cleaned = leaf.replace(/[\x00-\x1f\x7f]/g, '').replace(/\s+/g, '_');
-  const safe = cleaned.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+$/, '') || fallback;
-  return `${index + 1}-${safe}`;
+  return cleaned.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+$/, '') || fallback;
 }
 
 function extensionForContentType(contentType: string): string {
@@ -1021,7 +1019,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     let attachmentRefs: string[] | undefined;
     if (attachments?.length) {
       attachmentRefs = await Promise.all(
-        attachments.map((file, index) => this.uploadAttachment(file, interactionId, index))
+        attachments.map((file) => this.uploadAttachment(file, conversationId))
       );
     }
 
@@ -1118,14 +1116,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   private async uploadAttachment(
     file: File | Blob | { data: string; contentType: string },
-    interactionId: string,
-    index: number
+    conversationId: string
   ): Promise<string> {
     await this.ensureCollection('attachments');
-    const directory = `attachments/${interactionId}`;
+    const directory = `attachments/${conversationId}`;
     await this.ensureCollection(directory);
 
-    const attachment = attachmentBody(file, index);
+    const attachment = attachmentBody(file);
     const path = `${directory}/${attachment.filename}`;
     await this.webdav.put(path, attachment.body, { contentType: attachment.contentType });
     return machineRef(`/rool-drive/${path}`);
