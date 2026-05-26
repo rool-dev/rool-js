@@ -110,7 +110,7 @@ export interface Interaction {
   /** Locations of objects affected by this interaction. */
   modifiedObjectLocations: string[];
   toolCalls: ToolCall[];
-  /** rool-drive:/ file references attached by the user (images, documents, etc.) */
+  /** rool-machine:/rool-drive/... file references attached by the user (images, documents, etc.) */
   attachments?: string[];
 }
 
@@ -322,7 +322,7 @@ export interface PromptOptions {
    * User-attached files to upload and make visible to the AI.
    * Accepts File, Blob, or `{ data, contentType }` for base64.
    * The server stores them as authenticated space files; the resulting
-   * rool-drive:/ references are sent to the server and stored on the interaction's `attachments` field.
+   * rool-machine:/rool-drive/... references are sent to the server and stored on the interaction's `attachments` field.
    *
    * Supported file types:
    * - **Images** (JPEG, PNG, GIF, WebP, SVG) — viewed natively by the AI

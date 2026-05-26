@@ -244,6 +244,22 @@ generateBasename();                           // e.g., 'X7kQ9p'
 
 SDK methods that accept a location (`getObject`, `updateObject`, `deleteObjects`, `moveObject`, etc.) accept either form and normalize internally. SDK return values always use the canonical full form.
 
+#### Machine resource links
+
+```typescript
+import { machineRef, parseMachineRef, resolveMachineRef, resolveMachineHref } from '@rool-dev/sdk';
+
+const objectRef = machineRef('/space/article/welcome.json');
+parseMachineRef(objectRef);        // '/space/article/welcome.json'
+resolveMachineRef(objectRef).kind; // 'object'
+
+const fileRef = machineRef('/rool-drive/docs/readme.md');
+resolveMachineRef(fileRef).kind;   // 'file'
+resolveMachineHref(fileRef)?.kind; // 'file' — safe for browser/Markdown hrefs
+```
+
+`rool-machine:` is the canonical URI scheme for user-visible resources from the Rool machine filesystem. `resolveMachineRef()` classifies canonical refs as `object`, `file`, or `unsupported`; `resolveMachineHref()` does the same for browser/Markdown href attributes and returns `null` for non-machine links. Fetch file refs through `space.fetchMachineResource(ref)`.
+
 ### AI Placeholder Pattern
 
 Use `{{description}}` in body field values to have AI generate content:
@@ -435,7 +451,7 @@ Returns a message (the AI's response) and the list of objects that were created 
 | `ephemeral` | If true, don't record in interaction history (useful for tab completion) |
 | `readOnly` | If true, disable mutation tools (create, update, move, delete). Use for questions. |
 | `parentInteractionId` | Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. Pass `null` to start a new root-level branch. Pass a specific ID to branch from that point (edit/reroll). |
-| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Stored as authenticated space files; resulting `rool-drive:/...` references are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot natively consume their contents, only use shell tools on them. |
+| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Stored as authenticated space files; resulting `rool-machine:/rool-drive/...` references are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot natively consume their contents, only use shell tools on them. |
 | `signal` | `AbortSignal` to stop the prompt mid-flight. When aborted, the agent loop halts and the streaming response closes. Note that any LLM turn already in flight on Vertex keeps generating server-side and is billed. |
 
 ### Effort Levels
@@ -793,6 +809,7 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 | `installExtension(extensionId, channelId): Promise<string>` | Install an extension into a channel of this space. If you own it, wires it directly. If it's a marketplace extension, copies and builds a new extension in your library. Returns the channel ID. |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
 | `getStorageUsage(): Promise<SpaceFileStorageUsage>` | Get WebDAV quota usage for this space |
+| `fetchMachineResource(ref): Promise<Response>` | Fetch a resolved `rool-machine:/rool-drive/...` file through this space |
 | `refresh(): Promise<void>` | Refresh space data from server |
 
 ### Space Events
@@ -1013,11 +1030,13 @@ Store arbitrary data alongside the space without it being part of an object's bo
 
 ### Space File Storage
 
-Every space has authenticated file storage. WebDAV is the SDK surface for that storage: paths are relative to the space root, collection operations use WebDAV collection semantics, and `rool-drive:/...` references are the text-safe way to point at files.
+Every space has authenticated file storage. WebDAV is the SDK surface for that storage: paths are relative to the space root and collection operations use WebDAV collection semantics. Human/AI file links use `rool-machine:/rool-drive/...`; fetch those links with `space.fetchMachineResource(ref)`.
 
 Use `client.webdav(spaceId)` when you only have an ID, or `space.webdav` when you already have an open space.
 
 ```typescript
+import { machineRef } from '@rool-dev/sdk';
+
 const webdav = client.webdav('space-id');
 
 await webdav.mkcol('docs');
@@ -1034,8 +1053,8 @@ const listing = await webdav.propfind('docs/', {
 const file = await webdav.get('docs/readme.md');
 console.log(await file.text());
 
-const ref = webdav.ref('docs/read me.md'); // "rool-drive:/docs/read%20me.md"
-const sameFile = await webdav.get(ref);
+const ref = machineRef('/rool-drive/docs/read me.md'); // "rool-machine:/rool-drive/docs/read%20me.md"
+const sameFile = await space.fetchMachineResource(ref);
 
 const usage = await space.getStorageUsage();
 console.log(usage.usedBytes);
@@ -1043,7 +1062,7 @@ console.log(usage.availableBytes); // null means unlimited
 console.log(usage.limitBytes);     // null means unlimited
 ```
 
-Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). `rool-drive:/...` references percent-encode path segments for use in text; `webdav.path('rool-drive:/docs/read%20me.md')` returns `docs/read me.md`. The WebDAV methods accept either paths or refs and normalize them to paths. `PUT` writes an exact path and does not create parent collections; create parents with `mkcol()` first. Helpers preserve WebDAV status semantics: non-success responses throw `WebDAVError` with `status`, `statusText`, and `body`.
+Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). WebDAV methods accept WebDAV paths only. Build human/AI file links with `machineRef('/rool-drive/...')` and fetch them with `space.fetchMachineResource(ref)`. `PUT` writes an exact path and does not create parent collections; create parents with `mkcol()` first. Helpers preserve WebDAV status semantics: non-success responses throw `WebDAVError` with `status`, `statusText`, and `body`.
 
 | Method | Description |
 |--------|-------------|
@@ -1052,31 +1071,30 @@ Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). `rool-drive:
 | `space.webdav` | WebDAV client for an open space |
 | `space.getStorageUsage()` | Get WebDAV quota usage for an open space |
 | `webdav.getStorageUsage()` | Get WebDAV quota usage through the WebDAV client |
-| `webdav.ref(path)` | Create a `rool-drive:/...` reference |
-| `webdav.path(pathOrRef)` | Normalize a path or `rool-drive:/...` reference to a path |
-| `webdav.propfind(pathOrRef, options)` | Read properties/list collections; explicit `depth` required |
-| `webdav.get(pathOrRef, options?)` / `webdav.head(pathOrRef)` | Read a file, including optional byte ranges for `get` |
-| `webdav.put(pathOrRef, body, options?)` | Write an exact file path; parents must already exist |
+| `webdav.path(path)` | Normalize a WebDAV path |
+| `webdav.propfind(path, options)` | Read properties/list collections; explicit `depth` required |
+| `webdav.get(path, options?)` / `webdav.head(path)` | Read a file, including optional byte ranges for `get` |
+| `webdav.put(path, body, options?)` | Write an exact file path; parents must already exist |
 | `webdav.mkcol(path)` | Create one collection |
 | `webdav.copy(source, destination, options?)` | Copy a file or collection within the same space |
 | `webdav.move(source, destination, options?)` | Move a file or collection within the same space |
-| `webdav.delete(pathOrRef, options?)` | Delete a file or collection |
-| `webdav.lock(pathOrRef, options)` / `webdav.refreshLock(pathOrRef, token)` / `webdav.unlock(token)` | WebDAV Class 2 write locks |
+| `webdav.delete(path, options?)` | Delete a file or collection |
+| `webdav.lock(path, options)` / `webdav.refreshLock(path, token)` / `webdav.unlock(token)` | WebDAV Class 2 write locks |
 | `webdav.request(method, path, init?)` | Raw authenticated WebDAV request escape hatch |
 
-> **Note**: file storage `rool-drive:/...` and object locations `/space/...` are two different reference forms. `rool-drive:/...` always points at user-visible files in the space's WebDAV storage. Object locations identify records inside the space (and live at `/space/<collection>/<basename>.json`). They're not interchangeable — pass file refs to WebDAV methods and object locations to channel methods.
+> **Note**: machine file refs `rool-machine:/rool-drive/...` and object machine refs `rool-machine:/space/...` are two supported machine reference forms. `rool-machine:/rool-drive/...` points at user-visible files in the space's WebDAV storage and is fetched with `space.fetchMachineResource(ref)`. Object locations identify records inside the space (and live at `/space/<collection>/<basename>.json`). They're not interchangeable.
 
 #### File references from AI responses
 
-When an agent refers to a user-visible file, the SDK contract is `rool-drive:/path/to/file.ext`. That prefix makes a file reference unambiguous without exposing the authenticated WebDAV URL. In free text, ambiguous characters such as spaces are percent-encoded (`rool-drive:/docs/read%20me.md`).
+When an agent refers to a user-visible file, the SDK contract is `rool-machine:/rool-drive/path/to/file.ext`. That prefix makes a file reference unambiguous without exposing the authenticated WebDAV URL. In free text, ambiguous characters such as spaces are percent-encoded (`rool-machine:/rool-drive/docs/read%20me.md`).
 
 ```typescript
-const response = await space.webdav.get('rool-drive:/docs/readme.md');
+const response = await space.fetchMachineResource('rool-machine:/rool-drive/docs/readme.md');
 const blob = await response.blob();
 img.src = URL.createObjectURL(blob);
 ```
 
-Plain relative strings like `docs/readme.md` are valid WebDAV paths when you already know you are working with file storage. In user text or agent output, use `rool-drive:/docs/readme.md` so clients do not have to guess whether a string is a file. Prefer `webdav.ref(path)` rather than building refs by hand.
+Plain relative strings like `docs/readme.md` are valid WebDAV paths when you already know you are working with file storage. In user text or agent output, use `rool-machine:/rool-drive/docs/readme.md` so clients do not have to guess whether a string is a file. Prefer `machineRef('/rool-drive/docs/readme.md')` rather than building refs by hand.
 
 ### Proxied Fetch
 
@@ -1395,7 +1413,7 @@ interface Interaction {
   ai: boolean;                             // Whether AI was invoked (vs synthetic confirmation)
   modifiedObjectLocations: string[];       // Locations of objects affected by this interaction
   toolCalls: ToolCall[];                   // Tools called during this interaction (for AI prompts)
-  attachments?: string[];                  // rool-drive:/... file references attached by the user
+  attachments?: string[];                  // rool-machine:/rool-drive/... file references attached by the user
 }
 ```
 

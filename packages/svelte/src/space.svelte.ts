@@ -85,6 +85,10 @@ class ReactiveSpaceImpl {
   get memberCount(): number { return this.#space.memberCount; }
   get webdav() { return this.#space.webdav; }
 
+  // Proxy resource methods
+  getStorageUsage(...args: Parameters<RoolSpace['getStorageUsage']>) { return this.#space.getStorageUsage(...args); }
+  fetchMachineResource(...args: Parameters<RoolSpace['fetchMachineResource']>) { return this.#space.fetchMachineResource(...args); }
+
   // Proxy admin methods
   rename(newName: string): Promise<void> { return this.#space.rename(newName); }
   delete(): Promise<void> { return this.#space.delete(); }

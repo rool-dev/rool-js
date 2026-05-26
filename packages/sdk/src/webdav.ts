@@ -1,8 +1,6 @@
 import type { AuthManager } from './auth.js';
 
-export const ROOL_DRIVE_REF_PREFIX = 'rool-drive:/' as const;
-export type RoolDriveRef = `${typeof ROOL_DRIVE_REF_PREFIX}${string}`;
-export type WebDAVPathInput = string | RoolDriveRef;
+export type WebDAVPathInput = string;
 export type WebDAVDepth = '0' | '1' | 'infinity';
 export type WebDAVLockDepth = '0' | 'infinity';
 
@@ -142,35 +140,23 @@ export class RoolWebDAV {
     this.authManager = config.authManager;
   }
 
-  /** Return the canonical Rool file reference for a space-relative path. */
-  ref(path: WebDAVPathInput): RoolDriveRef {
-    const normalized = this.path(path);
-    if (!normalized) throw new Error('Invalid WebDAV path');
-    return `${ROOL_DRIVE_REF_PREFIX}${encodeWebDAVRefPath(normalized)}` as RoolDriveRef;
-  }
-
-  /** Return true when a string is a Rool file reference. */
-  isRef(value: string): value is RoolDriveRef {
-    return value.startsWith(ROOL_DRIVE_REF_PREFIX);
-  }
-
-  /** Normalize a space-relative path or Rool file reference to a space-relative path. */
+  /** Normalize a space-relative WebDAV path. */
   path(path: WebDAVPathInput): string {
     return normalizeWebDAVPath(path);
   }
 
-  /** Return the WebDAV href for a space-relative path or Rool file reference. */
+  /** Return the WebDAV href for a space-relative path. */
   href(path: WebDAVPathInput = '', options?: { collection?: boolean }): string {
     return this.pathUrl(path, options).href;
   }
 
-  /** Return the absolute WebDAV URL for a space-relative path or Rool file reference. */
+  /** Return the absolute WebDAV URL for a space-relative path. */
   url(path: WebDAVPathInput = '', options?: { collection?: boolean }): string {
     const davPath = this.pathUrl(path, options);
     return `${this.webdavUrl}${davPath.href.slice('/dav'.length)}`;
   }
 
-  /** Low-level WebDAV request for a space-relative path or Rool file reference. Adds Rool auth and returns the raw Response. */
+  /** Low-level WebDAV request for a space-relative path. Adds Rool auth and returns the raw Response. */
   async request(method: string, path: WebDAVPathInput = '', init: WebDAVRequestInit = {}): Promise<Response> {
     const { collection, ...fetchInit } = init;
     return this.authenticatedFetch(this.url(path, { collection }), {
@@ -399,32 +385,16 @@ export class RoolWebDAV {
   }
 }
 
-function stripRoolDriveRef(path: WebDAVPathInput): string {
-  if (path.startsWith(ROOL_DRIVE_REF_PREFIX)) return path.slice(ROOL_DRIVE_REF_PREFIX.length);
-  return path;
-}
-
-function decodeRoolDriveRefPath(path: RoolDriveRef): string {
-  return stripRoolDriveRef(path).split('/').map(decodeURIComponent).join('/');
-}
-
-function encodeWebDAVRefPath(path: string): string {
-  return path.split('/').map(encodeURIComponent).join('/');
-}
-
 function isCollectionInput(path: WebDAVPathInput): boolean {
-  const rawPath = stripRoolDriveRef(path);
-  return rawPath === '' || rawPath.endsWith('/');
+  return path === '' || path.endsWith('/');
 }
 
 function normalizeWebDAVPath(path: WebDAVPathInput): string {
-  const rawPath = path.startsWith(ROOL_DRIVE_REF_PREFIX)
-    ? decodeRoolDriveRefPath(path as RoolDriveRef)
-    : path;
-  const normalized = rawPath.replace(/\/+$/, '');
+  const normalized = path.replace(/\/+$/, '');
   if (normalized === '') return '';
-  if (rawPath.startsWith('/') || rawPath.includes('\\')) throw new Error('Invalid WebDAV path');
-  if (/[\x00-\x1f\x7f]/.test(rawPath)) throw new Error('Invalid WebDAV path');
+  if (path.startsWith('/') || path.includes('\\')) throw new Error('Invalid WebDAV path');
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path)) throw new Error('Invalid WebDAV path');
+  if (/[\x00-\x1f\x7f]/.test(path)) throw new Error('Invalid WebDAV path');
 
   const parts = normalized.split('/');
   if (parts.some((part) => part === '' || part === '.' || part === '..')) {

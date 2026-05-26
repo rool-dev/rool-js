@@ -8,7 +8,7 @@
  * Run with:
  *   pnpm tsx scripts/smoke.ts
  */
-import { RoolClient, loc, parseLocation } from '../src/index.js';
+import { RoolClient, loc, machineRef, parseLocation, resolveMachineHref, resolveMachineRef } from '../src/index.js';
 import { NodeAuthProvider } from '../src/auth-node.js';
 
 const API_URL = process.env.ROOL_API_URL ?? 'http://localhost:1357';
@@ -39,6 +39,16 @@ async function main(): Promise<void> {
   console.log('space id:', space.id);
 
   try {
+    step('machine resource helpers');
+    const objectRef = machineRef('/space/note/target.json');
+    assert(resolveMachineRef(objectRef).kind === 'object', 'object ref resolves');
+    assert(resolveMachineHref(objectRef)?.kind === 'object', 'object href resolves');
+    assert(resolveMachineHref('rool-machine%3A/space/note/target.json')?.kind === 'object', 'encoded object href resolves');
+    assert(resolveMachineHref('rool:/settings/sharing') === null, 'app links are not machine refs');
+    const fileRef = machineRef('/rool-drive/docs/readme.md');
+    assert(resolveMachineRef(fileRef).kind === 'file', 'file ref resolves');
+    assert(resolveMachineHref(fileRef)?.kind === 'file', 'file href resolves');
+
     step('openChannel');
     const channel = await space.openChannel('main');
     console.log('channel:', channel.channelId, 'role:', channel.role);

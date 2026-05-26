@@ -1,9 +1,21 @@
 // Main export
 export { createRool, generateId } from './rool.svelte.js';
 
-// Location helpers — re-exported from the SDK for convenience
-export { loc, parseLocation, normalizeLocation, isLocation, generateBasename } from '@rool-dev/sdk';
-export type { ParsedLocation } from '@rool-dev/sdk';
+// Location and machine-link helpers — re-exported from the SDK for convenience
+export {
+  loc,
+  parseLocation,
+  normalizeLocation,
+  isLocation,
+  generateBasename,
+  machineRef,
+  parseMachineRef,
+  resolveMachineRef,
+  resolveMachineHref,
+  MACHINE_REF_PREFIX,
+  MACHINE_REF_SCHEME,
+} from '@rool-dev/sdk';
+export type { ParsedLocation, MachineRef, ResolvedMachineRef } from '@rool-dev/sdk';
 
 // Reactive wrappers
 export { wrapChannel } from './channel.svelte.js';

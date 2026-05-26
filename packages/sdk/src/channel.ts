@@ -25,6 +25,7 @@ import type {
   ExtensionManifest,
 } from './types.js';
 import { generateBasename, loc, normalizeLocation, parseLocation } from './locations.js';
+import { machineRef } from './machine.js';
 
 // 6-character alphanumeric ID — used for interactionIds, conversationIds, etc.
 const ENTITY_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -1127,10 +1128,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const attachment = attachmentBody(file, index);
     const path = `${directory}/${attachment.filename}`;
     await this.webdav.put(path, attachment.body, { contentType: attachment.contentType });
-    return this.webdav.ref(path);
+    return machineRef(`/rool-drive/${path}`);
   }
 
   private async ensureCollection(path: string): Promise<void> {
+    // Note: not an object collection, a folder, which is "collection" in webdav land
     const response = await this.webdav.request('MKCOL', path, { collection: true });
     if (response.status === 201 || response.status === 405) return;
     throw new Error(`Failed to create collection ${path}: ${response.status} ${await response.text()}`);

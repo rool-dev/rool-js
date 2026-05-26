@@ -11,10 +11,13 @@ export { RoolSpace } from './space.js';
 export { loc, parseLocation, normalizeLocation, isLocation, generateBasename } from './locations.js';
 export type { ParsedLocation } from './locations.js';
 
+// Machine resource links
+export { MACHINE_REF_PREFIX, MACHINE_REF_SCHEME, machineRef, parseMachineRef, resolveMachineRef, resolveMachineHref } from './machine.js';
+export type { MachineRef, ResolvedMachineRef } from './machine.js';
+
 // WebDAV client
-export { ROOL_DRIVE_REF_PREFIX, RoolWebDAV, WebDAVError } from './webdav.js';
+export { RoolWebDAV, WebDAVError } from './webdav.js';
 export type {
-  RoolDriveRef,
   SpaceFileStorageUsage,
   WebDAVActiveLock,
   WebDAVDepth,
