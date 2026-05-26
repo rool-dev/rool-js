@@ -21,28 +21,20 @@ export const testCase: TestCase = {
 
     try {
       const conversation = channel.conversation('find-video-eval');
-      const { objects } = await conversation.prompt(`
-        Create a node with ukulele performance of "While My Guitar Gently Weeps" by Jake Shimabukuro.
-
-        The node should have:
-        - type: "video"
-        - headline: A descriptive title
-        - text: A brief description of the performance and why it's notable
-        - videoUrl: The YouTube link to the video
-      `);
+      const { objects } = await conversation.prompt(`Create a video object with the ukulele performance of "While My Guitar Gently Weeps" by Jake Shimabukuro.`);
 
       expect(objects).to.have.length(1);
 
       const video = objects[0];
 
-      expect(video.body.headline).to.be.a('string');
-      expect((video.body.headline as string).length).to.be.greaterThan(0);
-      expect(video.body.text).to.be.a('string');
-      expect((video.body.text as string).length).to.be.greaterThan(20);
+      expect(video.body.name).to.be.a('string');
+      expect((video.body.name as string).length).to.be.greaterThan(0);
+      expect(video.body.description).to.be.a('string');
+      expect((video.body.description as string).length).to.be.greaterThan(20);
 
-      expect(isYouTubeUrl(video.body.videoUrl), 'Should be a YouTube URL').to.be.true;
+      expect(isYouTubeUrl(video.body.url), 'Should be a YouTube URL').to.be.true;
 
-      const url = video.body.videoUrl as string;
+      const url = video.body.url as string;
       const hasCorrectVideo = KNOWN_VIDEO_IDS.some(id => url.toLowerCase().includes(id.toLowerCase()));
       expect(hasCorrectVideo, `Video URL should contain one of: ${KNOWN_VIDEO_IDS.join(', ')}`).to.be.true;
 

@@ -16,14 +16,11 @@ export const testCase: TestCase = {
 
     try {
       const conversation = channel.conversation('news-browsers-eval');
-      const { objects } = await conversation.prompt(`
-        Create browser objects for BBC, CNN, and dr.dk.
-        Each object should have:
-        - type: "browser"
-        - headline: string
-        - text: string
-        - url: string
-      `);
+      const { objects } = await conversation.prompt(`Create objects about BBC, CNN, and dr.dk. Do it from memory, no need to search. Each should have:
+- type: "browser"
+- headline: the name of the news media
+- text: a description of the news media
+- url: string`);
 
       expect(objects).to.have.length(3);
 

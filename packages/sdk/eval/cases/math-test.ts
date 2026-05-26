@@ -16,11 +16,7 @@ export const testCase: TestCase = {
 
     try {
       const conversation = channel.conversation('math-test-eval');
-      const { objects } = await conversation.prompt(`
-        Create a new object with:
-        - type: "calculation"
-        - value: the computed result of (e+pi)^4
-      `);
+      const { objects } = await conversation.prompt(`Create a new object with a field containing named value containing the value of (e+pi)^4`);
 
       // Should create exactly 1 object
       expect(objects).to.have.length(1);

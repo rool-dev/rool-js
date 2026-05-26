@@ -18,8 +18,7 @@ export const testCase: TestCase = {
 
     try {
       const conversation = channel.conversation('exoplanets-eval');
-      const { objects } = await conversation.prompt(`
-Create a knowledge graph with collections named star and planet. The planet collection should have an "orbits" field referencing the star
+      const { objects } = await conversation.prompt(`Create a knowledge graph with collections named star and planet. The planet collection should have an "orbits" field referencing the star
 Then add the star PSR B1257+12 and the exoplanets orbiting it. Set the name field to the popular name for each of the exoplanets
       `);
 

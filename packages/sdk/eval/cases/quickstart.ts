@@ -26,7 +26,7 @@ export const testCase: TestCase = {
       // Create objects with AI-generated content using {{placeholders}}
       const { object: sun } = await conversation.createObject('body', {
         name: 'Sun',
-        mass: '{{mass in solar masses}}',
+        mass: '{{mass in Earth masses}}',
         radius: '{{radius in km}}',
       }, { basename: 'sun' });
 

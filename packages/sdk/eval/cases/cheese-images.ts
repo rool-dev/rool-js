@@ -7,7 +7,7 @@ import { expectValidUniqueUrls, expectUrlsFetchable } from '../helpers.js';
  * Validates that the AI can find different images from the web.
  */
 export const testCase: TestCase = {
-  description: 'Creates three cheese image nodes from the web with unique URLs',
+  description: 'Creates three cheese image objects from the web with unique URLs',
 
   async run(client) {
     const space = await client.createSpace('EVAL: cheese-images');
@@ -15,15 +15,11 @@ export const testCase: TestCase = {
 
     try {
       const conversation = channel.conversation('cheese-images-eval');
-      const { objects } = await conversation.prompt(`
-        Create three new nodes, each with a different image of cheese from the web.
-        - Each node should store the image URL in an "imageUrl" field.
-        - Do not add any edges.
-      `);
+      const { objects } = await conversation.prompt(`Create three image objects with an image of cheese from the web. Each object should store the image URL in an "contentUrl" field.`);
 
       expect(objects).to.have.length(3);
-      expectValidUniqueUrls(objects, 'imageUrl');
-      await expectUrlsFetchable(channel, objects, 'imageUrl');
+      expectValidUniqueUrls(objects, 'contentUrl');
+      await expectUrlsFetchable(channel, objects, 'contentUrl');
     } finally {
       space.close();
     }
