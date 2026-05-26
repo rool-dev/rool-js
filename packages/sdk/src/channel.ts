@@ -572,8 +572,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    *
    * @param collection - The collection (must exist in the schema)
    * @param body - Object body fields. Use `{{placeholder}}` for AI-generated content.
-   *               Fields prefixed with `_` are hidden from AI. Must not contain
-   *               `id` or `type` (identity lives on the location).
+   *               Fields prefixed with `_` are hidden from AI.
    * @param options.basename - Specific basename to use. If omitted, the SDK generates a random one.
    * @param options.ephemeral - If true, the operation won't be recorded in interaction history.
    * @returns The created object and a status message.
@@ -593,10 +592,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     options: CreateObjectOptions | undefined,
     conversationId: string,
   ): Promise<{ object: RoolObject; message: string }> {
-    if ('id' in body || 'type' in body) {
-      throw new Error('createObject: body must not contain `id` or `type` — identity is the location.');
-    }
-
     const basename = options?.basename ?? generateBasename();
     const location = loc(collection, basename);
 
@@ -650,10 +645,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   ): Promise<{ object: RoolObject; message: string }> {
     const canonical = normalizeLocation(location);
     const { data } = options;
-
-    if (data && ('id' in data || 'type' in data)) {
-      throw new Error('updateObject: data must not contain `id` or `type`. Use moveObject to change identity.');
-    }
 
     // Normalize undefined to null (for JSON serialization) and build server patch
     let serverPatch: Record<string, unknown> | undefined;
@@ -725,10 +716,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   ): Promise<{ object: RoolObject; message: string }> {
     const fromLoc = normalizeLocation(from);
     const toLoc = normalizeLocation(to);
-
-    if (options?.body && ('id' in options.body || 'type' in options.body)) {
-      throw new Error('moveObject: body must not contain `id` or `type` — identity is the location.');
-    }
 
     // Optimistic event — emit move so listeners can update keys
     const { collection, basename } = parseLocation(toLoc);

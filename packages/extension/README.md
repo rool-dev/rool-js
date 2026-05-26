@@ -207,7 +207,7 @@ These are Svelte 5 `$state` properties — use them directly in templates or `$e
 
 ### Object Operations
 
-Every object lives at a **location** — a path of the form `/space/<collection>/<basename>.json`. Identity lives on the envelope (`location`, `collection`, `basename`); the `body` holds the user-defined fields and never contains `id` or `type`. References between objects are body fields whose values are location strings.
+Every object lives at a **location** — a path of the form `/space/<collection>/<basename>.json`. The `collection` and `basename` are derived from the location; the `body` holds the user-defined fields. References between objects are body fields whose values are location strings.
 
 Methods that take a location accept either the canonical full form or the short form (`<collection>/<basename>`).
 
@@ -225,7 +225,7 @@ Methods that take a location accept either the canonical full form or the short 
 #### createObject / updateObject / moveObject
 
 ```typescript
-// Create with an auto-generated basename — body must not contain id or type
+// Create with an auto-generated basename
 await channel.createObject('article', { title: 'Hello', status: 'draft' })
 
 // Pin the basename
@@ -253,8 +253,8 @@ await channel.moveObject(location, newLocation, { body: { title: 'Hello, world' 
 
 Placeholders are resolved by the AI during the mutation and replaced with concrete values. The `{{...}}` syntax is never stored.
 
-**createObject options:** `basename` (auto-generated if omitted), `ephemeral`, `parentInteractionId`. Body must not contain `id` or `type`.
-**updateObject options:** `data` (body fields to add, update, or delete via `null`), `prompt`, `ephemeral`, `parentInteractionId`. Use `moveObject` to change identity.
+**createObject options:** `basename` (auto-generated if omitted), `ephemeral`, `parentInteractionId`.
+**updateObject options:** `data` (body fields to add, update, or delete via `null`), `prompt`, `ephemeral`, `parentInteractionId`. Use `moveObject` to change an object's location.
 **moveObject options:** `body` (atomically replace body), `ephemeral`, `parentInteractionId`.
 
 #### findObjects

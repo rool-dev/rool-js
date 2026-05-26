@@ -334,9 +334,6 @@ export class FsChannel implements BridgeableChannel {
     options: CreateObjectOptions | undefined,
     _conversationId: string,
   ): Promise<{ object: RoolObject; message: string }> {
-    if ('id' in body || 'type' in body) {
-      throw new Error('createObject: body must not contain `id` or `type` — identity is the location.');
-    }
     const basename = options?.basename ?? generateBasename();
     const location = loc(collection, basename);
     await this.req('POST', '/objects', { location, body });
@@ -365,9 +362,6 @@ export class FsChannel implements BridgeableChannel {
     const set: Record<string, unknown> = {};
     const remove: string[] = [];
     if (options.data) {
-      if ('id' in options.data || 'type' in options.data) {
-        throw new Error('updateObject: data must not contain `id` or `type`.');
-      }
       for (const [k, v] of Object.entries(options.data)) {
         if (v === null || v === undefined) remove.push(k);
         else set[k] = v;
@@ -397,9 +391,6 @@ export class FsChannel implements BridgeableChannel {
   ): Promise<{ object: RoolObject; message: string }> {
     const fromLoc = normalizeLocation(from);
     const toLoc = normalizeLocation(to);
-    if (options?.body && ('id' in options.body || 'type' in options.body)) {
-      throw new Error('moveObject: body must not contain `id` or `type`.');
-    }
     await this.req('POST', '/objects/_move', { from: fromLoc, to: toLoc, body: options?.body });
     const moved = (await this.getObject(toLoc)) ?? objectFromBody(toLoc, options?.body ?? {});
     this.statsByLocation.delete(fromLoc);

@@ -8,9 +8,9 @@
 // -- Objects ------------------------------------------------------------------
 
 /**
- * An object in a space. Identity lives in the envelope; body holds the
- * user-defined fields and never contains `id` or `type`. References between
- * objects are body fields whose values are location strings.
+ * An object in a space. Addressed by `location`; the `body` holds the
+ * user-defined fields. References between objects are body fields whose
+ * values are location strings.
  */
 export interface RoolObject {
   /** Canonical location: `/space/<collection>/<basename>.json`. */
@@ -19,7 +19,7 @@ export interface RoolObject {
   collection: string;
   /** Basename (filename of the location without `.json`). */
   basename: string;
-  /** User-defined fields. Never contains identity. */
+  /** User-defined fields. */
   body: Record<string, unknown>;
 }
 

@@ -44,8 +44,7 @@ await channel.createCollection('body', [
 ]);
 
 // Create objects with AI-generated content using {{placeholders}}.
-// First arg is the collection. Second is the body — no `id` or `type`,
-// identity lives in the location.
+// First arg is the collection, second is the body.
 const { object: sun } = await channel.createObject('body', {
   name: 'Sun',
   mass: '{{mass in solar masses}}',
@@ -196,7 +195,7 @@ Every object lives at a **location** — a path of the form `/space/<collection>
 }
 ```
 
-**Body** is the user-defined data. It never contains `id` or `type` — identity lives entirely in the location.
+The **body** holds the user-defined data.
 
 **References** between objects are body fields whose values are location strings:
 
@@ -834,7 +833,7 @@ A channel is a named context within a space. All object operations, AI prompts, 
 
 ### Object Operations
 
-Objects are records addressed by location (`/space/<collection>/<basename>.json`). Every object must belong to a collection — create the collection first (see [Collection Schema](#collection-schema)). The body holds user-defined fields only; identity lives in the location.
+Objects are records addressed by location (`/space/<collection>/<basename>.json`). Every object must belong to a collection — create the collection first (see [Collection Schema](#collection-schema)). The body holds the user-defined fields.
 
 All methods that accept a location accept either the canonical form or the short form (`collection/basename`).
 
@@ -879,8 +878,6 @@ await channel.createObject('article', {
 | `ephemeral` | If true, the operation won't be recorded in interaction history. |
 | `parentInteractionId` | Conversation tree parent. Omit to auto-continue; pass `null` for a new root. |
 
-The body must not contain `id` or `type` — those names are reserved for identity. The SDK throws if either is present.
-
 #### updateObject
 
 ```typescript
@@ -907,7 +904,7 @@ await channel.updateObject('/space/article/welcome.json', {
 | `ephemeral` | If true, the operation won't be recorded in interaction history. |
 | `parentInteractionId` | Conversation tree parent. Omit to auto-continue; pass `null` for a new root. |
 
-`data` must not contain `id` or `type` — use `moveObject` to change identity.
+Use `moveObject` to change an object's location (collection or basename).
 
 #### Moving and Renaming
 
@@ -934,7 +931,7 @@ await channel.moveObject(from, to, {
 
 | Option | Description |
 |--------|-------------|
-| `body` | Replace the body atomically as part of the move. If omitted, the body is preserved. Must not contain `id` or `type`. |
+| `body` | Replace the body atomically as part of the move. If omitted, the body is preserved. |
 | `ephemeral` | If true, the operation won't be recorded in interaction history. |
 | `parentInteractionId` | Conversation tree parent. Omit to auto-continue; pass `null` for a new root. |
 
@@ -1294,9 +1291,8 @@ type SpaceSchema = Record<string, CollectionDef>;
 ### Object Data
 
 ```typescript
-// An object — identity in the envelope, data in body. Body never contains
-// `id` or `type`; references between objects are body fields whose values
-// are location strings.
+// An object addressed by location. References between objects are body
+// fields whose values are location strings.
 interface RoolObject {
   location: string;        // "/space/<collection>/<basename>.json"
   collection: string;

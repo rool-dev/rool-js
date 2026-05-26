@@ -33,10 +33,8 @@ export interface CollectionDef {
 export type SpaceSchema = Record<string, CollectionDef>;
 
 /**
- * An object in a space.
- *
- * Identity lives in the envelope (`location`, `collection`, `basename`). The
- * `body` holds the user-defined fields; it never contains identity. References
+ * An object in a space. Addressed by `location`; `collection` and `basename`
+ * are derived from it. The `body` holds the user-defined fields. References
  * between objects are body fields whose values are location strings.
  */
 export interface RoolObject {
@@ -46,7 +44,7 @@ export interface RoolObject {
   collection: string;
   /** Basename (filename of the location without `.json`). */
   basename: string;
-  /** User-defined fields. Never contains identity. */
+  /** User-defined fields. */
   body: Record<string, unknown>;
 }
 
