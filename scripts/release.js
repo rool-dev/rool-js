@@ -140,4 +140,4 @@ execSync(`git commit -m "${tag}"`, { cwd: root, stdio: 'inherit' });
 execSync(`git tag ${tag}`, { cwd: root, stdio: 'inherit' });
 
 console.log(`\nDone. Push to publish:\n`);
-console.log(`  git push origin main --tags`);
+console.log(`  git push origin main ${tag}`);
