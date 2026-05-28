@@ -181,6 +181,7 @@ export type LinkAccess = 'none' | 'viewer' | 'editor';
 export interface RoolSpaceInfo {
   id: string;
   name: string;
+  inboundEmailAddress: string;
   role: RoolUserRole;
   ownerId: string;
   size: number;
@@ -404,6 +405,7 @@ export interface SpaceCreatedClientEvent extends ClientEventBase {
   type: 'space_created';
   spaceId: string;
   name: string;
+  inboundEmailAddress?: string;
   ownerId?: string;
   size?: number;
   createdAt?: string;
@@ -426,6 +428,7 @@ export interface SpaceAccessChangedClientEvent extends ClientEventBase {
   type: 'space_access_changed';
   spaceId: string;
   name: string;
+  inboundEmailAddress: string;
   ownerId: string;
   size: number;
   createdAt: string;

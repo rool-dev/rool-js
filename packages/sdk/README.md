@@ -1424,7 +1424,7 @@ interface Interaction {
 type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
 type LinkAccess = 'none' | 'viewer' | 'editor';
 
-interface RoolSpaceInfo { id: string; name: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; linkAccess: LinkAccess; memberCount: number; }
+interface RoolSpaceInfo { id: string; name: string; inboundEmailAddress: string; role: RoolUserRole; ownerId: string; size: number; createdAt: string; updatedAt: string; linkAccess: LinkAccess; memberCount: number; }
 interface SpaceMember { id: string; email: string; role: RoolUserRole; photoUrl: string | null; }
 interface UserResult { id: string; email: string; name: string | null; photoUrl: string | null; }
 interface CurrentUser { id: string; email: string; name: string | null; photoUrl: string | null; slug: string; plan: string; creditsBalance: number; totalCreditsUsed: number; createdAt: string; lastActivity: string; processedAt: string; storage: Record<string, unknown>; }

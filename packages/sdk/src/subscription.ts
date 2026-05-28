@@ -417,6 +417,7 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
     case 'space_created':
       return {
         type, timestamp, spaceId: raw.spaceId as string, name: raw.name as string,
+        inboundEmailAddress: raw.inboundEmailAddress as string | undefined,
         ownerId: raw.ownerId as string | undefined, size: raw.size as number | undefined,
         createdAt: raw.createdAt as string | undefined, updatedAt: raw.updatedAt as string | undefined,
         role: raw.role as string | undefined,
@@ -428,6 +429,7 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
     case 'space_access_changed':
       return {
         type, timestamp, spaceId: raw.spaceId as string, name: raw.name as string,
+        inboundEmailAddress: raw.inboundEmailAddress as string,
         ownerId: raw.ownerId as string, size: raw.size as number,
         createdAt: raw.createdAt as string, updatedAt: raw.updatedAt as string,
         role: raw.role as string, linkAccess: raw.linkAccess as string,

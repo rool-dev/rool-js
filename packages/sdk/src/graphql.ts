@@ -83,6 +83,7 @@ export class GraphQLClient {
         listSpaces {
           id
           name
+          inboundEmailAddress
           role
           ownerId
           size

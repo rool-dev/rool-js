@@ -640,6 +640,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
         this.emit('spaceAdded', {
           id: event.spaceId,
           name: event.name,
+          inboundEmailAddress: event.inboundEmailAddress ?? '',
           role: (event.role as RoolUserRole) ?? 'owner',
           ownerId: event.ownerId ?? '',
           size: event.size ?? 0,
@@ -665,6 +666,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
           this.emit('spaceAdded', {
             id: event.spaceId,
             name: event.name,
+            inboundEmailAddress: event.inboundEmailAddress,
             role: event.role as RoolUserRole,
             ownerId: event.ownerId,
             size: event.size,
