@@ -338,6 +338,10 @@ export interface PromptOptions {
    * flight on Vertex keeps generating server-side and is billed.
    */
   signal?: AbortSignal;
+  /** Telemetry event for this prompt. Default `'prompt_user'`; override for
+   *  app-initiated prompts (e.g. `'prompt_onboarding_seed'`). Only `'prompt_user'`
+   *  counts toward active-user metrics. */
+  eventName?: string;
 }
 
 export interface FindObjectsOptions {

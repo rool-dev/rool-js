@@ -573,8 +573,8 @@ export class GraphQLClient {
     options: Omit<PromptOptions, 'attachments'> & { attachmentRefs?: string[]; interactionId: string }
   ): Promise<{ message: string; modifiedObjectLocations: string[] }> {
     const mutation = `
-      mutation Prompt($spaceId: String!, $prompt: String!, $locations: [String!]!, $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort!, $ephemeral: Boolean!, $readOnly: Boolean!, $attachments: [String!]!, $interactionId: String!, $parentInteractionId: String) {
-        prompt(spaceId: $spaceId, prompt: $prompt, locations: $locations, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId, parentInteractionId: $parentInteractionId) {
+      mutation Prompt($spaceId: String!, $prompt: String!, $locations: [String!]!, $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort!, $ephemeral: Boolean!, $readOnly: Boolean!, $attachments: [String!]!, $interactionId: String!, $parentInteractionId: String, $eventName: String!) {
+        prompt(spaceId: $spaceId, prompt: $prompt, locations: $locations, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId, parentInteractionId: $parentInteractionId, eventName: $eventName) {
           message
           modifiedObjectLocations
         }
@@ -595,6 +595,7 @@ export class GraphQLClient {
       attachments: options.attachmentRefs ?? [],
       interactionId: options.interactionId,
       parentInteractionId: options.parentInteractionId,
+      eventName: options.eventName ?? 'prompt_user',
     });
     return response.prompt;
   }
