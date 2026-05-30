@@ -2,7 +2,6 @@
   "id": "snake",
   "name": "Snake",
   "description": "The classic snake game",
-  "public": true,
   "icon": "icon.svg",
   "collections": {
     "write": {

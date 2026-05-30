@@ -165,7 +165,7 @@ You are allowed to disregard the above rules if asked to do so to resolve schedu
   async function confirmSlot(slot: RoolObject) {
     if (isSending) return;
     const currentYes = (slot.body.yes as string[] | undefined) ?? [];
-    const userName = channel.userId;
+    const userName = channel.user.name ?? channel.userId;
     if (currentYes.includes(userName)) return;
     isSending = true;
     try {

@@ -1,8 +1,5 @@
-<script lang="ts" module>
-  export type PromptEffort = 'QUICK' | 'STANDARD' | 'REASONING' | 'RESEARCH';
-</script>
-
 <script lang="ts">
+  import type { PromptEffort } from '@rool-dev/extension';
   import Icon from '@iconify/svelte';
 
   const effortOptions: { value: PromptEffort; icon: string; label: string }[] = [

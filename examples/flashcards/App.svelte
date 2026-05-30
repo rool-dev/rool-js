@@ -37,6 +37,17 @@
     return () => w.close();
   });
 
+  // Watch cards for the selected topic
+  $effect(() => {
+    if (!selectedTopicLocation) {
+      cardsCollection = undefined;
+      return;
+    }
+    const w = channel.watch({ collection: 'card', where: { topic: selectedTopicLocation } });
+    cardsCollection = w;
+    return () => w.close();
+  });
+
   // Derived state
   let topics = $derived<RoolObject[]>(topicsCollection?.objects ?? []);
   let cards = $derived<RoolObject[]>(cardsCollection?.objects ?? []);
@@ -54,14 +65,10 @@
   let collectionsLoading = $derived(!topicsCollection || topicsCollection.loading);
 
   function selectTopic(topicLocation: string) {
-    cardsCollection?.close();
     selectedTopicLocation = topicLocation;
-    cardsCollection = channel.watch({ collection: 'card', where: { topic: topicLocation } });
   }
 
   function deselectTopic() {
-    cardsCollection?.close();
-    cardsCollection = undefined;
     selectedTopicLocation = null;
   }
 

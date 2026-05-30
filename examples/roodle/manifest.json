@@ -1,7 +1,6 @@
 {
   "id": "roodle",
   "name": "Roodle",
-  "public": true,
   "icon": "icon.svg",
   "description": "AI-powered collaborative scheduling",
   "collections": {

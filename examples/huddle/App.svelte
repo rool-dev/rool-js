@@ -94,7 +94,7 @@
     const senderName = channel.user.name ?? channel.userId;
 
     // Create the user's message
-    await channel.createObject('huddle_message', {
+    const { object: userMessage } = await channel.createObject('huddle_message', {
       huddle: activeHuddleId,
       text,
       sender: channel.userId,
@@ -107,7 +107,10 @@
     if (mentionsRool) {
       isSending = true;
       try {
-        const messageLocations = messagesWatch?.objects.map((m) => m.location) ?? [];
+        const watchLocations = messagesWatch?.objects.map((m) => m.location) ?? [];
+        const messageLocations = watchLocations.includes(userMessage.location)
+          ? watchLocations
+          : [...watchLocations, userMessage.location];
         const { message } = await channel.prompt(text, {
           locations: [activeHuddleId, ...messageLocations],
           ephemeral: true,

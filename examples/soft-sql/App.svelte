@@ -1,6 +1,5 @@
 <script lang="ts">
-  import type { ReactiveChannel } from '@rool-dev/extension';
-  import type { PromptEffort } from './EffortSelector.svelte';
+  import type { ReactiveChannel, PromptEffort } from '@rool-dev/extension';
   import SvelteMarkdown from '@humanspeak/svelte-markdown';
   import Icon from '@iconify/svelte';
   import EffortSelector from './EffortSelector.svelte';
@@ -25,7 +24,7 @@
     isLoading = true;
     try {
       const effortOption = effort === 'STANDARD' ? undefined : effort;
-      const result = await channel.prompt(query.trim(), { readOnly, effort: effortOption, ephemeral: true });
+      const result = await channel.prompt(query.trim(), { readOnly, effort: effortOption });
       output = result.message ?? '';
     } catch (err) {
       output = `Error: ${err instanceof Error ? err.message : String(err)}`;

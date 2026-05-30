@@ -2,7 +2,6 @@
   "id": "huddle",
   "name": "Huddle",
   "icon": "icon.svg",
-  "public": true,
   "description": "Lightweight team chat with AI",
   "collections": {
     "write": {
