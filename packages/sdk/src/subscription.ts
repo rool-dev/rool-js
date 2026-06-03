@@ -53,6 +53,7 @@ type Input =
   | { kind: 'auth_resolved'; tokens: Tokens; url: string }
   | { kind: 'auth_failed'; error: Error }
   | { kind: 'message_received'; raw: Record<string, unknown> }
+  | { kind: 'stream_closing' }
   | { kind: 'watchdog_stale' }
   | { kind: 'backoff_fired' }
   | { kind: 'online_event' };
@@ -143,6 +144,16 @@ class Subscription<TEvent> {
       case 'message_received':
         if (state.kind !== 'probing' && state.kind !== 'live') return;
         this.handleMessage(input.raw);
+        return;
+
+      case 'stream_closing':
+        if (state.kind !== 'probing' && state.kind !== 'live') return;
+        // The server is ending this stream (shutdown/handoff/recycle), so
+        // re-resolve and reconnect at once — no backoff wait, this isn't a failure.
+        this.backoffDelay = INITIAL_RECONNECT_DELAY;
+        this.config.onConnectionStateChanged('disconnected');
+        this.tearDown(state);
+        this.enterAwaitingAuth();
         return;
 
       case 'watchdog_stale':
@@ -300,6 +311,13 @@ class Subscription<TEvent> {
     // Every message (including heartbeats) counts for liveness and backoff reset.
     this.lastMessageAt = Date.now();
     this.backoffDelay = INITIAL_RECONNECT_DELAY;
+
+    // Control event: the server is ending this stream; re-resolve and reconnect now.
+    if (raw.type === 'stream_closing') {
+      this.config.logger.info(`${this.config.logPrefix} server closing stream (reason: ${raw.reason ?? 'unknown'}), reconnecting`);
+      this.handle({ kind: 'stream_closing' });
+      return;
+    }
 
     const event = this.config.parseEvent(raw);
     if (!event) return;

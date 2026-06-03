@@ -1,5 +1,14 @@
 import type { AuthManager } from './auth.js';
 
+const ROUTE_MAX_RETRIES = 6;
+const ROUTE_RETRY_BASE_MS = 150;
+const ROUTE_RETRY_MAX_MS = 2_000;
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+function routeBackoffMs(attempt: number): number {
+  const ceil = Math.min(ROUTE_RETRY_BASE_MS * 2 ** attempt, ROUTE_RETRY_MAX_MS);
+  return ceil / 2 + Math.random() * (ceil / 2);
+}
+
 export interface RouteInfo {
   server: string;
   generation: number;
@@ -35,18 +44,24 @@ export class SpaceRouter {
     const tokens = await this.authManager.getTokens();
     if (!tokens) throw new Error('Not authenticated');
 
-    const response = await fetch(`${this.apiUrl}/route/${encodeURIComponent(spaceId)}`, {
-      headers: {
-        Authorization: `Bearer ${tokens.accessToken}`,
-        'X-Rool-Token': tokens.roolToken,
-      },
-    });
+    // A draining shard 503s /route (it must not re-claim the lease for a dying
+    // instance). /route is any-shard, so retry until a live shard answers.
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetch(`${this.apiUrl}/route/${encodeURIComponent(spaceId)}`, {
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`,
+          'X-Rool-Token': tokens.roolToken,
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`Route resolution failed: ${response.status} ${response.statusText}`);
+      if (response.ok) {
+        const data = await response.json() as { server: string; generation: number };
+        return { server: data.server, generation: data.generation };
+      }
+      if (response.status !== 503 || attempt >= ROUTE_MAX_RETRIES) {
+        throw new Error(`Route resolution failed: ${response.status} ${response.statusText}`);
+      }
+      await delay(routeBackoffMs(attempt));
     }
-
-    const data = await response.json() as { server: string; generation: number };
-    return { server: data.server, generation: data.generation };
   }
 }

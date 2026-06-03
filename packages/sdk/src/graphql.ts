@@ -881,7 +881,11 @@ export class GraphQLClient {
       attempt++
     ) {
       await delay(retryBackoffMs(attempt));
-      url = await this.config.onRefused();
+      try {
+        url = await this.config.onRefused();
+      } catch {
+        continue; // reroute itself failed (e.g. /route exhausted its own retries); keep backing off
+      }
       response = await fetch(url, { method: 'POST', headers, body: fetchBody });
     }
 

@@ -36,11 +36,14 @@ Two external (caller-initiated) and six internal (delivered by async sources):
 | `auth_resolved(tokens)` | `getTokens()` resolved with tokens |
 | `auth_failed(err)` | `getTokens()` returned null or threw |
 | `message_received(raw)` | graphql-sse `next` callback |
+| `stream_closing` | a `stream_closing` control event arrived in the stream |
 | `watchdog_stale` | heartbeat interval detected staleness |
 | `backoff_fired` | retry timer fired |
 | `online_event` | `window` `online` event |
 
-**The watchdog is the sole liveness detector.** Every form of death — server close, auth reject, network drop, silent TCP death — manifests as heartbeats no longer arriving, and the watchdog fires `watchdog_stale` within `HEARTBEAT_TIMEOUT`. The state machine has one death input, tied to the currently-owned watchdog interval, which means it cannot be poked by a signal from any other source.
+**The watchdog is the backstop liveness detector.** Every form of death — server close, auth reject, network drop, silent TCP death — manifests as heartbeats no longer arriving, and the watchdog fires `watchdog_stale` within `HEARTBEAT_TIMEOUT`.
+
+**`stream_closing` is the fast path.** When the server deliberately ends a stream (lease loss on shutdown/handoff, or the periodic lifetime recycle), it emits a `stream_closing` control event — carrying a `reason` (`shutdown`/`idle`/`evicted`/`deleted`/`lifetime`) — as the final data frame. This matters during a roll: a draining load balancer swallows the connection *close* but still forwards data, so the close never reaches the client and only the watchdog would notice — after a full `HEARTBEAT_TIMEOUT`. The `stream_closing` event arrives where the close didn't, so the client re-resolves and reconnects at once. The watchdog still covers ungraceful death (crash, network drop) where no such event can be sent.
 
 ---
 
@@ -55,6 +58,7 @@ Every (state × input) cell has a defined outcome. "Ignore" means no-op. "Imposs
 | `auth_resolved` | impossible | create client+subscription, start watchdog → probing | stale, ignore | stale, ignore | ignore |
 | `auth_failed` | impossible | reject init promise if present (§6), → backoff | stale, ignore | stale, ignore | ignore |
 | `message_received` | impossible | impossible | update `lastMessageAt`, reset `backoffDelay`; if event is `connected` and state is `probing` → live (resolve init promise §6, emit `'connected'`); deliver event to consumer | stale, ignore | ignore |
+| `stream_closing` | impossible | impossible | teardown; `backoffDelay = INITIAL` → awaiting_auth (no backoff wait — this is a clean handoff, not a failure) | stale, ignore | ignore |
 | `watchdog_stale` | impossible | impossible | teardown; `backoffDelay = INITIAL` → backoff | impossible (no watchdog in backoff) | impossible |
 | `backoff_fired` | impossible | impossible | impossible (no timer) | → awaiting_auth, start `getTokens` | ignore |
 | `online_event` | ignore | ignore | ignore | `backoffDelay = INITIAL` (timer left alone) | ignore |
@@ -108,6 +112,7 @@ The external `onConnectionStateChanged` callback fires on these transitions:
 | `idle` → `awaiting_auth` | `'reconnecting'` |
 | `backoff` → `awaiting_auth` | `'reconnecting'` |
 | `probing` → `live` | `'connected'` |
+| `probing`/`live` → `awaiting_auth` (via `stream_closing`) | `'disconnected'` then `'reconnecting'` |
 | `probing`/`live` → `backoff` | `'disconnected'` then `'reconnecting'` |
 | `probing`/`live` → `closed` | `'disconnected'` |
 | any other → `closed` | (no emission) |
