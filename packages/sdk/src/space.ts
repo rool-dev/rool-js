@@ -88,6 +88,10 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
   // Subscription
   private subscriptionManager: SpaceSubscriptionManager | null = null;
+  private _closed = false;
+  private _resyncing = false;
+  private _resyncPending = false;
+  private _resyncTimer: ReturnType<typeof setTimeout> | null = null;
   private _subscriptionReady: Promise<void> | null = null;
 
   // Open channels on this space
@@ -399,6 +403,8 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
    * Close the space subscription and all open channels.
    */
   close(): void {
+    this._closed = true;
+    if (this._resyncTimer) { clearTimeout(this._resyncTimer); this._resyncTimer = null; }
     // Close all open channels
     for (const channel of this.openChannels.values()) {
       channel.close();
@@ -495,19 +501,25 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     }
   }
 
-  /**
-   * Handle reconnection: fetch full state once, distribute to all channels.
-   */
+  // Reconnect resync: fetch full state and distribute. Retries until it lands —
+  // a single failure used to leave the client empty until reload. Single-flight:
+  // an event arriving mid-resync sets _resyncPending so we re-run once afterward,
+  // ensuring the final state reflects the latest space_changed.
   private handleResync(): void {
-    this.logger.info(`[RoolSpace] Space ${this._id} reconnected, resyncing...`);
+    if (this._resyncing) { this._resyncPending = true; return; }
+    this._resyncing = true;
+    this._resyncWithRetry(0);
+  }
 
+  private _resyncWithRetry(attempt: number): void {
+    this._resyncTimer = null;
+    if (this._closed) { this._resyncing = false; return; }
     void this.graphqlClient.openSpaceFull(this._id).then((result) => {
+      if (this._closed) { this._resyncing = false; return; }
       this.applyFullData(result);
-
-      // Distribute to all open channels
       for (const [channelId, channel] of this.openChannels) {
         const channelData = result.channels[channelId];
-        if (!channelData) continue; // Channel was deleted between fetch and distribution
+        if (!channelData) continue; // Channel deleted between fetch and distribution
         channel._applyResyncData({
           meta: result.meta,
           schema: result.schema,
@@ -517,9 +529,22 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
         });
       }
       this.logger.info(`[RoolSpace] Space ${this._id} resync complete (${result.objectLocations.length} objects)`);
+      this._finishResync();
     }).catch((error) => {
-      this.logger.error(`[RoolSpace] Space ${this._id} resync failed:`, error);
+      if (this._closed) { this._resyncing = false; return; }
+      const ms = Math.min(1000 * 2 ** attempt, 30000);
+      this.logger.error(`[RoolSpace] Space ${this._id} resync failed (attempt ${attempt + 1}), retrying in ${ms}ms:`, error);
+      this._resyncTimer = setTimeout(() => this._resyncWithRetry(attempt + 1), ms);
     });
+  }
+
+  // Clear in-flight flag; if an event arrived mid-resync, run one more pass.
+  private _finishResync(): void {
+    this._resyncing = false;
+    if (this._resyncPending && !this._closed) {
+      this._resyncPending = false;
+      this.handleResync();
+    }
   }
 
   /**

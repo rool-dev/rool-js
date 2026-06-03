@@ -29,6 +29,18 @@ function getTimezone(): string | undefined {
   }
 }
 
+const REQUEST_MAX_RETRIES = 6;
+const RETRY_BASE_MS = 150;
+const RETRY_MAX_MS = 5_000;
+
+const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// Jittered exponential backoff for retry attempt N.
+function retryBackoffMs(attempt: number): number {
+  const ceil = Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS);
+  return ceil / 2 + Math.random() * (ceil / 2);
+}
+
 export interface GraphQLClientConfig {
   graphqlUrl: string;
   authManager: AuthManager;
@@ -858,11 +870,19 @@ export class GraphQLClient {
       ) as ArrayBuffer;
     }
 
-    let response = await fetch(this._graphqlUrl, { method: 'POST', headers, body: fetchBody });
+    let url = this._graphqlUrl;
+    let response = await fetch(url, { method: 'POST', headers, body: fetchBody });
 
-    if (response.status === 421 && this.config.onRefused) {
-      const newUrl = await this.config.onRefused();
-      response = await fetch(newUrl, { method: 'POST', headers, body: fetchBody });
+    // 421 (wrong shard) and 503 (draining) both reject before executing, so
+    // re-resolve the owner and retry — safe even for mutations; backoff rides out a roll.
+    for (
+      let attempt = 0;
+      (response.status === 421 || response.status === 503) && this.config.onRefused && attempt < REQUEST_MAX_RETRIES;
+      attempt++
+    ) {
+      await delay(retryBackoffMs(attempt));
+      url = await this.config.onRefused();
+      response = await fetch(url, { method: 'POST', headers, body: fetchBody });
     }
 
     if (!response.ok) {
