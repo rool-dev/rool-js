@@ -138,7 +138,7 @@ class Subscription<TEvent> {
         if (state.kind !== 'awaiting_auth') return;
         this.config.onError(input.error);
         this.rejectInitIfPending(input.error);
-        this.enterBackoff();
+        this.enterBackoff('auth failed');
         return;
 
       case 'message_received':
@@ -158,10 +158,9 @@ class Subscription<TEvent> {
 
       case 'watchdog_stale':
         if (state.kind !== 'probing' && state.kind !== 'live') return;
-        this.config.logger.info(`${this.config.logPrefix} heartbeat timeout`);
         this.rejectInitIfPending(new Error('Heartbeat timeout'));
         this.backoffDelay = INITIAL_RECONNECT_DELAY;
-        this.enterBackoff();
+        this.enterBackoff('heartbeat timeout');
         return;
 
       case 'backoff_fired':
@@ -224,7 +223,7 @@ class Subscription<TEvent> {
       this.config.logger.error(`${this.config.logPrefix} failed to create client:`, err);
       this.config.onError(err);
       this.rejectInitIfPending(err);
-      this.enterBackoff();
+      this.enterBackoff('client error');
       return;
     }
 
@@ -242,7 +241,6 @@ class Subscription<TEvent> {
     const unsubscribe = () => realUnsubscribe();
 
     this.state = { kind: 'probing', client, unsubscribe, watchdog };
-    this.config.logger.info(`${this.config.logPrefix} connecting...`);
 
     realUnsubscribe = client.subscribe(
       { query: this.config.query, variables: this.config.variables },
@@ -259,7 +257,7 @@ class Subscription<TEvent> {
     );
   }
 
-  private enterBackoff(): void {
+  private enterBackoff(reason: string): void {
     // From awaiting_auth (after auth_failed) or probing/live (after watchdog_stale).
     const prev = this.state;
 
@@ -267,7 +265,7 @@ class Subscription<TEvent> {
     const timer = setTimeout(() => this.handle({ kind: 'backoff_fired' }), delay);
     this.state = { kind: 'backoff', timer };
     this.backoffDelay = Math.min(this.backoffDelay * RECONNECT_MULTIPLIER, MAX_RECONNECT_DELAY);
-    this.config.logger.info(`${this.config.logPrefix} reconnecting in ${delay}ms...`);
+    this.config.logger.info(`${this.config.logPrefix} ${reason}, reconnecting in ${delay}ms`);
 
     if (prev.kind === 'probing' || prev.kind === 'live') {
       this.config.onConnectionStateChanged('disconnected');
