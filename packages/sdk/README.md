@@ -826,6 +826,7 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 space.on('channelCreated', (channel: ChannelInfo) => void)   // New channel added
 space.on('channelUpdated', (channel: ChannelInfo) => void)   // Channel metadata changed (name, extension, manifest)
 space.on('channelDeleted', (channelId: string) => void)      // Channel removed
+space.on('filesChanged', ({ source, timestamp }) => void)     // WebDAV file storage changed; call webdav.syncCollection()
 space.on('connectionStateChanged', (state: 'connected' | 'disconnected' | 'reconnecting') => void)
 ```
 
@@ -1069,6 +1070,21 @@ const usage = await space.getStorageUsage();
 console.log(usage.usedBytes);
 console.log(usage.availableBytes); // null means unlimited
 console.log(usage.limitBytes);     // null means unlimited
+
+const rootProps = await webdav.propfind('', {
+  depth: '0',
+  props: ['sync-token', 'supported-report-set'],
+});
+let syncToken = rootProps.responses[0]?.props.syncToken ?? null;
+
+space.on('filesChanged', async () => {
+  const delta = await space.webdav.syncCollection('', {
+    token: syncToken,
+    level: 'infinite',
+  });
+  syncToken = delta.token;
+  console.log('Changed file responses:', delta.responses);
+});
 ```
 
 Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). WebDAV methods accept WebDAV paths only. User-facing file links should use `rool-machine:/rool-drive/...`; resolve either that URI or a bare `/rool-drive/...` machine path with `resolveMachineResource()` and fetch the resulting file resource with `space.fetchMachineResource(resource)`. `PUT` writes an exact path and does not create parent collections; create parents with `mkcol()` first. Helpers preserve WebDAV status semantics: non-success responses throw `WebDAVError` with `status`, `statusText`, and `body`.
@@ -1081,7 +1097,8 @@ Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). WebDAV metho
 | `space.getStorageUsage()` | Get WebDAV quota usage for an open space |
 | `webdav.getStorageUsage()` | Get WebDAV quota usage through the WebDAV client |
 | `webdav.path(path)` | Normalize a WebDAV path |
-| `webdav.propfind(path, options)` | Read properties/list collections; explicit `depth` required |
+| `webdav.propfind(path, options)` | Read properties/list collections; explicit `depth` required. Supports `sync-token` and `supported-report-set` props. |
+| `webdav.syncCollection(path, options)` | Reconcile WebDAV changes with `REPORT sync-collection`. Pass the previous `token` (or `null`), `level: '1' \| 'infinite'`, optional `props`/`limit`; returns changed responses plus the next `token`. |
 | `webdav.get(path, options?)` / `webdav.head(path)` | Read a file, including optional byte ranges for `get` |
 | `webdav.put(path, body, options?)` | Write an exact file path; parents must already exist |
 | `webdav.mkcol(path)` | Create one collection |

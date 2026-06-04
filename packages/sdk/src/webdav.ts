@@ -2,6 +2,7 @@ import type { AuthManager } from './auth.js';
 
 export type WebDAVPathInput = string;
 export type WebDAVDepth = '0' | '1' | 'infinity';
+export type WebDAVSyncLevel = '1' | 'infinite';
 export type WebDAVLockDepth = '0' | 'infinity';
 
 export type WebDAVPropName =
@@ -17,6 +18,8 @@ export type WebDAVPropName =
   | 'resourcetype'
   | 'supportedlock'
   | 'current-user-privilege-set'
+  | 'supported-report-set'
+  | 'sync-token'
   | (string & {});
 
 export interface WebDAVConfig {
@@ -59,6 +62,10 @@ export interface WebDAVMultiStatus {
   responses: WebDAVResponse[];
 }
 
+export interface WebDAVSyncCollectionResult extends WebDAVMultiStatus {
+  token: string;
+}
+
 export interface WebDAVResponse {
   href: string;
   path: string;
@@ -85,6 +92,8 @@ export interface WebDAVProps {
   quotaAvailableBytes?: number | null;
   canWrite?: boolean;
   locks?: WebDAVActiveLock[];
+  syncToken?: string;
+  supportedReports?: string[];
   [key: string]: unknown;
 }
 
@@ -112,6 +121,8 @@ const KNOWN_PROPS = [
   'resourcetype',
   'supportedlock',
   'current-user-privilege-set',
+  'supported-report-set',
+  'sync-token',
 ] as const;
 
 export class WebDAVError extends Error {
@@ -187,6 +198,28 @@ export class RoolWebDAV {
 
     const xml = await response.text();
     return parseMultiStatus(xml, this.spaceId);
+  }
+
+  async syncCollection(path: WebDAVPathInput, options: {
+    token?: string | null;
+    level: WebDAVSyncLevel;
+    props?: 'allprop' | WebDAVPropName[];
+    limit?: number;
+    signal?: AbortSignal;
+  }): Promise<WebDAVSyncCollectionResult> {
+    const response = await this.request('REPORT', path, {
+      collection: true,
+      signal: options.signal,
+      headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+      body: syncCollectionXml(options),
+    });
+    await assertStatus(response, 207);
+
+    const xml = await response.text();
+    const multistatus = parseMultiStatus(xml, this.spaceId);
+    const token = textOf(xml, 'sync-token');
+    if (!token) throw new Error('sync-collection response missing sync-token');
+    return { ...multistatus, token };
   }
 
   /** Return WebDAV quota usage for this space. */
@@ -435,6 +468,25 @@ function propfindXml(props: 'allprop' | 'propname' | WebDAVPropName[] | undefine
   return `${XML_HEADER}<d:propfind xmlns:d="DAV:"><d:prop>${names}</d:prop></d:propfind>`;
 }
 
+function syncCollectionXml(options: {
+  token?: string | null;
+  level: WebDAVSyncLevel;
+  props?: 'allprop' | WebDAVPropName[];
+  limit?: number;
+}): string {
+  if (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit <= 0)) {
+    throw new Error('Invalid sync-collection limit');
+  }
+
+  const token = `<d:sync-token>${xmlEscape(options.token ?? '')}</d:sync-token>`;
+  const level = `<d:sync-level>${options.level}</d:sync-level>`;
+  const props = !options.props || options.props === 'allprop'
+    ? '<d:prop><d:displayname/><d:getcontentlength/><d:getcontenttype/><d:getetag/><d:getlastmodified/><d:resourcetype/></d:prop>'
+    : `<d:prop>${options.props.map((name) => `<d:${name}/>`).join('')}</d:prop>`;
+  const limit = options.limit ? `<d:limit><d:nresults>${options.limit}</d:nresults></d:limit>` : '';
+  return `${XML_HEADER}<d:sync-collection xmlns:d="DAV:">${token}${level}${props}${limit}</d:sync-collection>`;
+}
+
 function lockXml(owner: string): string {
   return `${XML_HEADER}<d:lockinfo xmlns:d="DAV:"><d:lockscope><d:exclusive/></d:lockscope><d:locktype><d:write/></d:locktype><d:owner>${xmlEscape(owner)}</d:owner></d:lockinfo>`;
 }
@@ -518,6 +570,7 @@ function parsePropValue(name: string, raw: string): unknown {
   if (name === 'lockdiscovery') return parseActiveLocks(raw);
   if (name === 'current-user-privilege-set') return { canWrite: hasTag(raw, 'write') || hasTag(raw, 'bind') };
   if (name === 'supportedlock') return { write: hasTag(raw, 'write') };
+  if (name === 'supported-report-set') return { reports: hasTag(raw, 'sync-collection') ? ['sync-collection'] : [] };
   return xmlUnescape(stripTags(raw));
 }
 
@@ -529,6 +582,9 @@ function toWebDAVProps(raw: Record<string, unknown>): WebDAVProps {
     props.quotaAvailableBytes = raw['quota-available-bytes'] as number | null;
   }
   if (Array.isArray(raw.lockdiscovery)) props.locks = raw.lockdiscovery as WebDAVActiveLock[];
+  if (typeof raw['sync-token'] === 'string') props.syncToken = raw['sync-token'];
+  const supportedReports = raw['supported-report-set'] as { reports?: string[] } | undefined;
+  if (supportedReports?.reports) props.supportedReports = supportedReports.reports;
   const privileges = raw['current-user-privilege-set'] as { canWrite?: boolean } | undefined;
   if (privileges) props.canWrite = !!privileges.canWrite;
 

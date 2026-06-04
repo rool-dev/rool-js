@@ -24,6 +24,8 @@ export type {
   WebDAVLockDepth,
   WebDAVLockResult,
   WebDAVMultiStatus,
+  WebDAVSyncCollectionResult,
+  WebDAVSyncLevel,
   WebDAVPathInput,
   WebDAVPropName,
   WebDAVProps,

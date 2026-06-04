@@ -434,6 +434,11 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       return;
     }
 
+    if (event.type === 'space_files_changed') {
+      this.emit('filesChanged', { spaceId: event.spaceId, source: event.source, timestamp: event.timestamp });
+      return;
+    }
+
     // Probe request: emit to space listeners (client runs the probe via the iframe bridge)
     if (event.type === 'probe_request' && event.requestId && event.channelId && event.method) {
       this.emit('probe', {

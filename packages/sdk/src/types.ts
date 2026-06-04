@@ -502,6 +502,7 @@ export type ChannelEventType =
   | 'channel_updated'
   | 'channel_deleted'
   | 'conversation_updated'
+  | 'space_files_changed'
   | 'probe_request'
   | 'open_extension';
 
@@ -651,6 +652,12 @@ export interface OpenExtensionEvent {
   channelId: string;
 }
 
+export interface SpaceFilesChangedEvent {
+  spaceId: string;
+  source: RoolEventSource;
+  timestamp: number;
+}
+
 export interface RoolSpaceEvents {
   /** A new channel was created in this space */
   channelCreated: (channel: ChannelInfo) => void;
@@ -662,6 +669,8 @@ export interface RoolSpaceEvents {
   probe: (event: ProbeRequestEvent) => void;
   /** Server requests the client to open an extension in split view */
   openExtension: (event: OpenExtensionEvent) => void;
+  /** File storage changed; call webdav.syncCollection() to reconcile. */
+  filesChanged: (event: SpaceFilesChangedEvent) => void;
   /** SSE connection state changed */
   connectionStateChanged: (state: ConnectionState) => void;
   /** Index signature for EventEmitter compatibility */
