@@ -75,7 +75,7 @@ interface AttachmentUpload {
 }
 
 function attachmentBody(
-  file: File | Blob | { data: string; contentType: string }
+  file: File | Blob | { data: string; contentType: string; filename?: string }
 ): AttachmentUpload {
   if (isFile(file)) {
     return {
@@ -95,7 +95,7 @@ function attachmentBody(
   }
 
   return {
-    filename: safeAttachmentFilename('attachment', file.contentType),
+    filename: safeAttachmentFilename(file.filename ?? 'attachment', file.contentType),
     contentType: file.contentType,
     body: base64Body(file.data),
   };
@@ -1013,15 +1013,17 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   /** @internal */
   async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
-    const { attachments, parentInteractionId: explicitParent, signal, locations, ...rest } = options ?? {};
+    const { attachments, parentInteractionId: explicitParent, signal, ...rest } = options ?? {};
     const interactionId = generateEntityId();
 
     let attachmentRefs: string[] | undefined;
     if (attachments?.length) {
-      const resources = await Promise.all(
-        attachments.map((file) => this.uploadAttachment(file, conversationId))
+      attachmentRefs = await Promise.all(
+        attachments.map(async (attachment) => {
+          const resource = 'kind' in attachment ? attachment : await this.uploadAttachment(attachment, conversationId);
+          return `rool-machine:${resource.path.split('/').map(encodeURIComponent).join('/')}`;
+        })
       );
-      attachmentRefs = resources.map((resource) => `rool-machine:${resource.path.split('/').map(encodeURIComponent).join('/')}`);
     }
 
     // Auto-continue from active leaf if no explicit parent provided
@@ -1048,7 +1050,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     try {
       result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, {
         ...rest,
-        locations: locations?.map(normalizeLocation),
         attachmentRefs,
         interactionId,
         parentInteractionId,
@@ -1116,7 +1117,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   private async uploadAttachment(
-    file: File | Blob | { data: string; contentType: string },
+    file: File | Blob | { data: string; contentType: string; filename?: string },
     conversationId: string
   ): Promise<MachineResource> {
     await this.ensureCollection('attachments');

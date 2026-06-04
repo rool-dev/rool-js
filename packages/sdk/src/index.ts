@@ -81,6 +81,7 @@ export type {
 
   // AI types
   PromptOptions,
+  PromptAttachment,
   PromptEffort,
   FindObjectsOptions,
   CreateObjectOptions,

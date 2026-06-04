@@ -443,13 +443,12 @@ Returns a message (the AI's response) and the list of objects that were created 
 
 | Option | Description |
 |--------|-------------|
-| `locations` | Focus the AI on specific objects, identified by location (given primary attention in context). |
 | `responseSchema` | Request structured JSON instead of text summary |
 | `effort` | Effort level: `'QUICK'`, `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'` |
 | `ephemeral` | If true, don't record in interaction history (useful for tab completion) |
 | `readOnly` | If true, disable mutation tools (create, update, move, delete). Use for questions. |
 | `parentInteractionId` | Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. Pass `null` to start a new root-level branch. Pass a specific ID to branch from that point (edit/reroll). |
-| `attachments` | Files to attach (`File`, `Blob`, or `{ data, contentType }`). Stored as authenticated space files; resulting `rool-machine:/rool-drive/...` references are stored on the interaction's `attachments` field for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are uploaded and stored but the AI cannot natively consume their contents, only use shell tools on them. |
+| `attachments` | Machine resources to focus the AI on, plus local files to upload (`File`, `Blob`, or `{ data, contentType, filename? }`). Pass object resources (`/space/...`) for object context and file resources (`/rool-drive/...`) for existing WebDAV files/folders. Local files are uploaded to authenticated space file storage first. The interaction stores canonical `rool-machine:/...` refs for UI rendering. The AI can interpret images (JPEG, PNG, GIF, WebP, SVG), PDFs, text-based files (plain text, Markdown, CSV, HTML, XML, JSON), and DOCX documents. Other file types are stored but the AI cannot natively consume their contents, only use shell tools on them. |
 | `signal` | `AbortSignal` to stop the prompt mid-flight. When aborted, the agent loop halts and the streaming response closes. Note that any LLM turn already in flight on Vertex keeps generating server-side and is billed. |
 
 ### Effort Levels
@@ -470,9 +469,12 @@ const { objects } = await channel.prompt(
 );
 
 // Work with specific objects
+const intro = resolveMachineResource('/space/article/intro.json');
+const conclusion = resolveMachineResource('/space/article/conclusion.json');
+if (!intro || !conclusion) throw new Error('invalid resource');
 const result = await channel.prompt(
   "Summarize these articles",
-  { locations: ['/space/article/intro.json', '/space/article/conclusion.json'] }
+  { attachments: [intro, conclusion] }
 );
 
 // Quick question without mutations (fast model + read-only)
@@ -487,11 +489,13 @@ await channel.prompt(
   { effort: 'REASONING' }
 );
 
-// Attach files for the AI to see (File from <input>, Blob, or base64)
+// Attach existing WebDAV files/folders or local uploads
+const report = resolveMachineResource('/rool-drive/docs/report.pdf');
+if (!report) throw new Error('invalid resource');
 const file = fileInput.files[0]; // from <input type="file">
 await channel.prompt(
-  "Describe what's in this photo and create an object for it",
-  { attachments: [file] }
+  "Compare this report with the uploaded photo",
+  { attachments: [report, file] }
 );
 
 // Cancel a long-running prompt
@@ -508,12 +512,18 @@ await channel.prompt("Do a deep analysis...", {
 Use `responseSchema` to get structured JSON instead of a text message:
 
 ```typescript
+const resources = [
+  '/space/item/widget.json',
+  '/space/item/gadget.json',
+  '/space/item/gizmo.json',
+].map((path) => {
+  const resource = resolveMachineResource(path);
+  if (!resource) throw new Error(`invalid resource: ${path}`);
+  return resource;
+});
+
 const { message } = await channel.prompt("Categorize these items", {
-  locations: [
-    '/space/item/widget.json',
-    '/space/item/gadget.json',
-    '/space/item/gizmo.json',
-  ],
+  attachments: resources,
   responseSchema: {
     type: 'object',
     properties: {
@@ -535,7 +545,7 @@ console.log(result.categories, result.summary);
 AI operations automatically receive context:
 - **Interaction history** — Previous interactions and their results from this channel
 - **Recently modified objects** — Objects created or changed recently
-- **Selected objects** — Objects passed via `locations` are given primary focus
+- **Attached resources** — Object resources passed via `attachments` are given primary focus; file resources are surfaced as `/rool-drive/...` paths
 
 This context flows automatically — no configuration needed. The AI sees enough history to maintain coherent interactions while respecting the `_`-prefixed field hiding rules.
 
@@ -1414,7 +1424,7 @@ interface Interaction {
   ai: boolean;                             // Whether AI was invoked (vs synthetic confirmation)
   modifiedObjectLocations: string[];       // Locations of objects affected by this interaction
   toolCalls: ToolCall[];                   // Tools called during this interaction (for AI prompts)
-  attachments?: string[];                  // rool-machine:/rool-drive/... file references attached by the user
+  attachments?: string[];                  // canonical rool-machine:/... resource refs attached by the user
 }
 ```
 
@@ -1435,15 +1445,15 @@ type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
 
 ```typescript
 type PromptEffort = 'QUICK' | 'STANDARD' | 'REASONING' | 'RESEARCH';
+type PromptAttachment = File | Blob | { data: string; contentType: string; filename?: string } | MachineResource;
 
 interface PromptOptions {
-  locations?: string[];                                                  // Scope to specific objects
   responseSchema?: Record<string, unknown>;
   effort?: PromptEffort;                                                 // Effort level (default: 'STANDARD')
   ephemeral?: boolean;                                                   // Don't record in interaction history
   readOnly?: boolean;                                                    // Disable mutation tools (default: false)
   parentInteractionId?: string | null;                                   // Branch from a specific interaction (omit to auto-continue)
-  attachments?: Array<File | Blob | { data: string; contentType: string }>; // Files to attach
+  attachments?: PromptAttachment[];                                      // Machine resources or local files to upload
   signal?: AbortSignal;                                                  // Cancel an in-flight prompt
 }
 ```

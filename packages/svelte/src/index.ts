@@ -38,6 +38,7 @@ export type {
   Interaction,
   FindObjectsOptions,
   PromptOptions,
+  PromptAttachment,
   CreateObjectOptions,
   UpdateObjectOptions,
   MoveObjectOptions,

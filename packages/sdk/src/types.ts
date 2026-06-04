@@ -1,3 +1,5 @@
+import type { MachineResource } from './machine.js';
+
 /**
  * Field type descriptor. Recursive structure supporting primitives,
  * enums, literals, arrays, optionals (maybe), and object references.
@@ -110,7 +112,7 @@ export interface Interaction {
   /** Locations of objects affected by this interaction. */
   modifiedObjectLocations: string[];
   toolCalls: ToolCall[];
-  /** rool-machine:/rool-drive/... file references attached by the user (images, documents, etc.) */
+  /** Canonical rool-machine:/... resource refs attached by the user. */
   attachments?: string[];
 }
 
@@ -307,9 +309,9 @@ export interface PublishedExtensionInfo {
  */
 export type PromptEffort = 'QUICK' | 'STANDARD' | 'REASONING' | 'RESEARCH';
 
+export type PromptAttachment = File | Blob | { data: string; contentType: string; filename?: string } | MachineResource;
+
 export interface PromptOptions {
-  /** Focus the AI on specific objects, by location. */
-  locations?: string[];
   responseSchema?: Record<string, unknown>;
   /** Effort level for the AI operation. Defaults to 'STANDARD'. */
   effort?: PromptEffort;
@@ -320,18 +322,21 @@ export interface PromptOptions {
   /** If true, mutation tools (create, update, delete) are disabled. Defaults to false. */
   readOnly?: boolean;
   /**
-   * User-attached files to upload and make visible to the AI.
-   * Accepts File, Blob, or `{ data, contentType }` for base64.
-   * The server stores them as authenticated space files; the resulting
-   * rool-machine:/rool-drive/... references are sent to the server and stored on the interaction's `attachments` field.
+   * Resources to attach to the prompt.
    *
-   * Supported file types:
+   * Pass an existing MachineResource for objects (`/space/...`) or files
+   * (`/rool-drive/...`). Local File, Blob, or base64 inputs are uploaded to
+   * authenticated space file storage first; the resulting file resources are
+   * sent to the server. The interaction stores canonical `rool-machine:/...`
+   * refs for UI rendering and history replay.
+   *
+   * Supported file types for AI viewing:
    * - **Images** (JPEG, PNG, GIF, WebP, SVG) — viewed natively by the AI
    * - **PDFs** — viewed natively by the AI
    * - **Text files** (TXT, Markdown, CSV, JSON, XML, HTML) — read as text
    * - **DOCX** — text extracted and read by the AI
    */
-  attachments?: Array<File | Blob | { data: string; contentType: string }>;
+  attachments?: PromptAttachment[];
   /**
    * Abort signal to stop the in-flight prompt. When aborted, the server stops
    * the agent loop and closes the stream; note that any LLM turn already in

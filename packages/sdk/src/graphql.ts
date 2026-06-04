@@ -597,7 +597,7 @@ export class GraphQLClient {
     }>(mutation, {
       spaceId,
       prompt,
-      locations: options.locations ?? [],
+      locations: [],
       responseSchema: options.responseSchema,
       channelId,
       conversationId,
