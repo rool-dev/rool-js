@@ -5,6 +5,7 @@ import { WebDAVError, type RoolWebDAV } from './webdav.js';
 import type { Logger } from './logger.js';
 import type {
   RoolObject,
+  GetObjectsResult,
   RoolObjectStat,
   ChannelEvents,
   RoolUserRole,
@@ -28,6 +29,7 @@ import { resolveMachineResource, type MachineResource } from './machine.js';
 
 // 6-character alphanumeric ID — used for interactionIds, conversationIds, etc.
 const ENTITY_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+const GET_OBJECTS_CHUNK_SIZE = 500;
 
 export function generateEntityId(): string {
   let result = '';
@@ -567,6 +569,33 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    */
   async getObject(location: string): Promise<RoolObject | undefined> {
     return (await this.readObject(location))?.object;
+  }
+
+  /**
+   * Get objects by location in bulk.
+   *
+   * Accepts either canonical locations (`/space/<collection>/<basename>.json`)
+   * or short locations (`<collection>/<basename>`). Duplicate locations are
+   * fetched once, preserving their first requested order.
+   */
+  async getObjects(locations: string[]): Promise<GetObjectsResult> {
+    const canonical: string[] = [];
+    const seen = new Set<string>();
+    for (const location of locations) {
+      const normalized = normalizeLocation(location);
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      canonical.push(normalized);
+    }
+
+    const result: GetObjectsResult = { objects: [], missing: [] };
+    for (let i = 0; i < canonical.length; i += GET_OBJECTS_CHUNK_SIZE) {
+      const chunk = canonical.slice(i, i + GET_OBJECTS_CHUNK_SIZE);
+      const partial = await this.restClient.getObjects(this._id, chunk);
+      result.objects.push(...partial.objects);
+      result.missing.push(...partial.missing);
+    }
+    return result;
   }
 
   /**

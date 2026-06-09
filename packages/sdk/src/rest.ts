@@ -1,4 +1,5 @@
 import type { AuthManager } from './auth.js';
+import type { GetObjectsResult } from './types.js';
 
 export interface RestClientConfig {
   apiUrl: string;
@@ -31,6 +32,21 @@ export class RestClient {
     });
 
     return response;
+  }
+
+  async getObjects(spaceId: string, locations: string[]): Promise<GetObjectsResult> {
+    const response = await this.authenticatedFetch(`/spaces/${encodeURIComponent(spaceId)}/getObjects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locations }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`Failed to get objects: ${response.status} ${errorText}`);
+    }
+
+    return await response.json() as GetObjectsResult;
   }
 
   async importArchive(name: string, archive: Blob): Promise<string> {

@@ -312,6 +312,7 @@ class ReactiveChannelImpl {
 
   // Object operations
   getObject(...args: Parameters<RoolChannel['getObject']>) { return this.#channel.getObject(...args); }
+  getObjects(...args: Parameters<RoolChannel['getObjects']>) { return this.#channel.getObjects(...args); }
   stat(...args: Parameters<RoolChannel['stat']>) { return this.#channel.stat(...args); }
   createObject(...args: Parameters<RoolChannel['createObject']>) { return this.#channel.createObject(...args); }
   updateObject(...args: Parameters<RoolChannel['updateObject']>) { return this.#channel.updateObject(...args); }

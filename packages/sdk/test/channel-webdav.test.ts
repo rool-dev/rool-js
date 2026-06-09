@@ -57,7 +57,26 @@ class FakeWebDAV {
   }
 }
 
-function channel(dav: FakeWebDAV): RoolChannel {
+class FakeRestClient {
+  calls: string[][] = [];
+
+  async getObjects(_spaceId: string, locations: string[]) {
+    this.calls.push(locations);
+    return {
+      objects: locations
+        .filter((location) => !location.includes('/missing-'))
+        .map((location) => ({
+          location,
+          collection: location.split('/')[2],
+          basename: location.split('/').pop()!.replace(/\.json$/, ''),
+          body: { location },
+        })),
+      missing: locations.filter((location) => location.includes('/missing-')),
+    };
+  }
+}
+
+function channel(dav: FakeWebDAV, rest: RestClient = {} as RestClient): RoolChannel {
   const graphql = {} as unknown as GraphQLClient;
 
   const rawChannel: Channel = {
@@ -78,7 +97,7 @@ function channel(dav: FakeWebDAV): RoolChannel {
     channel: rawChannel,
     channelId: 'main',
     graphqlClient: graphql,
-    restClient: {} as RestClient,
+    restClient: rest,
     webdav: dav as unknown as RoolWebDAV,
     logger: { debug() {}, info() {}, warn() {}, error() {} },
     onClose: () => {},
@@ -120,6 +139,27 @@ test('channel object CRUD uses object WebDAV instead of GraphQL', async () => {
 
   await ch.deleteObjects(['/space/tasks/renamed.json']);
   assert.equal(dav.files.has('/space/tasks/renamed.json'), false);
+});
+
+test('channel getObjects normalizes, dedupes, chunks, and preserves missing locations', async () => {
+  const rest = new FakeRestClient();
+  const ch = channel(new FakeWebDAV(), rest as unknown as RestClient);
+  const locations = [
+    'tasks/first',
+    '/space/tasks/first.json',
+    '/space/tasks/missing-one.json',
+    ...Array.from({ length: 499 }, (_, i) => `/space/tasks/item-${i}.json`),
+  ];
+
+  const result = await ch.getObjects(locations);
+
+  assert.equal(rest.calls.length, 2);
+  assert.equal(rest.calls[0].length, 500);
+  assert.equal(rest.calls[1].length, 1);
+  assert.equal(rest.calls[0][0], '/space/tasks/first.json');
+  assert.equal(rest.calls[0][1], '/space/tasks/missing-one.json');
+  assert.equal(result.objects[0].location, '/space/tasks/first.json');
+  assert.deepEqual(result.missing, ['/space/tasks/missing-one.json']);
 });
 
 test('channel collection schema writes use object WebDAV', async () => {

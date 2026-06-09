@@ -52,6 +52,12 @@ export interface RoolObject {
   body: Record<string, unknown>;
 }
 
+/** Result of fetching object bodies in bulk. */
+export interface GetObjectsResult {
+  objects: RoolObject[];
+  missing: string[];
+}
+
 /**
  * Audit information for an object — when it was last modified, by whom,
  * and where (channel/conversation/interaction). Returned by `channel.stat`.

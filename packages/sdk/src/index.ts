@@ -49,6 +49,7 @@ export type { Logger } from './logger.js';
 export type {
   // Core types
   RoolObject,
+  GetObjectsResult,
   RoolObjectStat,
   RoolSpaceInfo,
 
