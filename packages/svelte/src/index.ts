@@ -15,11 +15,13 @@ export type { ParsedLocation, MachineResource } from '@rool-dev/sdk';
 // Reactive wrappers
 export { wrapChannel } from './channel.svelte.js';
 export { wrapSpace } from './space.svelte.js';
+export { ReactiveFileTree } from './file-tree.svelte.js';
 
 // Types
 export type { Rool } from './rool.svelte.js';
 export type { ReactiveChannel, ReactiveConversationHandle, ReactiveObject, ReactiveWatch, ReactiveChannelList, WatchOptions } from './channel.svelte.js';
 export type { ReactiveSpace } from './space.svelte.js';
+export type { ReactiveFileNode, ReactiveFilePath, ReactiveFileRoot, ReactiveFileTreeEvent, ReactiveFileTreeSyncResult } from './file-tree.svelte.js';
 
 // Re-export SDK types for convenience
 export type {
@@ -36,7 +38,6 @@ export type {
   ConversationInfo,
   CurrentUser,
   Interaction,
-  FindObjectsOptions,
   PromptOptions,
   PromptAttachment,
   CreateObjectOptions,
@@ -59,4 +60,9 @@ export type {
   ProbeRequestEvent,
   OpenExtensionEvent,
   SpaceFileStorageUsage,
+  WebDAVDepth,
+  WebDAVSyncLevel,
+  WebDAVPropName,
+  WebDAVResponse,
+  WebDAVProps,
 } from '@rool-dev/sdk';

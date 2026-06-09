@@ -4,7 +4,7 @@ import { RoolChannel } from '../src/channel.js';
 import type { RoolWebDAV, WebDAVRequestInit, WebDAVWriteResult } from '../src/webdav.js';
 import type { GraphQLClient } from '../src/graphql.js';
 import type { RestClient } from '../src/rest.js';
-import type { Channel, RoolObject } from '../src/types.js';
+import type { Channel } from '../src/types.js';
 
 class FakeWebDAV {
   files = new Map<string, { body: string; etag: string }>();
@@ -72,7 +72,6 @@ function channel(dav: FakeWebDAV): RoolChannel {
     role: 'owner',
     linkAccess: 'none',
     userId: 'user_1',
-    objectLocations: ['/space/tasks/first.json'],
     objectStats: {},
     schema: { tasks: { fields: [{ name: 'title', type: { kind: 'string' } }] } },
     meta: {},
@@ -141,23 +140,4 @@ test('channel collection schema writes use object WebDAV', async () => {
   assert.equal(dav.calls.at(-1)?.method, 'DELETE');
   assert.equal(dav.calls.at(-1)?.path, '/space/notes/');
   assert.equal('notes' in ch.getSchema(), false);
-});
-
-test('structured findObjects runs locally over WebDAV objects', async () => {
-  const dav = new FakeWebDAV();
-  dav.files.set('/space/tasks/first.json', { body: JSON.stringify({ title: 'First', done: false }), etag: '"v1"' });
-  dav.files.set('/space/tasks/second.json', { body: JSON.stringify({ title: 'Second', done: true }), etag: '"v2"' });
-
-  const ch = channel(dav);
-  ch._applyResyncData({
-    meta: {},
-    schema: ch.getSchema(),
-    objectLocations: ['/space/tasks/second.json', '/space/tasks/first.json'],
-    objectStats: {},
-    channel: { createdAt: Date.now(), createdBy: 'user_1', conversations: {} },
-  });
-
-  const result = await ch.findObjects({ collection: 'tasks', where: { done: false } });
-  assert.deepEqual(result.objects.map((object: RoolObject) => object.location), ['/space/tasks/first.json']);
-  assert.equal(result.message, 'Found 1 object.');
 });

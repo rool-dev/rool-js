@@ -63,10 +63,9 @@ const { message, objects } = await channel.prompt(
 console.log(message);  // AI explains what it did
 console.log(`Modified ${objects.length} objects`);
 
-// Query with natural language
-const { objects: innerPlanets } = await channel.findObjects({
-  prompt: 'planets closer to the sun than Earth'
-});
+// Read an object by location
+const loadedEarth = await channel.getObject(earth.location);
+console.log(loadedEarth?.body.name);
 
 // Clean up
 channel.close();
@@ -318,24 +317,24 @@ await channel.createObject('article', {
 
 ### Real-time Sync
 
-Events fire for both local and remote changes. The `source` field indicates origin:
-
-- `local_user` — This client made the change
-- `remote_user` — Another user/client made the change
-- `remote_agent` — AI agent made the change
-- `system` — Resync after error
+Object and file reactivity is WebDAV-based. Listen for space-level file change notifications, then reconcile with `webdav.syncCollection()` using your sync token. This covers both object files under `/space` and user files under `/rool-drive`.
 
 ```typescript
-// All UI updates happen in one place, regardless of change source
-channel.on('objectUpdated', ({ location, object, source }) => {
-  renderObject(location, object);
-  if (source === 'remote_agent') {
-    doLayout(); // AI might have added content
-  }
-});
+let token: string | null = null;
 
-// Caller just makes the change - event handler does the UI work
-channel.updateObject(location, { prompt: 'expand this' });
+async function syncFiles() {
+  const result = await space.webdav.syncCollection('/', {
+    token,
+    level: 'infinite',
+    props: ['displayname', 'getetag', 'getlastmodified', 'resourcetype'],
+  });
+  token = result.token;
+  updateFileTree(result.responses);
+}
+
+space.on('filesChanged', syncFiles);
+space.on('filesReset', () => { token = null; syncFiles(); });
+await syncFiles();
 ```
 
 ### Locations & Basenames
@@ -572,7 +571,7 @@ await space.addUser(user.id, 'editor');
 | `owner` | Full control, can delete space and manage all users |
 | `admin` | All editor capabilities, plus can manage users (except other admins/owners) |
 | `editor` | Can create, modify, move, and delete objects |
-| `viewer` | Read-only access (can query with `prompt` and `findObjects`) |
+| `viewer` | Read-only access (can query with `prompt` and read objects/files) |
 
 ### Space Collaboration Methods
 
@@ -619,18 +618,9 @@ When a user accesses a space via URL, they're granted the corresponding role (`v
 
 ### Real-time Collaboration
 
-When multiple users have a space open, changes sync in real-time. The `source` field in events tells you who made the change:
+When multiple users have a space open, object and file changes are announced by `space.on('filesChanged')` and reconciled through WebDAV `syncCollection()`. Channel/conversation state still emits channel events; filesystem state does not use channel object events.
 
-```typescript
-channel.on('objectUpdated', ({ location, object, source }) => {
-  if (source === 'remote_user') {
-    // Another user made this change
-    showCollaboratorActivity(object);
-  }
-});
-```
-
-See [Real-time Sync](#real-time-sync) for more on event sources.
+See [Real-time Sync](#real-time-sync) for a WebDAV sync-token example.
 
 ## RoolClient API
 
@@ -863,8 +853,6 @@ All methods that accept a location accept either the canonical form or the short
 |--------|-------------|
 | `getObject(location): Promise<RoolObject \| undefined>` | Get an object, or undefined if not found. |
 | `stat(location): RoolObjectStat \| undefined` | Get audit info for an object: when it was last modified, by whom, and where (channel/conversation/interaction). Sync read from local cache. |
-| `findObjects(options): Promise<{ objects, message }>` | Find objects using structured filters and/or natural language. Results sorted by modifiedAt (desc by default). |
-| `getObjectLocations(options?): string[]` | Get all object locations. Sorted by modifiedAt (desc by default). Options: `{ limit?, order? }`. |
 | `createObject(collection, body, options?): Promise<{ object, message }>` | Create a new object in `collection`. The SDK mints a random basename unless you pass `options.basename`. |
 | `updateObject(location, options): Promise<{ object, message }>` | Update an existing object's body. |
 | `moveObject(from, to, options?): Promise<{ object, message }>` | Rename or relocate an object. See [Moving and Renaming](#moving-and-renaming). |
@@ -956,59 +944,6 @@ await channel.moveObject(from, to, {
 | `body` | Replace the body atomically as part of the move. If omitted, the body is preserved. |
 | `ephemeral` | If true, the operation won't be recorded in interaction history. |
 | `parentInteractionId` | Conversation tree parent. Omit to auto-continue; pass `null` for a new root. |
-
-#### findObjects
-
-Find objects using structured filters and/or natural language.
-
-- **`where` only** — exact-match filtering, no AI, no credits.
-- **`collection` only** — filter by collection name, no AI, no credits.
-- **`prompt` only** — AI-powered semantic query over all objects.
-- **`where` + `prompt`** — `where` (and `locations`) narrow the data set first, then the AI queries within the constrained set.
-
-| Option | Description |
-|--------|-------------|
-| `where` | Exact-match body-field filter (e.g. `{ status: 'published' }`). Values must match literally — no operators or `{{placeholders}}`. When combined with `prompt`, constrains which objects the AI can see. |
-| `collection` | Filter by collection name. |
-| `prompt` | Natural language query. Triggers AI evaluation (uses credits). |
-| `limit` | Maximum number of results. |
-| `locations` | Scope to specific object locations. Constrains the candidate set in both structured and AI queries. |
-| `order` | Sort order by modifiedAt: `'asc'` or `'desc'` (default: `'desc'`). |
-| `ephemeral` | If true, the query won't be recorded in interaction history. Useful for responsive search. |
-
-**Examples:**
-
-```typescript
-// Filter by collection (no AI, no credits)
-const { objects } = await channel.findObjects({
-  collection: 'article'
-});
-
-// Exact field matching (no AI, no credits)
-const { objects } = await channel.findObjects({
-  where: { status: 'published' }
-});
-
-// Combine collection and field filters
-const { objects } = await channel.findObjects({
-  collection: 'article',
-  where: { status: 'published' }
-});
-
-// Pure natural language query (AI interprets)
-const { objects, message } = await channel.findObjects({
-  prompt: 'articles about space exploration published this year'
-});
-
-// Combined: collection + where narrow the data, prompt queries within it
-const { objects } = await channel.findObjects({
-  collection: 'article',
-  prompt: 'that discuss climate solutions positively',
-  limit: 10
-});
-```
-
-When `where` or `locations` are provided with a `prompt`, the AI only sees the filtered subset — not the full space. The returned `message` explains the query result.
 
 ### Undo/Redo
 
@@ -1220,37 +1155,23 @@ The archive bundles `data.json` (objects, metadata, and channels) together with 
 
 ### Channel Events
 
-Semantic events describe what changed. Events fire for both local changes and remote changes.
+Channel events are for channel/conversation state. Object and file reactivity goes through `space.on('filesChanged' | 'filesReset')` plus WebDAV `syncCollection()`.
 
 ```typescript
-// source indicates origin:
-// - 'local_user': This client made the change
-// - 'remote_user': Another user/client made the change
-// - 'remote_agent': AI agent made the change
-// - 'system': Resync after error
-
-// Object events — payload includes the full RoolObject
-channel.on('objectCreated', ({ location, object, source }) => void)
-channel.on('objectUpdated', ({ location, object, source }) => void)
-channel.on('objectDeleted', ({ location, source }) => void)
-channel.on('objectMoved',   ({ from, to, object, source }) => void)
-
-// Space metadata
-channel.on('metadataUpdated', ({ metadata, source }) => void)
-
-// Collection schema changed
-channel.on('schemaUpdated', ({ schema, source }) => void)
-
 // Channel metadata updated (name, extensionUrl)
 channel.on('channelUpdated', ({ channelId, source }) => void)
 
 // Conversation interaction history updated
 channel.on('conversationUpdated', ({ conversationId, channelId, source }) => void)
 
+// Space metadata / schema compatibility events
+channel.on('metadataUpdated', ({ metadata, source }) => void)
+channel.on('schemaUpdated', ({ schema, source }) => void)
+
 // Full state replacement (undo/redo, resync after error)
 channel.on('reset', ({ source }) => void)
 
-// Sync error occurred, channel resynced from server
+// Sync error occurred
 channel.on('syncError', (error: Error) => void)
 ```
 

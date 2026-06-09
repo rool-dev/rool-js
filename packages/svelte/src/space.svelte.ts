@@ -1,5 +1,6 @@
 import type { RoolSpace, ChannelInfo, ConnectionState, RoolUserRole, LinkAccess, SpaceMember } from '@rool-dev/sdk';
 import { wrapChannel, type ReactiveChannel } from './channel.svelte.js';
+import { ReactiveFileTree } from './file-tree.svelte.js';
 
 /**
  * A reactive wrapper around a RoolSpace. Exposes reactive `channels` and
@@ -12,6 +13,7 @@ class ReactiveSpaceImpl {
   #space: RoolSpace;
   #channels = new Map<string, ReactiveChannel>();
   #unsubscribers: (() => void)[] = [];
+  #fileTree: ReactiveFileTree;
   #closed = false;
 
   // Reactive state mirroring the underlying space
@@ -20,6 +22,7 @@ class ReactiveSpaceImpl {
 
   constructor(space: RoolSpace) {
     this.#space = space;
+    this.#fileTree = new ReactiveFileTree(space);
     this.#channelList = space.channels;
 
     const refreshChannels = () => { this.#channelList = space.channels; };
@@ -50,7 +53,7 @@ class ReactiveSpaceImpl {
     if (existing && !existing.isClosed) return existing;
 
     const raw = await this.#space.openChannel(channelId);
-    const reactive = wrapChannel(raw);
+    const reactive = wrapChannel(raw, this.#fileTree);
     this.#channels.set(channelId, reactive);
     return reactive;
   }
@@ -71,6 +74,7 @@ class ReactiveSpaceImpl {
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;
 
+    this.#fileTree.close();
     this.#space.close();
   }
 
@@ -84,6 +88,7 @@ class ReactiveSpaceImpl {
   get linkAccess(): LinkAccess { return this.#space.linkAccess; }
   get memberCount(): number { return this.#space.memberCount; }
   get webdav() { return this.#space.webdav; }
+  get fileTree(): ReactiveFileTree { return this.#fileTree; }
 
   // Proxy resource methods
   getStorageUsage(...args: Parameters<RoolSpace['getStorageUsage']>) { return this.#space.getStorageUsage(...args); }

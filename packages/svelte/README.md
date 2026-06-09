@@ -53,15 +53,32 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.spacesError` | Error from loading spaces |
 | `rool.connectionState` | SSE connection state |
 | `rool.userStorage` | User storage (cross-device preferences) |
+| `space.fileTree` | Canonical reactive WebDAV tree for `/`, including `/space` objects and `/rool-drive` user files |
 | `channel.interactions` | Channel interactions (auto-updates) |
-| `channel.objectLocations` | All object locations in the space (auto-updates on create/delete/move) |
-| `channel.collections` | Collection names from the schema (auto-updates) |
+| `channel.objectLocations` | All object locations derived from `space.fileTree` |
+| `channel.collections` | Collection directories derived from `space.fileTree` |
 | `channel.conversations` | Conversations in this channel (auto-updates on create/delete/rename) |
 | `thread.interactions` | Interactions for a specific conversation (auto-updates) |
 | `watch.objects` | Objects matching a filter (auto-updates) |
 | `watch.loading` | Whether watch is loading |
 
 Everything else passes through to the SDK directly. See the [SDK documentation](../sdk/README.md) for full API details.
+
+### Reactive File Tree
+
+Every `ReactiveSpace` owns a canonical reactive WebDAV tree. It is kept current with server `filesChanged`/`filesReset` events and WebDAV `sync-collection`, so it covers both object files and user files without polling.
+
+```ts
+const space = await rool.openSpace(spaceId);
+
+space.fileTree.nodes;              // ReactiveFileNode[]
+space.fileTree.byPath['/space'];   // lookup by machine/WebDAV path
+space.fileTree.childrenOf('/');    // /space and /rool-drive
+space.fileTree.childrenOf('/rool-drive');
+space.fileTree.objectLocations();  // object locations from /space/**/*.json
+```
+
+Use this tree when UI needs to react to both files and objects. Object helpers like `channel.object()`, `channel.watch()`, `channel.objectLocations`, and `channel.collections` are backed by this tree.
 
 ## API
 
@@ -159,7 +176,7 @@ space.close();
 
 ### ReactiveChannel
 
-`space.openChannel()` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions` and `objectLocations`:
+`space.openChannel()` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions` and file-tree-backed object helpers:
 
 ```svelte
 <script>
@@ -256,12 +273,12 @@ Create auto-updating watches of objects filtered by field values:
 {/if}
 ```
 
-Watches automatically re-fetch when objects matching the filter are created, updated, or deleted. Since the SDK caches objects locally, re-fetches are typically instant (no network round-trip).
+Watches automatically re-fetch when matching object files change in `space.fileTree`.
 
 **Lifecycle:** Watches are tied to their channel. Closing the channel stops all updates — existing watches will retain their last data but no longer refresh. Calling `channel.watch()` after `close()` throws.
 
 ```typescript
-// Watch options (same as findObjects, but no AI prompt)
+// Watch options
 const articles = channel.watch({
   collection: 'article',
   where: { status: 'published' },
@@ -374,7 +391,6 @@ await channel.createObject('note', { text: 'Hello' }, { basename: 'welcome' })
 await channel.updateObject(location, { data: { text: 'Updated' } })
 await channel.moveObject(from, to)
 await channel.deleteObjects([location])
-await channel.findObjects({ collection: 'note' })
 
 // AI
 await channel.prompt('Summarize everything')
@@ -448,7 +464,6 @@ import type {
   ConversationInfo,
   CurrentUser,
   Interaction,
-  FindObjectsOptions,
   PromptOptions,
   CreateObjectOptions,
   UpdateObjectOptions,

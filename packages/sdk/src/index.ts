@@ -86,7 +86,6 @@ export type {
   PromptOptions,
   PromptAttachment,
   PromptEffort,
-  FindObjectsOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
   MoveObjectOptions,
@@ -97,10 +96,6 @@ export type {
   // Event types (emitter)
   ChangeSource,
   ChannelEvents,
-  ObjectCreatedEvent,
-  ObjectUpdatedEvent,
-  ObjectDeletedEvent,
-  ObjectMovedEvent,
   MetadataUpdatedEvent,
   SchemaUpdatedEvent,
   ChannelUpdatedEvent,

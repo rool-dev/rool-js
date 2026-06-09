@@ -97,7 +97,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private openChannels = new Map<string, RoolChannel>();
 
   // Full space data (for channel creation)
-  private _objectLocations: string[];
   private _objectStats: Record<string, RoolObjectStat>;
   private _schema: SpaceSchema;
   private _meta: Record<string, unknown>;
@@ -133,7 +132,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
     // Store full space data
     const fd = config.fullData;
-    this._objectLocations = fd.objectLocations;
     this._objectStats = fd.objectStats;
     this._schema = fd.schema;
     this._meta = fd.meta;
@@ -254,7 +252,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       role: this._role,
       linkAccess: this._linkAccess,
       userId: this._userId,
-      objectLocations: this._objectLocations,
       objectStats: this._objectStats,
       schema: this._schema,
       meta: this._meta,
@@ -508,8 +505,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       return;
     }
 
-    // Space-wide events (objects, schema, metadata):
-    // broadcast to all channels on this space
+    // Space-wide non-file events (schema, metadata): broadcast to all channels on this space
     for (const channel of this.openChannels.values()) {
       channel._handleEvent(event);
     }
@@ -537,12 +533,11 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
         channel._applyResyncData({
           meta: result.meta,
           schema: result.schema,
-          objectLocations: result.objectLocations,
           objectStats: result.objectStats,
           channel: channelData,
         });
       }
-      this.logger.info(`[RoolSpace] Space ${this._id} resync complete (${result.objectLocations.length} objects)`);
+      this.logger.info(`[RoolSpace] Space ${this._id} resync complete`);
       this._finishResync();
     }).catch((error) => {
       if (this._closed) { this._resyncing = false; return; }
@@ -569,7 +564,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this._role = data.role as RoolUserRole;
     this._linkAccess = data.linkAccess;
     this._memberCount = data.memberCount;
-    this._objectLocations = data.objectLocations;
     this._objectStats = data.objectStats;
     this._schema = data.schema;
     this._meta = data.meta;

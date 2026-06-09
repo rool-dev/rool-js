@@ -1,22 +1,19 @@
+import { normalizeLocation } from '@rool-dev/sdk';
 import type {
   RoolChannel,
   RoolSpace,
   Interaction,
   RoolObject,
-  FindObjectsOptions,
   ChannelInfo,
   ConversationInfo,
   ConversationHandle,
   ConversationUpdatedEvent,
-  ObjectCreatedEvent,
-  ObjectUpdatedEvent,
-  ObjectDeletedEvent,
-  ObjectMovedEvent,
 } from '@rool-dev/sdk';
+import { ReactiveFileTree, type ReactiveFilePath, type ReactiveFileTreeEvent } from './file-tree.svelte.js';
 
 /**
  * Options for creating a reactive watch.
- * Same as FindObjectsOptions for reactive updates.
+ * Structured object filter for reactive updates.
  */
 export interface WatchOptions {
   /** Field requirements for exact matching */
@@ -29,132 +26,79 @@ export interface WatchOptions {
   order?: 'asc' | 'desc';
 }
 
+function eventTouchesObject(event: ReactiveFileTreeEvent, location?: string, collection?: string): boolean {
+  if (event.reset) return true;
+  for (const path of [...event.changedPaths, ...event.deletedPaths]) {
+    if (location && path === location) return true;
+    if (!location && path.startsWith('/space/') && path.endsWith('.json')) {
+      if (!collection || path.startsWith(`/space/${collection}/`)) return true;
+    }
+  }
+  return false;
+}
+
+function sameJsonValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+async function watchObjectsFromTree(
+  channel: RoolChannel,
+  fileTree: ReactiveFileTree,
+  options: WatchOptions,
+): Promise<RoolObject[]> {
+  if (fileTree.loading) await fileTree.ready();
+  const locations = fileTree.objectLocations({ collection: options.collection, order: options.order });
+  const objects: RoolObject[] = [];
+  for (const location of locations) {
+    const object = await channel.getObject(location);
+    if (!object) continue;
+    if (options.where) {
+      let matches = true;
+      for (const [key, value] of Object.entries(options.where)) {
+        if (!sameJsonValue(object.body[key], value)) { matches = false; break; }
+      }
+      if (!matches) continue;
+    }
+    objects.push(object);
+    if (options.limit !== undefined && objects.length >= options.limit) break;
+  }
+  return objects;
+}
 
 /**
- * A reactive watch of objects that auto-updates when matching objects change.
+ * A reactive watch of objects that auto-updates when matching object files change.
  */
 class ReactiveWatchImpl {
   #channel: RoolChannel;
+  #fileTree: ReactiveFileTree;
   #options: WatchOptions;
   #unsubscribers: (() => void)[] = [];
-  #currentLocations = new Set<string>();
 
   // Reactive state
   objects = $state<RoolObject[]>([]);
   loading = $state(true);
 
-  constructor(channel: RoolChannel, options: WatchOptions) {
+  constructor(channel: RoolChannel, fileTree: ReactiveFileTree, options: WatchOptions) {
     this.#channel = channel;
+    this.#fileTree = fileTree;
     this.#options = options;
     this.#setup();
   }
 
   #setup() {
-    // Initial fetch
     this.refresh();
 
-    const onObjectCreated = ({ object }: ObjectCreatedEvent) => {
-      if (this.#matches(object)) {
-        this.refresh();
-      }
-    };
-    this.#channel.on('objectCreated', onObjectCreated);
-    this.#unsubscribers.push(() => this.#channel.off('objectCreated', onObjectCreated));
-
-    const onObjectUpdated = ({ location, object }: ObjectUpdatedEvent) => {
-      const wasInCollection = this.#currentLocations.has(location);
-      const nowMatches = this.#matches(object);
-
-      if (wasInCollection && nowMatches) {
-        // Update in place (merge to preserve fields from partial optimistic updates)
-        const index = this.objects.findIndex((o) => o.location === location);
-        if (index !== -1) {
-          this.objects[index] = {
-            ...this.objects[index],
-            ...object,
-            body: { ...this.objects[index].body, ...object.body },
-          };
-        }
-      } else if (wasInCollection && !nowMatches) {
-        // Check if the mismatch is due to missing keys in body (partial optimistic update)
-        const where = this.#options.where;
-        const isPartialUpdate = where && Object.keys(where).some((key) => !(key in object.body));
-        if (isPartialUpdate) {
-          const index = this.objects.findIndex((o) => o.location === location);
-          if (index !== -1) {
-            this.objects[index] = {
-              ...this.objects[index],
-              ...object,
-              body: { ...this.objects[index].body, ...object.body },
-            };
-          }
-        } else {
-          // Genuine mismatch — remove from collection
-          this.objects = this.objects.filter((o) => o.location !== location);
-          this.#currentLocations.delete(location);
-        }
-      } else if (!wasInCollection && nowMatches) {
-        // Add to collection (re-fetch to respect limit/order)
-        this.refresh();
-      }
-    };
-    this.#channel.on('objectUpdated', onObjectUpdated);
-    this.#unsubscribers.push(() => this.#channel.off('objectUpdated', onObjectUpdated));
-
-    const onObjectDeleted = ({ location }: ObjectDeletedEvent) => {
-      if (this.#currentLocations.has(location)) {
-        this.objects = this.objects.filter((o) => o.location !== location);
-        this.#currentLocations.delete(location);
-      }
-    };
-    this.#channel.on('objectDeleted', onObjectDeleted);
-    this.#unsubscribers.push(() => this.#channel.off('objectDeleted', onObjectDeleted));
-
-    const onObjectMoved = ({ from, object }: ObjectMovedEvent) => {
-      const wasInCollection = this.#currentLocations.has(from);
-      const nowMatches = this.#matches(object);
-      if (wasInCollection || nowMatches) {
-        this.refresh();
-      }
-    };
-    this.#channel.on('objectMoved', onObjectMoved);
-    this.#unsubscribers.push(() => this.#channel.off('objectMoved', onObjectMoved));
-
-    const onReset = () => this.refresh();
-    this.#channel.on('reset', onReset);
-    this.#unsubscribers.push(() => this.#channel.off('reset', onReset));
+    const unsubscribe = this.#fileTree.subscribe((event) => {
+      if (eventTouchesObject(event, undefined, this.#options.collection)) void this.refresh();
+    });
+    this.#unsubscribers.push(unsubscribe);
   }
 
-  /**
-   * Check if an object matches the filter (collection + where on body).
-   */
-  #matches(object: RoolObject): boolean {
-    if (this.#options.collection && object.collection !== this.#options.collection) return false;
-
-    const where = this.#options.where;
-    if (!where) return true;
-
-    for (const [key, value] of Object.entries(where)) {
-      if (object.body[key] !== value) return false;
-    }
-    return true;
-  }
-
-  /**
-   * Re-fetch the watched objects from the channel.
-   */
+  /** Re-fetch matching objects using the canonical file tree for locations. */
   async refresh(): Promise<void> {
     this.loading = true;
     try {
-      const findOptions: FindObjectsOptions = {
-        where: this.#options.where,
-        collection: this.#options.collection,
-        limit: this.#options.limit,
-        order: this.#options.order,
-      };
-      const { objects } = await this.#channel.findObjects(findOptions);
-      this.objects = objects;
-      this.#currentLocations = new Set(objects.map((o) => o.location));
+      this.objects = await watchObjectsFromTree(this.#channel, this.#fileTree, this.#options);
     } finally {
       this.loading = false;
     }
@@ -173,60 +117,32 @@ export type ReactiveWatch = ReactiveWatchImpl;
  */
 class ReactiveObjectImpl {
   #channel: RoolChannel;
-  #location: string;
+  #fileTree: ReactiveFileTree;
+  #location: ReactiveFilePath;
   #unsubscribers: (() => void)[] = [];
 
   // Reactive state
   data = $state<RoolObject | undefined>(undefined);
   loading = $state(true);
 
-  constructor(channel: RoolChannel, location: string) {
+  constructor(channel: RoolChannel, fileTree: ReactiveFileTree, location: string) {
     this.#channel = channel;
-    this.#location = location;
+    this.#fileTree = fileTree;
+    this.#location = normalizeLocation(location) as ReactiveFilePath;
     this.#setup();
   }
 
   #setup() {
     this.refresh();
 
-    const onObjectUpdated = ({ location, object }: ObjectUpdatedEvent) => {
-      if (location === this.#location) {
-        this.data = object;
-      }
-    };
-    this.#channel.on('objectUpdated', onObjectUpdated);
-    this.#unsubscribers.push(() => this.#channel.off('objectUpdated', onObjectUpdated));
-
-    const onObjectCreated = ({ location, object }: ObjectCreatedEvent) => {
-      if (location === this.#location) {
-        this.data = object;
-      }
-    };
-    this.#channel.on('objectCreated', onObjectCreated);
-    this.#unsubscribers.push(() => this.#channel.off('objectCreated', onObjectCreated));
-
-    const onObjectDeleted = ({ location }: ObjectDeletedEvent) => {
-      if (location === this.#location) {
+    const unsubscribe = this.#fileTree.subscribe((event) => {
+      if (event.deletedPaths.has(this.#location)) {
         this.data = undefined;
+        return;
       }
-    };
-    this.#channel.on('objectDeleted', onObjectDeleted);
-    this.#unsubscribers.push(() => this.#channel.off('objectDeleted', onObjectDeleted));
-
-    const onObjectMoved = ({ from, to, object }: ObjectMovedEvent) => {
-      if (from === this.#location) {
-        // Object moved away from this location; data is gone.
-        this.data = undefined;
-      } else if (to === this.#location) {
-        this.data = object;
-      }
-    };
-    this.#channel.on('objectMoved', onObjectMoved);
-    this.#unsubscribers.push(() => this.#channel.off('objectMoved', onObjectMoved));
-
-    const onReset = () => this.refresh();
-    this.#channel.on('reset', onReset);
-    this.#unsubscribers.push(() => this.#channel.off('reset', onReset));
+      if (eventTouchesObject(event, this.#location)) void this.refresh();
+    });
+    this.#unsubscribers.push(unsubscribe);
   }
 
   async refresh(): Promise<void> {
@@ -291,7 +207,6 @@ class ReactiveConversationHandleImpl {
   rename(...args: Parameters<ConversationHandle['rename']>) { return this.#handle.rename(...args); }
 
   // Object operations
-  findObjects(...args: Parameters<ConversationHandle['findObjects']>) { return this.#handle.findObjects(...args); }
   createObject(...args: Parameters<ConversationHandle['createObject']>) { return this.#handle.createObject(...args); }
   updateObject(...args: Parameters<ConversationHandle['updateObject']>) { return this.#handle.updateObject(...args); }
   moveObject(...args: Parameters<ConversationHandle['moveObject']>) { return this.#handle.moveObject(...args); }
@@ -322,6 +237,7 @@ export type ReactiveConversationHandle = ReactiveConversationHandleImpl;
  */
 class ReactiveChannelImpl {
   #channel: RoolChannel;
+  #fileTree: ReactiveFileTree;
   #unsubscribers: (() => void)[] = [];
   #closed = false;
 
@@ -331,11 +247,12 @@ class ReactiveChannelImpl {
   collections = $state<string[]>([]);
   conversations = $state<ConversationInfo[]>([]);
 
-  constructor(channel: RoolChannel) {
+  constructor(channel: RoolChannel, fileTree: ReactiveFileTree) {
     this.#channel = channel;
+    this.#fileTree = fileTree;
     this.interactions = channel.getInteractions();
-    this.objectLocations = channel.getObjectLocations();
-    this.collections = Object.keys(channel.getSchema());
+    this.objectLocations = fileTree.objectLocations();
+    this.collections = fileTree.collections();
     this.conversations = channel.getConversations();
 
     const onChannelUpdated = () => {
@@ -351,26 +268,19 @@ class ReactiveChannelImpl {
     channel.on('conversationUpdated', onConversationUpdated);
     this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
 
-    const refreshObjectLocations = () => {
-      this.objectLocations = channel.getObjectLocations();
+    const refreshFromFileTree = () => {
+      this.objectLocations = fileTree.objectLocations();
+      this.collections = fileTree.collections();
     };
-    channel.on('objectCreated', refreshObjectLocations);
-    this.#unsubscribers.push(() => channel.off('objectCreated', refreshObjectLocations));
-    channel.on('objectDeleted', refreshObjectLocations);
-    this.#unsubscribers.push(() => channel.off('objectDeleted', refreshObjectLocations));
-    channel.on('objectMoved', refreshObjectLocations);
-    this.#unsubscribers.push(() => channel.off('objectMoved', refreshObjectLocations));
-
-    const onSchemaUpdated = () => {
-      this.collections = Object.keys(channel.getSchema());
-    };
-    channel.on('schemaUpdated', onSchemaUpdated);
-    this.#unsubscribers.push(() => channel.off('schemaUpdated', onSchemaUpdated));
+    this.#unsubscribers.push(fileTree.subscribe((event) => {
+      if (event.reset || eventTouchesObject(event) || [...event.changedPaths, ...event.deletedPaths].some((path) => path === '/space' || path.startsWith('/space/'))) {
+        refreshFromFileTree();
+      }
+    }));
 
     const onReset = () => {
       this.interactions = channel.getInteractions();
-      this.objectLocations = channel.getObjectLocations();
-      this.collections = Object.keys(channel.getSchema());
+      refreshFromFileTree();
       this.conversations = channel.getConversations();
     };
     channel.on('reset', onReset);
@@ -403,8 +313,6 @@ class ReactiveChannelImpl {
   // Object operations
   getObject(...args: Parameters<RoolChannel['getObject']>) { return this.#channel.getObject(...args); }
   stat(...args: Parameters<RoolChannel['stat']>) { return this.#channel.stat(...args); }
-  findObjects(...args: Parameters<RoolChannel['findObjects']>) { return this.#channel.findObjects(...args); }
-  getObjectLocations(...args: Parameters<RoolChannel['getObjectLocations']>) { return this.#channel.getObjectLocations(...args); }
   createObject(...args: Parameters<RoolChannel['createObject']>) { return this.#channel.createObject(...args); }
   updateObject(...args: Parameters<RoolChannel['updateObject']>) { return this.#channel.updateObject(...args); }
   moveObject(...args: Parameters<RoolChannel['moveObject']>) { return this.#channel.moveObject(...args); }
@@ -466,7 +374,7 @@ class ReactiveChannelImpl {
    */
   object(location: string): ReactiveObject {
     if (this.#closed) throw new Error('Cannot create reactive object: channel is closed');
-    return new ReactiveObjectImpl(this.#channel, location);
+    return new ReactiveObjectImpl(this.#channel, this.#fileTree, location);
   }
 
   /**
@@ -474,13 +382,13 @@ class ReactiveChannelImpl {
    */
   watch(options: WatchOptions): ReactiveWatch {
     if (this.#closed) throw new Error('Cannot create reactive watch: channel is closed');
-    return new ReactiveWatchImpl(this.#channel, options);
+    return new ReactiveWatchImpl(this.#channel, this.#fileTree, options);
   }
 
 }
 
-export function wrapChannel(channel: RoolChannel): ReactiveChannel {
-  return new ReactiveChannelImpl(channel);
+export function wrapChannel(channel: RoolChannel, fileTree: ReactiveFileTree): ReactiveChannel {
+  return new ReactiveChannelImpl(channel, fileTree);
 }
 
 export type ReactiveChannel = ReactiveChannelImpl;

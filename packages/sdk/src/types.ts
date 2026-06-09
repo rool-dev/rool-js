@@ -353,19 +353,6 @@ export interface PromptOptions {
   eventName?: string;
 }
 
-export interface FindObjectsOptions {
-  /** Exact-match field filter (e.g. `{ status: 'published' }`). No operators or placeholders — values must match literally. */
-  where?: Record<string, unknown>;
-  /** Filter by collection name. Returns objects in the matching collection. */
-  collection?: string;
-  /** Maximum number of results. */
-  limit?: number;
-  /** Scope search to specific object locations. */
-  locations?: string[];
-  /** Sort order by modifiedAt. Default: 'desc' (most recent first). */
-  order?: 'asc' | 'desc';
-}
-
 export interface CreateObjectOptions {
   /** Specific basename to use. If omitted, the SDK generates a random one. */
   basename?: string;
@@ -484,10 +471,6 @@ export type ClientEvent =
 export type ChannelEventType =
   | 'connected'
   | 'space_changed'
-  | 'object_created'
-  | 'object_updated'
-  | 'object_deleted'
-  | 'object_moved'
   | 'schema_updated'
   | 'metadata_updated'
   | 'channel_updated'
@@ -504,14 +487,6 @@ export interface ChannelEvent {
   spaceId: string;
   timestamp: number;
   source: RoolEventSource;
-  // Object events
-  location?: string;
-  object?: RoolObject;
-  /** Object stat (audit info) — present on object_created and object_updated events */
-  objectStat?: RoolObjectStat;
-  // object_moved
-  from?: string;
-  to?: string;
   // Schema events
   schema?: SpaceSchema;
   // Metadata events
@@ -681,30 +656,6 @@ export interface RoolSpaceEvents {
  */
 export type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
 
-export interface ObjectCreatedEvent {
-  location: string;
-  object: RoolObject;
-  source: ChangeSource;
-}
-
-export interface ObjectUpdatedEvent {
-  location: string;
-  object: RoolObject;
-  source: ChangeSource;
-}
-
-export interface ObjectDeletedEvent {
-  location: string;
-  source: ChangeSource;
-}
-
-export interface ObjectMovedEvent {
-  from: string;
-  to: string;
-  object: RoolObject;
-  source: ChangeSource;
-}
-
 export interface MetadataUpdatedEvent {
   metadata: Record<string, unknown>;
   source: ChangeSource;
@@ -734,25 +685,11 @@ export interface ConversationUpdatedEvent {
 /**
  * Channel-level events (content changes within a specific channel).
  *
- * Semantic events describe what changed:
- * - `objectCreated`, `objectUpdated`, `objectDeleted`, `objectMoved`: Object changes
- * - `metadataUpdated`: Space metadata changes
- * - `channelUpdated`: Channel metadata changed (name, extensionUrl)
- * - `conversationUpdated`: Conversation interaction history changed
- * - `reset`: Full state replacement (undo/redo, resync)
- *
- * Events fire for both local changes and remote changes (from other users or AI agents).
- * Use the `source` field to determine the origin of the change.
+ * Semantic channel events describe non-file channel state. Object/file
+ * reactivity is intentionally exposed via `RoolSpace` `filesChanged` /
+ * `filesReset` plus WebDAV `syncCollection()`.
  */
 export interface ChannelEvents {
-  /** A new object was created */
-  objectCreated: (event: ObjectCreatedEvent) => void;
-  /** An existing object was updated */
-  objectUpdated: (event: ObjectUpdatedEvent) => void;
-  /** An object was deleted */
-  objectDeleted: (event: ObjectDeletedEvent) => void;
-  /** An object was moved (renamed / relocated) */
-  objectMoved: (event: ObjectMovedEvent) => void;
   /** Space metadata was updated */
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Collection schema was updated */

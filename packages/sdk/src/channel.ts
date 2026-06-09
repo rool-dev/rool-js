@@ -9,11 +9,9 @@ import type {
   ChannelEvents,
   RoolUserRole,
   PromptOptions,
-  FindObjectsOptions,
   CreateObjectOptions,
   UpdateObjectOptions,
   MoveObjectOptions,
-  ChangeSource,
   ChannelEvent,
   Interaction,
   Channel,
@@ -112,10 +110,6 @@ function collectionDef(input: FieldDef[] | CollectionDef, options?: CollectionOp
   return schemaOrgType ? { fields: base.fields, schemaOrgType } : { fields: base.fields };
 }
 
-function sameJsonValue(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
 interface AttachmentUpload {
   filename: string;
   contentType: string;
@@ -200,8 +194,6 @@ export interface ChannelConfig {
   linkAccess: LinkAccess;
   /** Current user's ID (for identifying own interactions) */
   userId: string;
-  /** Object locations in the space (sorted by modifiedAt desc) */
-  objectLocations: string[];
   /** Object stats keyed by location */
   objectStats: Record<string, RoolObjectStat>;
   /** Collection schema */
@@ -227,9 +219,9 @@ export interface ChannelConfig {
  * open a second one.
  *
  * Objects are addressed by location (`/space/<collection>/<basename>.json`).
- * Only schema, metadata, the live object location list, and the channel's own
- * history are cached locally. Object bodies are fetched on demand. Changes
- * arrive via SSE semantic events and are emitted as SDK events.
+ * Only schema, metadata, object stats, and the channel's own history are cached
+ * locally. Object bodies are fetched on demand. Object/file reactivity is
+ * exposed at the space level via WebDAV sync notifications.
  */
 export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _id: string;
@@ -246,19 +238,14 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private onCloseCallback: () => void;
   private logger: Logger;
 
-  // Local cache for bounded data (schema, metadata, own channel, object locations, stats)
+  // Local cache for bounded data (schema, metadata, own channel, object stats)
   private _meta: Record<string, unknown>;
   private _schema: SpaceSchema;
   private _channel: Channel | undefined;
-  private _objectLocations: string[];
   private _objectStats: Map<string, RoolObjectStat>;
 
   // Active leaf per conversation (client-side tree cursor)
   private _activeLeaves = new Map<string, string>();
-
-  // Object collection: tracks pending local mutations (by location) for dedup
-  // Maps location → optimistic object (for create/update) or null (for delete)
-  private _pendingMutations = new Map<string, RoolObject | null>();
 
   constructor(config: ChannelConfig) {
     super();
@@ -280,7 +267,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._meta = config.meta;
     this._schema = config.schema;
     this._channel = config.channel;
-    this._objectLocations = config.objectLocations;
     this._objectStats = new Map(Object.entries(config.objectStats));
   }
 
@@ -301,14 +287,12 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   _applyResyncData(data: {
     meta: Record<string, unknown>;
     schema: SpaceSchema;
-    objectLocations: string[];
     objectStats: Record<string, RoolObjectStat>;
     channel: Channel | undefined;
   }): void {
     if (this._closed) return;
     this._meta = data.meta;
     this._schema = data.schema;
-    this._objectLocations = data.objectLocations;
     this._objectStats = new Map(Object.entries(data.objectStats));
     if (data.channel) this._channel = data.channel;
     this._activeLeaves.clear();
@@ -509,8 +493,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._closed = true;
     this.onCloseCallback();
 
-    this._pendingMutations.clear();
-
     this.removeAllListeners();
   }
 
@@ -596,56 +578,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Find objects using structured filters and/or natural language.
-   */
-  async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
-    return this._findObjectsImpl(options, this._conversationId);
-  }
-
-  /** @internal */
-  async _findObjectsImpl(options: FindObjectsOptions, _conversationId: string): Promise<{ objects: RoolObject[]; message: string }> {
-    const requestedLocations = options.locations?.map(normalizeLocation);
-    let locations = requestedLocations ?? this._objectLocations;
-    if (options.collection) {
-      locations = locations.filter((location) => parseLocation(location).collection === options.collection);
-    }
-    if (options.order === 'asc') locations = [...locations].reverse();
-
-    const objects: RoolObject[] = [];
-    for (const location of locations) {
-      const object = await this.getObject(location);
-      if (!object) continue;
-      if (options.where && !this.objectMatchesWhere(object, options.where)) continue;
-      objects.push(object);
-      if (options.limit !== undefined && objects.length >= options.limit) break;
-    }
-
-    return { objects, message: `Found ${objects.length} ${objects.length === 1 ? 'object' : 'objects'}.` };
-  }
-
-  private objectMatchesWhere(object: RoolObject, where: Record<string, unknown>): boolean {
-    for (const [key, value] of Object.entries(where)) {
-      if (!sameJsonValue(object.body[key], value)) return false;
-    }
-    return true;
-  }
-
-  /**
-   * Get all object locations (sync, from local cache).
-   * The list is loaded on open and kept current via SSE events.
-   */
-  getObjectLocations(options?: { limit?: number; order?: 'asc' | 'desc' }): string[] {
-    let locs = this._objectLocations;
-    if (options?.order === 'asc') {
-      locs = [...locs].reverse();
-    }
-    if (options?.limit !== undefined) {
-      locs = locs.slice(0, options.limit);
-    }
-    return locs;
-  }
-
-  /**
    * Create a new object in the given collection.
    *
    * @param collection - The collection (must exist in the schema)
@@ -672,8 +604,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const location = loc(collection, basename);
 
     const optimistic: RoolObject = { location, collection, basename, body };
-    this._pendingMutations.set(location, optimistic);
-    this.emit('objectCreated', { location, object: optimistic, source: 'local_user' });
 
     try {
       const interactionId = generateEntityId();
@@ -686,9 +616,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       return { object: fresh, message: `Created ${location}` };
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to create object:', error);
-      this._pendingMutations.delete(location);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
-      this.emit('reset', { source: 'system' });
       throw error;
     }
   }
@@ -718,8 +646,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     if (!current) throw new Error(`Object ${canonical} not found`);
     const body = patchBody(current.object.body, data);
     const optimistic = objectFromBody(canonical, body);
-    this._pendingMutations.set(canonical, optimistic);
-    this.emit('objectUpdated', { location: canonical, object: optimistic, source: 'local_user' });
 
     try {
       const interactionId = generateEntityId();
@@ -732,9 +658,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       return { object: fresh, message: `Updated ${canonical}` };
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to update object:', error);
-      this._pendingMutations.delete(canonical);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
-      this.emit('reset', { source: 'system' });
       throw error;
     }
   }
@@ -773,8 +697,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       basename,
       body: options?.body ?? {},
     };
-    this._pendingMutations.set(toLoc, optimistic);
-    this.emit('objectMoved', { from: fromLoc, to: toLoc, object: optimistic, source: 'local_user' });
 
     try {
       const interactionId = generateEntityId();
@@ -787,13 +709,12 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
           headers: this.davHeaders(conversationId, interactionId),
         });
       }
+      this._objectStats.delete(fromLoc);
       const fresh = await this.getObject(toLoc) ?? optimistic;
       return { object: fresh, message: `Moved ${fromLoc} to ${toLoc}` };
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to move object:', error);
-      this._pendingMutations.delete(toLoc);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
-      this.emit('reset', { source: 'system' });
       throw error;
     }
   }
@@ -811,26 +732,17 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     if (locations.length === 0) return;
     const canonical = locations.map(normalizeLocation);
 
-    // Track for dedup and emit optimistic events
-    for (const location of canonical) {
-      this._pendingMutations.set(location, null);
-      this.emit('objectDeleted', { location, source: 'local_user' });
-    }
-
     try {
       const interactionId = generateEntityId();
       for (const location of canonical) {
         await this.webdav.delete(objectDavPath(location), {
           headers: this.davHeaders(conversationId, interactionId),
         });
+        this._objectStats.delete(location);
       }
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to delete objects:', error);
-      for (const location of canonical) {
-        this._pendingMutations.delete(location);
-      }
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
-      this.emit('reset', { source: 'system' });
       throw error;
     }
   }
@@ -1190,40 +1102,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private handleChannelEvent(event: ChannelEvent): void {
     if (this._closed) return;
 
-    const changeSource: ChangeSource = event.source === 'agent' ? 'remote_agent' : 'remote_user';
+    const changeSource = event.source === 'agent' ? 'remote_agent' : 'remote_user';
 
     switch (event.type) {
       case 'connected':
         // Resync is handled by the client via _applyResyncData.
-        break;
-
-      case 'object_created':
-        if (event.location && event.object) {
-          if (event.objectStat) this._objectStats.set(event.location, event.objectStat);
-          this._handleObjectCreated(event.location, event.object, changeSource);
-        }
-        break;
-
-      case 'object_updated':
-        if (event.location && event.object) {
-          if (event.objectStat) this._objectStats.set(event.location, event.objectStat);
-          this._handleObjectUpdated(event.location, event.object, changeSource);
-        }
-        break;
-
-      case 'object_deleted':
-        if (event.location) {
-          this._objectStats.delete(event.location);
-          this._handleObjectDeleted(event.location, changeSource);
-        }
-        break;
-
-      case 'object_moved':
-        if (event.from && event.to && event.object) {
-          this._objectStats.delete(event.from);
-          if (event.objectStat) this._objectStats.set(event.to, event.objectStat);
-          this._handleObjectMoved(event.from, event.to, event.object, changeSource);
-        }
         break;
 
       case 'schema_updated':
@@ -1306,75 +1189,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
         break;
     }
   }
-
-  /** @internal */
-  private _handleObjectCreated(location: string, object: RoolObject, source: ChangeSource): void {
-    // Maintain local location list — prepend (most recently modified first)
-    this._objectLocations = [location, ...this._objectLocations.filter(l => l !== location)];
-
-    const pending = this._pendingMutations.get(location);
-    if (pending !== undefined) {
-      this._pendingMutations.delete(location);
-
-      if (pending !== null) {
-        // Already emitted objectCreated optimistically.
-        // Emit objectUpdated only if AI resolved placeholders (data changed).
-        if (JSON.stringify(pending) !== JSON.stringify(object)) {
-          this.emit('objectUpdated', { location, object, source });
-        }
-      }
-    } else {
-      this.emit('objectCreated', { location, object, source });
-    }
-  }
-
-  /** @internal */
-  private _handleObjectUpdated(location: string, object: RoolObject, source: ChangeSource): void {
-    this._objectLocations = [location, ...this._objectLocations.filter(l => l !== location)];
-
-    const pending = this._pendingMutations.get(location);
-    if (pending !== undefined) {
-      this._pendingMutations.delete(location);
-
-      if (pending !== null) {
-        if (JSON.stringify(pending) !== JSON.stringify(object)) {
-          this.emit('objectUpdated', { location, object, source });
-        }
-      }
-    } else {
-      this.emit('objectUpdated', { location, object, source });
-    }
-  }
-
-  /** @internal */
-  private _handleObjectDeleted(location: string, source: ChangeSource): void {
-    this._objectLocations = this._objectLocations.filter(l => l !== location);
-
-    const pending = this._pendingMutations.get(location);
-    if (pending !== undefined) {
-      this._pendingMutations.delete(location);
-    } else {
-      this.emit('objectDeleted', { location, source });
-    }
-  }
-
-  /** @internal */
-  private _handleObjectMoved(from: string, to: string, object: RoolObject, source: ChangeSource): void {
-    // Drop old location, insert new one at the front.
-    this._objectLocations = [to, ...this._objectLocations.filter(l => l !== from && l !== to)];
-
-    const pending = this._pendingMutations.get(to);
-    if (pending !== undefined) {
-      this._pendingMutations.delete(to);
-      if (pending !== null) {
-        if (JSON.stringify(pending) !== JSON.stringify(object)) {
-          this.emit('objectUpdated', { location: to, object, source });
-        }
-      }
-    } else {
-      this.emit('objectMoved', { from, to, object, source });
-    }
-  }
 }
 
 /**
@@ -1427,11 +1241,6 @@ export class ConversationHandle {
   /** Rename this conversation. */
   async rename(name: string): Promise<void> {
     return this._channel._renameConversationImpl(name, this._conversationId);
-  }
-
-  /** Find objects using structured filters and/or natural language. */
-  async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
-    return this._channel._findObjectsImpl(options, this._conversationId);
   }
 
   /** Create a new object. */

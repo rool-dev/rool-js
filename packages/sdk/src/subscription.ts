@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, RoolObject, RoolObjectStat, SpaceSchema, Channel, Conversation, ExtensionManifest } from './types.js';
+import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, SpaceSchema, Channel, Conversation, ExtensionManifest } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 
@@ -525,44 +525,42 @@ export class SpaceSubscriptionManager {
 
 function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelEvent | null {
   if (raw.type === 'heartbeat') return null;
-  const type = raw.type as ChannelEvent['type'];
+  const rawType = raw.type as string;
   const spaceId = raw.spaceId as string;
   const timestamp = raw.timestamp as number;
   const source = (raw.source as RoolEventSource) ?? 'user';
 
-  if (!type || !spaceId) return null;
+  if (!rawType || !spaceId) return null;
 
-  switch (type) {
+  // Object/file reactivity is WebDAV sync based. Ignore old object
+  // notifications if an older server still emits them.
+  if (rawType.startsWith('object_')) return null;
+
+  switch (rawType) {
     case 'connected':
-      return { type, spaceId, timestamp, source, serverVersion: raw.serverVersion as string };
+      return { type: 'connected', spaceId, timestamp, source, serverVersion: raw.serverVersion as string };
     case 'space_changed':
-      return { type, spaceId, timestamp, source };
-    case 'object_created':
-    case 'object_updated':
-      return { type, spaceId, timestamp, source, location: raw.location as string, object: raw.object as RoolObject, objectStat: raw.objectStat as RoolObjectStat | undefined };
-    case 'object_deleted':
-      return { type, spaceId, timestamp, source, location: raw.location as string };
-    case 'object_moved':
-      return { type, spaceId, timestamp, source, from: raw.from as string, to: raw.to as string, object: raw.object as RoolObject, objectStat: raw.objectStat as RoolObjectStat | undefined };
+      return { type: 'space_changed', spaceId, timestamp, source };
     case 'schema_updated':
-      return { type, spaceId, timestamp, source, schema: raw.schema as SpaceSchema };
+      return { type: 'schema_updated', spaceId, timestamp, source, schema: raw.schema as SpaceSchema };
     case 'metadata_updated':
-      return { type, spaceId, timestamp, source, metadata: raw.metadata as Record<string, unknown> };
+      return { type: 'metadata_updated', spaceId, timestamp, source, metadata: raw.metadata as Record<string, unknown> };
     case 'channel_updated':
-      return { type, spaceId, timestamp, source, channelId: raw.channelId as string, channel: raw.channel as Channel | undefined };
+      return { type: 'channel_updated', spaceId, timestamp, source, channelId: raw.channelId as string, channel: raw.channel as Channel | undefined };
     case 'conversation_updated':
-      return { type, spaceId, timestamp, source, channelId: raw.channelId as string, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
+      return { type: 'conversation_updated', spaceId, timestamp, source, channelId: raw.channelId as string, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
     case 'channel_deleted':
-      return { type, spaceId, timestamp, source, channelId: raw.channelId as string };
+      return { type: 'channel_deleted', spaceId, timestamp, source, channelId: raw.channelId as string };
     case 'space_files_changed':
+      return { type: 'space_files_changed', spaceId, timestamp, source };
     case 'space_files_reset':
-      return { type, spaceId, timestamp, source };
+      return { type: 'space_files_reset', spaceId, timestamp, source };
     case 'probe_request':
-      return { type, spaceId, timestamp, source, requestId: raw.requestId as string, channelId: raw.channelId as string, method: raw.method as string, args: (raw.args as Record<string, unknown>) ?? {} };
+      return { type: 'probe_request', spaceId, timestamp, source, requestId: raw.requestId as string, channelId: raw.channelId as string, method: raw.method as string, args: (raw.args as Record<string, unknown>) ?? {} };
     case 'open_extension':
-      return { type, spaceId, timestamp, source, channelId: raw.channelId as string };
+      return { type: 'open_extension', spaceId, timestamp, source, channelId: raw.channelId as string };
     default:
-      logger.warn('[RoolChannel] Unknown space event type:', type);
+      logger.warn('[RoolChannel] Unknown space event type:', rawType);
       return null;
   }
 }

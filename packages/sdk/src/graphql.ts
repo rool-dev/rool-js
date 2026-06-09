@@ -50,7 +50,6 @@ export interface OpenSpaceFullResult {
   userId: string;
   linkAccess: LinkAccess;
   memberCount: number;
-  objectLocations: string[];
   objectStats: Record<string, RoolObjectStat>;
   schema: SpaceSchema;
   meta: Record<string, unknown>;
@@ -133,7 +132,7 @@ export class GraphQLClient {
     return { spaceId: response.duplicateSpace.spaceId };
   }
 
-  /** Full space data — object locations, schema, metadata, all channels. */
+  /** Full space data — object stats, schema, metadata, all channels. */
   async openSpaceFull(spaceId: string): Promise<OpenSpaceFullResult> {
     const query = `
       query OpenSpaceFull($id: String!) {
@@ -143,7 +142,6 @@ export class GraphQLClient {
           userId
           linkAccess
           memberCount
-          objectLocations
           objectStatEntries {
             location
             modifiedAt
@@ -162,7 +160,6 @@ export class GraphQLClient {
     const response = await this.request<{
       openSpace: {
         name: string; role: string; userId: string; linkAccess: LinkAccess; memberCount: number;
-        objectLocations: string[];
         objectStatEntries: RoolObjectStat[] | null;
         schema: SpaceSchema | null;
         meta: Record<string, unknown> | null;
@@ -181,7 +178,6 @@ export class GraphQLClient {
       userId: r.userId,
       linkAccess: r.linkAccess,
       memberCount: r.memberCount,
-      objectLocations: r.objectLocations,
       objectStats,
       schema: r.schema ?? {},
       meta: r.meta ?? {},
