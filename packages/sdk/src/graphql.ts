@@ -1,16 +1,12 @@
 import { gzipSync } from 'fflate';
 import type {
   PromptOptions,
-  FindObjectsOptions,
   RoolSpaceInfo,
   SpaceMember,
   CurrentUser,
   UserResult,
-  RoolObject,
   RoolObjectStat,
   LinkAccess,
-  CollectionDef,
-  FieldDef,
   Channel,
   SpaceSchema,
   PublishedExtensionInfo,
@@ -65,8 +61,6 @@ interface GraphQLResponse<T> {
   data?: T;
   errors?: Array<{ message: string; extensions?: Record<string, unknown> }>;
 }
-
-const SPACE_OBJECT_FIELDS = `location collection basename body`;
 
 export class GraphQLClient {
   private config: GraphQLClientConfig;
@@ -243,29 +237,6 @@ export class GraphQLClient {
     });
   }
 
-  async deleteObjects(
-    spaceId: string,
-    locations: string[],
-    channelId: string,
-    conversationId: string,
-    interactionId?: string,
-    parentInteractionId?: string | null,
-  ): Promise<void> {
-    const mutation = `
-      mutation DeleteObjects($spaceId: String!, $locations: [String!]!, $channelId: String!, $conversationId: String!, $interactionId: String, $parentInteractionId: String) {
-        deleteObjects(spaceId: $spaceId, locations: $locations, channelId: $channelId, conversationId: $conversationId, interactionId: $interactionId, parentInteractionId: $parentInteractionId)
-      }
-    `;
-    await this.request(mutation, {
-      spaceId,
-      locations,
-      channelId,
-      conversationId,
-      interactionId,
-      parentInteractionId,
-    });
-  }
-
   async deleteChannel(spaceId: string, channelId: string): Promise<void> {
     const mutation = `
       mutation DeleteChannel($spaceId: String!, $channelId: String!) {
@@ -384,199 +355,6 @@ export class GraphQLClient {
     await this.request(mutation, { spaceId, channelId });
   }
 
-  async createCollection(
-    spaceId: string,
-    name: string,
-    fields: FieldDef[],
-    channelId: string,
-    conversationId: string,
-  ): Promise<CollectionDef> {
-    const mutation = `
-      mutation CreateCollection($spaceId: String!, $name: String!, $fields: JSON!, $channelId: String!, $conversationId: String!) {
-        createCollection(spaceId: $spaceId, name: $name, fields: $fields, channelId: $channelId, conversationId: $conversationId)
-      }
-    `;
-    const result = await this.request<{ createCollection: CollectionDef }>(mutation, {
-      spaceId,
-      name,
-      fields,
-      channelId,
-      conversationId,
-    });
-    return result.createCollection;
-  }
-
-  async alterCollection(
-    spaceId: string,
-    name: string,
-    fields: FieldDef[],
-    channelId: string,
-    conversationId: string,
-  ): Promise<CollectionDef> {
-    const mutation = `
-      mutation AlterCollection($spaceId: String!, $name: String!, $fields: JSON!, $channelId: String!, $conversationId: String!) {
-        alterCollection(spaceId: $spaceId, name: $name, fields: $fields, channelId: $channelId, conversationId: $conversationId)
-      }
-    `;
-    const result = await this.request<{ alterCollection: CollectionDef }>(mutation, {
-      spaceId,
-      name,
-      fields,
-      channelId,
-      conversationId,
-    });
-    return result.alterCollection;
-  }
-
-  async dropCollection(
-    spaceId: string,
-    name: string,
-    channelId: string,
-    conversationId: string,
-  ): Promise<void> {
-    const mutation = `
-      mutation DropCollection($spaceId: String!, $name: String!, $channelId: String!, $conversationId: String!) {
-        dropCollection(spaceId: $spaceId, name: $name, channelId: $channelId, conversationId: $conversationId)
-      }
-    `;
-    await this.request(mutation, { spaceId, name, channelId, conversationId });
-  }
-
-  async createObject(
-    spaceId: string,
-    location: string,
-    body: Record<string, unknown>,
-    channelId: string,
-    conversationId: string,
-    interactionId: string,
-    options?: { ephemeral?: boolean; parentInteractionId?: string | null },
-  ): Promise<{ location: string; object: RoolObject | null; message: string }> {
-    const mutation = `
-      mutation CreateObject($spaceId: String!, $location: String!, $body: JSON!, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
-        createObject(spaceId: $spaceId, location: $location, body: $body, channelId: $channelId, conversationId: $conversationId, interactionId: $interactionId, ephemeral: $ephemeral, parentInteractionId: $parentInteractionId) {
-          location
-          object { ${SPACE_OBJECT_FIELDS} }
-          message
-        }
-      }
-    `;
-    const result = await this.request<{ createObject: { location: string; object: RoolObject | null; message: string } }>(mutation, {
-      spaceId,
-      location,
-      body,
-      channelId,
-      conversationId,
-      interactionId,
-      ephemeral: options?.ephemeral ?? false,
-      parentInteractionId: options?.parentInteractionId,
-    });
-    return result.createObject;
-  }
-
-  async updateObject(
-    spaceId: string,
-    location: string,
-    channelId: string,
-    conversationId: string,
-    interactionId: string,
-    options?: { patch?: Record<string, unknown>; prompt?: string; ephemeral?: boolean; parentInteractionId?: string | null },
-  ): Promise<{ location: string; object: RoolObject | null; message: string }> {
-    const mutation = `
-      mutation UpdateObject($spaceId: String!, $location: String!, $patch: JSON, $prompt: String, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
-        updateObject(spaceId: $spaceId, location: $location, patch: $patch, prompt: $prompt, channelId: $channelId, conversationId: $conversationId, interactionId: $interactionId, ephemeral: $ephemeral, parentInteractionId: $parentInteractionId) {
-          location
-          object { ${SPACE_OBJECT_FIELDS} }
-          message
-        }
-      }
-    `;
-    const result = await this.request<{ updateObject: { location: string; object: RoolObject | null; message: string } }>(mutation, {
-      spaceId,
-      location,
-      patch: options?.patch,
-      prompt: options?.prompt,
-      channelId,
-      conversationId,
-      interactionId,
-      ephemeral: options?.ephemeral ?? false,
-      parentInteractionId: options?.parentInteractionId,
-    });
-    return result.updateObject;
-  }
-
-  async moveObject(
-    spaceId: string,
-    from: string,
-    to: string,
-    channelId: string,
-    conversationId: string,
-    interactionId: string,
-    options?: { body?: Record<string, unknown>; ephemeral?: boolean; parentInteractionId?: string | null },
-  ): Promise<{ location: string; object: RoolObject | null; message: string }> {
-    const mutation = `
-      mutation MoveObject($spaceId: String!, $from: String!, $to: String!, $body: JSON, $channelId: String!, $conversationId: String!, $interactionId: String!, $ephemeral: Boolean!, $parentInteractionId: String) {
-        moveObject(spaceId: $spaceId, from: $from, to: $to, body: $body, channelId: $channelId, conversationId: $conversationId, interactionId: $interactionId, ephemeral: $ephemeral, parentInteractionId: $parentInteractionId) {
-          location
-          object { ${SPACE_OBJECT_FIELDS} }
-          message
-        }
-      }
-    `;
-    const result = await this.request<{ moveObject: { location: string; object: RoolObject | null; message: string } }>(mutation, {
-      spaceId,
-      from,
-      to,
-      body: options?.body,
-      channelId,
-      conversationId,
-      interactionId,
-      ephemeral: options?.ephemeral ?? false,
-      parentInteractionId: options?.parentInteractionId,
-    });
-    return result.moveObject;
-  }
-
-  async getObject(spaceId: string, location: string): Promise<RoolObject | undefined> {
-    const query = `
-      query GetObject($spaceId: String!, $location: String!) {
-        getObject(spaceId: $spaceId, location: $location) { ${SPACE_OBJECT_FIELDS} }
-      }
-    `;
-    const result = await this.request<{ getObject: RoolObject | null }>(query, { spaceId, location });
-    return result.getObject ?? undefined;
-  }
-
-  async findObjects(
-    spaceId: string,
-    options: FindObjectsOptions,
-    channelId: string,
-    conversationId: string,
-  ): Promise<{ objects: RoolObject[]; message: string }> {
-    const query = `
-      query FindObjects($spaceId: String!, $where: JSON, $collection: String, $prompt: String, $limit: Int, $locations: [String!]!, $order: String, $channelId: String!, $conversationId: String!, $ephemeral: Boolean!) {
-        findObjects(spaceId: $spaceId, where: $where, collection: $collection, prompt: $prompt, limit: $limit, locations: $locations, order: $order, channelId: $channelId, conversationId: $conversationId, ephemeral: $ephemeral) {
-          objects { ${SPACE_OBJECT_FIELDS} }
-          message
-        }
-      }
-    `;
-    const result = await this.request<{
-      findObjects: { objects: RoolObject[]; message: string }
-    }>(query, {
-      spaceId,
-      where: options.where,
-      collection: options.collection,
-      prompt: options.prompt,
-      limit: options.limit,
-      locations: options.locations ?? [],
-      order: options.order,
-      channelId,
-      conversationId,
-      ephemeral: options.ephemeral ?? false,
-    });
-    return result.findObjects;
-  }
-
   async prompt(
     spaceId: string,
     prompt: string,
@@ -641,6 +419,8 @@ export class GraphQLClient {
           lastActivity
           processedAt
           storage
+          stripeStatus
+          marketingOptIn
         }
       }
     `;
@@ -648,7 +428,7 @@ export class GraphQLClient {
     return response.getCurrentUser;
   }
 
-  async updateCurrentUser(input: { name?: string; slug?: string }): Promise<CurrentUser> {
+  async updateCurrentUser(input: { name?: string; slug?: string; marketingOptIn?: boolean }): Promise<CurrentUser> {
     const mutation = `
       mutation UpdateCurrentUser($input: UpdateCurrentUserInput!) {
         updateCurrentUser(input: $input) {
@@ -664,6 +444,8 @@ export class GraphQLClient {
           lastActivity
           processedAt
           storage
+          stripeStatus
+          marketingOptIn
         }
       }
     `;

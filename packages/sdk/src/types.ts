@@ -220,6 +220,8 @@ export interface CurrentUser {
   lastActivity: string;
   processedAt: string;
   storage: Record<string, unknown>;
+  stripeStatus: string | null;
+  marketingOptIn: boolean;
 }
 
 /**
@@ -354,45 +356,27 @@ export interface FindObjectsOptions {
   where?: Record<string, unknown>;
   /** Filter by collection name. Returns objects in the matching collection. */
   collection?: string;
-  /** Natural language query. Triggers AI evaluation (uses credits). When combined with `where`/`locations`, the AI only sees the pre-filtered set. */
-  prompt?: string;
-  /** Maximum number of results. Only applies to structured filtering (no `prompt`); the AI controls its own result size. */
+  /** Maximum number of results. */
   limit?: number;
-  /** Scope search to specific object locations. Constrains the candidate set in both structured and AI queries. */
+  /** Scope search to specific object locations. */
   locations?: string[];
-  /** Sort order by modifiedAt. Default: 'desc' (most recent first). Only applies to structured filtering (no `prompt`). */
+  /** Sort order by modifiedAt. Default: 'desc' (most recent first). */
   order?: 'asc' | 'desc';
-  /** If true, the query won't be recorded in interaction history. Useful for responsive search. */
-  ephemeral?: boolean;
 }
 
 export interface CreateObjectOptions {
   /** Specific basename to use. If omitted, the SDK generates a random one. */
   basename?: string;
-  /** If true, the operation won't be recorded in interaction history. */
-  ephemeral?: boolean;
-  /** Parent interaction in the conversation tree. Omit to auto-continue; pass null for a new root. */
-  parentInteractionId?: string | null;
 }
 
 export interface UpdateObjectOptions {
-  /** Fields to add or update. Pass null/undefined to delete a field. Use `{{placeholder}}` for AI-generated content. Fields prefixed with `_` are hidden from AI. */
+  /** Fields to add or update. Pass null/undefined to delete a field. Fields prefixed with `_` are hidden from AI. */
   data?: Record<string, unknown>;
-  /** Natural language instruction for AI to modify content. */
-  prompt?: string;
-  /** If true, the operation won't be recorded in interaction history. */
-  ephemeral?: boolean;
-  /** Parent interaction in the conversation tree. Omit to auto-continue; pass null for a new root. */
-  parentInteractionId?: string | null;
 }
 
 export interface MoveObjectOptions {
   /** Replace the body atomically as part of the move. If omitted, the body is preserved. */
   body?: Record<string, unknown>;
-  /** If true, the operation won't be recorded in interaction history. */
-  ephemeral?: boolean;
-  /** Parent interaction in the conversation tree. Omit to auto-continue; pass null for a new root. */
-  parentInteractionId?: string | null;
 }
 
 export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
@@ -503,6 +487,7 @@ export type ChannelEventType =
   | 'channel_deleted'
   | 'conversation_updated'
   | 'space_files_changed'
+  | 'space_files_reset'
   | 'probe_request'
   | 'open_extension';
 
@@ -531,7 +516,7 @@ export interface ChannelEvent {
   conversationId?: string;
   conversation?: Conversation;
   // Connected events
-  serverVersion?: number;
+  serverVersion?: string;
   // Probe events
   requestId?: string;
   method?: string;
@@ -671,6 +656,8 @@ export interface RoolSpaceEvents {
   openExtension: (event: OpenExtensionEvent) => void;
   /** File storage changed; call webdav.syncCollection() to reconcile. */
   filesChanged: (event: SpaceFilesChangedEvent) => void;
+  /** WebDAV sync tokens were invalidated; discard local tokens and full-resync. */
+  filesReset: (event: SpaceFilesChangedEvent) => void;
   /** SSE connection state changed */
   connectionStateChanged: (state: ConnectionState) => void;
   /** Index signature for EventEmitter compatibility */

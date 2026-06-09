@@ -34,7 +34,6 @@ export interface SpaceConfig {
   graphqlClient: GraphQLClient;
   restClient: RestClient;
   authManager: AuthManager;
-  webdavUrl: string;
   router: SpaceRouter;
   initialRoute: RouteInfo;
   logger: Logger;
@@ -80,9 +79,9 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private graphqlClient: GraphQLClient;
   private restClient: RestClient;
   private authManager: AuthManager;
-  private webdavUrl: string;
   private router: SpaceRouter;
   private _route: RouteInfo;
+  private _webdav: RoolWebDAV;
   private logger: Logger;
   private onCloseCallback: () => void;
 
@@ -116,9 +115,17 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this.graphqlClient = config.graphqlClient;
     this.restClient = config.restClient;
     this.authManager = config.authManager;
-    this.webdavUrl = config.webdavUrl;
     this.router = config.router;
     this._route = config.initialRoute;
+    this._webdav = new RoolWebDAV({
+      webdavUrl: this._route.server,
+      spaceId: this._id,
+      authManager: this.authManager,
+      onRefused: async () => {
+        await this.reroute();
+        return this._route.server;
+      },
+    });
     this.logger = config.logger;
     this.onCloseCallback = config.onClose;
 
@@ -149,13 +156,9 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
   get route(): RouteInfo { return this._route; }
 
-  /** WebDAV client for this space's user-visible files. */
+  /** WebDAV client for this space's user-visible files and object filesystem. */
   get webdav(): RoolWebDAV {
-    return new RoolWebDAV({
-      webdavUrl: this.webdavUrl,
-      spaceId: this._id,
-      authManager: this.authManager,
-    });
+    return this._webdav;
   }
 
   /** Return file-storage quota usage for this space. */
@@ -209,6 +212,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private async reroute(): Promise<string> {
     const route = await this.router.resolve(this._id);
     this._route = route;
+    this._webdav.setWebDAVUrl(route.server);
     const url = `${route.server.replace(/\/+$/, '')}/graphql`;
     this.graphqlClient.setGraphqlUrl(url);
     return url;
@@ -436,6 +440,11 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
     if (event.type === 'space_files_changed') {
       this.emit('filesChanged', { spaceId: event.spaceId, source: event.source, timestamp: event.timestamp });
+      return;
+    }
+
+    if (event.type === 'space_files_reset') {
+      this.emit('filesReset', { spaceId: event.spaceId, source: event.source, timestamp: event.timestamp });
       return;
     }
 

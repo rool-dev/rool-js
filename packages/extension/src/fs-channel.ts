@@ -298,9 +298,6 @@ export class FsChannel implements BridgeableChannel {
   }
 
   async findObjects(options: FindObjectsOptions): Promise<{ objects: RoolObject[]; message: string }> {
-    if (options.prompt) {
-      throw new Error('findObjects with `prompt` (AI) is not supported in preview');
-    }
     const body = await this.req<{ objects: Array<{ location: string; body: Record<string, unknown> }>; count: number }>(
       'POST',
       '/find',
@@ -355,9 +352,6 @@ export class FsChannel implements BridgeableChannel {
     options: UpdateObjectOptions,
     _conversationId: string,
   ): Promise<{ object: RoolObject; message: string }> {
-    if (options.prompt) {
-      throw new Error('updateObject with `prompt` (AI) is not supported in preview');
-    }
     const canonical = normalizeLocation(location);
     const set: Record<string, unknown> = {};
     const remove: string[] = [];

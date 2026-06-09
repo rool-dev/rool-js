@@ -16,7 +16,7 @@ import type {
 
 /**
  * Options for creating a reactive watch.
- * Same as FindObjectsOptions but without `prompt` (AI queries are too slow for reactive updates).
+ * Same as FindObjectsOptions for reactive updates.
  */
 export interface WatchOptions {
   /** Field requirements for exact matching */
@@ -151,7 +151,6 @@ class ReactiveWatchImpl {
         collection: this.#options.collection,
         limit: this.#options.limit,
         order: this.#options.order,
-        ephemeral: true,
       };
       const { objects } = await this.#channel.findObjects(findOptions);
       this.objects = objects;
@@ -387,6 +386,7 @@ class ReactiveChannelImpl {
   get isReadOnly() { return this.#channel.isReadOnly; }
   get linkAccess() { return this.#channel.linkAccess; }
   get extensionUrl() { return this.#channel.extensionUrl; }
+  get extensionId() { return this.#channel.extensionId; }
   get manifest() { return this.#channel.manifest; }
 
   get isClosed() { return this.#closed; }

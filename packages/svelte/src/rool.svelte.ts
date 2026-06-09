@@ -178,6 +178,16 @@ class RoolImpl {
   }
 
   /**
+   * Duplicate an existing space. Returns a ReactiveSpace.
+   */
+  async duplicateSpace(sourceSpaceId: string, name: string): Promise<ReactiveSpace> {
+    const raw = await this.#client.duplicateSpace(sourceSpaceId, name);
+    const reactive = wrapSpace(raw);
+    this.#openSpaces.add(reactive);
+    return reactive;
+  }
+
+  /**
    * Manually refresh the spaces list.
    */
   refreshSpaces(): Promise<void> {
@@ -189,6 +199,34 @@ class RoolImpl {
    */
   deleteSpace(spaceId: string): Promise<void> {
     return this.#client.deleteSpace(spaceId);
+  }
+
+  /**
+   * Mark the current user for deletion, then log out locally.
+   */
+  deleteCurrentUser(): Promise<void> {
+    return this.#client.deleteCurrentUser();
+  }
+
+  /**
+   * Set or change the current user's password.
+   */
+  setPassword(password: string): Promise<void> {
+    return this.#client.setPassword(password);
+  }
+
+  /**
+   * Get a value from user storage.
+   */
+  getUserStorage<T = unknown>(key: string): T | undefined {
+    return this.#client.getUserStorage<T>(key);
+  }
+
+  /**
+   * Get all user storage data.
+   */
+  getAllUserStorage(): Record<string, unknown> {
+    return this.#client.getAllUserStorage();
   }
 
   /**
@@ -244,7 +282,7 @@ class RoolImpl {
   /**
    * Update the current user's profile (name, slug).
    */
-  async updateCurrentUser(input: { name?: string; slug?: string }) {
+  async updateCurrentUser(input: { name?: string; slug?: string; marketingOptIn?: boolean }) {
     const user = await this.#client.updateCurrentUser(input);
     this.currentUser = user;
     return user;

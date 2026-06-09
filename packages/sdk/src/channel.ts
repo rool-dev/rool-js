@@ -1,7 +1,7 @@
 import { EventEmitter } from './event-emitter.js';
 import type { GraphQLClient } from './graphql.js';
 import type { RestClient } from './rest.js';
-import type { RoolWebDAV } from './webdav.js';
+import { WebDAVError, type RoolWebDAV } from './webdav.js';
 import type { Logger } from './logger.js';
 import type {
   RoolObject,
@@ -66,6 +66,45 @@ function findDefaultLeaf(interactions: Record<string, Interaction> | Interaction
     }
   }
   return best?.id;
+}
+
+function objectDavPath(location: string): string {
+  parseLocation(location);
+  return location;
+}
+
+function collectionDavPath(name: string): string {
+  parseLocation(loc(name, 'schema')); // Reuse collection validation.
+  return `/space/${name}/`;
+}
+
+function schemaDavPath(name: string): string {
+  return `${collectionDavPath(name)}.schema.json`;
+}
+
+function objectFromBody(location: string, body: Record<string, unknown>): RoolObject {
+  const { collection, basename } = parseLocation(location);
+  return { location, collection, basename, body };
+}
+
+function jsonObject(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function patchBody(current: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null || value === undefined) delete next[key];
+    else next[key] = value;
+  }
+  return next;
+}
+
+function sameJsonValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 interface AttachmentUpload {
@@ -145,9 +184,6 @@ function base64Body(data: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-// Default timeout for waiting on SSE object events (30 seconds)
-const OBJECT_COLLECT_TIMEOUT = 30000;
-
 export interface ChannelConfig {
   id: string;
   name: string;
@@ -214,10 +250,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   // Object collection: tracks pending local mutations (by location) for dedup
   // Maps location → optimistic object (for create/update) or null (for delete)
   private _pendingMutations = new Map<string, RoolObject | null>();
-  // Resolvers waiting for object data from SSE events, keyed by location
-  private _objectResolvers = new Map<string, (obj: RoolObject) => void>();
-  // Buffer for object data that arrived before a collector was registered, keyed by location
-  private _objectBuffer = new Map<string, RoolObject>();
 
   constructor(config: ChannelConfig) {
     super();
@@ -468,9 +500,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._closed = true;
     this.onCloseCallback();
 
-    // Clean up pending object collectors
-    this._objectResolvers.clear();
-    this._objectBuffer.clear();
     this._pendingMutations.clear();
 
     this.removeAllListeners();
@@ -517,6 +546,28 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     await this.graphqlClient.clearCheckpointHistory(this._id, this._channelId);
   }
 
+  private davHeaders(conversationId: string, interactionId?: string): Headers {
+    const headers = new Headers({
+      'X-Rool-Channel-Id': this._channelId,
+      'X-Rool-Conversation-Id': conversationId,
+    });
+    if (interactionId) headers.set('X-Rool-Interaction-Id', interactionId);
+    return headers;
+  }
+
+  private async readObject(location: string): Promise<{ object: RoolObject; etag: string | null } | undefined> {
+    const canonical = normalizeLocation(location);
+    try {
+      const response = await this.webdav.get(objectDavPath(canonical));
+      const body = jsonObject(await response.json(), `Object ${canonical}`);
+      return { object: objectFromBody(canonical, body), etag: response.headers.get('ETag') };
+    } catch (error) {
+      if (error instanceof WebDAVError && error.status === 404) return undefined;
+      if (error instanceof SyntaxError) throw new Error(`Object ${canonical} did not contain valid JSON`);
+      throw error;
+    }
+  }
+
   /**
    * Get an object by location. Fetches from the server on each call.
    *
@@ -524,7 +575,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * or the short form (`<collection>/<basename>`).
    */
   async getObject(location: string): Promise<RoolObject | undefined> {
-    return this.graphqlClient.getObject(this._id, normalizeLocation(location));
+    return (await this.readObject(location))?.object;
   }
 
   /**
@@ -543,12 +594,31 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /** @internal */
-  _findObjectsImpl(options: FindObjectsOptions, conversationId: string): Promise<{ objects: RoolObject[]; message: string }> {
-    const normalized: FindObjectsOptions = {
-      ...options,
-      locations: options.locations?.map(normalizeLocation),
-    };
-    return this.graphqlClient.findObjects(this._id, normalized, this._channelId, conversationId);
+  async _findObjectsImpl(options: FindObjectsOptions, _conversationId: string): Promise<{ objects: RoolObject[]; message: string }> {
+    const requestedLocations = options.locations?.map(normalizeLocation);
+    let locations = requestedLocations ?? this._objectLocations;
+    if (options.collection) {
+      locations = locations.filter((location) => parseLocation(location).collection === options.collection);
+    }
+    if (options.order === 'asc') locations = [...locations].reverse();
+
+    const objects: RoolObject[] = [];
+    for (const location of locations) {
+      const object = await this.getObject(location);
+      if (!object) continue;
+      if (options.where && !this.objectMatchesWhere(object, options.where)) continue;
+      objects.push(object);
+      if (options.limit !== undefined && objects.length >= options.limit) break;
+    }
+
+    return { objects, message: `Found ${objects.length} ${objects.length === 1 ? 'object' : 'objects'}.` };
+  }
+
+  private objectMatchesWhere(object: RoolObject, where: Record<string, unknown>): boolean {
+    for (const [key, value] of Object.entries(where)) {
+      if (!sameJsonValue(object.body[key], value)) return false;
+    }
+    return true;
   }
 
   /**
@@ -570,10 +640,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Create a new object in the given collection.
    *
    * @param collection - The collection (must exist in the schema)
-   * @param body - Object body fields. Use `{{placeholder}}` for AI-generated content.
-   *               Fields prefixed with `_` are hidden from AI.
+   * @param body - Object body fields. Fields prefixed with `_` are hidden from AI.
    * @param options.basename - Specific basename to use. If omitted, the SDK generates a random one.
-   * @param options.ephemeral - If true, the operation won't be recorded in interaction history.
    * @returns The created object and a status message.
    */
   async createObject(
@@ -600,21 +668,16 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const interactionId = generateEntityId();
-      const { message, object } = await this.graphqlClient.createObject(
-        this._id,
-        location,
-        body,
-        this._channelId,
-        conversationId,
-        interactionId,
-        { ephemeral: options?.ephemeral, parentInteractionId: options?.parentInteractionId },
-      );
-      const fresh = object ?? await this._collectObject(location);
-      return { object: fresh, message };
+      await this.webdav.put(objectDavPath(location), JSON.stringify(body), {
+        contentType: 'application/json',
+        ifNoneMatch: '*',
+        headers: this.davHeaders(conversationId, interactionId),
+      });
+      const fresh = await this.getObject(location) ?? optimistic;
+      return { object: fresh, message: `Created ${location}` };
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to create object:', error);
       this._pendingMutations.delete(location);
-      this._cancelCollector(location);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       this.emit('reset', { source: 'system' });
       throw error;
@@ -625,9 +688,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Update an existing object.
    *
    * @param location - The object's location (canonical or short form)
-   * @param options.data - Fields to add or update. Pass `null` to delete a field. Use `{{placeholder}}` for AI-generated content.
-   * @param options.prompt - AI prompt to drive the update.
-   * @param options.ephemeral - If true, the operation won't be recorded in interaction history.
+   * @param options.data - Fields to add or update. Pass `null` to delete a field.
    */
   async updateObject(
     location: string,
@@ -643,46 +704,26 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     conversationId: string,
   ): Promise<{ object: RoolObject; message: string }> {
     const canonical = normalizeLocation(location);
-    const { data } = options;
-
-    // Normalize undefined to null (for JSON serialization) and build server patch
-    let serverPatch: Record<string, unknown> | undefined;
-    if (data) {
-      serverPatch = {};
-      for (const [key, value] of Object.entries(data)) {
-        serverPatch[key] = value === undefined ? null : value;
-      }
-    }
-
-    // Emit optimistic event if we have data changes
-    if (data) {
-      const { collection, basename } = parseLocation(canonical);
-      const optimistic: RoolObject = { location: canonical, collection, basename, body: data };
-      this._pendingMutations.set(canonical, optimistic);
-      this.emit('objectUpdated', { location: canonical, object: optimistic, source: 'local_user' });
-    }
+    const data = options.data ?? {};
+    const current = await this.readObject(canonical);
+    if (!current) throw new Error(`Object ${canonical} not found`);
+    const body = patchBody(current.object.body, data);
+    const optimistic = objectFromBody(canonical, body);
+    this._pendingMutations.set(canonical, optimistic);
+    this.emit('objectUpdated', { location: canonical, object: optimistic, source: 'local_user' });
 
     try {
       const interactionId = generateEntityId();
-      const { message, object } = await this.graphqlClient.updateObject(
-        this._id,
-        canonical,
-        this._channelId,
-        conversationId,
-        interactionId,
-        {
-          patch: serverPatch,
-          prompt: options.prompt,
-          ephemeral: options.ephemeral,
-          parentInteractionId: options.parentInteractionId,
-        },
-      );
-      const fresh = object ?? await this._collectObject(canonical);
-      return { object: fresh, message };
+      await this.webdav.put(objectDavPath(canonical), JSON.stringify(body), {
+        contentType: 'application/json',
+        ifMatch: current.etag ?? undefined,
+        headers: this.davHeaders(conversationId, interactionId),
+      });
+      const fresh = await this.getObject(canonical) ?? optimistic;
+      return { object: fresh, message: `Updated ${canonical}` };
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to update object:', error);
       this._pendingMutations.delete(canonical);
-      this._cancelCollector(canonical);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       this.emit('reset', { source: 'system' });
       throw error;
@@ -696,7 +737,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * @param from - Current location
    * @param to - New location
    * @param options.body - Replace the body atomically as part of the move.
-   * @param options.ephemeral - If true, the operation won't be recorded in interaction history.
    */
   async moveObject(
     from: string,
@@ -729,25 +769,20 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const interactionId = generateEntityId();
-      const { message, object } = await this.graphqlClient.moveObject(
-        this._id,
-        fromLoc,
-        toLoc,
-        this._channelId,
-        conversationId,
-        interactionId,
-        {
-          body: options?.body,
-          ephemeral: options?.ephemeral,
-          parentInteractionId: options?.parentInteractionId,
-        },
-      );
-      const fresh = object ?? await this._collectObject(toLoc);
-      return { object: fresh, message };
+      await this.webdav.move(objectDavPath(fromLoc), objectDavPath(toLoc), {
+        headers: this.davHeaders(conversationId, interactionId),
+      });
+      if (options?.body) {
+        await this.webdav.put(objectDavPath(toLoc), JSON.stringify(options.body), {
+          contentType: 'application/json',
+          headers: this.davHeaders(conversationId, interactionId),
+        });
+      }
+      const fresh = await this.getObject(toLoc) ?? optimistic;
+      return { object: fresh, message: `Moved ${fromLoc} to ${toLoc}` };
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to move object:', error);
       this._pendingMutations.delete(toLoc);
-      this._cancelCollector(toLoc);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       this.emit('reset', { source: 'system' });
       throw error;
@@ -775,7 +810,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const interactionId = generateEntityId();
-      await this.graphqlClient.deleteObjects(this._id, canonical, this._channelId, conversationId, interactionId);
+      for (const location of canonical) {
+        await this.webdav.delete(objectDavPath(location), {
+          headers: this.davHeaders(conversationId, interactionId),
+        });
+      }
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to delete objects:', error);
       for (const location of canonical) {
@@ -808,7 +847,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._schema[name] = optimisticDef;
 
     try {
-      return await this.graphqlClient.createCollection(this._id, name, fields, this._channelId, conversationId);
+      await this.webdav.mkcol(collectionDavPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
+      await this.webdav.put(schemaDavPath(name), JSON.stringify(optimisticDef), {
+        contentType: 'application/json',
+        headers: this.davHeaders(conversationId, generateEntityId()),
+      });
+      this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
+      return optimisticDef;
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to create collection:', error);
       delete this._schema[name];
@@ -831,7 +876,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._schema[name] = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
 
     try {
-      return await this.graphqlClient.alterCollection(this._id, name, fields, this._channelId, conversationId);
+      const updated = this._schema[name];
+      await this.webdav.put(schemaDavPath(name), JSON.stringify(updated), {
+        contentType: 'application/json',
+        headers: this.davHeaders(conversationId, generateEntityId()),
+      });
+      this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
+      return updated;
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to alter collection:', error);
       this._schema[name] = previous;
@@ -854,7 +905,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     delete this._schema[name];
 
     try {
-      await this.graphqlClient.dropCollection(this._id, name, this._channelId, conversationId);
+      await this.webdav.delete(collectionDavPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
+      this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to drop collection:', error);
       this._schema[name] = previous;
@@ -1058,27 +1110,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       if (onAbort) signal!.removeEventListener('abort', onAbort);
     }
 
-    // Collect modified objects — they arrive via SSE events during/after the mutation.
     const objects: RoolObject[] = [];
-    const missing: string[] = [];
-
-    for (const location of result.modifiedObjectLocations) {
-      const buffered = this._objectBuffer.get(location);
-      if (buffered) {
-        this._objectBuffer.delete(location);
-        objects.push(buffered);
-      } else {
-        missing.push(location);
-      }
-    }
-
-    if (missing.length > 0) {
-      const fetched = await Promise.all(
-        missing.map(location => this.graphqlClient.getObject(this._id, location))
-      );
-      for (const obj of fetched) {
-        if (obj) objects.push(obj);
-      }
+    const fetched = await Promise.all(result.modifiedObjectLocations.map((location) => this.getObject(location)));
+    for (const object of fetched) {
+      if (object) objects.push(object);
     }
 
     return {
@@ -1137,55 +1172,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const response = await this.webdav.request('MKCOL', path, { collection: true });
     if (response.status === 201 || response.status === 405) return;
     throw new Error(`Failed to create collection ${path}: ${response.status} ${await response.text()}`);
-  }
-
-  /**
-   * Register a collector that resolves when the object arrives via SSE.
-   * @internal
-   */
-  private _collectObject(location: string): Promise<RoolObject> {
-    return new Promise<RoolObject>((resolve, reject) => {
-      const buffered = this._objectBuffer.get(location);
-      if (buffered) {
-        this._objectBuffer.delete(location);
-        resolve(buffered);
-        return;
-      }
-
-      const timer = setTimeout(() => {
-        this._objectResolvers.delete(location);
-        // Fallback: try to fetch from server
-        this.graphqlClient.getObject(this._id, location).then(obj => {
-          if (obj) {
-            resolve(obj);
-          } else {
-            reject(new Error(`Timeout waiting for object ${location} from SSE`));
-          }
-        }).catch(reject);
-      }, OBJECT_COLLECT_TIMEOUT);
-
-      this._objectResolvers.set(location, (obj) => {
-        clearTimeout(timer);
-        resolve(obj);
-      });
-    });
-  }
-
-  /** @internal */
-  private _cancelCollector(location: string): void {
-    this._objectResolvers.delete(location);
-    this._objectBuffer.delete(location);
-  }
-
-  /** @internal */
-  private _deliverObject(location: string, object: RoolObject): void {
-    const resolver = this._objectResolvers.get(location);
-    if (resolver) {
-      resolver(object);
-      this._objectResolvers.delete(location);
-    } else {
-      this._objectBuffer.set(location, object);
-    }
   }
 
   /**
@@ -1306,8 +1292,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   /** @internal */
   private _handleObjectCreated(location: string, object: RoolObject, source: ChangeSource): void {
-    this._deliverObject(location, object);
-
     // Maintain local location list — prepend (most recently modified first)
     this._objectLocations = [location, ...this._objectLocations.filter(l => l !== location)];
 
@@ -1329,8 +1313,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   /** @internal */
   private _handleObjectUpdated(location: string, object: RoolObject, source: ChangeSource): void {
-    this._deliverObject(location, object);
-
     this._objectLocations = [location, ...this._objectLocations.filter(l => l !== location)];
 
     const pending = this._pendingMutations.get(location);
@@ -1361,8 +1343,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   /** @internal */
   private _handleObjectMoved(from: string, to: string, object: RoolObject, source: ChangeSource): void {
-    this._deliverObject(to, object);
-
     // Drop old location, insert new one at the front.
     this._objectLocations = [to, ...this._objectLocations.filter(l => l !== from && l !== to)];
 

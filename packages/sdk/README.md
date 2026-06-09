@@ -663,8 +663,6 @@ const client = new RoolClient({
 | `duplicateSpace(sourceSpaceId, name): Promise<RoolSpace>` | Duplicate an existing space. Returns a handle to the new space. |
 | `deleteSpace(id): Promise<void>` | Permanently delete a space (cannot be undone) |
 | `importArchive(name, archive): Promise<RoolSpace>` | Import from a zip archive, creating a new space |
-| `webdav(spaceId): RoolWebDAV` | Open a WebDAV client for a space's file storage |
-| `getSpaceStorageUsage(spaceId): Promise<SpaceFileStorageUsage>` | Get WebDAV quota usage for a space |
 
 ### Channel Management
 
@@ -1041,12 +1039,13 @@ Store arbitrary data alongside the space without it being part of an object's bo
 
 Every space has authenticated file storage. WebDAV is the SDK surface for that storage: paths are relative to the space root and collection operations use WebDAV collection semantics. Human/AI file links use `rool-machine:/rool-drive/...`; resolve those links with `resolveMachineResource()` and fetch file resources with `space.fetchMachineResource(resource)`.
 
-Use `client.webdav(spaceId)` when you only have an ID, or `space.webdav` when you already have an open space.
+Open a space, then use `space.webdav`.
 
 ```typescript
 import { resolveMachineResource } from '@rool-dev/sdk';
 
-const webdav = client.webdav('space-id');
+const space = await client.openSpace('space-id');
+const webdav = space.webdav;
 
 await webdav.mkcol('docs');
 await webdav.put('docs/readme.md', '# Hello', {
@@ -1091,8 +1090,6 @@ Paths are space-relative (`docs/readme.md`, not `/docs/readme.md`). WebDAV metho
 
 | Method | Description |
 |--------|-------------|
-| `client.webdav(spaceId)` | Create a WebDAV client for a space |
-| `client.getSpaceStorageUsage(spaceId)` | Get WebDAV quota usage for a space |
 | `space.webdav` | WebDAV client for an open space |
 | `space.getStorageUsage()` | Get WebDAV quota usage for an open space |
 | `webdav.getStorageUsage()` | Get WebDAV quota usage through the WebDAV client |

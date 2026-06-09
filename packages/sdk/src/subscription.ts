@@ -534,7 +534,7 @@ function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelE
 
   switch (type) {
     case 'connected':
-      return { type, spaceId, timestamp, source, serverVersion: raw.serverVersion as number };
+      return { type, spaceId, timestamp, source, serverVersion: raw.serverVersion as string };
     case 'space_changed':
       return { type, spaceId, timestamp, source };
     case 'object_created':
@@ -555,6 +555,7 @@ function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelE
     case 'channel_deleted':
       return { type, spaceId, timestamp, source, channelId: raw.channelId as string };
     case 'space_files_changed':
+    case 'space_files_reset':
       return { type, spaceId, timestamp, source };
     case 'probe_request':
       return { type, spaceId, timestamp, source, requestId: raw.requestId as string, channelId: raw.channelId as string, method: raw.method as string, args: (raw.args as Record<string, unknown>) ?? {} };

@@ -146,7 +146,6 @@ class ReactiveWatchImpl {
         collection: this.#options.collection,
         limit: this.#options.limit,
         order: this.#options.order,
-        ephemeral: true,
       });
       this.objects = objects;
       this.#currentLocations = new Set(objects.map((o) => o.location));

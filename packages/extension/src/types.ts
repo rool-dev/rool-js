@@ -114,33 +114,24 @@ export interface PromptOptions {
 export interface FindObjectsOptions {
   where?: Record<string, unknown>;
   collection?: string;
-  prompt?: string;
   limit?: number;
   /** Scope search to specific object locations. */
   locations?: string[];
   order?: 'asc' | 'desc';
-  ephemeral?: boolean;
 }
 
 export interface CreateObjectOptions {
   /** Specific basename to use. If omitted, the SDK generates a random one. */
   basename?: string;
-  ephemeral?: boolean;
-  parentInteractionId?: string | null;
 }
 
 export interface UpdateObjectOptions {
   data?: Record<string, unknown>;
-  prompt?: string;
-  ephemeral?: boolean;
-  parentInteractionId?: string | null;
 }
 
 export interface MoveObjectOptions {
   /** Replace the body atomically as part of the move. If omitted, body is preserved. */
   body?: Record<string, unknown>;
-  ephemeral?: boolean;
-  parentInteractionId?: string | null;
 }
 
 // -- Events -------------------------------------------------------------------

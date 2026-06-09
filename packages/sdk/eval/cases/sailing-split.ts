@@ -55,7 +55,7 @@ export const testCase: TestCase = {
       const { object: initialNode } = await conversation.createObject('markdown', {
         headline: 'History of Sailing',
         text: SAILING_TEXT,
-      }, { ephemeral: true });
+      });
       const initialLocation = initialNode.location;
 
       // Run the prompt with the node selected

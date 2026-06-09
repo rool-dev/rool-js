@@ -57,4 +57,5 @@ export type {
   RoolSpaceEvents,
   ProbeRequestEvent,
   OpenExtensionEvent,
+  SpaceFileStorageUsage,
 } from '@rool-dev/sdk';

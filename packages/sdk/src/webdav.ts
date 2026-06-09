@@ -26,6 +26,8 @@ export interface WebDAVConfig {
   webdavUrl: string;
   spaceId: string;
   authManager: AuthManager;
+  /** Called on shard refusal/drain (421/503). Return the new WebDAV base URL. */
+  onRefused?: () => Promise<string>;
 }
 
 export interface SpaceFileStorageUsage {
@@ -108,6 +110,14 @@ export interface WebDAVActiveLock {
 }
 
 const XML_HEADER = '<?xml version="1.0" encoding="utf-8"?>';
+const REQUEST_MAX_RETRIES = 6;
+const RETRY_BASE_MS = 150;
+const RETRY_MAX_MS = 5_000;
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+function retryBackoffMs(attempt: number): number {
+  const ceil = Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS);
+  return ceil / 2 + Math.random() * (ceil / 2);
+}
 const KNOWN_PROPS = [
   'creationdate',
   'displayname',
@@ -144,36 +154,61 @@ export class RoolWebDAV {
   private webdavUrl: string;
   private spaceId: string;
   private authManager: AuthManager;
+  private onRefused?: () => Promise<string>;
 
   constructor(config: WebDAVConfig) {
-    this.webdavUrl = config.webdavUrl.replace(/\/+$/, '');
+    this.webdavUrl = normalizeWebDAVBaseUrl(config.webdavUrl);
     this.spaceId = config.spaceId;
     this.authManager = config.authManager;
+    this.onRefused = config.onRefused;
   }
 
-  /** Normalize a space-relative WebDAV path. */
+  /** Update the WebDAV base URL (used after shard rerouting). */
+  setWebDAVUrl(webdavUrl: string): void {
+    this.webdavUrl = normalizeWebDAVBaseUrl(webdavUrl);
+  }
+
+  /** Normalize a WebDAV path to a machine path. Relative paths resolve under /rool-drive. */
   path(path: WebDAVPathInput): string {
-    return normalizeWebDAVPath(path);
+    const target = parseWebDAVPath(path);
+    return target.root ? `/${target.root}${target.path ? `/${target.path}` : ''}` : '/';
   }
 
-  /** Return the WebDAV href for a space-relative path. */
+  /** Return the WebDAV href for a machine path or relative /rool-drive path. */
   href(path: WebDAVPathInput = '', options?: { collection?: boolean }): string {
     return this.pathUrl(path, options).href;
   }
 
-  /** Return the absolute WebDAV URL for a space-relative path. */
+  /** Return the absolute WebDAV URL for a root-relative path. */
   url(path: WebDAVPathInput = '', options?: { collection?: boolean }): string {
     const davPath = this.pathUrl(path, options);
-    return `${this.webdavUrl}${davPath.href.slice('/dav'.length)}`;
+    return `${this.webdavUrl}${davPath.href}`;
   }
 
-  /** Low-level WebDAV request for a space-relative path. Adds Rool auth and returns the raw Response. */
+  /** Low-level WebDAV request for a machine path or relative /rool-drive path. Adds Rool auth and returns the raw Response. */
   async request(method: string, path: WebDAVPathInput = '', init: WebDAVRequestInit = {}): Promise<Response> {
     const { collection, ...fetchInit } = init;
-    return this.authenticatedFetch(this.url(path, { collection }), {
-      ...fetchInit,
-      method,
-    });
+    const requestInit = { ...fetchInit, method };
+    let response = await this.authenticatedFetch(this.url(path, { collection }), requestInit);
+
+    // 421 (wrong shard) and 503 (draining) reject before executing server-side.
+    // Re-resolve the owning shard and retry. This is safe for channel object
+    // mutations; callers using one-shot ReadableStreams should avoid retries.
+    for (
+      let attempt = 0;
+      (response.status === 421 || response.status === 503) && this.onRefused && attempt < REQUEST_MAX_RETRIES;
+      attempt++
+    ) {
+      await delay(retryBackoffMs(attempt));
+      try {
+        this.setWebDAVUrl(await this.onRefused());
+      } catch {
+        continue;
+      }
+      response = await this.authenticatedFetch(this.url(path, { collection }), requestInit);
+    }
+
+    return response;
   }
 
   async options(path: WebDAVPathInput = ''): Promise<Response> {
@@ -271,6 +306,7 @@ export class RoolWebDAV {
     ifNoneMatch?: string;
     lockToken?: string;
     signal?: AbortSignal;
+    headers?: HeadersInit;
   } = {}): Promise<WebDAVWriteResult> {
     const headers = writeHeaders(options);
     if (options.contentType) headers.set('Content-Type', options.contentType);
@@ -287,6 +323,7 @@ export class RoolWebDAV {
   async delete(path: WebDAVPathInput, options: {
     ifMatch?: string;
     lockToken?: string;
+    headers?: HeadersInit;
   } = {}): Promise<void> {
     const response = await this.request('DELETE', path, {
       collection: isCollectionInput(path),
@@ -295,7 +332,7 @@ export class RoolWebDAV {
     await assertStatus(response, 204);
   }
 
-  async mkcol(path: WebDAVPathInput, options: { lockToken?: string } = {}): Promise<void> {
+  async mkcol(path: WebDAVPathInput, options: { lockToken?: string; headers?: HeadersInit } = {}): Promise<void> {
     const response = await this.request('MKCOL', path, {
       collection: true,
       headers: writeHeaders(options),
@@ -307,6 +344,7 @@ export class RoolWebDAV {
     depth?: '0' | 'infinity';
     overwrite?: boolean;
     lockToken?: string;
+    headers?: HeadersInit;
   } = {}): Promise<WebDAVWriteResult> {
     const response = await this.moveOrCopy('COPY', source, destination, options);
     return writeResult(response);
@@ -315,6 +353,7 @@ export class RoolWebDAV {
   async move(source: WebDAVPathInput, destination: WebDAVPathInput, options: {
     overwrite?: boolean;
     lockToken?: string;
+    headers?: HeadersInit;
   } = {}): Promise<WebDAVWriteResult> {
     const response = await this.moveOrCopy('MOVE', source, destination, options);
     return writeResult(response);
@@ -370,6 +409,7 @@ export class RoolWebDAV {
     depth?: '0' | 'infinity';
     overwrite?: boolean;
     lockToken?: string;
+    headers?: HeadersInit;
   }): Promise<Response> {
     const headers = writeHeaders(options);
     headers.set('Destination', this.url(destination, { collection: isCollectionInput(destination) }));
@@ -402,17 +442,18 @@ export class RoolWebDAV {
 
   private pathUrl(path: WebDAVPathInput, options?: { collection?: boolean }): { href: string; path: string; isCollection: boolean } {
     const isCollection = options?.collection ?? isCollectionInput(path);
-    const normalized = normalizeWebDAVPath(path);
+    const target = parseWebDAVPath(path);
     const encodedSpace = encodeURIComponent(this.spaceId);
-    const encodedPath = normalized
+    const encodedPath = target.path
       .split('/')
       .filter(Boolean)
       .map(encodeURIComponent)
       .join('/');
     const suffix = encodedPath ? `/${encodedPath}` : '';
+    const root = target.root ? `/${target.root}` : '';
     return {
-      href: `/dav/${encodedSpace}${suffix}${isCollection ? '/' : ''}`,
-      path: normalized,
+      href: `/space/${encodedSpace}${root}${suffix}${isCollection ? '/' : ''}`,
+      path: target.path,
       isCollection,
     };
   }
@@ -422,18 +463,39 @@ function isCollectionInput(path: WebDAVPathInput): boolean {
   return path === '' || path.endsWith('/');
 }
 
-function normalizeWebDAVPath(path: WebDAVPathInput): string {
-  const normalized = path.replace(/\/+$/, '');
-  if (normalized === '') return '';
-  if (path.startsWith('/') || path.includes('\\')) throw new Error('Invalid WebDAV path');
+function normalizeWebDAVBaseUrl(url: string): string {
+  return url.replace(/\/+$/, '').replace(/\/dav$/, '');
+}
+
+function parseWebDAVPath(path: WebDAVPathInput): { root: 'rool-drive' | 'space' | ''; path: string } {
+  if (path.includes('\\')) throw new Error('Invalid WebDAV path');
   if (/^[a-z][a-z0-9+.-]*:/i.test(path)) throw new Error('Invalid WebDAV path');
   if (/[\x00-\x1f\x7f]/.test(path)) throw new Error('Invalid WebDAV path');
 
-  const parts = normalized.split('/');
+  if (path === '/') return { root: '', path: '' };
+  const normalized = path.replace(/\/+$/, '');
+  if (normalized === '') return { root: 'rool-drive', path: '' };
+
+  if (normalized === '/rool-drive') return { root: 'rool-drive', path: '' };
+  if (normalized.startsWith('/rool-drive/')) {
+    return { root: 'rool-drive', path: validateRelativeWebDAVPath(normalized.slice('/rool-drive/'.length)) };
+  }
+
+  if (normalized === '/space') return { root: 'space', path: '' };
+  if (normalized.startsWith('/space/')) {
+    return { root: 'space', path: validateRelativeWebDAVPath(normalized.slice('/space/'.length)) };
+  }
+
+  if (normalized.startsWith('/')) throw new Error('Invalid WebDAV path');
+  return { root: 'rool-drive', path: validateRelativeWebDAVPath(normalized) };
+}
+
+function validateRelativeWebDAVPath(path: string): string {
+  const parts = path.split('/');
   if (parts.some((part) => part === '' || part === '.' || part === '..')) {
     throw new Error('Invalid WebDAV path');
   }
-  return normalized;
+  return path;
 }
 
 function rangeHeader(range: string | { start: number; end?: number }): string {
@@ -448,8 +510,9 @@ function writeHeaders(options: {
   ifMatch?: string;
   ifNoneMatch?: string;
   lockToken?: string;
+  headers?: HeadersInit;
 }): Headers {
-  const headers = new Headers();
+  const headers = new Headers(options.headers);
   if (options.ifMatch) headers.set('If-Match', options.ifMatch);
   if (options.ifNoneMatch) headers.set('If-None-Match', options.ifNoneMatch);
   if (options.lockToken) headers.set('If', `(<${options.lockToken}>)`);
@@ -620,9 +683,14 @@ function pathFromHref(href: string, spaceId: string): string {
   try {
     const pathname = new URL(href, 'http://rool.local').pathname;
     const parts = pathname.split('/').filter(Boolean).map(decodeURIComponent);
-    if (parts[0] !== 'dav') return href;
-    if (parts[1] !== spaceId) return parts.slice(2).join('/');
-    return parts.slice(2).join('/');
+    if (parts[0] === 'space' && parts[1] === spaceId) {
+      const root = parts[2];
+      if (root === 'space') return `/space${parts.length > 3 ? `/${parts.slice(3).join('/')}` : ''}`;
+      if (root === 'rool-drive') return `/rool-drive${parts.length > 3 ? `/${parts.slice(3).join('/')}` : ''}`;
+      return '/';
+    }
+    if (parts[0] === 'dav' && parts[1] === spaceId) return parts.slice(2).join('/');
+    return href;
   } catch {
     return href;
   }

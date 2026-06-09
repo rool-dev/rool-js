@@ -24,6 +24,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
     "clean": "rm -rf dist",
     "eval": "node --import tsx eval/main.ts"
   },

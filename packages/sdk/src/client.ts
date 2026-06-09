@@ -4,7 +4,7 @@ import { GraphQLClient } from './graphql.js';
 import { ClientSubscriptionManager } from './subscription.js';
 import { RestClient } from './rest.js';
 import { ExtensionsClient } from './apps.js';
-import { RoolWebDAV, type SpaceFileStorageUsage } from './webdav.js';
+
 import { generateBasename } from './locations.js';
 import { generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
@@ -90,7 +90,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       graphql: config.graphqlUrl ?? `${apiOrigin}/graphql`,
       auth: config.authUrl ?? `${authOrigin}/auth`,
       extensions: `${apiOrigin}/user-extensions`,
-      webdav: `${apiOrigin}/dav`,
+      webdav: apiOrigin,
     };
 
     this.authManager = new AuthManager({
@@ -305,7 +305,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       graphqlClient: scopedClient,
       restClient: this.restClient,
       authManager: this.authManager,
-      webdavUrl: this.urls.webdav,
       router: this.router,
       initialRoute,
       logger: this.logger,
@@ -391,25 +390,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Open a WebDAV client for a space's user-visible files.
-   * Paths are relative to the space root; collection helpers normalize to
-   * trailing-slash WebDAV URLs where appropriate.
-   */
-  webdav(spaceId: string): RoolWebDAV {
-    return new RoolWebDAV({
-      webdavUrl: this.urls.webdav,
-      spaceId,
-      authManager: this.authManager,
-    });
-  }
-
-  /** Return file-storage quota usage for a space. */
-  async getSpaceStorageUsage(spaceId: string): Promise<SpaceFileStorageUsage> {
-    return this.webdav(spaceId).getStorageUsage();
-  }
-
-
-  /**
    * Get the current Rool user from the server.
    * Returns the user's server-assigned id, email, plan, and credits.
    */
@@ -431,7 +411,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * - name: display name
    * - slug: used in app publishing URLs (3-32 chars, start with letter, lowercase alphanumeric/hyphens/underscores)
    */
-  async updateCurrentUser(input: { name?: string; slug?: string }): Promise<CurrentUser> {
+  async updateCurrentUser(input: { name?: string; slug?: string; marketingOptIn?: boolean }): Promise<CurrentUser> {
     const user = await this.graphqlClient.updateCurrentUser(input);
     this._currentUser = user;
     return user;
