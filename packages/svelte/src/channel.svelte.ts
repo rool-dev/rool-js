@@ -340,6 +340,7 @@ class ReactiveChannelImpl {
 
     const onChannelUpdated = () => {
       this.interactions = channel.getInteractions();
+      this.conversations = channel.getConversations();
     };
     channel.on('channelUpdated', onChannelUpdated);
     this.#unsubscribers.push(() => channel.off('channelUpdated', onChannelUpdated));

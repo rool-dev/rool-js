@@ -27,6 +27,8 @@ export interface FieldDef {
  */
 export interface CollectionDef {
   fields: FieldDef[];
+  /** Optional schema.org type name for this collection (e.g. "Person", "MusicAlbum"). */
+  schemaOrgType?: string;
 }
 
 /**
@@ -104,7 +106,7 @@ export interface Interaction {
   timestamp: number;
   userId: string;
   userName?: string | null;  // Display name at time of interaction
-  operation: 'prompt' | 'createObject' | 'updateObject' | 'moveObject' | 'deleteObjects';
+  operation: 'prompt' | 'createObject' | 'updateObject' | 'moveObject' | 'deleteObjects' | string;
   input: string;
   output: string | null;
   status: InteractionStatus;
@@ -367,6 +369,11 @@ export interface FindObjectsOptions {
 export interface CreateObjectOptions {
   /** Specific basename to use. If omitted, the SDK generates a random one. */
   basename?: string;
+}
+
+export interface CollectionOptions {
+  /** Optional schema.org type name for this collection (e.g. "Person", "MusicAlbum"). */
+  schemaOrgType?: string;
 }
 
 export interface UpdateObjectOptions {

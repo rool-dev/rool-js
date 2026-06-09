@@ -79,6 +79,7 @@ export type {
   FieldType,
   FieldDef,
   CollectionDef,
+  CollectionOptions,
   SpaceSchema,
 
   // AI types

@@ -127,15 +127,15 @@ test('channel collection schema writes use object WebDAV', async () => {
   const dav = new FakeWebDAV();
   const ch = channel(dav);
 
-  await ch.createCollection('notes', [{ name: 'title', type: { kind: 'string' } }]);
+  await ch.createCollection('notes', [{ name: 'title', type: { kind: 'string' } }], { schemaOrgType: 'CreativeWork' });
   assert.equal(dav.calls[0].method, 'MKCOL');
   assert.equal(dav.calls[0].path, '/space/notes/');
   assert.equal(dav.calls[1].method, 'PUT');
   assert.equal(dav.calls[1].path, '/space/notes/.schema.json');
-  assert.deepEqual(ch.getSchema().notes, { fields: [{ name: 'title', type: { kind: 'string' } }] });
+  assert.deepEqual(ch.getSchema().notes, { fields: [{ name: 'title', type: { kind: 'string' } }], schemaOrgType: 'CreativeWork' });
 
-  await ch.alterCollection('notes', [{ name: 'done', type: { kind: 'boolean' } }]);
-  assert.deepEqual(JSON.parse(dav.files.get('/space/notes/.schema.json')!.body), { fields: [{ name: 'done', type: { kind: 'boolean' } }] });
+  await ch.alterCollection('notes', { fields: [{ name: 'done', type: { kind: 'boolean' } }], schemaOrgType: 'Action' });
+  assert.deepEqual(JSON.parse(dav.files.get('/space/notes/.schema.json')!.body), { fields: [{ name: 'done', type: { kind: 'boolean' } }], schemaOrgType: 'Action' });
 
   await ch.dropCollection('notes');
   assert.equal(dav.calls.at(-1)?.method, 'DELETE');

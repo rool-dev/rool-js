@@ -42,6 +42,7 @@ export type {
   CreateObjectOptions,
   UpdateObjectOptions,
   MoveObjectOptions,
+  CollectionOptions,
   FieldType,
   FieldDef,
   CollectionDef,

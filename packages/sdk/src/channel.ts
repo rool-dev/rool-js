@@ -22,6 +22,7 @@ import type {
   SpaceSchema,
   CollectionDef,
   FieldDef,
+  CollectionOptions,
   ExtensionManifest,
 } from './types.js';
 import { generateBasename, loc, normalizeLocation, parseLocation } from './locations.js';
@@ -101,6 +102,14 @@ function patchBody(current: Record<string, unknown>, patch: Record<string, unkno
     else next[key] = value;
   }
   return next;
+}
+
+function collectionDef(input: FieldDef[] | CollectionDef, options?: CollectionOptions): CollectionDef {
+  const base: CollectionDef = Array.isArray(input)
+    ? { fields: input }
+    : { fields: input.fields, schemaOrgType: input.schemaOrgType };
+  const schemaOrgType = options?.schemaOrgType ?? base.schemaOrgType;
+  return schemaOrgType ? { fields: base.fields, schemaOrgType } : { fields: base.fields };
 }
 
 function sameJsonValue(a: unknown, b: unknown): boolean {
@@ -832,18 +841,18 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /** Create a new collection schema. */
-  async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
-    return this._createCollectionImpl(name, fields, this._conversationId);
+  async createCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
+    return this._createCollectionImpl(name, fields, options, this._conversationId);
   }
 
   /** @internal */
-  async _createCollectionImpl(name: string, fields: FieldDef[], conversationId: string): Promise<CollectionDef> {
+  async _createCollectionImpl(name: string, fields: FieldDef[] | CollectionDef, options: CollectionOptions | undefined, conversationId: string): Promise<CollectionDef> {
     if (this._schema[name]) {
       throw new Error(`Collection "${name}" already exists`);
     }
 
     // Optimistic local update
-    const optimisticDef: CollectionDef = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
+    const optimisticDef = collectionDef(fields, options);
     this._schema[name] = optimisticDef;
 
     try {
@@ -862,18 +871,18 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /** Alter an existing collection schema, replacing its field definitions. */
-  async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
-    return this._alterCollectionImpl(name, fields, this._conversationId);
+  async alterCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
+    return this._alterCollectionImpl(name, fields, options, this._conversationId);
   }
 
   /** @internal */
-  async _alterCollectionImpl(name: string, fields: FieldDef[], conversationId: string): Promise<CollectionDef> {
+  async _alterCollectionImpl(name: string, fields: FieldDef[] | CollectionDef, options: CollectionOptions | undefined, conversationId: string): Promise<CollectionDef> {
     if (!this._schema[name]) {
       throw new Error(`Collection "${name}" not found`);
     }
 
     const previous = this._schema[name];
-    this._schema[name] = { fields: fields.map(f => ({ name: f.name, type: f.type })) };
+    this._schema[name] = collectionDef(fields, options);
 
     try {
       const updated = this._schema[name];
@@ -1241,6 +1250,14 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
         }
         break;
 
+      case 'channel_deleted':
+        if (event.channelId === this._channelId) {
+          this._channel = undefined;
+          this._activeLeaves.clear();
+          this.emit('reset', { source: changeSource });
+        }
+        break;
+
       case 'conversation_updated':
         if (event.channelId === this._channelId && event.conversationId) {
           if (!this._channel) {
@@ -1447,13 +1464,13 @@ export class ConversationHandle {
   }
 
   /** Create a new collection schema. */
-  async createCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
-    return this._channel._createCollectionImpl(name, fields, this._conversationId);
+  async createCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
+    return this._channel._createCollectionImpl(name, fields, options, this._conversationId);
   }
 
   /** Alter an existing collection schema. */
-  async alterCollection(name: string, fields: FieldDef[]): Promise<CollectionDef> {
-    return this._channel._alterCollectionImpl(name, fields, this._conversationId);
+  async alterCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
+    return this._channel._alterCollectionImpl(name, fields, options, this._conversationId);
   }
 
   /** Drop a collection schema. */

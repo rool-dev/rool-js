@@ -114,6 +114,13 @@ const REQUEST_MAX_RETRIES = 6;
 const RETRY_BASE_MS = 150;
 const RETRY_MAX_MS = 5_000;
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+function getTimezone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+}
 function retryBackoffMs(attempt: number): number {
   const ceil = Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS);
   return ceil / 2 + Math.random() * (ceil / 2);
@@ -431,6 +438,8 @@ export class RoolWebDAV {
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
     headers.set('X-Rool-Token', tokens.roolToken);
+    const timezone = getTimezone();
+    if (timezone) headers.set('X-Timezone', timezone);
 
     const requestInit: RequestInit & { duplex?: 'half' } = { ...init, headers };
     if (typeof ReadableStream !== 'undefined' && init.body instanceof ReadableStream) {
