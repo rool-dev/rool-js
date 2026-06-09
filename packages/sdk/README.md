@@ -2,8 +2,6 @@
 
 The TypeScript SDK for Rool, a persistent and collaborative environment for organizing objects.
 
-> **Building a new Rool extension?** Start with [`@rool-dev/extension`](/extension/) — it handles hosting, dev server, and gives you a reactive Svelte channel out of the box. This SDK is for advanced use cases: integrating Rool into an existing application, building Node.js scripts, or working outside the extension sandbox.
-
 The SDK manages authentication, real-time synchronization, and per-space file storage. Core primitives:
 
 - **Spaces** — Containers for objects, schema, metadata, channels, and files
@@ -717,7 +715,7 @@ client.on('userStorageChanged', ({ key, value, source }) => {
 
 ### Extensions
 
-Manage and publish extensions. See [`@rool-dev/extension`](/extension/) for building extensions.
+Manage and publish extensions.
 
 There are two distinct domains: your **personal library** (extensions you've created or installed) and the **published extensions** (extensions discoverable by all users). Each has its own return type.
 

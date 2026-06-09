@@ -1,6 +1,6 @@
 # rool-js
 
-Official TypeScript SDK and extension toolkit for the Rool platform. This is a pnpm monorepo.
+Official TypeScript SDK and Svelte bindings for the Rool platform. This is a pnpm monorepo.
 
 ## Packages
 
@@ -8,7 +8,6 @@ Official TypeScript SDK and extension toolkit for the Rool platform. This is a p
 |---------|------|-----|
 | @rool-dev/sdk | `packages/sdk/` | TypeScript SDK |
 | @rool-dev/svelte | `packages/svelte/` | Svelte wrapper |
-| @rool-dev/extension | `packages/extension/` | Extension SDK & CLI |
 
 ## Commands
 - `pnpm install` - Install all dependencies
@@ -28,7 +27,7 @@ pnpm build
 ```
 
 ## Docs Site
-The `docs/` folder is a Starlight (Astro) site. The SDK, Svelte, and Extension doc pages are **generated from package READMEs** by `docs/build-docs.js` at build time (`pnpm docs:build`). The generated files (`docs/src/content/docs/{sdk,svelte,extension}.md` and `docs/public/llms.txt`) are gitignored. Static pages like `index.md` are checked in directly. **Do not edit the generated doc pages — edit the package READMEs instead.**
+The `docs/` folder is a Starlight (Astro) site. The SDK and Svelte doc pages are **generated from package READMEs** by `docs/build-docs.js` at build time (`pnpm docs:build`). The generated files (`docs/src/content/docs/{sdk,svelte}.md` and `docs/public/llms.txt`) are gitignored. Static pages like `index.md` are checked in directly. **Do not edit the generated doc pages — edit the package READMEs instead.**
 
 ## Publishing
 All packages share a single version number and are published together under the `@rool-dev` scope.

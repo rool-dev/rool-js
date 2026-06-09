@@ -19,7 +19,6 @@ export default defineConfig({
         {
           label: 'Developer Tools',
           items: [
-            { label: 'Extension', link: '/extension/' },
             { label: 'SDK', link: '/sdk/' },
             { label: 'Svelte', link: '/svelte/' },
           ],
