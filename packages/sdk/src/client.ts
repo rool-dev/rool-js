@@ -205,14 +205,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Process auth callback from URL fragment.
-   * Called automatically by initialize(), but can be called manually.
-   */
-  processAuthCallback(): boolean {
-    return this.authManager.processCallback();
-  }
-
-  /**
    * Check if user is currently authenticated (validates token is usable).
    */
   async isAuthenticated(): Promise<boolean> {
