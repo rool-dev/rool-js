@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, SpaceSchema, Channel, Conversation, ExtensionManifest } from './types.js';
+import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, SpaceSchema, Channel, Conversation } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 
@@ -460,9 +460,6 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
         channelCreatedAt: raw.createdAt as number | undefined,
         channelCreatedBy: raw.createdBy as string | undefined,
         channelCreatedByName: raw.createdByName as string | undefined,
-        channelExtensionUrl: raw.extensionUrl as string | undefined,
-        channelExtensionId: raw.extensionId as string | undefined,
-        channelManifest: raw.manifest as ExtensionManifest | undefined,
       };
     case 'channel_renamed':
       return { type, timestamp, spaceId: raw.spaceId as string, channelId: raw.channelId as string, name: raw.name as string };
@@ -557,8 +554,6 @@ function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelE
       return { type: 'space_files_reset', spaceId, timestamp, source };
     case 'probe_request':
       return { type: 'probe_request', spaceId, timestamp, source, requestId: raw.requestId as string, channelId: raw.channelId as string, method: raw.method as string, args: (raw.args as Record<string, unknown>) ?? {} };
-    case 'open_extension':
-      return { type: 'open_extension', spaceId, timestamp, source, channelId: raw.channelId as string };
     default:
       logger.warn('[RoolChannel] Unknown space event type:', rawType);
       return null;

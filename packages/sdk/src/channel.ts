@@ -22,7 +22,6 @@ import type {
   CollectionDef,
   FieldDef,
   CollectionOptions,
-  ExtensionManifest,
 } from './types.js';
 import { loc, normalizeLocation, parseLocation } from './locations.js';
 import { resolveMachineResource, type MachineResource } from './machine.js';
@@ -349,26 +348,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this._role === 'viewer';
   }
 
-  /**
-   * Get the extension URL if this channel was created via installExtension, or null.
-   */
-  get extensionUrl(): string | null {
-    return this._channel?.extensionUrl ?? null;
-  }
-
-  /**
-   * Get the extension ID if this channel has an installed extension, or null.
-   */
-  get extensionId(): string | null {
-    return this._channel?.extensionId ?? null;
-  }
-
-  /**
-   * Get the extension manifest if this channel has an installed extension, or null.
-   */
-  get manifest(): ExtensionManifest | null {
-    return this._channel?.manifest ?? null;
-  }
 
   /**
    * Get the active branch of the current conversation as a flat array (root → leaf).

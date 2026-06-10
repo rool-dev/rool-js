@@ -700,33 +700,6 @@ client.on('userStorageChanged', ({ key, value, source }) => {
 });
 ```
 
-### Extensions
-
-Manage and publish extensions.
-
-There are two distinct domains: your **personal library** (extensions you've created or installed) and the **published extensions** (extensions discoverable by all users). Each has its own return type.
-
-#### Your Library (`ExtensionInfo`)
-
-Manage extensions you own. Each `ExtensionInfo` includes `published` (whether it's listed in the marketplace) and `marketplaceExtensionId` (non-null if you installed it from someone else's listing, null if you authored it).
-
-| Method | Description |
-|--------|-------------|
-| `uploadExtension(extensionId, options): Promise<ExtensionInfo>` | Upload or update an extension (`options.bundle`: zip with `index.html` and `manifest.json`) |
-| `listExtensions(): Promise<ExtensionInfo[]>` | List your extensions |
-| `getExtensionInfo(extensionId): Promise<ExtensionInfo \| null>` | Get info for a specific extension |
-| `deleteExtension(extensionId): Promise<void>` | Delete an extension permanently (removes files and DB row) |
-
-#### Marketplace (`PublishedExtensionInfo`)
-
-Discover and install extensions published by other users.
-
-| Method | Description |
-|--------|-------------|
-| `findExtensions(options?): Promise<PublishedExtensionInfo[]>` | Search the marketplace. Options: `query` (semantic search string), `limit` (default 20, max 100). Omit `query` to browse all. |
-| `publishToPublic(extensionId): Promise<void>` | Publish one of your extensions to the marketplace |
-| `unpublishFromPublic(extensionId): Promise<void>` | Remove from the marketplace (keeps the extension in your library) |
-
 ### Utilities
 
 | Method | Description |
@@ -796,7 +769,6 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 | `getChannels(): ChannelInfo[]` | List channels (deprecated — use `channels` property instead) |
 | `renameChannel(channelId, name): Promise<void>` | Rename a channel |
 | `deleteChannel(channelId): Promise<void>` | Delete a channel |
-| `installExtension(extensionId, channelId): Promise<string>` | Install an extension into a channel of this space. If you own it, wires it directly. If it's a marketplace extension, copies and builds a new extension in your library. Returns the channel ID. |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
 | `getStorageUsage(): Promise<SpaceFileStorageUsage>` | Get WebDAV quota usage for this space |
 | `fetchMachineResource(resource): Promise<Response>` | Fetch a resolved file `MachineResource` through this space |
@@ -806,7 +778,7 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 
 ```typescript
 space.on('channelCreated', (channel: ChannelInfo) => void)   // New channel added
-space.on('channelUpdated', (channel: ChannelInfo) => void)   // Channel metadata changed (name, extension, manifest)
+space.on('channelUpdated', (channel: ChannelInfo) => void)   // Channel metadata changed
 space.on('channelDeleted', (channelId: string) => void)      // Channel removed
 space.on('filesChanged', ({ source, timestamp }) => void)     // WebDAV file storage changed; call webdav.syncCollection()
 space.on('connectionStateChanged', (state: 'connected' | 'disconnected' | 'reconnecting') => void)
@@ -827,9 +799,6 @@ A channel is a named context within a space. All object operations, AI prompts, 
 | `userId: string` | Current user's ID |
 | `channelId: string` | Channel ID (read-only, fixed at open time) |
 | `isReadOnly: boolean` | True if viewer role |
-| `extensionUrl: string \| null` | URL of the installed extension, or null if this is a plain channel |
-| `extensionId: string \| null` | ID of the installed extension, or null if this is a plain channel |
-| `manifest: ExtensionManifest \| null` | Extension manifest snapshot (name, icon, collections, etc.), or null |
 
 ### Lifecycle
 
@@ -1154,7 +1123,7 @@ The archive bundles `data.json` (objects, metadata, and channels) together with 
 Channel events are for channel/conversation state. Object and file reactivity goes through `space.on('filesChanged' | 'filesReset')` plus WebDAV `syncCollection()`.
 
 ```typescript
-// Channel metadata updated (name, extensionUrl)
+// Channel metadata updated
 channel.on('channelUpdated', ({ channelId, source }) => void)
 
 // Conversation interaction history updated
@@ -1298,9 +1267,6 @@ interface Channel {
   createdAt: number;            // Timestamp when channel was created
   createdBy: string;            // User ID who created the channel
   createdByName?: string;       // Display name at time of creation
-  extensionUrl?: string;        // URL of installed extension (set by installExtension)
-  extensionId?: string;         // ID of installed extension (user_extensions.extension_id)
-  manifest?: ExtensionManifest; // Extension manifest snapshot (set when extension is wired)
   conversations: Record<string, Conversation>;  // Keyed by conversation ID
 }
 
@@ -1312,9 +1278,6 @@ interface ChannelInfo {
   createdBy: string;
   createdByName: string | null;
   interactionCount: number;
-  extensionUrl: string | null;  // URL of installed extension, or null
-  extensionId: string | null;   // ID of installed extension, or null
-  manifest: ExtensionManifest | null;  // Extension manifest snapshot, or null
 }
 ```
 

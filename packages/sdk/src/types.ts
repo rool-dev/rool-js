@@ -155,12 +155,6 @@ export interface Channel {
   createdAt: number;
   createdBy: string;
   createdByName?: string;
-  /** URL of the installed extension, if this channel was created via installExtension. */
-  extensionUrl?: string;
-  /** ID of the installed extension (user_extensions.extension_id). */
-  extensionId?: string;
-  /** Extension manifest snapshot, set when an extension is wired to this channel. */
-  manifest?: ExtensionManifest;
   conversations: Record<string, Conversation>;
 }
 
@@ -175,12 +169,6 @@ export interface ChannelInfo {
   createdBy: string;
   createdByName: string | null;
   interactionCount: number;
-  /** URL of the installed extension, or null if this is a plain channel. */
-  extensionUrl: string | null;
-  /** ID of the installed extension, or null if this is a plain channel. */
-  extensionId: string | null;
-  /** Extension manifest snapshot, or null if this is a plain channel. */
-  manifest: ExtensionManifest | null;
 }
 
 
@@ -230,84 +218,6 @@ export interface CurrentUser {
   storage: Record<string, unknown>;
   stripeStatus: string | null;
   marketingOptIn: boolean;
-}
-
-/**
- * Options for uploading an extension bundle.
- */
-export interface UploadExtensionOptions {
-  /** Zip bundle containing the extension files (must include index.html and manifest.json at root) */
-  bundle: File | Blob;
-}
-
-/**
- * Extension manifest from manifest.json.
- */
-export interface ExtensionManifest {
-  /** Extension identifier (lowercase, alphanumeric, hyphens, underscores) */
-  id: string;
-  /** Display name */
-  name: string;
-  /** Optional icon path (relative to extension URL) */
-  icon?: string;
-  /** Collection access declarations */
-  collections: Record<string, unknown>;
-  /** Optional extension description */
-  description?: string;
-  /** Optional system instruction for the AI agent */
-  systemInstruction?: string | null;
-}
-
-/**
- * Options for searching published extensions.
- */
-export interface FindExtensionsOptions {
-  /** Natural language search query for semantic extension discovery. Omit to browse all. */
-  query?: string;
-  /** Maximum number of results (default: 20, max: 100) */
-  limit?: number;
-}
-
-/**
- * A user extension in your personal library.
- * Returned by listExtensions(), getExtensionInfo(), and uploadExtension().
- */
-export interface ExtensionInfo {
-  /** Extension identifier (URL-safe) */
-  extensionId: string;
-  /** Extension manifest from manifest.json */
-  manifest: ExtensionManifest;
-  /** URL where the extension is served */
-  url: string;
-  /** Bundle size in bytes */
-  sizeBytes: number;
-  /** Whether this extension is published to the public marketplace */
-  published: boolean;
-  /** If installed from a marketplace listing, the source extension ID. Null if user-authored. */
-  marketplaceExtensionId: string | null;
-  /** ISO timestamp of creation */
-  createdAt: string;
-  /** ISO timestamp of last update */
-  updatedAt: string;
-}
-
-/**
- * A publicly listed extension in the marketplace.
- * Returned by findExtensions().
- */
-export interface PublishedExtensionInfo {
-  /** Extension identifier (URL-safe) */
-  extensionId: string;
-  /** Extension manifest from manifest.json */
-  manifest: ExtensionManifest;
-  /** URL where the extension is served */
-  url: string;
-  /** Bundle size in bytes */
-  sizeBytes: number;
-  /** ISO timestamp of creation */
-  createdAt: string;
-  /** ISO timestamp of last update */
-  updatedAt: string;
 }
 
 /**
@@ -445,9 +355,6 @@ export interface ChannelCreatedClientEvent extends ClientEventBase {
   channelCreatedAt?: number;
   channelCreatedBy?: string;
   channelCreatedByName?: string;
-  channelExtensionUrl?: string | null;
-  channelExtensionId?: string | null;
-  channelManifest?: ExtensionManifest | null;
 }
 
 export interface ChannelRenamedClientEvent extends ClientEventBase {
@@ -484,8 +391,7 @@ export type ChannelEventType =
   | 'conversation_updated'
   | 'space_files_changed'
   | 'space_files_reset'
-  | 'probe_request'
-  | 'open_extension';
+  | 'probe_request';
 
 
 export interface ChannelEvent {
@@ -593,7 +499,7 @@ export interface RoolClientEvents {
   spaceRenamed: (spaceId: string, newName: string) => void;
   /** Emitted when a channel is created in a space */
   channelCreated: (spaceId: string, channel: ChannelInfo) => void;
-  /** Emitted when a channel's metadata changes (name, extension, manifest) */
+  /** Emitted when a channel's metadata changes */
   channelUpdated: (spaceId: string, channel: ChannelInfo) => void;
   /** Emitted when a channel is deleted */
   channelDeleted: (spaceId: string, channelId: string) => void;
@@ -609,20 +515,15 @@ export interface RoolClientEvents {
 }
 
 /**
- * Server-initiated probe against an extension iframe — agent debugging /
- * inspection operations like `screenshot`, `consoleLogs`, `clickSelector`.
- * The client runs the probe via the iframe bridge and posts the result
- * back via `rool.probeResponse(requestId, result, error)`.
+ * Server-initiated probe for agent debugging / inspection operations like
+ * `screenshot`, `consoleLogs`, `clickSelector`. The client runs the probe
+ * and posts the result back via `rool.probeResponse(requestId, result, error)`.
  */
 export interface ProbeRequestEvent {
   requestId: string;
   channelId: string;
   method: string;
   args: Record<string, unknown>;
-}
-
-export interface OpenExtensionEvent {
-  channelId: string;
 }
 
 export interface SpaceFilesChangedEvent {
@@ -634,14 +535,12 @@ export interface SpaceFilesChangedEvent {
 export interface RoolSpaceEvents {
   /** A new channel was created in this space */
   channelCreated: (channel: ChannelInfo) => void;
-  /** A channel's metadata changed (name, extension, manifest) */
+  /** A channel's metadata changed */
   channelUpdated: (channel: ChannelInfo) => void;
   /** A channel was deleted from this space */
   channelDeleted: (channelId: string) => void;
-  /** Server requests a probe operation against an extension iframe */
+  /** Server requests a probe operation */
   probe: (event: ProbeRequestEvent) => void;
-  /** Server requests the client to open an extension in split view */
-  openExtension: (event: OpenExtensionEvent) => void;
   /** File storage changed; call webdav.syncCollection() to reconcile. */
   filesChanged: (event: SpaceFilesChangedEvent) => void;
   /** WebDAV sync tokens were invalidated; discard local tokens and full-resync. */
@@ -700,7 +599,7 @@ export interface ChannelEvents {
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Collection schema was updated */
   schemaUpdated: (event: SchemaUpdatedEvent) => void;
-  /** Channel metadata was updated (name, extensionUrl) */
+  /** Channel metadata was updated */
   channelUpdated: (event: ChannelUpdatedEvent) => void;
   /** Conversation interaction history was updated */
   conversationUpdated: (event: ConversationUpdatedEvent) => void;

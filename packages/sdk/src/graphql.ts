@@ -9,8 +9,6 @@ import type {
   LinkAccess,
   Channel,
   SpaceSchema,
-  PublishedExtensionInfo,
-  FindExtensionsOptions,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 
@@ -186,17 +184,16 @@ export class GraphQLClient {
   }
 
   /** Create a channel. Throws if channel already exists. */
-  async createChannel(spaceId: string, channelId: string, options?: { name?: string; extensionUrl?: string }): Promise<Channel> {
+  async createChannel(spaceId: string, channelId: string, options?: { name?: string }): Promise<Channel> {
     const mutation = `
-      mutation CreateChannel($spaceId: String!, $channelId: String!, $name: String, $extensionUrl: String) {
-        createChannel(spaceId: $spaceId, channelId: $channelId, name: $name, extensionUrl: $extensionUrl)
+      mutation CreateChannel($spaceId: String!, $channelId: String!, $name: String) {
+        createChannel(spaceId: $spaceId, channelId: $channelId, name: $name)
       }
     `;
     const response = await this.request<{ createChannel: Channel }>(mutation, {
       spaceId,
       channelId,
       name: options?.name,
-      extensionUrl: options?.extensionUrl,
     });
     return response.createChannel;
   }
@@ -456,58 +453,6 @@ export class GraphQLClient {
       }
     `;
     await this.request(mutation);
-  }
-
-  async findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
-    const query = `
-      query FindExtensions($query: String, $limit: Int) {
-        findExtensions(query: $query, limit: $limit) {
-          extensionId
-          manifest
-          url
-          sizeBytes
-          createdAt
-          updatedAt
-        }
-      }
-    `;
-    const response = await this.request<{ findExtensions: PublishedExtensionInfo[] }>(query, {
-      query: options?.query,
-      limit: options?.limit,
-    });
-    return response.findExtensions;
-  }
-
-  async installExtension(spaceId: string, extensionId: string, channelId: string): Promise<string> {
-    const mutation = `
-      mutation InstallExtension($spaceId: String!, $extensionId: String!, $channelId: String!) {
-        installExtension(spaceId: $spaceId, extensionId: $extensionId, channelId: $channelId)
-      }
-    `;
-    const result = await this.request<{ installExtension: string }>(mutation, {
-      spaceId,
-      extensionId,
-      channelId,
-    });
-    return result.installExtension;
-  }
-
-  async publishExtensionToPublic(extensionId: string): Promise<void> {
-    const mutation = `
-      mutation PublishExtension($extensionId: String!) {
-        publishExtension(extensionId: $extensionId)
-      }
-    `;
-    await this.request(mutation, { extensionId });
-  }
-
-  async unpublishExtensionFromPublic(extensionId: string): Promise<void> {
-    const mutation = `
-      mutation UnpublishExtension($extensionId: String!) {
-        unpublishExtension(extensionId: $extensionId)
-      }
-    `;
-    await this.request(mutation, { extensionId });
   }
 
   async setUserStorage(key: string, value: unknown): Promise<void> {

@@ -69,12 +69,6 @@ export type {
   CurrentUser,
   AuthUser,
 
-  // Extension types
-  UploadExtensionOptions,
-  ExtensionInfo,
-  PublishedExtensionInfo,
-  ExtensionManifest,
-  FindExtensionsOptions,
 
   // Schema types
   FieldType,
@@ -119,7 +113,6 @@ export type {
   RoolClientEvents,
   RoolSpaceEvents,
   ProbeRequestEvent,
-  OpenExtensionEvent,
   AuthTokens,
   AuthProvider,
 } from './types.js';

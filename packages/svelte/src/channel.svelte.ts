@@ -296,9 +296,6 @@ class ReactiveChannelImpl {
   get channelName() { return this.#channel.channelName; }
   get isReadOnly() { return this.#channel.isReadOnly; }
   get linkAccess() { return this.#channel.linkAccess; }
-  get extensionUrl() { return this.#channel.extensionUrl; }
-  get extensionId() { return this.#channel.extensionId; }
-  get manifest() { return this.#channel.manifest; }
 
   get isClosed() { return this.#closed; }
 

@@ -52,9 +52,6 @@ function channelToInfo(id: string, ch: Channel): ChannelInfo {
     interactionCount: Object.values(ch.conversations ?? {}).reduce(
       (sum, conv) => sum + (conv.interactions ? Object.keys(conv.interactions).length : 0), 0
     ),
-    extensionUrl: ch.extensionUrl ?? null,
-    extensionId: ch.extensionId ?? null,
-    manifest: ch.manifest ?? null,
   };
 }
 
@@ -363,12 +360,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   }
 
 
-  // Targets owning shard
-  async installExtension(extensionId: string, channelId: string): Promise<string> {
-    return this.graphqlClient.installExtension(this._id, extensionId, channelId);
-  }
-
-
   // Targets the owning shard
   async exportArchive(): Promise<Blob> {
     const tokens = await this.authManager.getTokens();
@@ -461,11 +452,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       return;
     }
 
-    // Open extension: emit to space listeners (client opens split view)
-    if (event.type === 'open_extension' && event.channelId) {
-      this.emit('openExtension', { channelId: event.channelId });
-      return;
-    }
 
     // Channel lifecycle events: derive channelCreated/channelUpdated/channelDeleted
     if (event.type === 'channel_updated' && event.channelId && event.channel) {
@@ -485,7 +471,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
         this.emit('channelCreated', info);
       }
 
-      // Also route to the open channel (for channel-internal handling like name/extension updates)
+      // Also route to the open channel for channel-internal handling.
       const channel = this.openChannels.get(event.channelId);
       if (channel) channel._handleEvent(event);
       return;

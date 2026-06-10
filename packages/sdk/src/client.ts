@@ -3,7 +3,6 @@ import { AuthManager } from './auth.js';
 import { GraphQLClient } from './graphql.js';
 import { ClientSubscriptionManager } from './subscription.js';
 import { RestClient } from './rest.js';
-import { ExtensionsClient } from './apps.js';
 
 import { generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
@@ -21,16 +20,11 @@ import type {
   UserResult,
   AuthUser,
   ConnectionState,
-  ExtensionInfo,
-  PublishedExtensionInfo,
-  UploadExtensionOptions,
-  FindExtensionsOptions,
 } from './types.js';
 
 type ResolvedUrls = {
   graphql: string;
   auth: string;
-  extensions: string;
   webdav: string;
 };
 
@@ -88,7 +82,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.urls = {
       graphql: config.graphqlUrl ?? `${apiOrigin}/graphql`,
       auth: config.authUrl ?? `${authOrigin}/auth`,
-      extensions: `${apiOrigin}/user-extensions`,
       webdav: apiOrigin,
     };
 
@@ -423,39 +416,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
 
   /**
-   * Upload or update a user extension bundle.
-   * @param extensionId - URL-safe identifier (alphanumeric, hyphens, underscores)
-   * @param options - Bundle zip file (must include index.html and manifest.json)
-   */
-  async uploadExtension(extensionId: string, options: UploadExtensionOptions): Promise<ExtensionInfo> {
-    return this.extensionsClient.upload(extensionId, options);
-  }
-
-  /** Delete a user extension permanently (removes files and DB row). */
-  async deleteExtension(extensionId: string): Promise<void> {
-    return this.extensionsClient.delete(extensionId);
-  }
-
-  /** List the current user's extensions. */
-  async listExtensions(): Promise<ExtensionInfo[]> {
-    return this.extensionsClient.list();
-  }
-
-  /** Get info for a specific user extension. Returns null if not found. */
-  async getExtensionInfo(extensionId: string): Promise<ExtensionInfo | null> {
-    return this.extensionsClient.get(extensionId);
-  }
-
-
-  /**
-   * Search published extensions. With a query, performs semantic search.
-   * Without a query, returns all published extensions sorted by most recently updated.
-   */
-  async findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
-    return this.graphqlClient.findExtensions(options);
-  }
-
-  /**
    * Respond to a server-initiated probe. Called by the client after running
    * the probe via the iframe bridge. Pass `result` on success or `error` on
    * failure (timeout, no bridge, handler threw).
@@ -463,17 +423,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   async probeResponse(requestId: string, result?: unknown, error?: string): Promise<boolean> {
     return this.graphqlClient.probeResponse(requestId, result, error);
   }
-
-  /** Publish a user extension (make it publicly discoverable). */
-  async publishToPublic(extensionId: string): Promise<void> {
-    return this.graphqlClient.publishExtensionToPublic(extensionId);
-  }
-
-  /** Unpublish an extension (remove from public listing). */
-  async unpublishFromPublic(extensionId: string): Promise<void> {
-    return this.graphqlClient.unpublishExtensionFromPublic(extensionId);
-  }
-
 
   /**
    * Get a value from user storage (sync read from in-memory cache).
@@ -529,14 +478,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   private get restClient(): RestClient {
     return new RestClient({
       apiUrl: this.baseUrl,
-      authManager: this.authManager,
-    });
-  }
-
-
-  private get extensionsClient(): ExtensionsClient {
-    return new ExtensionsClient({
-      extensionsUrl: this.urls.extensions,
       authManager: this.authManager,
     });
   }

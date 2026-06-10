@@ -471,11 +471,6 @@ import type {
   SpaceSchema,
   SpaceMember,
   UserResult,
-  PublishedExtensionInfo,
-  PublishExtensionOptions,
-  ExtensionManifest,
-  FindExtensionsOptions,
-
 } from '@rool-dev/svelte';
 ```
 

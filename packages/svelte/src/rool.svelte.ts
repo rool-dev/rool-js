@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type FindExtensionsOptions, type ExtensionInfo, type PublishedExtensionInfo, type UploadExtensionOptions } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser } from '@rool-dev/sdk';
 import { createChannelList, type ReactiveChannelList } from './channel.svelte.js';
 import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
@@ -288,54 +288,12 @@ class RoolImpl {
     return user;
   }
 
-  /**
-   * Install an extension into a space.
-   * Creates/updates a channel with the extension's manifest settings.
-   * Returns the channel ID.
-   */
-  // --- User Extensions (your personal library) ---
-
-  /** Upload or update a user extension bundle. */
-  uploadExtension(extensionId: string, options: UploadExtensionOptions): Promise<ExtensionInfo> {
-    return this.#client.uploadExtension(extensionId, options);
-  }
-
-  /** Delete a user extension permanently. */
-  deleteExtension(extensionId: string): Promise<void> {
-    return this.#client.deleteExtension(extensionId);
-  }
-
-  /** List the current user's extensions. */
-  listExtensions(): Promise<ExtensionInfo[]> {
-    return this.#client.listExtensions();
-  }
-
-  /** Get info for a specific user extension. */
-  getExtensionInfo(extensionId: string): Promise<ExtensionInfo | null> {
-    return this.#client.getExtensionInfo(extensionId);
-  }
-
-  // --- Published Extensions (public discovery & install) ---
-
-  /** Search published extensions. */
-  findExtensions(options?: FindExtensionsOptions): Promise<PublishedExtensionInfo[]> {
-    return this.#client.findExtensions(options);
-  }
 
   /** Respond to a server-initiated probe with a method-specific result or error. */
   probeResponse(requestId: string, result?: unknown, error?: string): Promise<boolean> {
     return this.#client.probeResponse(requestId, result, error);
   }
 
-  /** Publish a user extension (make it publicly discoverable). */
-  publishToPublic(extensionId: string): Promise<void> {
-    return this.#client.publishToPublic(extensionId);
-  }
-
-  /** Unpublish an extension (remove from public listing). */
-  unpublishFromPublic(extensionId: string): Promise<void> {
-    return this.#client.unpublishFromPublic(extensionId);
-  }
 
   /**
    * Create a reactive channel list for a space.
