@@ -290,6 +290,10 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       graphqlUrl: scopedGraphqlUrl,
       authManager: this.authManager,
     });
+    const scopedRestClient = new RestClient({
+      apiUrl: initialRoute.server,
+      authManager: this.authManager,
+    });
 
     const fullData = await scopedClient.openSpaceFull(spaceId);
 
@@ -302,7 +306,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       memberCount: fullData.memberCount,
       fullData,
       graphqlClient: scopedClient,
-      restClient: this.restClient,
+      restClient: scopedRestClient,
       authManager: this.authManager,
       router: this.router,
       initialRoute,

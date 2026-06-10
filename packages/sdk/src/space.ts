@@ -129,6 +129,10 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this.onCloseCallback = config.onClose;
 
     this.graphqlClient.setOnRefused(() => this.reroute());
+    this.restClient.setOnRefused(async () => {
+      await this.reroute();
+      return this._route.server;
+    });
 
     // Store full space data
     const fd = config.fullData;
@@ -211,6 +215,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     const route = await this.router.resolve(this._id);
     this._route = route;
     this._webdav.setWebDAVUrl(route.server);
+    this.restClient.setApiUrl(route.server);
     const url = `${route.server.replace(/\/+$/, '')}/graphql`;
     this.graphqlClient.setGraphqlUrl(url);
     return url;

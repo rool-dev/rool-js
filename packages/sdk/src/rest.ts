@@ -4,15 +4,38 @@ import type { GetObjectsResult } from './types.js';
 export interface RestClientConfig {
   apiUrl: string;
   authManager: AuthManager;
+  /** Called on shard refusal/drain (421/503). Return the new API base URL. */
+  onRefused?: () => Promise<string>;
+}
+
+const REQUEST_MAX_RETRIES = 6;
+const RETRY_BASE_MS = 150;
+const RETRY_MAX_MS = 5_000;
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+function retryBackoffMs(attempt: number): number {
+  const ceil = Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS);
+  return ceil / 2 + Math.random() * (ceil / 2);
 }
 
 export class RestClient {
   private apiUrl: string;
   private authManager: AuthManager;
+  private onRefused?: () => Promise<string>;
 
   constructor(config: RestClientConfig) {
     this.apiUrl = config.apiUrl.replace(/\/+$/, '');
     this.authManager = config.authManager;
+    this.onRefused = config.onRefused;
+  }
+
+  /** Update the API base URL (used after shard rerouting). */
+  setApiUrl(apiUrl: string): void {
+    this.apiUrl = apiUrl.replace(/\/+$/, '');
+  }
+
+  /** Wire the shard-reroute callback (used after shard rerouting). */
+  setOnRefused(onRefused: () => Promise<string>): void {
+    this.onRefused = onRefused;
   }
 
   async proxyFetch(
@@ -76,6 +99,24 @@ export class RestClient {
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
     headers.set('X-Rool-Token', tokens.roolToken);
 
-    return fetch(`${this.apiUrl}${path}`, { ...init, headers });
+    let response = await fetch(`${this.apiUrl}${path}`, { ...init, headers });
+
+    // 421 (wrong shard) and 503 (draining) reject before executing server-side.
+    // Re-resolve the owning shard and retry against the new node.
+    for (
+      let attempt = 0;
+      (response.status === 421 || response.status === 503) && this.onRefused && attempt < REQUEST_MAX_RETRIES;
+      attempt++
+    ) {
+      await delay(retryBackoffMs(attempt));
+      try {
+        this.setApiUrl(await this.onRefused());
+      } catch {
+        continue;
+      }
+      response = await fetch(`${this.apiUrl}${path}`, { ...init, headers });
+    }
+
+    return response;
   }
 }
