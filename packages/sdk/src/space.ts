@@ -331,16 +331,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     }
   }
 
-
-  /**
-   * List channels in this space.
-   * Returns the live channel list (kept current via SSE).
-   * @deprecated Use the `channels` property instead.
-   */
-  getChannels(): ChannelInfo[] {
-    return this._channels;
-  }
-
   /**
    * Rename a channel in this space.
    */

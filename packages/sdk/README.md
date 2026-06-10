@@ -656,7 +656,6 @@ Manage channels on the `RoolSpace` handle:
 | Method | Description |
 |--------|-------------|
 | `space.channels: ChannelInfo[]` | Live channel list (auto-updates via SSE) |
-| `space.getChannels(): ChannelInfo[]` | List channels (deprecated — use `space.channels` instead) |
 | `space.renameChannel(channelId, name): Promise<void>` | Rename a channel |
 | `space.deleteChannel(channelId): Promise<void>` | Delete a channel and its interaction history |
 | `channel.rename(name): Promise<void>` | Rename the current open channel |
@@ -766,7 +765,6 @@ A space handle with a live SSE subscription. Extends `EventEmitter`. Manages use
 | `addUser(userId, role): Promise<void>` | Add user to space |
 | `removeUser(userId): Promise<void>` | Remove user from space |
 | `setLinkAccess(linkAccess): Promise<void>` | Set URL sharing level |
-| `getChannels(): ChannelInfo[]` | List channels (deprecated — use `channels` property instead) |
 | `renameChannel(channelId, name): Promise<void>` | Rename a channel |
 | `deleteChannel(channelId): Promise<void>` | Delete a channel |
 | `exportArchive(): Promise<Blob>` | Export space as zip archive |
@@ -1270,7 +1268,7 @@ interface Channel {
   conversations: Record<string, Conversation>;  // Keyed by conversation ID
 }
 
-// Channel summary info (returned by client.getChannels)
+// Channel summary info (used by space.channels)
 interface ChannelInfo {
   id: string;
   name: string | null;
