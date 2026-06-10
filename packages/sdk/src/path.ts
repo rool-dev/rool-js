@@ -23,6 +23,21 @@ export function machinePath(input: string, ctx: { spaceId?: string } = {}): stri
   return path;
 }
 
+export function isObjectPath(input: string): boolean {
+  try {
+    const parts = machinePath(input).split('/').filter(Boolean);
+    return (
+      parts.length === 3 &&
+      parts[0] === 'space' &&
+      !parts[1].startsWith('.') &&
+      !parts[2].startsWith('.') &&
+      parts[2].endsWith('.json')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function machineUri(path: string): string {
   return `rool-machine:${machinePath(path).split('/').map(encodeURIComponent).join('/')}`;
 }

@@ -22,7 +22,7 @@ import type {
   FieldDef,
   CollectionOptions,
 } from './types.js';
-import { machinePath, machineUri } from './path.js';
+import { isObjectPath, machinePath, machineUri } from './path.js';
 
 // 6-character alphanumeric ID — used for object names, interactionIds, conversationIds, etc.
 const ENTITY_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -68,7 +68,9 @@ function findDefaultLeaf(interactions: Record<string, Interaction> | Interaction
 
 function objectPath(input: string): string {
   const path = machinePath(input);
-  if (!path.startsWith('/space/') || !path.endsWith('.json')) throw new Error(`Object path must be /space/.../*.json: ${input}`);
+  if (!isObjectPath(path)) {
+    throw new Error(`Object path must be /space/<collection>/<name>.json without dotfiles: ${input}`);
+  }
   return path;
 }
 
@@ -671,12 +673,17 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /** Delete object JSON files by machine path. */
+  async deleteObjects(paths: string[]): Promise<void> {
+    return this._deleteObjectsImpl(paths, this._conversationId);
+  }
+
+  /** @deprecated Use deleteObjects instead. */
   async deletePaths(paths: string[]): Promise<void> {
-    return this._deletePathsImpl(paths, this._conversationId);
+    return this.deleteObjects(paths);
   }
 
   /** @internal */
-  async _deletePathsImpl(paths: string[], conversationId: string): Promise<void> {
+  async _deleteObjectsImpl(paths: string[], conversationId: string): Promise<void> {
     if (paths.length === 0) return;
     const canonical = paths.map(objectPath);
 
@@ -1204,8 +1211,13 @@ export class ConversationHandle {
   }
 
   /** Delete object JSON files by path. */
+  async deleteObjects(paths: string[]): Promise<void> {
+    return this._channel._deleteObjectsImpl(paths, this._conversationId);
+  }
+
+  /** @deprecated Use deleteObjects instead. */
   async deletePaths(paths: string[]): Promise<void> {
-    return this._channel._deletePathsImpl(paths, this._conversationId);
+    return this.deleteObjects(paths);
   }
 
   /** Send a prompt to the AI agent, scoped to this conversation's history. */

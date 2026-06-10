@@ -8,7 +8,7 @@ export { RoolChannel, ConversationHandle, generateEntityId } from './channel.js'
 export { RoolSpace } from './space.js';
 
 // Machine paths
-export { machinePath, machineUri } from './path.js';
+export { isObjectPath, machinePath, machineUri } from './path.js';
 
 // WebDAV client
 export { RoolWebDAV, WebDAVError } from './webdav.js';

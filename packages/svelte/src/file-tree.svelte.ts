@@ -1,4 +1,5 @@
 import {
+  isObjectPath,
   machinePath,
   type RoolSpace,
   type WebDAVDepth,
@@ -453,10 +454,6 @@ function syntheticRootChild(path: '/space' | '/rool-drive', name: 'space' | 'roo
 function isDescendant(path: ReactiveFilePath, ancestor: ReactiveFilePath): boolean {
   if (ancestor === ROOT) return path !== ROOT;
   return path.startsWith(`${ancestor}/`);
-}
-
-function isObjectPath(path: string): boolean {
-  return path.startsWith('/space/') && path.endsWith('.json');
 }
 
 function safeCollection(path: string): string | undefined {

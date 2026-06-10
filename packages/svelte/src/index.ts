@@ -2,7 +2,7 @@
 export { createRool, generateId } from './rool.svelte.js';
 
 // Machine path helpers — re-exported from the SDK for convenience
-export { machinePath, machineUri } from '@rool-dev/sdk';
+export { isObjectPath, machinePath, machineUri } from '@rool-dev/sdk';
 
 // Reactive wrappers
 export { wrapChannel } from './channel.svelte.js';

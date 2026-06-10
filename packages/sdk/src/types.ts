@@ -105,7 +105,7 @@ export interface Interaction {
   timestamp: number;
   userId: string;
   userName?: string | null;  // Display name at time of interaction
-  operation: 'prompt' | 'putObject' | 'patchObject' | 'moveObject' | 'deletePaths' | string;
+  operation: 'prompt' | 'putObject' | 'patchObject' | 'moveObject' | 'deleteObjects' | 'deletePaths' | string;
   input: string;
   output: string | null;
   status: InteractionStatus;

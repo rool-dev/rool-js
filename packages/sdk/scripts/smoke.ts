@@ -121,8 +121,8 @@ async function main(): Promise<void> {
     });
     console.log('AI:', message);
 
-    step('deletePaths');
-    await channel.deletePaths([a.path, newPath]);
+    step('deleteObjects');
+    await channel.deleteObjects([a.path, newPath]);
     assert(await channel.getObject(a.path) === undefined, 'a was removed');
     assert(await channel.getObject(newPath) === undefined, 'moved object removed');
     const afterDeleteListing = await space.webdav.propfind('/space/note', { depth: '1' });

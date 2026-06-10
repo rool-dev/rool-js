@@ -132,7 +132,7 @@ test('channel object CRUD uses object WebDAV instead of GraphQL', async () => {
   assert.equal(dav.files.has('/space/tasks/first.json'), false);
   assert.equal(dav.files.has('/space/tasks/renamed.json'), true);
 
-  await ch.deletePaths(['/space/tasks/renamed.json']);
+  await ch.deleteObjects(['/space/tasks/renamed.json']);
   assert.equal(dav.files.has('/space/tasks/renamed.json'), false);
 });
 
@@ -155,6 +155,16 @@ test('channel getObjects normalizes machine paths, dedupes, chunks, and preserve
   assert.equal(rest.calls[0][1], '/space/tasks/missing-one.json');
   assert.equal(result.objects[0].path, '/space/tasks/first.json');
   assert.deepEqual(result.missing, ['/space/tasks/missing-one.json']);
+});
+
+test('channel object paths reject dotfiles and nested paths', async () => {
+  const rest = new FakeRestClient();
+  const ch = channel(new FakeWebDAV(), rest as unknown as RestClient);
+
+  await assert.rejects(() => ch.getObject('/space/.meta.json'), /Object path must be/);
+  await assert.rejects(() => ch.getObjects(['/space/tasks/.schema.json']), /Object path must be/);
+  await assert.rejects(() => ch.putObject('/space/tasks/nested/first.json', { title: 'Nested' }), /Object path must be/);
+  assert.equal(rest.calls.length, 0);
 });
 
 test('channel collection schema writes use object WebDAV', async () => {

@@ -1,4 +1,4 @@
-import { machinePath } from '@rool-dev/sdk';
+import { isObjectPath, machinePath } from '@rool-dev/sdk';
 import type {
   RoolChannel,
   RoolSpace,
@@ -26,12 +26,17 @@ export interface WatchOptions {
   order?: 'asc' | 'desc';
 }
 
+function objectCollection(path: string): string | undefined {
+  if (!isObjectPath(path)) return undefined;
+  return path.split('/')[2];
+}
+
 function eventTouchesObject(event: ReactiveFileTreeEvent, objectPath?: string, collection?: string): boolean {
   if (event.reset) return true;
   for (const path of [...event.changedPaths, ...event.deletedPaths]) {
     if (objectPath && path === objectPath) return true;
-    if (!objectPath && path.startsWith('/space/') && path.endsWith('.json')) {
-      if (!collection || path.startsWith(`/space/${collection}/`)) return true;
+    if (!objectPath && isObjectPath(path)) {
+      if (!collection || objectCollection(path) === collection) return true;
     }
   }
   return false;
@@ -210,6 +215,8 @@ class ReactiveConversationHandleImpl {
   putObject(...args: Parameters<ConversationHandle['putObject']>) { return this.#handle.putObject(...args); }
   patchObject(...args: Parameters<ConversationHandle['patchObject']>) { return this.#handle.patchObject(...args); }
   moveObject(...args: Parameters<ConversationHandle['moveObject']>) { return this.#handle.moveObject(...args); }
+  deleteObjects(...args: Parameters<ConversationHandle['deleteObjects']>) { return this.#handle.deleteObjects(...args); }
+  /** @deprecated Use deleteObjects instead. */
   deletePaths(...args: Parameters<ConversationHandle['deletePaths']>) { return this.#handle.deletePaths(...args); }
 
   // AI
@@ -314,6 +321,8 @@ class ReactiveChannelImpl {
   putObject(...args: Parameters<RoolChannel['putObject']>) { return this.#channel.putObject(...args); }
   patchObject(...args: Parameters<RoolChannel['patchObject']>) { return this.#channel.patchObject(...args); }
   moveObject(...args: Parameters<RoolChannel['moveObject']>) { return this.#channel.moveObject(...args); }
+  deleteObjects(...args: Parameters<RoolChannel['deleteObjects']>) { return this.#channel.deleteObjects(...args); }
+  /** @deprecated Use deleteObjects instead. */
   deletePaths(...args: Parameters<RoolChannel['deletePaths']>) { return this.#channel.deletePaths(...args); }
 
   // AI
