@@ -102,29 +102,28 @@ async function main(): Promise<void> {
     assert(collection === 'note' && basename === 'renamed', 'parsed parts match');
     console.log('moved:', b.location, '→', moved.location);
 
-    step('findObjects (collection filter, no AI)');
-    const found = await channel.findObjects({ collection: 'note' });
-    assert(found.objects.length >= 2, `expected at least 2 notes, got ${found.objects.length}`);
-    console.log('found:', found.objects.length, 'note(s)');
+    step('list objects via WebDAV');
+    const listing = await space.webdav.propfind('/space/note/', { depth: '1' });
+    const locations = listing.responses
+      .filter((response) => !response.isCollection && response.path.endsWith('.json') && !response.path.endsWith('/.schema.json'))
+      .map((response) => response.path);
+    assert(locations.includes(a.location), 'listing has a');
+    assert(locations.includes(newLoc), 'listing has moved object at new location');
+    assert(!locations.includes(b.location), 'listing no longer has old location');
+    console.log('locations:', locations);
 
-    step('findObjects (where filter, no AI)');
-    const filtered = await channel.findObjects({ collection: 'note', where: { title: 'Hello' } });
-    assert(filtered.objects.length === 1, `expected exactly 1, got ${filtered.objects.length}`);
-    assert(filtered.objects[0].location === a.location, 'where filter matches');
+    step('bulk get and filter objects');
+    const found = await channel.getObjects(locations);
+    assert(found.objects.length >= 2, `expected at least 2 notes, got ${found.objects.length}`);
+    const filtered = found.objects.filter((object) => object.body.title === 'Hello');
+    assert(filtered.length === 1, `expected exactly 1, got ${filtered.length}`);
+    assert(filtered[0].location === a.location, 'where filter matches');
     console.log('filtered ok');
 
-    step('getObjectLocations (sync, from cache)');
-    const locations = channel.getObjectLocations();
-    assert(locations.includes(a.location), 'cache has a');
-    assert(locations.includes(newLoc), 'cache has moved object at new location');
-    assert(!locations.includes(b.location), 'cache no longer has old location');
-    console.log('cache:', locations);
-
-    step('stat');
+    step('stat (cached audit info, may be absent before resync)');
     const s = channel.stat(a.location);
-    assert(s !== undefined, 'stat exists');
-    assert(s!.location === a.location, 'stat carries location');
-    console.log('stat:', s);
+    if (s) assert(s.location === a.location, 'stat carries location');
+    console.log('stat:', s ?? '(not cached yet)');
 
     step('prompt (read-only, QUICK)');
     const { message } = await channel.prompt('In one sentence, how many notes are there?', {
@@ -135,9 +134,12 @@ async function main(): Promise<void> {
 
     step('deleteObjects');
     await channel.deleteObjects([a.location, newLoc]);
-    const afterDelete = channel.getObjectLocations();
-    assert(!afterDelete.includes(a.location), 'a was removed');
-    assert(!afterDelete.includes(newLoc), 'moved object removed');
+    assert(await channel.getObject(a.location) === undefined, 'a was removed');
+    assert(await channel.getObject(newLoc) === undefined, 'moved object removed');
+    const afterDeleteListing = await space.webdav.propfind('/space/note/', { depth: '1' });
+    const afterDelete = afterDeleteListing.responses
+      .filter((response) => !response.isCollection && response.path.endsWith('.json') && !response.path.endsWith('/.schema.json'))
+      .map((response) => response.path);
     console.log('deleted ok, locations:', afterDelete);
 
     channel.close();

@@ -12,7 +12,6 @@
  *   pnpm exec tsx scripts/machine-attachments-smoke.ts
  */
 import {
-  machineRef,
   resolveMachineResource,
   RoolClient,
   type Interaction,
@@ -35,6 +34,10 @@ function resource(input: string): MachineResource {
   const resolved = resolveMachineResource(input);
   if (!resolved) throw new Error(`failed to resolve machine resource: ${input}`);
   return resolved;
+}
+
+function machineRef(resource: MachineResource): string {
+  return `rool-machine:${resource.path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 function latestPromptInteraction(interactions: Interaction[]): Interaction {
