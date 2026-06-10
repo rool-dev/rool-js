@@ -24,10 +24,10 @@ import type {
   CollectionOptions,
   ExtensionManifest,
 } from './types.js';
-import { generateBasename, loc, normalizeLocation, parseLocation } from './locations.js';
+import { loc, normalizeLocation, parseLocation } from './locations.js';
 import { resolveMachineResource, type MachineResource } from './machine.js';
 
-// 6-character alphanumeric ID — used for interactionIds, conversationIds, etc.
+// 6-character alphanumeric ID — used for object names, interactionIds, conversationIds, etc.
 const ENTITY_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 const GET_OBJECTS_CHUNK_SIZE = 500;
 
@@ -629,7 +629,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     options: CreateObjectOptions | undefined,
     conversationId: string,
   ): Promise<{ object: RoolObject; message: string }> {
-    const basename = options?.basename ?? generateBasename();
+    const basename = options?.basename ?? generateEntityId();
     const location = loc(collection, basename);
 
     const optimistic: RoolObject = { location, collection, basename, body };

@@ -5,7 +5,6 @@ import { ClientSubscriptionManager } from './subscription.js';
 import { RestClient } from './rest.js';
 import { ExtensionsClient } from './apps.js';
 
-import { generateBasename } from './locations.js';
 import { generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
 import { SpaceRouter } from './router.js';
@@ -576,21 +575,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
 
   /**
-   * Generate a 6-character alphanumeric basename for object identity.
-   * Useful when you want to mint a location before calling `createObject`
-   * (e.g., for fire-and-forget creation patterns).
-   *
-   * @example
-   *   const basename = RoolClient.generateBasename();
-   *   await channel.createObject('article', { title: 'Hello' }, { basename });
-   */
-  static generateBasename(): string {
-    return generateBasename();
-  }
-
-  /**
-   * @deprecated Use {@link RoolClient.generateBasename} for object basenames.
-   * Retained for callers minting interaction or channel IDs.
+   * Generate a unique 6-character alphanumeric ID.
    */
   static generateId(): string {
     return generateEntityId();

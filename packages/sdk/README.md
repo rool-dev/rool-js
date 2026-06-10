@@ -226,7 +226,7 @@ References are just data — no special API is needed to create or remove them. 
 #### Location helpers
 
 ```typescript
-import { loc, parseLocation, normalizeLocation, generateBasename } from '@rool-dev/sdk';
+import { loc, parseLocation, normalizeLocation } from '@rool-dev/sdk';
 
 loc('article', 'welcome');                  // '/space/article/welcome.json'
 parseLocation('/space/article/welcome.json'); // { collection: 'article', basename: 'welcome' }
@@ -234,9 +234,6 @@ parseLocation('/space/article/welcome.json'); // { collection: 'article', basena
 // normalizeLocation accepts canonical or short form and returns canonical
 normalizeLocation('article/welcome');         // '/space/article/welcome.json'
 normalizeLocation('/space/article/welcome.json'); // unchanged
-
-// 6-char random basename — same generator the SDK uses by default
-generateBasename();                           // e.g., 'X7kQ9p'
 ```
 
 SDK methods that accept a location (`getObject`, `updateObject`, `deleteObjects`, `moveObject`, etc.) accept either form and normalize internally. SDK return values always use the canonical full form.
@@ -355,7 +352,7 @@ await channel.createObject('article',
 
 ```typescript
 // Fire-and-forget: create and reference without waiting
-const basename = RoolClient.generateBasename();
+const basename = 'idea-seed';
 const location = loc('note', basename);
 
 channel.createObject('note', { text: '{{expand this idea}}' }, { basename });
@@ -734,8 +731,7 @@ Discover and install extensions published by other users.
 
 | Method | Description |
 |--------|-------------|
-| `RoolClient.generateBasename(): string` | Generate a 6-char alphanumeric basename for new object identities. |
-| `RoolClient.generateId(): string` | Same as `generateBasename()`; retained for callers minting non-object IDs (interactions, conversations, channels). |
+| `RoolClient.generateId(): string` | Generate a unique 6-character alphanumeric ID. |
 | `destroy(): void` | Clean up resources |
 
 ### Client Events

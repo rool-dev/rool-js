@@ -431,13 +431,10 @@ See the [SDK documentation](../sdk/README.md) for complete API details.
 ### Utilities
 
 ```typescript
-import { generateBasename, loc, parseLocation, normalizeLocation } from '@rool-dev/svelte';
-
-// 6-character alphanumeric basename
-const basename = generateBasename();
+import { loc, parseLocation, normalizeLocation } from '@rool-dev/svelte';
 
 // Build / parse location strings
-const location = loc('article', basename);        // '/space/article/<basename>.json'
+const location = loc('article', 'welcome');       // '/space/article/welcome.json'
 const parts = parseLocation(location);            // { collection, basename }
 const canonical = normalizeLocation('article/welcome'); // '/space/article/welcome.json'
 ```

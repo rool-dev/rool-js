@@ -7,7 +7,6 @@ export {
   parseLocation,
   normalizeLocation,
   isLocation,
-  generateBasename,
   resolveMachineResource,
 } from '@rool-dev/sdk';
 export type { ParsedLocation, MachineResource } from '@rool-dev/sdk';

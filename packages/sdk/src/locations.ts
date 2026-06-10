@@ -7,30 +7,16 @@
 // fully identify the object inside its space.
 //
 // Functions here normalize user-provided strings, parse locations into their
-// parts, and mint new locations when the caller doesn't pin a basename.
+// parts, and build canonical locations from validated parts.
 // =============================================================================
 
 const COLLECTION_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 const BASENAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 const FULL_LOCATION_RE = /^\/space\/([^/]+)\/([^/]+)\.json$/;
 
-const BASENAME_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-
 export interface ParsedLocation {
   collection: string;
   basename: string;
-}
-
-/**
- * Generate a 6-character alphanumeric basename.
- * 62^6 ≈ 56.8B possible values.
- */
-export function generateBasename(): string {
-  let out = '';
-  for (let i = 0; i < 6; i++) {
-    out += BASENAME_CHARS[Math.floor(Math.random() * BASENAME_CHARS.length)];
-  }
-  return out;
 }
 
 /**

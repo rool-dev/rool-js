@@ -8,7 +8,7 @@ export { RoolChannel, ConversationHandle, generateEntityId } from './channel.js'
 export { RoolSpace } from './space.js';
 
 // Location helpers
-export { loc, parseLocation, normalizeLocation, isLocation, generateBasename } from './locations.js';
+export { loc, parseLocation, normalizeLocation, isLocation } from './locations.js';
 export type { ParsedLocation } from './locations.js';
 
 // Machine resources
