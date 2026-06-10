@@ -56,7 +56,7 @@ function parseArgs() {
   } = {
     env: 'local',
     runs: 1,
-    workers: 25,
+    workers: 8,
     include: [],
   };
 
@@ -105,7 +105,7 @@ Usage: pnpm eval [options]
 
 Options:
   -e, --env <local|dev|prod>  Target environment (default: local)
-  -w, --workers <n>           Number of concurrent workers (default: 25)
+  -w, --workers <n>           Number of concurrent workers (default: 8)
   -r, --runs <n>              Number of runs per case (default: 1)
   -i, --include <pattern>     Only run cases matching pattern (can be repeated)
   --clear <prefix>            Clear spaces starting with prefix before running

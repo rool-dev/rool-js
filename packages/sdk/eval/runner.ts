@@ -26,7 +26,7 @@ export class EvalRunner {
     this.config = {
       env: config.env ?? 'local',
       runs: config.runs ?? 1,
-      workers: config.workers ?? 25,
+      workers: config.workers ?? 8,
     };
     this.envConfig = ENVIRONMENTS[this.config.env];
   }

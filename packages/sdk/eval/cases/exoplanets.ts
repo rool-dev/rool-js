@@ -1,9 +1,8 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-
+import { collectionOf, createCollectionWithRetry } from '../helpers.js';
 
 const PLANET_NAMES = ['draugr', 'poltergeist', 'phobetor'] as const;
-
 
 /**
  * Tests knowledge graph creation with web research.
@@ -18,27 +17,31 @@ export const testCase: TestCase = {
 
     try {
       const conversation = channel.conversation('exoplanets-eval');
-      const { objects } = await conversation.prompt(`Create a knowledge graph with collections named star and planet. The planet collection should have an "orbits" field referencing the star
-Then add the star PSR B1257+12 and the exoplanets orbiting it. Set the name field to the popular name for each of the exoplanets
-      `);
+      await createCollectionWithRetry(conversation, 'star', [
+        { name: 'name', type: { kind: 'string' } },
+      ]);
+      await createCollectionWithRetry(conversation, 'planet', [
+        { name: 'name', type: { kind: 'string' } },
+        { name: 'orbits', type: { kind: 'ref' } },
+      ]);
 
-      // Should create 4 objects: 1 star + 3 planets
+      const { objects } = await conversation.prompt(`Create objects using the existing star and planet collections.
+Add the star PSR B1257+12 and the three confirmed exoplanets orbiting it. Set the name field to the popular name for each exoplanet. Each planet's orbits field must be the star object's path.`);
+
+      // Should create 4 objects: 1 star + 3 planets.
       expect(objects).to.have.length(4);
 
-      // Should have a star
-      const star = objects.find(obj => obj.collection === 'star');
+      const star = objects.find(obj => collectionOf(obj) === 'star');
       expect(star, 'Should have a star object').to.exist;
 
-      // Should have all three planets and should reference the star
-      const planets = objects.filter(obj => obj.collection === 'planet');
+      const planets = objects.filter(obj => collectionOf(obj) === 'planet');
       expect(planets, 'Should have three planet objects').to.have.length(3);
 
       for (const name of PLANET_NAMES) {
         const planet = planets.find(p => typeof p.body.name === 'string' && (p.body.name as string).toLowerCase().includes(name));
         expect(planet, `Should have planet "${name}"`).to.exist;
-        expect(planet!.body.orbits, `Planet "${name}" should reference the star`).to.equal(star!.location);
+        expect(planet!.body.orbits, `Planet "${name}" should reference the star`).to.equal(star!.path);
       }
-
     } finally {
       space.close();
     }

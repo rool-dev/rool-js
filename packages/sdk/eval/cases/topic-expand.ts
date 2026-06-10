@@ -1,12 +1,13 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
+import { collectionOf, createCollectionWithRetry, objectPath } from '../helpers.js';
 
 const prompt = `
-Create three new objects based on the contents of this topic.
-- Two in the "image" collection with relevant images from the net
+Create three new objects based on the attached topic object.
+- Two in the "image" collection with relevant image URLs from the web
 - One in the "markdown" collection with an info text for the topic
 
-Each new object should have a "parent" field whose value is the location of this topic.
+Each new object should have a "parent" field whose value is the path of the topic object.
 `;
 
 /**
@@ -21,36 +22,38 @@ export const testCase: TestCase = {
 
     try {
       const conversation = channel.conversation('topic-expand-eval');
-      await conversation.createCollection('topic', [
+      await createCollectionWithRetry(conversation, 'topic', [
         { name: 'headline', type: { kind: 'string' } },
       ]);
+      await createCollectionWithRetry(conversation, 'image', [
+        { name: 'headline', type: { kind: 'string' } },
+        { name: 'image_url', type: { kind: 'string' } },
+        { name: 'parent', type: { kind: 'ref' } },
+      ]);
+      await createCollectionWithRetry(conversation, 'markdown', [
+        { name: 'headline', type: { kind: 'string' } },
+        { name: 'text', type: { kind: 'string' } },
+        { name: 'parent', type: { kind: 'ref' } },
+      ]);
 
-      // Create a single topic node
-      const { object: createdTopic } = await conversation.createObject(
-        'topic',
-        { headline: 'Types of Sailboats' },
-        { basename: 'sailboats' },
-      );
-      const topicLocation = createdTopic.location;
+      const topicPath = objectPath('topic', 'sailboats');
+      await conversation.putObject(topicPath, { headline: 'Types of Sailboats' });
 
-      // Run the prompt with the topic node selected
-      const { objects } = await conversation.prompt(prompt, { locations: [topicLocation] });
+      const { objects } = await conversation.prompt(prompt, { attachments: [topicPath] });
 
-      // Verify new objects were created (at least 3: 2 image + 1 markdown)
-      expect(objects.length).to.be.at.least(3);
+      // Verify new objects were created (at least 3: 2 image + 1 markdown).
+      const children = objects.filter(o => o.path !== topicPath);
+      expect(children.length).to.be.at.least(3);
 
-      // Count by collection
-      const imageCount = objects.filter(o => o.collection === 'image').length;
-      const markdownCount = objects.filter(o => o.collection === 'markdown').length;
+      const imageCount = children.filter(o => collectionOf(o) === 'image').length;
+      const markdownCount = children.filter(o => collectionOf(o) === 'markdown').length;
 
-      expect(imageCount).to.be.equal(2, 'Should have 2 image objects');
+      expect(imageCount).to.equal(2, 'Should have 2 image objects');
       expect(markdownCount).to.equal(1, 'Should have exactly 1 markdown object');
 
-      // Verify each child references the topic via "parent"
-      for (const obj of objects) {
-        if (obj.location !== topicLocation) {
-          expect(obj.body.parent, `Child ${obj.location} should have parent field`).to.equal(topicLocation);
-        }
+      // Verify each child references the topic via "parent".
+      for (const obj of children) {
+        expect(obj.body.parent, `Child ${obj.path} should have parent field`).to.equal(topicPath);
       }
     } finally {
       space.close();

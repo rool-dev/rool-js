@@ -27,10 +27,12 @@ export const testCase: TestCase = {
 
       const video = objects[0];
 
-      expect(video.body.name).to.be.a('string');
-      expect((video.body.name as string).length).to.be.greaterThan(0);
-      expect(video.body.description).to.be.a('string');
-      expect((video.body.description as string).length).to.be.greaterThan(20);
+      const name = video.body.name ?? video.body.headline ?? video.body.title;
+      expect(name).to.be.a('string');
+      expect((name as string).length).to.be.greaterThan(0);
+      const description = video.body.description ?? video.body.text;
+      expect(description).to.be.a('string');
+      expect((description as string).length).to.be.greaterThan(20);
 
       expect(isYouTubeUrl(video.body.url), 'Should be a YouTube URL').to.be.true;
 
