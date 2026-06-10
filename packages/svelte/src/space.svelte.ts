@@ -92,7 +92,7 @@ class ReactiveSpaceImpl {
 
   // Proxy resource methods
   getStorageUsage(...args: Parameters<RoolSpace['getStorageUsage']>) { return this.#space.getStorageUsage(...args); }
-  fetchMachineResource(...args: Parameters<RoolSpace['fetchMachineResource']>) { return this.#space.fetchMachineResource(...args); }
+  fetchPath(...args: Parameters<RoolSpace['fetchPath']>) { return this.#space.fetchPath(...args); }
 
   // Proxy admin methods
   rename(newName: string): Promise<void> { return this.#space.rename(newName); }

@@ -1,15 +1,8 @@
 // Main export
 export { createRool, generateId } from './rool.svelte.js';
 
-// Location and machine-resource helpers — re-exported from the SDK for convenience
-export {
-  loc,
-  parseLocation,
-  normalizeLocation,
-  isLocation,
-  resolveMachineResource,
-} from '@rool-dev/sdk';
-export type { ParsedLocation, MachineResource } from '@rool-dev/sdk';
+// Machine path helpers — re-exported from the SDK for convenience
+export { machinePath, machineUri } from '@rool-dev/sdk';
 
 // Reactive wrappers
 export { wrapChannel } from './channel.svelte.js';
@@ -40,7 +33,6 @@ export type {
   Interaction,
   PromptOptions,
   PromptAttachment,
-  CreateObjectOptions,
   UpdateObjectOptions,
   MoveObjectOptions,
   CollectionOptions,

@@ -9,18 +9,17 @@ function auth(): AuthManager {
   } as AuthManager;
 }
 
-test('WebDAV URLs use the new /space/{spaceId}/rool-drive root by default', () => {
+test('WebDAV URLs use machine paths', () => {
   const dav = new RoolWebDAV({ webdavUrl: 'https://api.test/', spaceId: 'sp ace', authManager: auth() });
 
-  assert.equal(dav.href('docs/report.pdf'), '/space/sp%20ace/rool-drive/docs/report.pdf');
-  assert.equal(dav.href('docs/', { collection: true }), '/space/sp%20ace/rool-drive/docs/');
-  assert.equal(dav.url('docs/report.pdf'), 'https://api.test/space/sp%20ace/rool-drive/docs/report.pdf');
+  assert.equal(dav.href('/rool-drive/docs/report.pdf'), '/space/sp%20ace/rool-drive/docs/report.pdf');
+  assert.equal(dav.href('/rool-drive/docs', { collection: true }), '/space/sp%20ace/rool-drive/docs/');
+  assert.equal(dav.url('/rool-drive/docs/report.pdf'), 'https://api.test/space/sp%20ace/rool-drive/docs/report.pdf');
 });
 
 test('WebDAV root path addresses the aggregate space WebDAV root', () => {
   const dav = new RoolWebDAV({ webdavUrl: 'https://api.test/node/1/', spaceId: 'sp_123', authManager: auth() });
 
-  assert.equal(dav.path('/'), '/');
   assert.equal(dav.href('/'), '/space/sp_123/');
   assert.equal(dav.url('/'), 'https://api.test/node/1/space/sp_123/');
 });

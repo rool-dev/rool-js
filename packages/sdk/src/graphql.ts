@@ -158,7 +158,7 @@ export class GraphQLClient {
     const response = await this.request<{
       openSpace: {
         name: string; role: string; userId: string; linkAccess: LinkAccess; memberCount: number;
-        objectStatEntries: RoolObjectStat[] | null;
+        objectStatEntries: Array<Omit<RoolObjectStat, 'path'> & { location: string }> | null;
         schema: SpaceSchema | null;
         meta: Record<string, unknown> | null;
         channels: Record<string, Channel> | null;
@@ -168,7 +168,8 @@ export class GraphQLClient {
     const r = response.openSpace;
     const objectStats: Record<string, RoolObjectStat> = {};
     for (const stat of r.objectStatEntries ?? []) {
-      objectStats[stat.location] = stat;
+      const { location, ...rest } = stat;
+      objectStats[location] = { ...rest, path: location };
     }
     return {
       name: r.name,
@@ -354,7 +355,7 @@ export class GraphQLClient {
     channelId: string,
     conversationId: string,
     options: Omit<PromptOptions, 'attachments'> & { attachmentRefs?: string[]; interactionId: string }
-  ): Promise<{ message: string; modifiedObjectLocations: string[] }> {
+  ): Promise<{ message: string; modifiedObjectPaths: string[] }> {
     const mutation = `
       mutation Prompt($spaceId: String!, $prompt: String!, $locations: [String!]!, $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort!, $ephemeral: Boolean!, $readOnly: Boolean!, $attachments: [String!]!, $interactionId: String!, $parentInteractionId: String, $eventName: String!) {
         prompt(spaceId: $spaceId, prompt: $prompt, locations: $locations, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId, parentInteractionId: $parentInteractionId, eventName: $eventName) {
@@ -380,7 +381,10 @@ export class GraphQLClient {
       parentInteractionId: options.parentInteractionId,
       eventName: options.eventName ?? 'prompt_user',
     });
-    return response.prompt;
+    return {
+      message: response.prompt.message,
+      modifiedObjectPaths: response.prompt.modifiedObjectLocations,
+    };
   }
 
   async stopInteraction(spaceId: string, interactionId: string): Promise<boolean> {

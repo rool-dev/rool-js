@@ -1,6 +1,6 @@
 import type { AuthManager } from './auth.js';
+import { machinePath } from './path.js';
 
-export type WebDAVPathInput = string;
 export type WebDAVDepth = '0' | '1' | 'infinity';
 export type WebDAVSyncLevel = '1' | 'infinite';
 export type WebDAVLockDepth = '0' | 'infinity';
@@ -175,25 +175,19 @@ export class RoolWebDAV {
     this.webdavUrl = normalizeWebDAVBaseUrl(webdavUrl);
   }
 
-  /** Normalize a WebDAV path to a machine path. Relative paths resolve under /rool-drive. */
-  path(path: WebDAVPathInput): string {
-    const target = parseWebDAVPath(path);
-    return target.root ? `/${target.root}${target.path ? `/${target.path}` : ''}` : '/';
-  }
-
-  /** Return the WebDAV href for a machine path or relative /rool-drive path. */
-  href(path: WebDAVPathInput = '', options?: { collection?: boolean }): string {
+  /** Return the WebDAV href for a machine path. */
+  href(path = '/', options?: { collection?: boolean }): string {
     return this.pathUrl(path, options).href;
   }
 
-  /** Return the absolute WebDAV URL for a root-relative path. */
-  url(path: WebDAVPathInput = '', options?: { collection?: boolean }): string {
+  /** Return the absolute WebDAV URL for a machine path. */
+  url(path = '/', options?: { collection?: boolean }): string {
     const davPath = this.pathUrl(path, options);
     return `${this.webdavUrl}${davPath.href}`;
   }
 
-  /** Low-level WebDAV request for a machine path or relative /rool-drive path. Adds Rool auth and returns the raw Response. */
-  async request(method: string, path: WebDAVPathInput = '', init: WebDAVRequestInit = {}): Promise<Response> {
+  /** Low-level WebDAV request for a machine path. Adds Rool auth and returns the raw Response. */
+  async request(method: string, path = '/', init: WebDAVRequestInit = {}): Promise<Response> {
     const { collection, ...fetchInit } = init;
     const requestInit = { ...fetchInit, method };
     let response = await this.authenticatedFetch(this.url(path, { collection }), requestInit);
@@ -218,17 +212,17 @@ export class RoolWebDAV {
     return response;
   }
 
-  async options(path: WebDAVPathInput = ''): Promise<Response> {
+  async options(path = '/'): Promise<Response> {
     return this.request('OPTIONS', path);
   }
 
-  async propfind(path: WebDAVPathInput, options: {
+  async propfind(path: string, options: {
     depth: WebDAVDepth;
     props?: 'allprop' | 'propname' | WebDAVPropName[];
     signal?: AbortSignal;
   }): Promise<WebDAVMultiStatus> {
     const response = await this.request('PROPFIND', path, {
-      collection: isCollectionInput(path),
+      collection: true,
       signal: options.signal,
       headers: {
         Depth: options.depth,
@@ -242,7 +236,7 @@ export class RoolWebDAV {
     return parseMultiStatus(xml, this.spaceId);
   }
 
-  async syncCollection(path: WebDAVPathInput, options: {
+  async syncCollection(path: string, options: {
     token?: string | null;
     level: WebDAVSyncLevel;
     props?: 'allprop' | WebDAVPropName[];
@@ -287,7 +281,7 @@ export class RoolWebDAV {
     };
   }
 
-  async get(path: WebDAVPathInput, options: {
+  async get(path: string, options: {
     range?: string | { start: number; end?: number };
     signal?: AbortSignal;
   } = {}): Promise<Response> {
@@ -301,13 +295,13 @@ export class RoolWebDAV {
     return response;
   }
 
-  async head(path: WebDAVPathInput): Promise<Response> {
+  async head(path: string): Promise<Response> {
     const response = await this.request('HEAD', path);
     await assertOk(response);
     return response;
   }
 
-  async put(path: WebDAVPathInput, body: BodyInit, options: {
+  async put(path: string, body: BodyInit, options: {
     contentType?: string;
     ifMatch?: string;
     ifNoneMatch?: string;
@@ -327,19 +321,20 @@ export class RoolWebDAV {
     return writeResult(response);
   }
 
-  async delete(path: WebDAVPathInput, options: {
+  async delete(path: string, options: {
+    collection?: boolean;
     ifMatch?: string;
     lockToken?: string;
     headers?: HeadersInit;
   } = {}): Promise<void> {
     const response = await this.request('DELETE', path, {
-      collection: isCollectionInput(path),
+      collection: options.collection,
       headers: writeHeaders(options),
     });
     await assertStatus(response, 204);
   }
 
-  async mkcol(path: WebDAVPathInput, options: { lockToken?: string; headers?: HeadersInit } = {}): Promise<void> {
+  async mkcol(path: string, options: { lockToken?: string; headers?: HeadersInit } = {}): Promise<void> {
     const response = await this.request('MKCOL', path, {
       collection: true,
       headers: writeHeaders(options),
@@ -347,7 +342,7 @@ export class RoolWebDAV {
     await assertStatus(response, 201);
   }
 
-  async copy(source: WebDAVPathInput, destination: WebDAVPathInput, options: {
+  async copy(source: string, destination: string, options: {
     depth?: '0' | 'infinity';
     overwrite?: boolean;
     lockToken?: string;
@@ -357,7 +352,7 @@ export class RoolWebDAV {
     return writeResult(response);
   }
 
-  async move(source: WebDAVPathInput, destination: WebDAVPathInput, options: {
+  async move(source: string, destination: string, options: {
     overwrite?: boolean;
     lockToken?: string;
     headers?: HeadersInit;
@@ -366,7 +361,8 @@ export class RoolWebDAV {
     return writeResult(response);
   }
 
-  async lock(path: WebDAVPathInput, options: {
+  async lock(path: string, options: {
+    collection?: boolean;
     depth: WebDAVLockDepth;
     owner?: string;
     timeoutSeconds?: number;
@@ -379,7 +375,7 @@ export class RoolWebDAV {
     if (options.timeoutSeconds) headers.set('Timeout', `Second-${options.timeoutSeconds}`);
 
     const response = await this.request('LOCK', path, {
-      collection: isCollectionInput(path),
+      collection: options.collection,
       signal: options.signal,
       headers,
       body: lockXml(options.owner ?? ''),
@@ -388,7 +384,8 @@ export class RoolWebDAV {
     return lockResult(response, await response.text());
   }
 
-  async refreshLock(path: WebDAVPathInput, token: string, options: {
+  async refreshLock(path: string, token: string, options: {
+    collection?: boolean;
     timeoutSeconds?: number;
     signal?: AbortSignal;
   } = {}): Promise<WebDAVLockResult> {
@@ -396,7 +393,7 @@ export class RoolWebDAV {
     if (options.timeoutSeconds) headers.set('Timeout', `Second-${options.timeoutSeconds}`);
 
     const response = await this.request('LOCK', path, {
-      collection: isCollectionInput(path),
+      collection: options.collection,
       signal: options.signal,
       headers,
     });
@@ -405,26 +402,25 @@ export class RoolWebDAV {
   }
 
   async unlock(token: string): Promise<void> {
-    const response = await this.request('UNLOCK', '', {
+    const response = await this.request('UNLOCK', '/', {
       collection: true,
       headers: { 'Lock-Token': `<${token}>` },
     });
     await assertStatus(response, 204);
   }
 
-  private async moveOrCopy(method: 'MOVE' | 'COPY', source: WebDAVPathInput, destination: WebDAVPathInput, options: {
+  private async moveOrCopy(method: 'MOVE' | 'COPY', source: string, destination: string, options: {
     depth?: '0' | 'infinity';
     overwrite?: boolean;
     lockToken?: string;
     headers?: HeadersInit;
   }): Promise<Response> {
     const headers = writeHeaders(options);
-    headers.set('Destination', this.url(destination, { collection: isCollectionInput(destination) }));
+    headers.set('Destination', this.url(destination));
     if (options.overwrite !== undefined) headers.set('Overwrite', options.overwrite ? 'T' : 'F');
     if (method === 'COPY' && options.depth) headers.set('Depth', options.depth);
 
     const response = await this.request(method, source, {
-      collection: isCollectionInput(source),
       headers,
     });
     await assertStatus(response, 201, 204);
@@ -449,62 +445,27 @@ export class RoolWebDAV {
     return fetch(url, requestInit);
   }
 
-  private pathUrl(path: WebDAVPathInput, options?: { collection?: boolean }): { href: string; path: string; isCollection: boolean } {
-    const isCollection = options?.collection ?? isCollectionInput(path);
-    const target = parseWebDAVPath(path);
+  private pathUrl(path: string, options?: { collection?: boolean }): { href: string; path: string; isCollection: boolean } {
+    const parsed = machinePath(path, { spaceId: this.spaceId });
+    if (parsed !== '/' && parsed !== '/space' && !parsed.startsWith('/space/') && parsed !== '/rool-drive' && !parsed.startsWith('/rool-drive/')) {
+      throw new Error('WebDAV paths must be machine paths under /space or /rool-drive');
+    }
+    const isCollection = options?.collection ?? parsed === '/';
     const encodedSpace = encodeURIComponent(this.spaceId);
-    const encodedPath = target.path
-      .split('/')
-      .filter(Boolean)
-      .map(encodeURIComponent)
-      .join('/');
+    const encodedPath = parsed === '/'
+      ? ''
+      : parsed.slice(1).split('/').map(encodeURIComponent).join('/');
     const suffix = encodedPath ? `/${encodedPath}` : '';
-    const root = target.root ? `/${target.root}` : '';
     return {
-      href: `/space/${encodedSpace}${root}${suffix}${isCollection ? '/' : ''}`,
-      path: target.path,
+      href: `/space/${encodedSpace}${suffix}${isCollection ? '/' : ''}`,
+      path: parsed,
       isCollection,
     };
   }
 }
 
-function isCollectionInput(path: WebDAVPathInput): boolean {
-  return path === '' || path.endsWith('/');
-}
-
 function normalizeWebDAVBaseUrl(url: string): string {
   return url.replace(/\/+$/, '').replace(/\/dav$/, '');
-}
-
-function parseWebDAVPath(path: WebDAVPathInput): { root: 'rool-drive' | 'space' | ''; path: string } {
-  if (path.includes('\\')) throw new Error('Invalid WebDAV path');
-  if (/^[a-z][a-z0-9+.-]*:/i.test(path)) throw new Error('Invalid WebDAV path');
-  if (/[\x00-\x1f\x7f]/.test(path)) throw new Error('Invalid WebDAV path');
-
-  if (path === '/') return { root: '', path: '' };
-  const normalized = path.replace(/\/+$/, '');
-  if (normalized === '') return { root: 'rool-drive', path: '' };
-
-  if (normalized === '/rool-drive') return { root: 'rool-drive', path: '' };
-  if (normalized.startsWith('/rool-drive/')) {
-    return { root: 'rool-drive', path: validateRelativeWebDAVPath(normalized.slice('/rool-drive/'.length)) };
-  }
-
-  if (normalized === '/space') return { root: 'space', path: '' };
-  if (normalized.startsWith('/space/')) {
-    return { root: 'space', path: validateRelativeWebDAVPath(normalized.slice('/space/'.length)) };
-  }
-
-  if (normalized.startsWith('/')) throw new Error('Invalid WebDAV path');
-  return { root: 'rool-drive', path: validateRelativeWebDAVPath(normalized) };
-}
-
-function validateRelativeWebDAVPath(path: string): string {
-  const parts = path.split('/');
-  if (parts.some((part) => part === '' || part === '.' || part === '..')) {
-    throw new Error('Invalid WebDAV path');
-  }
-  return path;
 }
 
 function rangeHeader(range: string | { start: number; end?: number }): string {
@@ -690,16 +651,7 @@ function parseTimeout(value: string | null): number | null {
 
 function pathFromHref(href: string, spaceId: string): string {
   try {
-    const pathname = new URL(href, 'http://rool.local').pathname;
-    const parts = pathname.split('/').filter(Boolean).map(decodeURIComponent);
-    if (parts[0] === 'space' && parts[1] === spaceId) {
-      const root = parts[2];
-      if (root === 'space') return `/space${parts.length > 3 ? `/${parts.slice(3).join('/')}` : ''}`;
-      if (root === 'rool-drive') return `/rool-drive${parts.length > 3 ? `/${parts.slice(3).join('/')}` : ''}`;
-      return '/';
-    }
-    if (parts[0] === 'dav' && parts[1] === spaceId) return parts.slice(2).join('/');
-    return href;
+    return machinePath(href, { spaceId });
   } catch {
     return href;
   }

@@ -57,11 +57,11 @@ export class RestClient {
     return response;
   }
 
-  async getObjects(spaceId: string, locations: string[]): Promise<GetObjectsResult> {
+  async getObjects(spaceId: string, paths: string[]): Promise<GetObjectsResult> {
     const response = await this.authenticatedFetch(`/spaces/${encodeURIComponent(spaceId)}/getObjects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ locations }),
+      body: JSON.stringify({ locations: paths }),
     });
 
     if (!response.ok) {
@@ -69,7 +69,14 @@ export class RestClient {
       throw new Error(`Failed to get objects: ${response.status} ${errorText}`);
     }
 
-    return await response.json() as GetObjectsResult;
+    const result = await response.json() as {
+      objects: Array<{ path?: string; location?: string; body: Record<string, unknown> }>;
+      missing: string[];
+    };
+    return {
+      objects: result.objects.map((object) => ({ path: object.path ?? object.location ?? '', body: object.body })),
+      missing: result.missing,
+    };
   }
 
   async importArchive(name: string, archive: Blob): Promise<string> {

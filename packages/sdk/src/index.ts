@@ -7,13 +7,8 @@ export { RoolChannel, ConversationHandle, generateEntityId } from './channel.js'
 // Space class
 export { RoolSpace } from './space.js';
 
-// Location helpers
-export { loc, parseLocation, normalizeLocation, isLocation } from './locations.js';
-export type { ParsedLocation } from './locations.js';
-
-// Machine resources
-export { resolveMachineResource } from './machine.js';
-export type { MachineResource } from './machine.js';
+// Machine paths
+export { machinePath, machineUri } from './path.js';
 
 // WebDAV client
 export { RoolWebDAV, WebDAVError } from './webdav.js';
@@ -26,7 +21,6 @@ export type {
   WebDAVMultiStatus,
   WebDAVSyncCollectionResult,
   WebDAVSyncLevel,
-  WebDAVPathInput,
   WebDAVPropName,
   WebDAVProps,
   WebDAVPropstat,
@@ -81,7 +75,6 @@ export type {
   PromptOptions,
   PromptAttachment,
   PromptEffort,
-  CreateObjectOptions,
   UpdateObjectOptions,
   MoveObjectOptions,
 

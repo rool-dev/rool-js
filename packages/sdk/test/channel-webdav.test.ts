@@ -66,10 +66,8 @@ class FakeRestClient {
       objects: locations
         .filter((location) => !location.includes('/missing-'))
         .map((location) => ({
-          location,
-          collection: location.split('/')[2],
-          basename: location.split('/').pop()!.replace(/\.json$/, ''),
-          body: { location },
+          path: location,
+          body: { path: location },
         })),
       missing: locations.filter((location) => location.includes('/missing-')),
     };
@@ -108,11 +106,9 @@ test('channel object CRUD uses object WebDAV instead of GraphQL', async () => {
   const dav = new FakeWebDAV();
   const ch = channel(dav);
 
-  const created = await ch.createObject('tasks', { title: 'First' }, { basename: 'first' });
+  const created = await ch.putObject('/space/tasks/first.json', { title: 'First' });
   assert.deepEqual(created.object, {
-    location: '/space/tasks/first.json',
-    collection: 'tasks',
-    basename: 'first',
+    path: '/space/tasks/first.json',
     body: { title: 'First' },
   });
   assert.deepEqual(JSON.parse(dav.files.get('/space/tasks/first.json')!.body), { title: 'First' });
@@ -120,32 +116,31 @@ test('channel object CRUD uses object WebDAV instead of GraphQL', async () => {
   const headers = new Headers((dav.calls[0].init as { headers: HeadersInit }).headers);
   assert.equal(dav.calls[0].method, 'PUT');
   assert.equal(dav.calls[0].path, '/space/tasks/first.json');
-  assert.equal((dav.calls[0].init as { ifNoneMatch: string }).ifNoneMatch, '*');
   assert.equal(headers.get('X-Rool-Channel-Id'), 'main');
   assert.equal(headers.get('X-Rool-Conversation-Id'), 'default');
 
   const loaded = await ch.getObject('/space/tasks/first.json');
   assert.equal(loaded?.body.title, 'First');
 
-  const updated = await ch.updateObject('/space/tasks/first.json', {
+  const updated = await ch.patchObject('/space/tasks/first.json', {
     data: { title: 'Updated', done: false, obsolete: null },
   });
   assert.deepEqual(updated.object.body, { title: 'Updated', done: false });
 
   const moved = await ch.moveObject('/space/tasks/first.json', '/space/tasks/renamed.json');
-  assert.equal(moved.object.location, '/space/tasks/renamed.json');
+  assert.equal(moved.object.path, '/space/tasks/renamed.json');
   assert.equal(dav.files.has('/space/tasks/first.json'), false);
   assert.equal(dav.files.has('/space/tasks/renamed.json'), true);
 
-  await ch.deleteObjects(['/space/tasks/renamed.json']);
+  await ch.deletePaths(['/space/tasks/renamed.json']);
   assert.equal(dav.files.has('/space/tasks/renamed.json'), false);
 });
 
-test('channel getObjects normalizes, dedupes, chunks, and preserves missing locations', async () => {
+test('channel getObjects normalizes machine paths, dedupes, chunks, and preserves missing paths', async () => {
   const rest = new FakeRestClient();
   const ch = channel(new FakeWebDAV(), rest as unknown as RestClient);
   const locations = [
-    'tasks/first',
+    '/space/tasks/first.json',
     '/space/tasks/first.json',
     '/space/tasks/missing-one.json',
     ...Array.from({ length: 499 }, (_, i) => `/space/tasks/item-${i}.json`),
@@ -158,7 +153,7 @@ test('channel getObjects normalizes, dedupes, chunks, and preserves missing loca
   assert.equal(rest.calls[1].length, 1);
   assert.equal(rest.calls[0][0], '/space/tasks/first.json');
   assert.equal(rest.calls[0][1], '/space/tasks/missing-one.json');
-  assert.equal(result.objects[0].location, '/space/tasks/first.json');
+  assert.equal(result.objects[0].path, '/space/tasks/first.json');
   assert.deepEqual(result.missing, ['/space/tasks/missing-one.json']);
 });
 
@@ -168,7 +163,7 @@ test('channel collection schema writes use object WebDAV', async () => {
 
   await ch.createCollection('notes', [{ name: 'title', type: { kind: 'string' } }], { schemaOrgType: 'CreativeWork' });
   assert.equal(dav.calls[0].method, 'MKCOL');
-  assert.equal(dav.calls[0].path, '/space/notes/');
+  assert.equal(dav.calls[0].path, '/space/notes');
   assert.equal(dav.calls[1].method, 'PUT');
   assert.equal(dav.calls[1].path, '/space/notes/.schema.json');
   assert.deepEqual(ch.getSchema().notes, { fields: [{ name: 'title', type: { kind: 'string' } }], schemaOrgType: 'CreativeWork' });
@@ -178,6 +173,6 @@ test('channel collection schema writes use object WebDAV', async () => {
 
   await ch.dropCollection('notes');
   assert.equal(dav.calls.at(-1)?.method, 'DELETE');
-  assert.equal(dav.calls.at(-1)?.path, '/space/notes/');
+  assert.equal(dav.calls.at(-1)?.path, '/space/notes');
   assert.equal('notes' in ch.getSchema(), false);
 });

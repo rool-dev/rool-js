@@ -1,4 +1,4 @@
-import { normalizeLocation } from '@rool-dev/sdk';
+import { machinePath } from '@rool-dev/sdk';
 import type {
   RoolChannel,
   RoolSpace,
@@ -26,11 +26,11 @@ export interface WatchOptions {
   order?: 'asc' | 'desc';
 }
 
-function eventTouchesObject(event: ReactiveFileTreeEvent, location?: string, collection?: string): boolean {
+function eventTouchesObject(event: ReactiveFileTreeEvent, objectPath?: string, collection?: string): boolean {
   if (event.reset) return true;
   for (const path of [...event.changedPaths, ...event.deletedPaths]) {
-    if (location && path === location) return true;
-    if (!location && path.startsWith('/space/') && path.endsWith('.json')) {
+    if (objectPath && path === objectPath) return true;
+    if (!objectPath && path.startsWith('/space/') && path.endsWith('.json')) {
       if (!collection || path.startsWith(`/space/${collection}/`)) return true;
     }
   }
@@ -47,10 +47,10 @@ async function watchObjectsFromTree(
   options: WatchOptions,
 ): Promise<RoolObject[]> {
   if (fileTree.loading) await fileTree.ready();
-  const locations = fileTree.objectLocations({ collection: options.collection, order: options.order });
+  const paths = fileTree.objectPaths({ collection: options.collection, order: options.order });
   const objects: RoolObject[] = [];
-  for (const location of locations) {
-    const object = await channel.getObject(location);
+  for (const path of paths) {
+    const object = await channel.getObject(path);
     if (!object) continue;
     if (options.where) {
       let matches = true;
@@ -94,7 +94,7 @@ class ReactiveWatchImpl {
     this.#unsubscribers.push(unsubscribe);
   }
 
-  /** Re-fetch matching objects using the canonical file tree for locations. */
+  /** Re-fetch matching objects using the canonical file tree for paths. */
   async refresh(): Promise<void> {
     this.loading = true;
     try {
@@ -118,17 +118,17 @@ export type ReactiveWatch = ReactiveWatchImpl;
 class ReactiveObjectImpl {
   #channel: RoolChannel;
   #fileTree: ReactiveFileTree;
-  #location: ReactiveFilePath;
+  #path: ReactiveFilePath;
   #unsubscribers: (() => void)[] = [];
 
   // Reactive state
   data = $state<RoolObject | undefined>(undefined);
   loading = $state(true);
 
-  constructor(channel: RoolChannel, fileTree: ReactiveFileTree, location: string) {
+  constructor(channel: RoolChannel, fileTree: ReactiveFileTree, path: string) {
     this.#channel = channel;
     this.#fileTree = fileTree;
-    this.#location = normalizeLocation(location) as ReactiveFilePath;
+    this.#path = machinePath(path) as ReactiveFilePath;
     this.#setup();
   }
 
@@ -136,11 +136,11 @@ class ReactiveObjectImpl {
     this.refresh();
 
     const unsubscribe = this.#fileTree.subscribe((event) => {
-      if (event.deletedPaths.has(this.#location)) {
+      if (event.deletedPaths.has(this.#path)) {
         this.data = undefined;
         return;
       }
-      if (eventTouchesObject(event, this.#location)) void this.refresh();
+      if (eventTouchesObject(event, this.#path)) void this.refresh();
     });
     this.#unsubscribers.push(unsubscribe);
   }
@@ -148,7 +148,7 @@ class ReactiveObjectImpl {
   async refresh(): Promise<void> {
     this.loading = true;
     try {
-      this.data = await this.#channel.getObject(this.#location);
+      this.data = await this.#channel.getObject(this.#path);
     } finally {
       this.loading = false;
     }
@@ -207,10 +207,10 @@ class ReactiveConversationHandleImpl {
   rename(...args: Parameters<ConversationHandle['rename']>) { return this.#handle.rename(...args); }
 
   // Object operations
-  createObject(...args: Parameters<ConversationHandle['createObject']>) { return this.#handle.createObject(...args); }
-  updateObject(...args: Parameters<ConversationHandle['updateObject']>) { return this.#handle.updateObject(...args); }
+  putObject(...args: Parameters<ConversationHandle['putObject']>) { return this.#handle.putObject(...args); }
+  patchObject(...args: Parameters<ConversationHandle['patchObject']>) { return this.#handle.patchObject(...args); }
   moveObject(...args: Parameters<ConversationHandle['moveObject']>) { return this.#handle.moveObject(...args); }
-  deleteObjects(...args: Parameters<ConversationHandle['deleteObjects']>) { return this.#handle.deleteObjects(...args); }
+  deletePaths(...args: Parameters<ConversationHandle['deletePaths']>) { return this.#handle.deletePaths(...args); }
 
   // AI
   prompt(...args: Parameters<ConversationHandle['prompt']>) { return this.#handle.prompt(...args); }
@@ -243,7 +243,7 @@ class ReactiveChannelImpl {
 
   // Reactive state
   interactions = $state<Interaction[]>([]);
-  objectLocations = $state<string[]>([]);
+  objectPaths = $state<string[]>([]);
   collections = $state<string[]>([]);
   conversations = $state<ConversationInfo[]>([]);
 
@@ -251,7 +251,7 @@ class ReactiveChannelImpl {
     this.#channel = channel;
     this.#fileTree = fileTree;
     this.interactions = channel.getInteractions();
-    this.objectLocations = fileTree.objectLocations();
+    this.objectPaths = fileTree.objectPaths();
     this.collections = fileTree.collections();
     this.conversations = channel.getConversations();
 
@@ -269,7 +269,7 @@ class ReactiveChannelImpl {
     this.#unsubscribers.push(() => channel.off('conversationUpdated', onConversationUpdated));
 
     const refreshFromFileTree = () => {
-      this.objectLocations = fileTree.objectLocations();
+      this.objectPaths = fileTree.objectPaths();
       this.collections = fileTree.collections();
     };
     this.#unsubscribers.push(fileTree.subscribe((event) => {
@@ -311,10 +311,10 @@ class ReactiveChannelImpl {
   getObject(...args: Parameters<RoolChannel['getObject']>) { return this.#channel.getObject(...args); }
   getObjects(...args: Parameters<RoolChannel['getObjects']>) { return this.#channel.getObjects(...args); }
   stat(...args: Parameters<RoolChannel['stat']>) { return this.#channel.stat(...args); }
-  createObject(...args: Parameters<RoolChannel['createObject']>) { return this.#channel.createObject(...args); }
-  updateObject(...args: Parameters<RoolChannel['updateObject']>) { return this.#channel.updateObject(...args); }
+  putObject(...args: Parameters<RoolChannel['putObject']>) { return this.#channel.putObject(...args); }
+  patchObject(...args: Parameters<RoolChannel['patchObject']>) { return this.#channel.patchObject(...args); }
   moveObject(...args: Parameters<RoolChannel['moveObject']>) { return this.#channel.moveObject(...args); }
-  deleteObjects(...args: Parameters<RoolChannel['deleteObjects']>) { return this.#channel.deleteObjects(...args); }
+  deletePaths(...args: Parameters<RoolChannel['deletePaths']>) { return this.#channel.deletePaths(...args); }
 
   // AI
   prompt(...args: Parameters<RoolChannel['prompt']>) { return this.#channel.prompt(...args); }
@@ -368,11 +368,11 @@ class ReactiveChannelImpl {
   // Reactive primitives
 
   /**
-   * Create a reactive object that auto-updates when the object at this location changes.
+   * Create a reactive object that auto-updates when the object at this path changes.
    */
-  object(location: string): ReactiveObject {
+  object(path: string): ReactiveObject {
     if (this.#closed) throw new Error('Cannot create reactive object: channel is closed');
-    return new ReactiveObjectImpl(this.#channel, this.#fileTree, location);
+    return new ReactiveObjectImpl(this.#channel, this.#fileTree, path);
   }
 
   /**

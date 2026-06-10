@@ -8,7 +8,7 @@
  * Run with:
  *   pnpm tsx scripts/smoke.ts
  */
-import { RoolClient, loc, parseLocation, resolveMachineResource } from '../src/index.js';
+import { RoolClient, machinePath, machineUri } from '../src/index.js';
 import { NodeAuthProvider } from '../src/auth-node.js';
 
 const API_URL = process.env.ROOL_API_URL ?? 'http://localhost:1357';
@@ -40,14 +40,12 @@ async function main(): Promise<void> {
 
   try {
     step('machine resource helpers');
-    const objectResource = resolveMachineResource('/space/note/target.json');
-    assert(objectResource?.kind === 'object', 'object path resolves');
-    assert(objectResource.path === '/space/note/target.json', 'object resource has machine path');
-    assert(resolveMachineResource('rool-machine%3A/space/note/target.json')?.kind === 'object', 'encoded object uri resolves');
-    assert(resolveMachineResource('rool:/settings/sharing') === null, 'app links are not machine resources');
-    const fileResource = resolveMachineResource('/rool-drive/docs/readme.md');
-    assert(fileResource?.kind === 'file', 'file path resolves');
-    assert(fileResource.path === '/rool-drive/docs/readme.md', 'file resource has machine path');
+    const objectResource = machinePath('/space/note/target.json');
+    assert(objectResource === '/space/note/target.json', 'object path resolves');
+    assert(machinePath('rool-machine%3A/space/note/target.json') === '/space/note/target.json', 'encoded object uri resolves');
+    const fileResource = machinePath('/rool-drive/docs/readme.md');
+    assert(fileResource === '/rool-drive/docs/readme.md', 'file path resolves');
+    assert(machineUri(fileResource) === 'rool-machine:/rool-drive/docs/readme.md', 'file path serializes');
 
     step('openChannel');
     const channel = await space.openChannel('main');
@@ -60,56 +58,47 @@ async function main(): Promise<void> {
     ]);
     console.log('collections:', Object.keys(channel.getSchema()));
 
-    step('createObject (auto basename)');
-    const { object: a } = await channel.createObject('note', { title: 'Hello', body: 'World' });
-    assert(a.collection === 'note', 'collection should be note');
+    step('putObject');
+    const { object: a } = await channel.putObject('/space/note/hello.json', { title: 'Hello', body: 'World' });
+    assert(a.path === '/space/note/hello.json', 'path should be exact');
     assert(a.body.title === 'Hello', 'title preserved');
     assert(!('id' in a.body) && !('type' in a.body), 'body must not contain id/type');
-    assert(a.location.startsWith('/space/note/') && a.location.endsWith('.json'), 'canonical location');
-    console.log('created:', a.location);
+    console.log('put:', a.path);
 
-    step('createObject (pinned basename)');
-    const { object: b } = await channel.createObject('note', { title: 'Pinned' }, { basename: 'welcome' });
-    assert(b.location === loc('note', 'welcome'), 'pinned basename');
-    console.log('created:', b.location);
+    step('putObject (second)');
+    const { object: b } = await channel.putObject('/space/note/welcome.json', { title: 'Pinned' });
+    assert(b.path === '/space/note/welcome.json', 'exact path');
+    console.log('put:', b.path);
 
     step('getObject');
-    const got = await channel.getObject(b.location);
+    const got = await channel.getObject(b.path);
     assert(got !== undefined && got.body.title === 'Pinned', 'got pinned object');
-    console.log('got:', got!.location, '→', got!.body);
+    console.log('got:', got!.path, '→', got!.body);
 
-    step('getObject (short-form input)');
-    const gotShort = await channel.getObject('note/welcome');
-    assert(gotShort !== undefined, 'short form accepted');
-    assert(gotShort!.location === b.location, 'short-form resolves to canonical');
-    console.log('got via short form ok');
-
-    step('updateObject');
-    const { object: updated } = await channel.updateObject(b.location, { data: { title: 'Pinned & updated' } });
+    step('patchObject');
+    const { object: updated } = await channel.patchObject(b.path, { data: { title: 'Pinned & updated' } });
     assert(updated.body.title === 'Pinned & updated', 'title updated');
     console.log('updated:', updated.body);
 
-    step('updateObject (delete field via null)');
-    const { object: trimmed } = await channel.updateObject(a.location, { data: { body: null } });
+    step('patchObject (delete field via null)');
+    const { object: trimmed } = await channel.patchObject(a.path, { data: { body: null } });
     assert(!('body' in trimmed.body), 'body field removed');
     console.log('trimmed:', trimmed.body);
 
     step('moveObject');
-    const newLoc = loc('note', 'renamed');
-    const { object: moved } = await channel.moveObject(b.location, newLoc);
-    assert(moved.location === newLoc, 'object now lives at new location');
-    const { collection, basename } = parseLocation(moved.location);
-    assert(collection === 'note' && basename === 'renamed', 'parsed parts match');
-    console.log('moved:', b.location, '→', moved.location);
+    const newPath = '/space/note/renamed.json';
+    const { object: moved } = await channel.moveObject(b.path, newPath);
+    assert(moved.path === newPath, 'object now lives at new path');
+    console.log('moved:', b.path, '→', moved.path);
 
     step('list objects via WebDAV');
-    const listing = await space.webdav.propfind('/space/note/', { depth: '1' });
+    const listing = await space.webdav.propfind('/space/note', { depth: '1' });
     const locations = listing.responses
       .filter((response) => !response.isCollection && response.path.endsWith('.json') && !response.path.endsWith('/.schema.json'))
       .map((response) => response.path);
-    assert(locations.includes(a.location), 'listing has a');
-    assert(locations.includes(newLoc), 'listing has moved object at new location');
-    assert(!locations.includes(b.location), 'listing no longer has old location');
+    assert(locations.includes(a.path), 'listing has a');
+    assert(locations.includes(newPath), 'listing has moved object at new path');
+    assert(!locations.includes(b.path), 'listing no longer has old path');
     console.log('locations:', locations);
 
     step('bulk get and filter objects');
@@ -117,12 +106,12 @@ async function main(): Promise<void> {
     assert(found.objects.length >= 2, `expected at least 2 notes, got ${found.objects.length}`);
     const filtered = found.objects.filter((object) => object.body.title === 'Hello');
     assert(filtered.length === 1, `expected exactly 1, got ${filtered.length}`);
-    assert(filtered[0].location === a.location, 'where filter matches');
+    assert(filtered[0].path === a.path, 'where filter matches');
     console.log('filtered ok');
 
     step('stat (cached audit info, may be absent before resync)');
-    const s = channel.stat(a.location);
-    if (s) assert(s.location === a.location, 'stat carries location');
+    const s = channel.stat(a.path);
+    if (s) assert(s.path === a.path, 'stat carries path');
     console.log('stat:', s ?? '(not cached yet)');
 
     step('prompt (read-only, QUICK)');
@@ -132,11 +121,11 @@ async function main(): Promise<void> {
     });
     console.log('AI:', message);
 
-    step('deleteObjects');
-    await channel.deleteObjects([a.location, newLoc]);
-    assert(await channel.getObject(a.location) === undefined, 'a was removed');
-    assert(await channel.getObject(newLoc) === undefined, 'moved object removed');
-    const afterDeleteListing = await space.webdav.propfind('/space/note/', { depth: '1' });
+    step('deletePaths');
+    await channel.deletePaths([a.path, newPath]);
+    assert(await channel.getObject(a.path) === undefined, 'a was removed');
+    assert(await channel.getObject(newPath) === undefined, 'moved object removed');
+    const afterDeleteListing = await space.webdav.propfind('/space/note', { depth: '1' });
     const afterDelete = afterDeleteListing.responses
       .filter((response) => !response.isCollection && response.path.endsWith('.json') && !response.path.endsWith('/.schema.json'))
       .map((response) => response.path);

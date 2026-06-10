@@ -1,5 +1,3 @@
-import type { MachineResource } from './machine.js';
-
 /**
  * Field type descriptor. Recursive structure supporting primitives,
  * enums, literals, arrays, optionals (maybe), and object references.
@@ -37,17 +35,12 @@ export interface CollectionDef {
 export type SpaceSchema = Record<string, CollectionDef>;
 
 /**
- * An object in a space. Addressed by `location`; `collection` and `basename`
- * are derived from it. The `body` holds the user-defined fields. References
- * between objects are body fields whose values are location strings.
+ * An object in a space. Objects are JSON files addressed by machine path.
+ * References between objects are body fields whose values are paths.
  */
 export interface RoolObject {
-  /** Canonical location: `/space/<collection>/<basename>.json`. */
-  location: string;
-  /** Collection name (parent directory of the location). */
-  collection: string;
-  /** Basename (filename of the location without `.json`). */
-  basename: string;
+  /** Canonical machine path, e.g. `/space/article/welcome.json`. */
+  path: string;
   /** User-defined fields. */
   body: Record<string, unknown>;
 }
@@ -63,8 +56,8 @@ export interface GetObjectsResult {
  * and where (channel/conversation/interaction). Returned by `channel.stat`.
  */
 export interface RoolObjectStat {
-  /** Object location these stats apply to. */
-  location: string;
+  /** Object path these stats apply to. */
+  path: string;
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
@@ -112,13 +105,13 @@ export interface Interaction {
   timestamp: number;
   userId: string;
   userName?: string | null;  // Display name at time of interaction
-  operation: 'prompt' | 'createObject' | 'updateObject' | 'moveObject' | 'deleteObjects' | string;
+  operation: 'prompt' | 'putObject' | 'patchObject' | 'moveObject' | 'deletePaths' | string;
   input: string;
   output: string | null;
   status: InteractionStatus;
   ai: boolean;
-  /** Locations of objects affected by this interaction. */
-  modifiedObjectLocations: string[];
+  /** Paths of objects affected by this interaction. */
+  modifiedObjectPaths: string[];
   toolCalls: ToolCall[];
   /** Canonical rool-machine:/... resource refs attached by the user. */
   attachments?: string[];
@@ -229,7 +222,7 @@ export interface CurrentUser {
  */
 export type PromptEffort = 'QUICK' | 'STANDARD' | 'REASONING' | 'RESEARCH';
 
-export type PromptAttachment = File | Blob | { data: string; contentType: string; filename?: string } | MachineResource;
+export type PromptAttachment = File | Blob | { data: string; contentType: string; filename?: string } | string;
 
 export interface PromptOptions {
   responseSchema?: Record<string, unknown>;
@@ -244,11 +237,10 @@ export interface PromptOptions {
   /**
    * Resources to attach to the prompt.
    *
-   * Pass an existing MachineResource for objects (`/space/...`) or files
+   * Pass existing machine paths for objects (`/space/...`) or files
    * (`/rool-drive/...`). Local File, Blob, or base64 inputs are uploaded to
-   * authenticated space file storage first; the resulting file resources are
-   * sent to the server. The interaction stores canonical `rool-machine:/...`
-   * refs for UI rendering and history replay.
+   * authenticated space file storage first; the resulting file paths are sent
+   * to the server as canonical `rool-machine:/...` refs.
    *
    * Supported file types for AI viewing:
    * - **Images** (JPEG, PNG, GIF, WebP, SVG) — viewed natively by the AI
@@ -267,11 +259,6 @@ export interface PromptOptions {
    *  app-initiated prompts (e.g. `'prompt_onboarding_seed'`). Only `'prompt_user'`
    *  counts toward active-user metrics. */
   eventName?: string;
-}
-
-export interface CreateObjectOptions {
-  /** Specific basename to use. If omitted, the SDK generates a random one. */
-  basename?: string;
 }
 
 export interface CollectionOptions {

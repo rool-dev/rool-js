@@ -1,13 +1,13 @@
-import type {
-  RoolSpace,
-  WebDAVDepth,
-  WebDAVPropName,
-  WebDAVResponse,
-  WebDAVSyncLevel,
+import {
+  machinePath,
+  type RoolSpace,
+  type WebDAVDepth,
+  type WebDAVPropName,
+  type WebDAVResponse,
+  type WebDAVSyncLevel,
 } from '@rool-dev/sdk';
-import { parseLocation } from '@rool-dev/sdk';
 
-export type ReactiveFilePath = '/' | `/space${string}` | `/rool-drive${string}`;
+export type ReactiveFilePath = string;
 export type ReactiveFileRoot = '' | 'space' | 'rool-drive';
 
 export interface ReactiveFileNode {
@@ -59,11 +59,7 @@ const DEFAULT_PROPS = [
 type Listener = (event: ReactiveFileTreeEvent) => void;
 
 function normalizePath(path: string): ReactiveFilePath {
-  if (!path || path === '/') return ROOT;
-  const normalized = `/${path.replace(/^\/+|\/+$/g, '')}`;
-  if (normalized === '/space' || normalized.startsWith('/space/')) return normalized as ReactiveFilePath;
-  if (normalized === '/rool-drive' || normalized.startsWith('/rool-drive/')) return normalized as ReactiveFilePath;
-  return ROOT;
+  return machinePath(path);
 }
 
 function parentPath(path: ReactiveFilePath): ReactiveFilePath | null {
@@ -73,7 +69,7 @@ function parentPath(path: ReactiveFilePath): ReactiveFilePath | null {
   return parts.length === 0 ? ROOT : (`/${parts.join('/')}` as ReactiveFilePath);
 }
 
-function basename(path: ReactiveFilePath): string {
+function leafName(path: ReactiveFilePath): string {
   if (path === ROOT) return 'Space';
   const leaf = path.split('/').filter(Boolean).pop() ?? '';
   try { return decodeURIComponent(leaf); } catch { return leaf; }
@@ -101,7 +97,7 @@ function nodeFromResponse(response: WebDAVResponse): ReactiveFileNode {
     parent: parentPath(path),
     name: typeof response.props.displayname === 'string' && response.props.displayname
       ? response.props.displayname
-      : basename(path),
+      : leafName(path),
     root: rootOf(path),
     isCollection: response.isCollection,
     size: typeof response.props.getcontentlength === 'number' ? response.props.getcontentlength : null,
@@ -205,15 +201,15 @@ export class ReactiveFileTree {
     return this.nodes.filter((node) => node.path !== root && isDescendant(node.path, root));
   }
 
-  /** Object file locations sorted by modified time descending. */
-  objectLocations(options: { collection?: string; order?: 'asc' | 'desc'; limit?: number } = {}): string[] {
-    const locations = this.nodes
-      .filter((node) => !node.isCollection && isObjectLocation(node.path))
+  /** Object file paths sorted by modified time descending. */
+  objectPaths(options: { collection?: string; order?: 'asc' | 'desc'; limit?: number } = {}): string[] {
+    const paths = this.nodes
+      .filter((node) => !node.isCollection && isObjectPath(node.path))
       .filter((node) => !options.collection || safeCollection(node.path) === options.collection)
       .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0))
       .map((node) => node.path);
-    if (options.order === 'asc') locations.reverse();
-    return options.limit === undefined ? locations : locations.slice(0, options.limit);
+    if (options.order === 'asc') paths.reverse();
+    return options.limit === undefined ? paths : paths.slice(0, options.limit);
   }
 
   collections(): string[] {
@@ -459,19 +455,11 @@ function isDescendant(path: ReactiveFilePath, ancestor: ReactiveFilePath): boole
   return path.startsWith(`${ancestor}/`);
 }
 
-function isObjectLocation(path: string): boolean {
-  try {
-    parseLocation(path);
-    return true;
-  } catch {
-    return false;
-  }
+function isObjectPath(path: string): boolean {
+  return path.startsWith('/space/') && path.endsWith('.json');
 }
 
 function safeCollection(path: string): string | undefined {
-  try {
-    return parseLocation(path).collection;
-  } catch {
-    return undefined;
-  }
+  if (!isObjectPath(path)) return undefined;
+  return path.split('/')[2];
 }

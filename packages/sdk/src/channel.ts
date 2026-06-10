@@ -10,7 +10,6 @@ import type {
   ChannelEvents,
   RoolUserRole,
   PromptOptions,
-  CreateObjectOptions,
   UpdateObjectOptions,
   MoveObjectOptions,
   ChannelEvent,
@@ -23,8 +22,7 @@ import type {
   FieldDef,
   CollectionOptions,
 } from './types.js';
-import { loc, normalizeLocation, parseLocation } from './locations.js';
-import { resolveMachineResource, type MachineResource } from './machine.js';
+import { machinePath, machineUri } from './path.js';
 
 // 6-character alphanumeric ID — used for object names, interactionIds, conversationIds, etc.
 const ENTITY_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -68,23 +66,22 @@ function findDefaultLeaf(interactions: Record<string, Interaction> | Interaction
   return best?.id;
 }
 
-function objectDavPath(location: string): string {
-  parseLocation(location);
-  return location;
+function objectPath(input: string): string {
+  const path = machinePath(input);
+  if (!path.startsWith('/space/') || !path.endsWith('.json')) throw new Error(`Object path must be /space/.../*.json: ${input}`);
+  return path;
 }
 
-function collectionDavPath(name: string): string {
-  parseLocation(loc(name, 'schema')); // Reuse collection validation.
-  return `/space/${name}/`;
+function collectionPath(name: string): string {
+  return machinePath(`/space/${name}`);
 }
 
-function schemaDavPath(name: string): string {
-  return `${collectionDavPath(name)}.schema.json`;
+function schemaPath(name: string): string {
+  return `${collectionPath(name)}/.schema.json`;
 }
 
-function objectFromBody(location: string, body: Record<string, unknown>): RoolObject {
-  const { collection, basename } = parseLocation(location);
-  return { location, collection, basename, body };
+function objectFromBody(path: string, body: Record<string, unknown>): RoolObject {
+  return { path, body };
 }
 
 function jsonObject(value: unknown, label: string): Record<string, unknown> {
@@ -109,6 +106,21 @@ function collectionDef(input: FieldDef[] | CollectionDef, options?: CollectionOp
     : { fields: input.fields, schemaOrgType: input.schemaOrgType };
   const schemaOrgType = options?.schemaOrgType ?? base.schemaOrgType;
   return schemaOrgType ? { fields: base.fields, schemaOrgType } : { fields: base.fields };
+}
+
+function normalizeChannel(channel: Channel): Channel {
+  for (const conversation of Object.values(channel.conversations)) {
+    const interactions = conversation.interactions;
+    const list = Array.isArray(interactions) ? interactions : Object.values(interactions);
+    for (const interaction of list) {
+      const wire = interaction as Interaction & { modifiedObjectLocations?: string[] };
+      if (!wire.modifiedObjectPaths && wire.modifiedObjectLocations) {
+        wire.modifiedObjectPaths = wire.modifiedObjectLocations;
+        delete wire.modifiedObjectLocations;
+      }
+    }
+  }
+  return channel;
 }
 
 interface AttachmentUpload {
@@ -195,7 +207,7 @@ export interface ChannelConfig {
   linkAccess: LinkAccess;
   /** Current user's ID (for identifying own interactions) */
   userId: string;
-  /** Object stats keyed by location */
+  /** Object stats keyed by path */
   objectStats: Record<string, RoolObjectStat>;
   /** Collection schema */
   schema: SpaceSchema;
@@ -219,7 +231,7 @@ export interface ChannelConfig {
  * at open time and cannot be changed. To use a different channel,
  * open a second one.
  *
- * Objects are addressed by location (`/space/<collection>/<basename>.json`).
+ * Objects are addressed by machine path (`/space/.../*.json`).
  * Only schema, metadata, object stats, and the channel's own history are cached
  * locally. Object bodies are fetched on demand. Object/file reactivity is
  * exposed at the space level via WebDAV sync notifications.
@@ -267,7 +279,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     // Initialize local cache from server data
     this._meta = config.meta;
     this._schema = config.schema;
-    this._channel = config.channel;
+    this._channel = config.channel ? normalizeChannel(config.channel) : undefined;
     this._objectStats = new Map(Object.entries(config.objectStats));
   }
 
@@ -295,7 +307,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._meta = data.meta;
     this._schema = data.schema;
     this._objectStats = new Map(Object.entries(data.objectStats));
-    if (data.channel) this._channel = data.channel;
+    if (data.channel) this._channel = normalizeChannel(data.channel);
     this._activeLeaves.clear();
     this.emit('reset', { source: 'system' });
   }
@@ -527,10 +539,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return headers;
   }
 
-  private async readObject(location: string): Promise<{ object: RoolObject; etag: string | null } | undefined> {
-    const canonical = normalizeLocation(location);
+  private async readObject(path: string): Promise<{ object: RoolObject; etag: string | null } | undefined> {
+    const canonical = objectPath(path);
     try {
-      const response = await this.webdav.get(objectDavPath(canonical));
+      const response = await this.webdav.get(canonical);
       const body = jsonObject(await response.json(), `Object ${canonical}`);
       return { object: objectFromBody(canonical, body), etag: response.headers.get('ETag') };
     } catch (error) {
@@ -540,28 +552,17 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
   }
 
-  /**
-   * Get an object by location. Fetches from the server on each call.
-   *
-   * Accepts either the canonical form (`/space/<collection>/<basename>.json`)
-   * or the short form (`<collection>/<basename>`).
-   */
-  async getObject(location: string): Promise<RoolObject | undefined> {
-    return (await this.readObject(location))?.object;
+  /** Get an object JSON file by machine path. Fetches from the server on each call. */
+  async getObject(path: string): Promise<RoolObject | undefined> {
+    return (await this.readObject(path))?.object;
   }
 
-  /**
-   * Get objects by location in bulk.
-   *
-   * Accepts either canonical locations (`/space/<collection>/<basename>.json`)
-   * or short locations (`<collection>/<basename>`). Duplicate locations are
-   * fetched once, preserving their first requested order.
-   */
-  async getObjects(locations: string[]): Promise<GetObjectsResult> {
+  /** Get object JSON files by machine path in bulk. Duplicate paths are fetched once. */
+  async getObjects(paths: string[]): Promise<GetObjectsResult> {
     const canonical: string[] = [];
     const seen = new Set<string>();
-    for (const location of locations) {
-      const normalized = normalizeLocation(location);
+    for (const path of paths) {
+      const normalized = objectPath(path);
       if (seen.has(normalized)) continue;
       seen.add(normalized);
       canonical.push(normalized);
@@ -577,78 +578,44 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return result;
   }
 
-  /**
-   * Get an object's stat (audit information).
-   * Returns the cached stat or undefined if not known.
-   */
-  stat(location: string): RoolObjectStat | undefined {
-    return this._objectStats.get(normalizeLocation(location));
+  /** Get an object's cached audit information. */
+  stat(path: string): RoolObjectStat | undefined {
+    return this._objectStats.get(objectPath(path));
   }
 
-  /**
-   * Create a new object in the given collection.
-   *
-   * @param collection - The collection (must exist in the schema)
-   * @param body - Object body fields. Fields prefixed with `_` are hidden from AI.
-   * @param options.basename - Specific basename to use. If omitted, the SDK generates a random one.
-   * @returns The created object and a status message.
-   */
-  async createObject(
-    collection: string,
-    body: Record<string, unknown>,
-    options?: CreateObjectOptions,
-  ): Promise<{ object: RoolObject; message: string }> {
-    return this._createObjectImpl(collection, body, options, this._conversationId);
+  /** Create or replace an object JSON file at an exact machine path. */
+  async putObject(path: string, body: Record<string, unknown>): Promise<{ object: RoolObject; message: string }> {
+    return this._putObjectImpl(path, body, this._conversationId);
   }
 
   /** @internal */
-  async _createObjectImpl(
-    collection: string,
-    body: Record<string, unknown>,
-    options: CreateObjectOptions | undefined,
-    conversationId: string,
-  ): Promise<{ object: RoolObject; message: string }> {
-    const basename = options?.basename ?? generateEntityId();
-    const location = loc(collection, basename);
-
-    const optimistic: RoolObject = { location, collection, basename, body };
+  async _putObjectImpl(path: string, body: Record<string, unknown>, conversationId: string): Promise<{ object: RoolObject; message: string }> {
+    const canonical = objectPath(path);
+    const optimistic = objectFromBody(canonical, body);
 
     try {
       const interactionId = generateEntityId();
-      await this.webdav.put(objectDavPath(location), JSON.stringify(body), {
+      await this.webdav.put(canonical, JSON.stringify(body), {
         contentType: 'application/json',
-        ifNoneMatch: '*',
         headers: this.davHeaders(conversationId, interactionId),
       });
-      const fresh = await this.getObject(location) ?? optimistic;
-      return { object: fresh, message: `Created ${location}` };
+      const fresh = await this.getObject(canonical) ?? optimistic;
+      return { object: fresh, message: `Put ${canonical}` };
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to create object:', error);
+      this.logger.error('[RoolChannel] Failed to put object:', error);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
 
-  /**
-   * Update an existing object.
-   *
-   * @param location - The object's location (canonical or short form)
-   * @param options.data - Fields to add or update. Pass `null` to delete a field.
-   */
-  async updateObject(
-    location: string,
-    options: UpdateObjectOptions,
-  ): Promise<{ object: RoolObject; message: string }> {
-    return this._updateObjectImpl(location, options, this._conversationId);
+  /** Patch an existing object. Null or undefined deletes a field. */
+  async patchObject(path: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._patchObjectImpl(path, options, this._conversationId);
   }
 
   /** @internal */
-  async _updateObjectImpl(
-    location: string,
-    options: UpdateObjectOptions,
-    conversationId: string,
-  ): Promise<{ object: RoolObject; message: string }> {
-    const canonical = normalizeLocation(location);
+  async _patchObjectImpl(path: string, options: UpdateObjectOptions, conversationId: string): Promise<{ object: RoolObject; message: string }> {
+    const canonical = objectPath(path);
     const data = options.data ?? {};
     const current = await this.readObject(canonical);
     if (!current) throw new Error(`Object ${canonical} not found`);
@@ -657,69 +624,45 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const interactionId = generateEntityId();
-      await this.webdav.put(objectDavPath(canonical), JSON.stringify(body), {
+      await this.webdav.put(canonical, JSON.stringify(body), {
         contentType: 'application/json',
         ifMatch: current.etag ?? undefined,
         headers: this.davHeaders(conversationId, interactionId),
       });
       const fresh = await this.getObject(canonical) ?? optimistic;
-      return { object: fresh, message: `Updated ${canonical}` };
+      return { object: fresh, message: `Patched ${canonical}` };
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to update object:', error);
+      this.logger.error('[RoolChannel] Failed to patch object:', error);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
 
-  /**
-   * Move (rename or relocate) an object to a new location.
-   * Use this to rename, change collection, or atomically rewrite the body.
-   *
-   * @param from - Current location
-   * @param to - New location
-   * @param options.body - Replace the body atomically as part of the move.
-   */
-  async moveObject(
-    from: string,
-    to: string,
-    options?: MoveObjectOptions,
-  ): Promise<{ object: RoolObject; message: string }> {
+  /** Move an object JSON file to a new machine path, optionally replacing its body. */
+  async moveObject(from: string, to: string, options?: MoveObjectOptions): Promise<{ object: RoolObject; message: string }> {
     return this._moveObjectImpl(from, to, options, this._conversationId);
   }
 
   /** @internal */
-  async _moveObjectImpl(
-    from: string,
-    to: string,
-    options: MoveObjectOptions | undefined,
-    conversationId: string,
-  ): Promise<{ object: RoolObject; message: string }> {
-    const fromLoc = normalizeLocation(from);
-    const toLoc = normalizeLocation(to);
-
-    // Optimistic event — emit move so listeners can update keys
-    const { collection, basename } = parseLocation(toLoc);
-    const optimistic: RoolObject = {
-      location: toLoc,
-      collection,
-      basename,
-      body: options?.body ?? {},
-    };
+  async _moveObjectImpl(from: string, to: string, options: MoveObjectOptions | undefined, conversationId: string): Promise<{ object: RoolObject; message: string }> {
+    const fromPath = objectPath(from);
+    const toPath = objectPath(to);
+    const optimistic = objectFromBody(toPath, options?.body ?? {});
 
     try {
       const interactionId = generateEntityId();
-      await this.webdav.move(objectDavPath(fromLoc), objectDavPath(toLoc), {
+      await this.webdav.move(fromPath, toPath, {
         headers: this.davHeaders(conversationId, interactionId),
       });
       if (options?.body) {
-        await this.webdav.put(objectDavPath(toLoc), JSON.stringify(options.body), {
+        await this.webdav.put(toPath, JSON.stringify(options.body), {
           contentType: 'application/json',
           headers: this.davHeaders(conversationId, interactionId),
         });
       }
-      this._objectStats.delete(fromLoc);
-      const fresh = await this.getObject(toLoc) ?? optimistic;
-      return { object: fresh, message: `Moved ${fromLoc} to ${toLoc}` };
+      this._objectStats.delete(fromPath);
+      const fresh = await this.getObject(toPath) ?? optimistic;
+      return { object: fresh, message: `Moved ${fromPath} to ${toPath}` };
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to move object:', error);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
@@ -727,29 +670,26 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
   }
 
-  /**
-   * Delete objects by location.
-   * Other objects that reference deleted objects will retain stale ref values.
-   */
-  async deleteObjects(locations: string[]): Promise<void> {
-    return this._deleteObjectsImpl(locations, this._conversationId);
+  /** Delete object JSON files by machine path. */
+  async deletePaths(paths: string[]): Promise<void> {
+    return this._deletePathsImpl(paths, this._conversationId);
   }
 
   /** @internal */
-  async _deleteObjectsImpl(locations: string[], conversationId: string): Promise<void> {
-    if (locations.length === 0) return;
-    const canonical = locations.map(normalizeLocation);
+  async _deletePathsImpl(paths: string[], conversationId: string): Promise<void> {
+    if (paths.length === 0) return;
+    const canonical = paths.map(objectPath);
 
     try {
       const interactionId = generateEntityId();
-      for (const location of canonical) {
-        await this.webdav.delete(objectDavPath(location), {
+      for (const path of canonical) {
+        await this.webdav.delete(path, {
           headers: this.davHeaders(conversationId, interactionId),
         });
-        this._objectStats.delete(location);
+        this._objectStats.delete(path);
       }
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to delete objects:', error);
+      this.logger.error('[RoolChannel] Failed to delete paths:', error);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -776,8 +716,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._schema[name] = optimisticDef;
 
     try {
-      await this.webdav.mkcol(collectionDavPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
-      await this.webdav.put(schemaDavPath(name), JSON.stringify(optimisticDef), {
+      await this.webdav.mkcol(collectionPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
+      await this.webdav.put(schemaPath(name), JSON.stringify(optimisticDef), {
         contentType: 'application/json',
         headers: this.davHeaders(conversationId, generateEntityId()),
       });
@@ -806,7 +746,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const updated = this._schema[name];
-      await this.webdav.put(schemaDavPath(name), JSON.stringify(updated), {
+      await this.webdav.put(schemaPath(name), JSON.stringify(updated), {
         contentType: 'application/json',
         headers: this.davHeaders(conversationId, generateEntityId()),
       });
@@ -834,7 +774,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     delete this._schema[name];
 
     try {
-      await this.webdav.delete(collectionDavPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
+      await this.webdav.delete(collectionPath(name), { collection: true, headers: this.davHeaders(conversationId, generateEntityId()) });
       this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
     } catch (error) {
       this.logger.error('[RoolChannel] Failed to drop collection:', error);
@@ -1001,8 +941,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     if (attachments?.length) {
       attachmentRefs = await Promise.all(
         attachments.map(async (attachment) => {
-          const resource = 'kind' in attachment ? attachment : await this.uploadAttachment(attachment, conversationId);
-          return `rool-machine:${resource.path.split('/').map(encodeURIComponent).join('/')}`;
+          const path = typeof attachment === 'string' ? machinePath(attachment) : await this.uploadAttachment(attachment, conversationId);
+          return machineUri(path);
         })
       );
     }
@@ -1040,7 +980,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
 
     const objects: RoolObject[] = [];
-    const fetched = await Promise.all(result.modifiedObjectLocations.map((location) => this.getObject(location)));
+    const fetched = await Promise.all(result.modifiedObjectPaths.map((path) => this.getObject(path)));
     for (const object of fetched) {
       if (object) objects.push(object);
     }
@@ -1083,21 +1023,18 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private async uploadAttachment(
     file: File | Blob | { data: string; contentType: string; filename?: string },
     conversationId: string
-  ): Promise<MachineResource> {
-    await this.ensureCollection('attachments');
-    const directory = `attachments/${conversationId}`;
+  ): Promise<string> {
+    await this.ensureCollection('/rool-drive/attachments');
+    const directory = `/rool-drive/attachments/${conversationId}`;
     await this.ensureCollection(directory);
 
     const attachment = attachmentBody(file);
     const path = `${directory}/${attachment.filename}`;
     await this.webdav.put(path, attachment.body, { contentType: attachment.contentType });
-    const resource = resolveMachineResource(`/rool-drive/${path}`);
-    if (!resource) throw new Error('Failed to resolve uploaded attachment');
-    return resource;
+    return path;
   }
 
   private async ensureCollection(path: string): Promise<void> {
-    // Note: not an object collection, a folder, which is "collection" in webdav land
     const response = await this.webdav.request('MKCOL', path, { collection: true });
     if (response.status === 201 || response.status === 405) return;
     throw new Error(`Failed to create collection ${path}: ${response.status} ${await response.text()}`);
@@ -1134,7 +1071,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       case 'channel_updated':
         if (event.channelId === this._channelId && event.channel) {
           const changed = JSON.stringify(this._channel) !== JSON.stringify(event.channel);
-          this._channel = event.channel;
+          this._channel = normalizeChannel(event.channel);
           if (changed) {
             this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
           }
@@ -1161,7 +1098,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
           const prev = this._channel.conversations[event.conversationId];
           if (event.conversation) {
-            this._channel.conversations[event.conversationId] = event.conversation;
+            this._channel.conversations[event.conversationId] = normalizeChannel({ createdAt: 0, createdBy: '', conversations: { [event.conversationId]: event.conversation } }).conversations[event.conversationId];
           } else {
             delete this._channel.conversations[event.conversationId];
           }
@@ -1251,18 +1188,14 @@ export class ConversationHandle {
     return this._channel._renameConversationImpl(name, this._conversationId);
   }
 
-  /** Create a new object. */
-  async createObject(
-    collection: string,
-    body: Record<string, unknown>,
-    options?: CreateObjectOptions,
-  ): Promise<{ object: RoolObject; message: string }> {
-    return this._channel._createObjectImpl(collection, body, options, this._conversationId);
+  /** Create or replace an object JSON file. */
+  async putObject(path: string, body: Record<string, unknown>): Promise<{ object: RoolObject; message: string }> {
+    return this._channel._putObjectImpl(path, body, this._conversationId);
   }
 
-  /** Update an existing object. */
-  async updateObject(location: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._channel._updateObjectImpl(location, options, this._conversationId);
+  /** Patch an existing object JSON file. */
+  async patchObject(path: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
+    return this._channel._patchObjectImpl(path, options, this._conversationId);
   }
 
   /** Move (rename/relocate) an object. */
@@ -1270,9 +1203,9 @@ export class ConversationHandle {
     return this._channel._moveObjectImpl(from, to, options, this._conversationId);
   }
 
-  /** Delete objects by location. */
-  async deleteObjects(locations: string[]): Promise<void> {
-    return this._channel._deleteObjectsImpl(locations, this._conversationId);
+  /** Delete object JSON files by path. */
+  async deletePaths(paths: string[]): Promise<void> {
+    return this._channel._deletePathsImpl(paths, this._conversationId);
   }
 
   /** Send a prompt to the AI agent, scoped to this conversation's history. */

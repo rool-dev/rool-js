@@ -3,7 +3,7 @@
  *
  * This deliberately avoids object create/update operations so it can run against
  * a local server even when the VM/object filesystem is unavailable. It validates:
- *   - SDK accepts MachineResource attachments for /space objects and /rool-drive files
+ *   - SDK accepts machine-path attachments for /space objects and /rool-drive files
  *   - SDK uploads local base64 input to WebDAV and sends a machine ref
  *   - server accepts the refs and stores canonical rool-machine:/... strings on the interaction
  *   - prompt input is not polluted by hidden/injected file-ref text
@@ -12,10 +12,10 @@
  *   pnpm exec tsx scripts/machine-attachments-smoke.ts
  */
 import {
-  resolveMachineResource,
+  machinePath,
+  machineUri,
   RoolClient,
   type Interaction,
-  type MachineResource,
 } from '../src/index.js';
 import { NodeAuthProvider } from '../src/auth-node.js';
 
@@ -30,14 +30,12 @@ function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(`assertion failed: ${msg}`);
 }
 
-function resource(input: string): MachineResource {
-  const resolved = resolveMachineResource(input);
-  if (!resolved) throw new Error(`failed to resolve machine resource: ${input}`);
-  return resolved;
+function path(input: string): string {
+  return machinePath(input);
 }
 
-function machineRef(resource: MachineResource): string {
-  return `rool-machine:${resource.path.split('/').map(encodeURIComponent).join('/')}`;
+function machineRef(path: string): string {
+  return machineUri(path);
 }
 
 function latestPromptInteraction(interactions: Interaction[]): Interaction {
@@ -71,23 +69,21 @@ async function main(): Promise<void> {
     // The server validates object refs syntactically and uses them as focused
     // object locations when present. This smoke is transport-focused, so the
     // object does not need to exist.
-    const objectResource = resource('/space/note/target.json');
-    assert(objectResource.kind === 'object', 'object path should resolve as object resource');
+    const objectResource = path('/space/note/target.json');
     const objectRef = machineRef(objectResource);
     assert(objectRef === 'rool-machine:/space/note/target.json', 'object ref should encode canonically');
     console.log('object ref:', objectRef);
 
     step('prepare existing WebDAV file resource');
-    await space.webdav.mkcol('docs').catch((error: unknown) => {
+    await space.webdav.mkcol('/rool-drive/docs').catch((error: unknown) => {
       const status = (error as { status?: number })?.status;
       if (status !== 405) throw error;
     });
     const fileText = `existing file smoke ${Date.now()}\n`;
-    await space.webdav.put('docs/existing-attachment.txt', fileText, {
+    await space.webdav.put('/rool-drive/docs/existing-attachment.txt', fileText, {
       contentType: 'text/plain',
     });
-    const fileResource = resource('/rool-drive/docs/existing-attachment.txt');
-    assert(fileResource.kind === 'file', 'WebDAV path should resolve as file resource');
+    const fileResource = path('/rool-drive/docs/existing-attachment.txt');
     const fileRef = machineRef(fileResource);
     console.log('file ref:', fileRef);
 
@@ -116,11 +112,11 @@ async function main(): Promise<void> {
     assert(uploadedRef, `expected uploaded local file ref under attachments/${channel.conversationId}/local-upload.txt`);
     console.log('stored attachments:', interaction.attachments);
 
-    step('fetch file refs through MachineResource');
+    step('fetch file refs through machine paths');
     for (const ref of [fileRef, uploadedRef]) {
-      const fetchedResource = resource(ref);
-      assert(fetchedResource.kind === 'file', `${ref} should resolve as file`);
-      const response = await space.fetchMachineResource(fetchedResource);
+      const fetchedResource = path(ref);
+      assert(fetchedResource.startsWith('/rool-drive/'), `${ref} should resolve as file path`);
+      const response = await space.fetchPath(fetchedResource);
       assert(response.ok, `fetch ${ref} should succeed: ${response.status}`);
       const text = await response.text();
       assert(text.length > 0, `${ref} should have content`);
