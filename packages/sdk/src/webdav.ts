@@ -1,5 +1,6 @@
 import type { AuthManager } from './auth.js';
 import { machinePath } from './path.js';
+import { fetchWithReroute, isThrowRetryable } from './reroute.js';
 
 export type WebDAVDepth = '0' | '1' | 'infinity';
 export type WebDAVSyncLevel = '1' | 'infinite';
@@ -110,20 +111,12 @@ export interface WebDAVActiveLock {
 }
 
 const XML_HEADER = '<?xml version="1.0" encoding="utf-8"?>';
-const REQUEST_MAX_RETRIES = 6;
-const RETRY_BASE_MS = 150;
-const RETRY_MAX_MS = 5_000;
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 function getTimezone(): string | undefined {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
   } catch {
     return undefined;
   }
-}
-function retryBackoffMs(attempt: number): number {
-  const ceil = Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS);
-  return ceil / 2 + Math.random() * (ceil / 2);
 }
 const KNOWN_PROPS = [
   'creationdate',
@@ -190,26 +183,19 @@ export class RoolWebDAV {
   async request(method: string, path = '/', init: WebDAVRequestInit = {}): Promise<Response> {
     const { collection, ...fetchInit } = init;
     const requestInit = { ...fetchInit, method };
-    let response = await this.authenticatedFetch(this.url(path, { collection }), requestInit);
 
-    // 421 (wrong shard) and 503 (draining) reject before executing server-side.
-    // Re-resolve the owning shard and retry. This is safe for channel object
-    // mutations; callers using one-shot ReadableStreams should avoid retries.
-    for (
-      let attempt = 0;
-      (response.status === 421 || response.status === 503) && this.onRefused && attempt < REQUEST_MAX_RETRIES;
-      attempt++
-    ) {
-      await delay(retryBackoffMs(attempt));
-      try {
-        this.setWebDAVUrl(await this.onRefused());
-      } catch {
-        continue;
-      }
-      response = await this.authenticatedFetch(this.url(path, { collection }), requestInit);
-    }
-
-    return response;
+    // 421 (wrong shard) and 503 (draining) reject before executing server-side;
+    // a node that rolled fully away rejects the fetch opaquely (no CORS on the
+    // LB's 5xx). Both re-resolve the owner and retry. A one-shot ReadableStream
+    // body can't be re-sent, so it disables retries.
+    const onRefused = this.onRefused;
+    const bodyIsStream =
+      typeof ReadableStream !== 'undefined' && requestInit.body instanceof ReadableStream;
+    return fetchWithReroute({
+      send: () => this.authenticatedFetch(this.url(path, { collection }), requestInit),
+      reroute: onRefused ? async () => this.setWebDAVUrl(await onRefused()) : undefined,
+      retryOnThrow: isThrowRetryable(method) && !bodyIsStream,
+    });
   }
 
   async options(path = '/'): Promise<Response> {

@@ -11,6 +11,7 @@ import type {
   SpaceSchema,
 } from './types.js';
 import type { AuthManager } from './auth.js';
+import { fetchWithReroute } from './reroute.js';
 
 const COMPRESSION_THRESHOLD = 2048; // Compress payloads > 2KB
 
@@ -21,18 +22,6 @@ function getTimezone(): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-const REQUEST_MAX_RETRIES = 6;
-const RETRY_BASE_MS = 150;
-const RETRY_MAX_MS = 5_000;
-
-const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-// Jittered exponential backoff for retry attempt N.
-function retryBackoffMs(attempt: number): number {
-  const ceil = Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS);
-  return ceil / 2 + Math.random() * (ceil / 2);
 }
 
 export interface GraphQLClientConfig {
@@ -583,24 +572,17 @@ export class GraphQLClient {
       ) as ArrayBuffer;
     }
 
-    let url = this._graphqlUrl;
-    let response = await fetch(url, { method: 'POST', headers, body: fetchBody });
-
     // 421 (wrong shard) and 503 (draining) both reject before executing, so
-    // re-resolve the owner and retry — safe even for mutations; backoff rides out a roll.
-    for (
-      let attempt = 0;
-      (response.status === 421 || response.status === 503) && this.config.onRefused && attempt < REQUEST_MAX_RETRIES;
-      attempt++
-    ) {
-      await delay(retryBackoffMs(attempt));
-      try {
-        url = await this.config.onRefused();
-      } catch {
-        continue; // reroute itself failed (e.g. /route exhausted its own retries); keep backing off
-      }
-      response = await fetch(url, { method: 'POST', headers, body: fetchBody });
-    }
+    // re-resolve the owner and retry — safe even for mutations; backoff rides out
+    // a roll. No throw-retry here: GraphQL is always POST, and a thrown fetch on a
+    // mutation might have executed, so re-sending isn't safe.
+    let url = this._graphqlUrl;
+    const onRefused = this.config.onRefused;
+    const response = await fetchWithReroute({
+      send: () => fetch(url, { method: 'POST', headers, body: fetchBody }),
+      reroute: onRefused ? async () => { url = await onRefused(); } : undefined,
+      retryOnThrow: false,
+    });
 
     if (!response.ok) {
       throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);

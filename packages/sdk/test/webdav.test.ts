@@ -83,6 +83,59 @@ test('WebDAV retries shard refusal against the rerouted base URL', async () => {
   }
 });
 
+test('WebDAV reroutes an idempotent request when the node fetch throws opaquely', async () => {
+  const calls: string[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (url, init) => {
+    calls.push(`${String(init?.method)} ${String(url)}`);
+    // A node that rolled fully away rejects the fetch (LB 5xx has no CORS), so
+    // there's no readable status — only a throw.
+    if (calls.length === 1) throw new TypeError('Failed to fetch');
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const dav = new RoolWebDAV({
+      webdavUrl: 'https://api.test/node/old',
+      spaceId: 'sp_123',
+      authManager: auth(),
+      onRefused: async () => 'https://api.test/node/new',
+    });
+
+    await dav.head('/rool-drive/Ostemadder/illustration.png');
+    assert.deepEqual(calls, [
+      'HEAD https://api.test/node/old/space/sp_123/rool-drive/Ostemadder/illustration.png',
+      'HEAD https://api.test/node/new/space/sp_123/rool-drive/Ostemadder/illustration.png',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('WebDAV does not retry a non-idempotent method on an opaque throw', async () => {
+  const calls: string[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (url, init) => {
+    calls.push(`${String(init?.method)} ${String(url)}`);
+    throw new TypeError('Failed to fetch');
+  }) as typeof fetch;
+
+  try {
+    const dav = new RoolWebDAV({
+      webdavUrl: 'https://api.test/node/old',
+      spaceId: 'sp_123',
+      authManager: auth(),
+      onRefused: async () => 'https://api.test/node/new',
+    });
+
+    // MKCOL isn't safe to re-send blindly, so the throw propagates after one try.
+    await assert.rejects(dav.request('MKCOL', '/rool-drive/docs', { collection: true }), /Failed to fetch/);
+    assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('PROPFIND parses new server hrefs back to root-relative paths', async () => {
   const xml = `<?xml version="1.0" encoding="utf-8"?>
     <d:multistatus xmlns:d="DAV:">
