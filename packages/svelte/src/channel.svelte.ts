@@ -221,6 +221,7 @@ class ReactiveConversationHandleImpl {
 
   // AI
   prompt(...args: Parameters<ConversationHandle['prompt']>) { return this.#handle.prompt(...args); }
+  stop() { return this.#handle.stop(); }
 
   // Schema
   createCollection(...args: Parameters<ConversationHandle['createCollection']>) { return this.#handle.createCollection(...args); }
@@ -327,6 +328,8 @@ class ReactiveChannelImpl {
 
   // AI
   prompt(...args: Parameters<RoolChannel['prompt']>) { return this.#channel.prompt(...args); }
+  stop() { return this.#channel.stop(); }
+  stopInteraction(...args: Parameters<RoolChannel['stopInteraction']>) { return this.#channel.stopInteraction(...args); }
 
   // Undo/redo
   checkpoint(...args: Parameters<RoolChannel['checkpoint']>) { return this.#channel.checkpoint(...args); }

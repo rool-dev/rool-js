@@ -276,7 +276,7 @@ const { message } = await channel.prompt('Categorize these items', {
 });
 const result = JSON.parse(message);
 
-// Stop a long prompt
+// Stop a long prompt with a signal (when the caller holds the controller)
 const ac = new AbortController();
 const promptPromise = channel.prompt('Do a deep analysis', {
   effort: 'RESEARCH',
@@ -285,6 +285,35 @@ const promptPromise = channel.prompt('Do a deep analysis', {
 ac.abort(); // asks the server to stop the in-flight interaction
 await promptPromise;
 ```
+
+### Stopping interactions
+
+Use `signal` when the same call site cancels the prompt. When the Stop button
+lives elsewhere — a different component, after a reload, or a prompt another
+client started — stop by ID or stop the conversation's active interaction
+instead. Both are best-effort: the server halts the agent loop and closes the
+stream, but an LLM turn already in flight keeps generating server-side and is
+billed.
+
+```typescript
+// Stop whatever is in flight on this channel's (default) conversation.
+// No-op returning false when nothing is running.
+await channel.stop();
+
+// Stop a specific interaction by ID (e.g. from channel.activeLeafId or
+// the interactions list). Returns whether the server stopped it.
+await channel.stopInteraction(channel.activeLeafId!);
+
+// Conversation handles stop their own in-flight interaction.
+const thread = channel.conversation('thread-42');
+await thread.stop();
+```
+
+| Method | Description |
+| --- | --- |
+| `stop(): Promise<boolean>` | Stop the in-flight interaction on the default conversation; `false` if none. |
+| `stopInteraction(id): Promise<boolean>` | Ask the server to stop a specific interaction by ID. |
+| `conversation.stop(): Promise<boolean>` | Stop a specific conversation's in-flight interaction. |
 
 ## Conversations
 
@@ -318,7 +347,7 @@ if (thread.activeLeafId) {
 | `renameConversation(name): Promise<void>` | Rename the current/default conversation (on `RoolChannel`). |
 | `conversation.rename(name): Promise<void>` | Rename a specific conversation handle. |
 
-`ConversationHandle` also supports conversation-scoped `putObject`, `patchObject`, `moveObject`, `deleteObjects`, `prompt`, collection-schema methods, and `setMetadata`.
+`ConversationHandle` also supports conversation-scoped `putObject`, `patchObject`, `moveObject`, `deleteObjects`, `prompt`, `stop`, collection-schema methods, and `setMetadata`.
 
 ## Schema and Metadata
 
@@ -568,7 +597,7 @@ Properties: `id` (space ID), `name` (space name), `role`, `linkAccess`, `userId`
 | Schema | `getSchema`, `createCollection`, `alterCollection`, `dropCollection` |
 | Metadata | `setMetadata`, `getMetadata`, `getAllMetadata` |
 | Conversations | `getInteractions`, `getTree`, `setActiveLeaf`, `getConversations`, `deleteConversation`, `getSystemInstruction`, `setSystemInstruction`, `renameConversation` |
-| AI | `prompt` |
+| AI | `prompt`, `stop`, `stopInteraction` |
 | Undo/redo | `checkpoint`, `canUndo`, `canRedo`, `undo`, `redo`, `clearHistory` |
 | Utilities | `fetch(url, init?)` server-side proxied fetch |
 

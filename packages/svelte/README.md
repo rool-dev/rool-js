@@ -377,6 +377,7 @@ thread.interactions   // $state<Interaction[]> — updates from space/channel ev
 
 // Conversation-scoped methods
 await thread.prompt('Hello')
+await thread.stop()   // Stop this thread's in-flight interaction (false if none)
 await thread.putObject('/space/note/welcome.json', { text: 'Note' })
 await thread.patchObject('/space/note/welcome.json', { data: { text: 'Updated' } })
 await thread.setSystemInstruction('Respond in haiku')
@@ -424,6 +425,8 @@ await channel.deleteObjects(['/space/note/renamed.json'])
 
 // AI
 await channel.prompt('Summarize everything')
+await channel.stop()                       // Stop the in-flight interaction (false if none)
+await channel.stopInteraction(channel.activeLeafId!)  // Stop a specific interaction by ID
 
 // Schema
 channel.getSchema()

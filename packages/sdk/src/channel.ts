@@ -951,10 +951,10 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     let onAbort: (() => void) | undefined;
     if (signal) {
       if (signal.aborted) {
-        this.graphqlClient.stopInteraction(this._id, interactionId).catch(() => { });
+        this.stopInteraction(interactionId).catch(() => { });
       } else {
         onAbort = () => {
-          this.graphqlClient.stopInteraction(this._id, interactionId).catch(() => { });
+          this.stopInteraction(interactionId).catch(() => { });
         };
         signal.addEventListener('abort', onAbort, { once: true });
       }
@@ -982,6 +982,43 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       message: result.message,
       objects,
     };
+  }
+
+  /**
+   * Stop the in-flight interaction on the default conversation, if any.
+   *
+   * No-op returning `false` when the active leaf is already finished or the
+   * conversation has no interactions. Stopping is best-effort: the server
+   * halts the agent loop and closes the stream, but an LLM turn already in
+   * flight keeps generating server-side and is billed.
+   */
+  async stop(): Promise<boolean> {
+    return this._stopImpl(this._conversationId);
+  }
+
+  /**
+   * Request that the server stop a specific in-flight interaction by ID.
+   *
+   * Returns whether the server stopped an interaction (`false` if it had
+   * already finished). Stopping is best-effort — see {@link stop}.
+   */
+  async stopInteraction(interactionId: string): Promise<boolean> {
+    return this.graphqlClient.stopInteraction(this._id, interactionId);
+  }
+
+  /** @internal */
+  async _stopImpl(conversationId: string): Promise<boolean> {
+    const leafId = this._getActiveLeafImpl(conversationId);
+    if (!leafId) return false;
+
+    const interactions = this._channel?.conversations[conversationId]?.interactions;
+    const interaction = interactions && !Array.isArray(interactions) ? interactions[leafId] : undefined;
+    // Skip the round trip when we already know the interaction has settled.
+    if (interaction && (interaction.status === 'done' || interaction.status === 'error')) {
+      return false;
+    }
+
+    return this.stopInteraction(leafId);
   }
 
   /** Rename this channel. */
@@ -1209,6 +1246,15 @@ export class ConversationHandle {
   /** Send a prompt to the AI agent, scoped to this conversation's history. */
   async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
     return this._channel._promptImpl(text, options, this._conversationId);
+  }
+
+  /**
+   * Stop this conversation's in-flight interaction, if any. No-op returning
+   * `false` when nothing is running. Stopping is best-effort — see
+   * {@link RoolChannel.stop}.
+   */
+  async stop(): Promise<boolean> {
+    return this._channel._stopImpl(this._conversationId);
   }
 
   /** Create a new collection schema. */
