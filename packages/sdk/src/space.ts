@@ -432,18 +432,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       return;
     }
 
-    // Probe request: emit to space listeners (client runs the probe via the iframe bridge)
-    if (event.type === 'probe_request' && event.requestId && event.channelId && event.method) {
-      this.emit('probe', {
-        requestId: event.requestId,
-        channelId: event.channelId,
-        method: event.method,
-        args: event.args ?? {},
-      });
-      return;
-    }
-
-
     // Channel lifecycle events: derive channelCreated/channelUpdated/channelDeleted
     if (event.type === 'channel_updated' && event.channelId && event.channel) {
       const info = channelToInfo(event.channelId, event.channel);

@@ -289,12 +289,6 @@ class RoolImpl {
   }
 
 
-  /** Respond to a server-initiated probe with a method-specific result or error. */
-  probeResponse(requestId: string, result?: unknown, error?: string): Promise<boolean> {
-    return this.#client.probeResponse(requestId, result, error);
-  }
-
-
   /**
    * Create a reactive channel list for a space.
    * Auto-updates when channels are created, updated, or deleted.

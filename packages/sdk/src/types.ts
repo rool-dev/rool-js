@@ -377,8 +377,7 @@ export type ChannelEventType =
   | 'channel_deleted'
   | 'conversation_updated'
   | 'space_files_changed'
-  | 'space_files_reset'
-  | 'probe_request';
+  | 'space_files_reset';
 
 
 export interface ChannelEvent {
@@ -398,10 +397,6 @@ export interface ChannelEvent {
   conversation?: Conversation;
   // Connected events
   serverVersion?: string;
-  // Probe events
-  requestId?: string;
-  method?: string;
-  args?: Record<string, unknown>;
 }
 
 /**
@@ -501,18 +496,6 @@ export interface RoolClientEvents {
   [key: string]: (...args: any[]) => void;
 }
 
-/**
- * Server-initiated probe for agent debugging / inspection operations like
- * `screenshot`, `consoleLogs`, `clickSelector`. The client runs the probe
- * and posts the result back via `rool.probeResponse(requestId, result, error)`.
- */
-export interface ProbeRequestEvent {
-  requestId: string;
-  channelId: string;
-  method: string;
-  args: Record<string, unknown>;
-}
-
 export interface SpaceFilesChangedEvent {
   spaceId: string;
   source: RoolEventSource;
@@ -526,8 +509,6 @@ export interface RoolSpaceEvents {
   channelUpdated: (channel: ChannelInfo) => void;
   /** A channel was deleted from this space */
   channelDeleted: (channelId: string) => void;
-  /** Server requests a probe operation */
-  probe: (event: ProbeRequestEvent) => void;
   /** File storage changed; call webdav.syncCollection() to reconcile. */
   filesChanged: (event: SpaceFilesChangedEvent) => void;
   /** WebDAV sync tokens were invalidated; discard local tokens and full-resync. */

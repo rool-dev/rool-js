@@ -44,7 +44,6 @@ export type {
   UserResult,
   RoolClient,
   RoolSpaceEvents,
-  ProbeRequestEvent,
   SpaceFileStorageUsage,
   WebDAVDepth,
   WebDAVSyncLevel,

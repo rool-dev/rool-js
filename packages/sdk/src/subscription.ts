@@ -552,8 +552,6 @@ function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelE
       return { type: 'space_files_changed', spaceId, timestamp, source };
     case 'space_files_reset':
       return { type: 'space_files_reset', spaceId, timestamp, source };
-    case 'probe_request':
-      return { type: 'probe_request', spaceId, timestamp, source, requestId: raw.requestId as string, channelId: raw.channelId as string, method: raw.method as string, args: (raw.args as Record<string, unknown>) ?? {} };
     default:
       logger.warn('[RoolChannel] Unknown space event type:', rawType);
       return null;

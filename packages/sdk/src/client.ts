@@ -405,17 +405,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return user;
   }
 
-
-
-  /**
-   * Respond to a server-initiated probe. Called by the client after running
-   * the probe via the iframe bridge. Pass `result` on success or `error` on
-   * failure (timeout, no bridge, handler threw).
-   */
-  async probeResponse(requestId: string, result?: unknown, error?: string): Promise<boolean> {
-    return this.graphqlClient.probeResponse(requestId, result, error);
-  }
-
   /**
    * Get a value from user storage (sync read from in-memory cache).
    * Cache is populated from the server on initialize().
