@@ -53,7 +53,7 @@ export class RestClient {
     const response = await this.authenticatedFetch(`/spaces/${encodeURIComponent(spaceId)}/getObjects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ locations: paths }),
+      body: JSON.stringify({ paths }),
     });
 
     if (!response.ok) {
@@ -62,17 +62,11 @@ export class RestClient {
     }
 
     const result = await response.json() as {
-      objects: Array<{ path?: string; location?: string; body: Record<string, unknown> }>;
+      objects: Array<{ path: string; body: Record<string, unknown> }>;
       missing: string[];
     };
     return {
-      // Server addresses objects by `location` today; tolerate a future `path`
-      // rename. The SDK always exposes them as `path`.
-      objects: result.objects.map((object) => {
-        const path = object.path ?? object.location;
-        if (typeof path !== 'string') throw new Error('getObjects: server object has no path or location');
-        return { path, body: object.body };
-      }),
+      objects: result.objects.map((object) => ({ path: object.path, body: object.body })),
       missing: result.missing,
     };
   }

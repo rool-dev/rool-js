@@ -110,20 +110,6 @@ function collectionDef(input: FieldDef[] | CollectionDef, options?: CollectionOp
   return schemaOrgType ? { fields: base.fields, schemaOrgType } : { fields: base.fields };
 }
 
-function normalizeChannel(channel: Channel): Channel {
-  for (const conversation of Object.values(channel.conversations)) {
-    const interactions = conversation.interactions;
-    const list = Array.isArray(interactions) ? interactions : Object.values(interactions);
-    for (const interaction of list) {
-      const wire = interaction as Interaction & { modifiedObjectLocations?: string[] };
-      if (!wire.modifiedObjectPaths && wire.modifiedObjectLocations) {
-        wire.modifiedObjectPaths = wire.modifiedObjectLocations;
-        delete wire.modifiedObjectLocations;
-      }
-    }
-  }
-  return channel;
-}
 
 interface AttachmentUpload {
   filename: string;
@@ -281,7 +267,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     // Initialize local cache from server data
     this._meta = config.meta;
     this._schema = config.schema;
-    this._channel = config.channel ? normalizeChannel(config.channel) : undefined;
+    this._channel = config.channel ?? undefined;
     this._objectStats = new Map(Object.entries(config.objectStats));
   }
 
@@ -309,7 +295,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._meta = data.meta;
     this._schema = data.schema;
     this._objectStats = new Map(Object.entries(data.objectStats));
-    if (data.channel) this._channel = normalizeChannel(data.channel);
+    if (data.channel) this._channel = data.channel;
     this._activeLeaves.clear();
     this.emit('reset', { source: 'system' });
   }
@@ -1078,7 +1064,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       case 'channel_updated':
         if (event.channelId === this._channelId && event.channel) {
           const changed = JSON.stringify(this._channel) !== JSON.stringify(event.channel);
-          this._channel = normalizeChannel(event.channel);
+          this._channel = event.channel;
           if (changed) {
             this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
           }
@@ -1105,7 +1091,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
           const prev = this._channel.conversations[event.conversationId];
           if (event.conversation) {
-            this._channel.conversations[event.conversationId] = normalizeChannel({ createdAt: 0, createdBy: '', conversations: { [event.conversationId]: event.conversation } }).conversations[event.conversationId];
+            this._channel.conversations[event.conversationId] = event.conversation;
           } else {
             delete this._channel.conversations[event.conversationId];
           }

@@ -130,7 +130,7 @@ export class GraphQLClient {
           linkAccess
           memberCount
           objectStatEntries {
-            location
+            path
             modifiedAt
             modifiedBy
             modifiedByName
@@ -147,7 +147,7 @@ export class GraphQLClient {
     const response = await this.request<{
       openSpace: {
         name: string; role: string; userId: string; linkAccess: LinkAccess; memberCount: number;
-        objectStatEntries: Array<Omit<RoolObjectStat, 'path'> & { location: string }> | null;
+        objectStatEntries: RoolObjectStat[] | null;
         schema: SpaceSchema | null;
         meta: Record<string, unknown> | null;
         channels: Record<string, Channel> | null;
@@ -157,8 +157,7 @@ export class GraphQLClient {
     const r = response.openSpace;
     const objectStats: Record<string, RoolObjectStat> = {};
     for (const stat of r.objectStatEntries ?? []) {
-      const { location, ...rest } = stat;
-      objectStats[location] = { ...rest, path: location };
+      objectStats[stat.path] = stat;
     }
     return {
       name: r.name,
@@ -349,12 +348,12 @@ export class GraphQLClient {
       mutation Prompt($spaceId: String!, $prompt: String!, $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort!, $ephemeral: Boolean!, $readOnly: Boolean!, $attachments: [String!]!, $interactionId: String!, $parentInteractionId: String, $eventName: String!) {
         prompt(spaceId: $spaceId, prompt: $prompt, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId, parentInteractionId: $parentInteractionId, eventName: $eventName) {
           message
-          modifiedObjectLocations
+          modifiedObjectPaths
         }
       }
     `;
     const response = await this.request<{
-      prompt: { message: string; modifiedObjectLocations: string[] }
+      prompt: { message: string; modifiedObjectPaths: string[] }
     }>(mutation, {
       spaceId,
       prompt,
@@ -371,7 +370,7 @@ export class GraphQLClient {
     });
     return {
       message: response.prompt.message,
-      modifiedObjectPaths: response.prompt.modifiedObjectLocations,
+      modifiedObjectPaths: response.prompt.modifiedObjectPaths,
     };
   }
 
