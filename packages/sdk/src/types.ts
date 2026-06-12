@@ -167,7 +167,8 @@ export interface ChannelInfo {
 
 export type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
 
-export type LinkAccess = 'none' | 'viewer' | 'editor';
+/** Roles an invite link can grant (never 'owner') */
+export type InviteRole = 'admin' | 'editor' | 'viewer';
 
 export interface RoolSpaceInfo {
   id: string;
@@ -178,15 +179,53 @@ export interface RoolSpaceInfo {
   size: number;
   createdAt: string;
   updatedAt: string;
-  linkAccess: LinkAccess;
   memberCount: number;
 }
 
-export interface UserResult {
-  id: string;
-  email: string;
-  name: string | null;
-  photoUrl: string | null;
+export interface SpaceInvite {
+  inviteId: string;
+  spaceId: string;
+  role: InviteRole;
+  /** Set when the invite is guarded to a specific email address */
+  email: string | null;
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+  maxUses: number | null;
+  useCount: number;
+}
+
+/**
+ * Outcome of the invite email send. Null when no email was involved (open link).
+ * 'not_configured' means the server has no mail provider (local dev). Future
+ * codes (e.g. rate limiting) may appear; treat unknown values as not sent.
+ */
+export type InviteEmailStatus = 'sent' | 'not_configured' | 'failed' | (string & {});
+
+export interface SpaceInviteCreated {
+  inviteId: string;
+  spaceId: string;
+  role: InviteRole;
+  email: string | null;
+  expiresAt: string;
+  maxUses: number | null;
+  /** Join URL containing the secret token; only available at mint time */
+  url: string;
+  emailStatus: InviteEmailStatus | null;
+}
+
+export interface InvitePreview {
+  spaceId: string;
+  spaceName: string;
+  role: InviteRole;
+  email: string | null;
+  inviterName: string | null;
+}
+
+export interface InviteRedeemResult {
+  spaceId: string;
+  role: RoolUserRole;
+  status: 'joined' | 'upgraded' | 'already_member';
 }
 
 export interface SpaceMember {
@@ -324,7 +363,6 @@ export interface SpaceAccessChangedClientEvent extends ClientEventBase {
   createdAt: string;
   updatedAt: string;
   role: string;
-  linkAccess: string;
   memberCount: number;
 }
 

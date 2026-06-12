@@ -16,7 +16,6 @@ import type {
   Interaction,
   Channel,
   ConversationInfo,
-  LinkAccess,
   SpaceSchema,
   CollectionDef,
   FieldDef,
@@ -192,7 +191,6 @@ export interface ChannelConfig {
   id: string;
   name: string;
   role: RoolUserRole;
-  linkAccess: LinkAccess;
   /** Current user's ID (for identifying own interactions) */
   userId: string;
   /** Object stats keyed by path */
@@ -228,7 +226,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private _id: string;
   private _name: string;
   private _role: RoolUserRole;
-  private _linkAccess: LinkAccess;
   private _userId: string;
   private _channelId: string;
   private _conversationId: string;
@@ -253,7 +250,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._id = config.id;
     this._name = config.name;
     this._role = config.role;
-    this._linkAccess = config.linkAccess;
     this._userId = config.userId;
     this._emitterLogger = config.logger;
     this._channelId = config.channelId;
@@ -310,10 +306,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   get role(): RoolUserRole {
     return this._role;
-  }
-
-  get linkAccess(): LinkAccess {
-    return this._linkAccess;
   }
 
   /** Current user's ID (for identifying own interactions) */

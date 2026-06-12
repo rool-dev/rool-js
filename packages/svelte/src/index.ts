@@ -4,6 +4,10 @@ export { createRool, generateId } from './rool.svelte.js';
 // Machine path helpers — re-exported from the SDK for convenience
 export { isObjectPath, machinePath, machineUri } from '@rool-dev/sdk';
 
+// Invite error — re-exported so apps can match on it without a direct SDK dep
+export { InviteError } from '@rool-dev/sdk';
+export type { InviteErrorCode } from '@rool-dev/sdk';
+
 // Reactive wrappers
 export { wrapChannel } from './channel.svelte.js';
 export { wrapSpace } from './space.svelte.js';
@@ -41,7 +45,12 @@ export type {
   CollectionDef,
   SpaceSchema,
   SpaceMember,
-  UserResult,
+  InviteRole,
+  SpaceInvite,
+  SpaceInviteCreated,
+  InviteEmailStatus,
+  InvitePreview,
+  InviteRedeemResult,
   RoolClient,
   RoolSpaceEvents,
   SpaceFileStorageUsage,

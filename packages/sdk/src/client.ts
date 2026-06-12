@@ -13,11 +13,11 @@ import type {
   RoolClientEvents,
   RoolSpaceInfo,
   RoolUserRole,
-  LinkAccess,
   ClientEvent,
   ChannelInfo,
   CurrentUser,
-  UserResult,
+  InvitePreview,
+  InviteRedeemResult,
   AuthUser,
   ConnectionState,
 } from './types.js';
@@ -319,7 +319,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       name: fullData.name,
       role: fullData.role as RoolUserRole,
       userId: fullData.userId,
-      linkAccess: fullData.linkAccess,
       memberCount: fullData.memberCount,
       fullData,
       graphqlClient: scopedClient,
@@ -415,11 +414,9 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async getCurrentUser(): Promise<CurrentUser> {
     const user = await this.graphqlClient.getCurrentUser();
-    // First hydration (e.g. an offline boot recovering via a poll before the
-    // subscription reconnects): populate the storage cache before emitting,
-    // like fetchUserAndStorage(), so listeners don't observe a user with
-    // empty storage. Skipped once hydrated — optimistic local writes
-    // (setUserStorage) must not be clobbered by a polled snapshot.
+    // On first hydration, populate the storage cache before emitting so
+    // listeners don't see a user with empty storage. Once hydrated, a polled
+    // snapshot must not clobber optimistic setUserStorage writes.
     if (!this._currentUser) {
       this._storageCache = user.storage ?? {};
     }
@@ -428,10 +425,18 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Search for a user by email.
+   * Look up an invite link by its token, without redeeming it.
+   * Does not require authentication.
    */
-  async searchUser(email: string): Promise<UserResult | null> {
-    return this.graphqlClient.searchUser(email);
+  async previewInvite(token: string): Promise<InvitePreview> {
+    return this.restClient.previewInvite(token);
+  }
+
+  /**
+   * Redeem an invite link, joining the space it belongs to.
+   */
+  async redeemInvite(token: string): Promise<InviteRedeemResult> {
+    return this.restClient.redeemInvite(token);
   }
 
   /**
@@ -585,7 +590,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
           size: event.size ?? 0,
           createdAt: event.createdAt ?? new Date().toISOString(),
           updatedAt: event.updatedAt ?? new Date().toISOString(),
-          linkAccess: 'none', // New spaces default to no link access
           memberCount: 1, // Creator is the only member
         });
         break;
@@ -611,7 +615,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
             size: event.size,
             createdAt: event.createdAt,
             updatedAt: event.updatedAt,
-            linkAccess: event.linkAccess as LinkAccess,
             memberCount: event.memberCount,
           });
         }

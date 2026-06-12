@@ -11,7 +11,9 @@ import type { Logger } from './logger.js';
 import type { SpaceRouter, RouteInfo } from './router.js';
 import type {
   RoolUserRole,
-  LinkAccess,
+  InviteRole,
+  SpaceInvite,
+  SpaceInviteCreated,
   SpaceMember,
   ChannelInfo,
   ChannelEvent,
@@ -27,7 +29,6 @@ export interface SpaceConfig {
   name: string;
   role: RoolUserRole;
   userId: string;
-  linkAccess: LinkAccess;
   memberCount: number;
   /** Full space data from openSpaceFull */
   fullData: OpenSpaceFullResult;
@@ -69,7 +70,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private _name: string;
   private _role: RoolUserRole;
   private _userId: string;
-  private _linkAccess: LinkAccess;
   private _memberCount: number;
   private _channels: ChannelInfo[];
   private _knownChannelIds: Set<string>;
@@ -106,7 +106,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this._name = config.name;
     this._role = config.role;
     this._userId = config.userId;
-    this._linkAccess = config.linkAccess;
     this._memberCount = config.memberCount;
     this.graphqlClient = config.graphqlClient;
     this.restClient = config.restClient;
@@ -150,7 +149,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   get id(): string { return this._id; }
   get name(): string { return this._name; }
   get role(): RoolUserRole { return this._role; }
-  get linkAccess(): LinkAccess { return this._linkAccess; }
   get memberCount(): number { return this._memberCount; }
 
   get route(): RouteInfo { return this._route; }
@@ -253,7 +251,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       id: this._id,
       name: this._name,
       role: this._role,
-      linkAccess: this._linkAccess,
       userId: this._userId,
       objectStats: this._objectStats,
       schema: this._schema,
@@ -304,10 +301,10 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   }
 
   /**
-   * Add a user to this space with specified role.
+   * Change an existing member's role. New members join via invites.
    */
-  async addUser(userId: string, role: RoolUserRole): Promise<void> {
-    return this.graphqlClient.addSpaceUser(this._id, userId, role);
+  async setUserRole(userId: string, role: InviteRole): Promise<void> {
+    return this.graphqlClient.setSpaceUserRole(this._id, userId, role);
   }
 
   /**
@@ -318,18 +315,30 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   }
 
   /**
-   * Set the link sharing level for this space.
-   * Requires owner or admin role.
+   * Mint an invite link for this space. Requires owner or admin role.
+   * With `email` set, the invite is single-use, guarded to that address,
+   * and sent to it by mail. The returned `url` contains the secret token
+   * and is only available here.
    */
-  async setLinkAccess(linkAccess: LinkAccess): Promise<void> {
-    const previous = this._linkAccess;
-    this._linkAccess = linkAccess;
-    try {
-      await this.graphqlClient.setLinkAccess(this._id, linkAccess);
-    } catch (error) {
-      this._linkAccess = previous;
-      throw error;
-    }
+  async createInvite(
+    role: InviteRole,
+    options?: { email?: string; expiresInDays?: number; maxUses?: number }
+  ): Promise<SpaceInviteCreated> {
+    return this.graphqlClient.createSpaceInvite(this._id, role, options);
+  }
+
+  /**
+   * List this space's currently redeemable invites. Requires owner or admin role.
+   */
+  async listInvites(): Promise<SpaceInvite[]> {
+    return this.graphqlClient.listSpaceInvites(this._id);
+  }
+
+  /**
+   * Revoke an invite so its link stops working. Requires owner or admin role.
+   */
+  async revokeInvite(inviteId: string): Promise<boolean> {
+    return this.graphqlClient.revokeSpaceInvite(this._id, inviteId);
   }
 
   /**
@@ -379,7 +388,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
   /**
    * Refresh space data from the server.
-   * Updates name, role, linkAccess, channel list, and all cached data.
+   * Updates name, role, channel list, and all cached data.
    */
   async refresh(): Promise<void> {
     const data = await this.graphqlClient.openSpaceFull(this._id);
@@ -532,7 +541,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private applyFullData(data: OpenSpaceFullResult): void {
     this._name = data.name;
     this._role = data.role as RoolUserRole;
-    this._linkAccess = data.linkAccess;
     this._memberCount = data.memberCount;
     this._objectStats = data.objectStats;
     this._schema = data.schema;

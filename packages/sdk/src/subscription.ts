@@ -448,7 +448,7 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
         inboundEmailAddress: raw.inboundEmailAddress as string,
         ownerId: raw.ownerId as string, size: raw.size as number,
         createdAt: raw.createdAt as string, updatedAt: raw.updatedAt as string,
-        role: raw.role as string, linkAccess: raw.linkAccess as string,
+        role: raw.role as string,
         memberCount: raw.memberCount as number,
       };
     case 'user_storage_changed':

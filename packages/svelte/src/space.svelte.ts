@@ -1,4 +1,4 @@
-import type { RoolSpace, ChannelInfo, ConnectionState, RoolUserRole, LinkAccess, SpaceMember } from '@rool-dev/sdk';
+import type { RoolSpace, ChannelInfo, ConnectionState, RoolUserRole, SpaceMember } from '@rool-dev/sdk';
 import { wrapChannel, type ReactiveChannel } from './channel.svelte.js';
 import { ReactiveFileTree } from './file-tree.svelte.js';
 
@@ -85,7 +85,6 @@ class ReactiveSpaceImpl {
   get id(): string { return this.#space.id; }
   get name(): string { return this.#space.name; }
   get role(): RoolUserRole { return this.#space.role; }
-  get linkAccess(): LinkAccess { return this.#space.linkAccess; }
   get memberCount(): number { return this.#space.memberCount; }
   get webdav() { return this.#space.webdav; }
   get fileTree(): ReactiveFileTree { return this.#fileTree; }
@@ -98,9 +97,11 @@ class ReactiveSpaceImpl {
   rename(newName: string): Promise<void> { return this.#space.rename(newName); }
   delete(): Promise<void> { return this.#space.delete(); }
   listUsers(): Promise<SpaceMember[]> { return this.#space.listUsers(); }
-  addUser(...args: Parameters<RoolSpace['addUser']>) { return this.#space.addUser(...args); }
+  setUserRole(...args: Parameters<RoolSpace['setUserRole']>) { return this.#space.setUserRole(...args); }
   removeUser(userId: string): Promise<void> { return this.#space.removeUser(userId); }
-  setLinkAccess(...args: Parameters<RoolSpace['setLinkAccess']>) { return this.#space.setLinkAccess(...args); }
+  createInvite(...args: Parameters<RoolSpace['createInvite']>) { return this.#space.createInvite(...args); }
+  listInvites(...args: Parameters<RoolSpace['listInvites']>) { return this.#space.listInvites(...args); }
+  revokeInvite(...args: Parameters<RoolSpace['revokeInvite']>) { return this.#space.revokeInvite(...args); }
   renameChannel(channelId: string, name: string): Promise<void> { return this.#space.renameChannel(channelId, name); }
   deleteChannel(channelId: string): Promise<void> { return this.#space.deleteChannel(channelId); }
   exportArchive(): Promise<Blob> { return this.#space.exportArchive(); }

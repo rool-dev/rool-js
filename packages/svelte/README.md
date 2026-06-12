@@ -161,7 +161,8 @@ const other = await space.openChannel('research');  // Independent channel, same
 
 // Space admin
 await space.rename('New Name');
-await space.addUser(userId, 'editor');
+const invite = await space.createInvite('editor');  // share invite.url
+await space.setUserRole(userId, 'admin');
 
 // Create a new space
 const fresh = await rool.createSpace('My New Space');
@@ -509,7 +510,12 @@ import type {
   CollectionDef,
   SpaceSchema,
   SpaceMember,
-  UserResult,
+  InviteRole,
+  InviteEmailStatus,
+  SpaceInvite,
+  SpaceInviteCreated,
+  InvitePreview,
+  InviteRedeemResult,
   SpaceFileStorageUsage,
   RoolSpaceEvents,
   WebDAVDepth,

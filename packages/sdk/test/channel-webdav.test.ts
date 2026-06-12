@@ -87,7 +87,6 @@ function channel(dav: FakeWebDAV, rest: RestClient = {} as RestClient): RoolChan
     id: 'sp_123',
     name: 'Test Space',
     role: 'owner',
-    linkAccess: 'none',
     userId: 'user_1',
     objectStats: {},
     schema: { tasks: { fields: [{ name: 'title', type: { kind: 'string' } }] } },

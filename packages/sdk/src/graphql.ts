@@ -4,11 +4,12 @@ import type {
   RoolSpaceInfo,
   SpaceMember,
   CurrentUser,
-  UserResult,
   RoolObjectStat,
-  LinkAccess,
   Channel,
   SpaceSchema,
+  InviteRole,
+  SpaceInvite,
+  SpaceInviteCreated,
 } from './types.js';
 import type { AuthManager } from './auth.js';
 import { fetchWithReroute } from './reroute.js';
@@ -35,7 +36,6 @@ export interface OpenSpaceFullResult {
   name: string;
   role: string;
   userId: string;
-  linkAccess: LinkAccess;
   memberCount: number;
   objectStats: Record<string, RoolObjectStat>;
   schema: SpaceSchema;
@@ -81,7 +81,6 @@ export class GraphQLClient {
           size
           createdAt
           updatedAt
-          linkAccess
           memberCount
         }
       }
@@ -127,7 +126,6 @@ export class GraphQLClient {
           name
           role
           userId
-          linkAccess
           memberCount
           objectStatEntries {
             path
@@ -146,7 +144,7 @@ export class GraphQLClient {
     `;
     const response = await this.request<{
       openSpace: {
-        name: string; role: string; userId: string; linkAccess: LinkAccess; memberCount: number;
+        name: string; role: string; userId: string; memberCount: number;
         objectStatEntries: RoolObjectStat[] | null;
         schema: SpaceSchema | null;
         meta: Record<string, unknown> | null;
@@ -163,7 +161,6 @@ export class GraphQLClient {
       name: r.name,
       role: r.role,
       userId: r.userId,
-      linkAccess: r.linkAccess,
       memberCount: r.memberCount,
       objectStats,
       schema: r.schema ?? {},
@@ -464,25 +461,6 @@ export class GraphQLClient {
     await this.request(mutation, { event, url: url ?? null });
   }
 
-  async searchUser(email: string): Promise<UserResult | null> {
-    const query = `
-      query SearchUser($email: String!) {
-        searchUser(email: $email) {
-          id
-          email
-          name
-          photoUrl
-        }
-      }
-    `;
-    try {
-      const response = await this.request<{ searchUser: UserResult | null }>(query, { email });
-      return response.searchUser;
-    } catch {
-      return null;
-    }
-  }
-
   async listSpaceUsers(spaceId: string): Promise<SpaceMember[]> {
     const query = `
       query ListSpaceUsers($spaceId: String!) {
@@ -498,10 +476,10 @@ export class GraphQLClient {
     return response.listSpaceUsers;
   }
 
-  async addSpaceUser(spaceId: string, userId: string, role: string): Promise<void> {
+  async setSpaceUserRole(spaceId: string, userId: string, role: string): Promise<void> {
     const mutation = `
-      mutation AddSpaceUser($spaceId: String!, $userId: String!, $role: String!) {
-        addSpaceUser(spaceId: $spaceId, userId: $userId, role: $role)
+      mutation SetSpaceUserRole($spaceId: String!, $userId: String!, $role: String!) {
+        setSpaceUserRole(spaceId: $spaceId, userId: $userId, role: $role)
       }
     `;
     await this.request(mutation, { spaceId, userId, role });
@@ -516,13 +494,63 @@ export class GraphQLClient {
     await this.request(mutation, { spaceId, userId });
   }
 
-  async setLinkAccess(spaceId: string, linkAccess: string): Promise<void> {
+  async createSpaceInvite(
+    spaceId: string,
+    role: InviteRole,
+    options?: { email?: string; expiresInDays?: number; maxUses?: number }
+  ): Promise<SpaceInviteCreated> {
     const mutation = `
-      mutation SetLinkAccess($spaceId: String!, $linkAccess: String!) {
-        setLinkAccess(spaceId: $spaceId, linkAccess: $linkAccess)
+      mutation CreateSpaceInvite($spaceId: String!, $role: String!, $email: String, $expiresInDays: Int, $maxUses: Int) {
+        createSpaceInvite(spaceId: $spaceId, role: $role, email: $email, expiresInDays: $expiresInDays, maxUses: $maxUses) {
+          inviteId
+          spaceId
+          role
+          email
+          expiresAt
+          maxUses
+          url
+          emailStatus
+        }
       }
     `;
-    await this.request(mutation, { spaceId, linkAccess });
+    const response = await this.request<{ createSpaceInvite: SpaceInviteCreated }>(mutation, {
+      spaceId,
+      role,
+      email: options?.email ?? null,
+      expiresInDays: options?.expiresInDays ?? null,
+      maxUses: options?.maxUses ?? null,
+    });
+    return response.createSpaceInvite;
+  }
+
+  async listSpaceInvites(spaceId: string): Promise<SpaceInvite[]> {
+    const query = `
+      query ListSpaceInvites($spaceId: String!) {
+        listSpaceInvites(spaceId: $spaceId) {
+          inviteId
+          spaceId
+          role
+          email
+          createdBy
+          createdAt
+          expiresAt
+          maxUses
+          useCount
+        }
+      }
+    `;
+    const response = await this.request<{ listSpaceInvites: SpaceInvite[] }>(query, { spaceId });
+    return response.listSpaceInvites;
+  }
+
+  async revokeSpaceInvite(spaceId: string, inviteId: string): Promise<boolean> {
+    const mutation = `
+      mutation RevokeSpaceInvite($spaceId: String!, $inviteId: String!) {
+        revokeSpaceInvite(spaceId: $spaceId, inviteId: $inviteId)
+      }
+    `;
+    const response = await this.request<{ revokeSpaceInvite: boolean }>(mutation, { spaceId, inviteId });
+    return response.revokeSpaceInvite;
   }
 
   /**

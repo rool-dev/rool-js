@@ -33,6 +33,10 @@ export type {
 export { SpaceRouter } from './router.js';
 export type { RouteInfo } from './router.js';
 
+// Invite redemption errors
+export { InviteError } from './rest.js';
+export type { InviteErrorCode } from './rest.js';
+
 // Event emitter (for extending)
 export { EventEmitter } from './event-emitter.js';
 
@@ -57,9 +61,13 @@ export type {
   // User types
   SpaceMember,
   RoolUserRole,
-  LinkAccess,
+  InviteRole,
+  SpaceInvite,
+  SpaceInviteCreated,
+  InviteEmailStatus,
+  InvitePreview,
+  InviteRedeemResult,
 
-  UserResult,
   CurrentUser,
   AuthUser,
 

@@ -254,10 +254,21 @@ class RoolImpl {
   }
 
   /**
-   * Search for a user by email.
+   * Look up an invite link by its token, without redeeming it.
    */
-  searchUser(email: string) {
-    return this.#client.searchUser(email);
+  previewInvite(token: string) {
+    return this.#client.previewInvite(token);
+  }
+
+  /**
+   * Redeem an invite link, joining the space it belongs to.
+   * The reactive `spaces` list includes the joined space when this resolves;
+   * the server's space_access_changed push also lands, but is not awaited.
+   */
+  async redeemInvite(token: string) {
+    const result = await this.#client.redeemInvite(token);
+    await this.#refreshSpaces();
+    return result;
   }
 
   /**

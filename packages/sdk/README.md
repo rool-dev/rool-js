@@ -490,16 +490,53 @@ High-level WebDAV methods that validate response status throw `WebDAVError` with
 
 ## Collaboration
 
+New members join a space by redeeming an invite. Owners and admins mint invites; the returned `url` contains the secret token and is only available at mint time.
+
 ```typescript
-const user = await client.searchUser('colleague@example.com');
-if (user) {
-  await space.addUser(user.id, 'editor');
+// Shareable invite link
+const invite = await space.createInvite('editor', { expiresInDays: 7 });
+console.log(invite.url);
+
+// Email-guarded invite: single-use, locked to that address, sent by mail
+const emailed = await space.createInvite('viewer', { email: 'colleague@example.com' });
+if (emailed.emailStatus !== 'sent') {
+  // Mail did not go out (e.g. no mail provider configured) — share emailed.url yourself
 }
 
-await space.setLinkAccess('viewer'); // 'none' | 'viewer' | 'editor'
+// Manage outstanding invites
+const invites = await space.listInvites();
+await space.revokeInvite(invites[0].inviteId);
+
+// Change an existing member's role, or remove them
+await space.setUserRole(userId, 'admin');
+await space.removeUser(userId);
 ```
 
-Roles:
+On the join page, look up the invite before sign-in and redeem it once authenticated:
+
+```typescript
+const preview = await client.previewInvite(token); // no auth required
+console.log(preview.spaceName, preview.role, preview.inviterName);
+
+const result = await client.redeemInvite(token);
+console.log(result.spaceId, result.status); // 'joined' | 'upgraded' | 'already_member'
+```
+
+Invalid, expired, revoked, exhausted, or email-mismatched invites throw `InviteError` with a `code` of `'INVITE_INVALID' | 'INVITE_EXPIRED' | 'INVITE_REVOKED' | 'INVITE_EXHAUSTED' | 'INVITE_EMAIL_MISMATCH'`.
+
+```typescript
+import { InviteError } from '@rool-dev/sdk';
+
+try {
+  await client.redeemInvite(token);
+} catch (error) {
+  if (error instanceof InviteError && error.code === 'INVITE_EXPIRED') {
+    // Ask for a fresh invite
+  }
+}
+```
+
+Roles (invites grant `admin`, `editor`, or `viewer` — never `owner`):
 
 | Role | Capabilities |
 | --- | --- |
@@ -529,7 +566,8 @@ const client = new RoolClient({
 | `getCurrentUser(): Promise<CurrentUser>` | Fetch current user. |
 | `updateCurrentUser(input): Promise<CurrentUser>` | Update `name`, `slug`, or `marketingOptIn`. |
 | `deleteCurrentUser(): Promise<void>` | Mark account for deletion and log out. |
-| `searchUser(email): Promise<UserResult | null>` | Exact email lookup. |
+| `previewInvite(token): Promise<InvitePreview>` | Look up an invite link without redeeming it. No auth required. |
+| `redeemInvite(token): Promise<InviteRedeemResult>` | Redeem an invite, joining (or upgrading in) its space. |
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List accessible spaces. |
 | `openSpace(id): Promise<RoolSpace>` | Open/cached live space handle. |
 | `createSpace(name): Promise<RoolSpace>` | Create and open a space. |
@@ -561,7 +599,7 @@ client.on('error', (error, context) => void 0);
 
 ## RoolSpace API
 
-Properties: `id`, `name`, `role`, `linkAccess`, `memberCount`, `channels`, `route`, `webdav`.
+Properties: `id`, `name`, `role`, `memberCount`, `channels`, `route`, `webdav`.
 
 | Method | Description |
 | --- | --- |
@@ -570,9 +608,11 @@ Properties: `id`, `name`, `role`, `linkAccess`, `memberCount`, `channels`, `rout
 | `rename(newName): Promise<void>` | Rename the space. |
 | `delete(): Promise<void>` | Permanently delete the space. |
 | `listUsers(): Promise<SpaceMember[]>` | List collaborators. |
-| `addUser(userId, role): Promise<void>` | Add collaborator. |
+| `setUserRole(userId, role): Promise<void>` | Change an existing member's role. |
 | `removeUser(userId): Promise<void>` | Remove collaborator. |
-| `setLinkAccess(linkAccess): Promise<void>` | Set URL sharing level. |
+| `createInvite(role, options?): Promise<SpaceInviteCreated>` | Mint an invite link; `options` takes `email`, `expiresInDays`, `maxUses`. |
+| `listInvites(): Promise<SpaceInvite[]>` | List currently redeemable invites. |
+| `revokeInvite(inviteId): Promise<boolean>` | Revoke an invite so its link stops working. |
 | `renameChannel(channelId, name): Promise<void>` | Rename a channel. |
 | `deleteChannel(channelId): Promise<void>` | Delete a channel and history. |
 | `exportArchive(): Promise<Blob>` | Export a space archive. |
@@ -593,7 +633,7 @@ space.on('connectionStateChanged', (state) => void 0);
 
 ## RoolChannel API
 
-Properties: `id` (space ID), `name` (space name), `role`, `linkAccess`, `userId`, `channelId`, `channelName`, `conversationId`, `isReadOnly`, `activeLeafId`.
+Properties: `id` (space ID), `name` (space name), `role`, `userId`, `channelId`, `channelName`, `conversationId`, `isReadOnly`, `activeLeafId`.
 
 | Area | Methods |
 | --- | --- |
@@ -661,6 +701,50 @@ interface RoolObject {
 interface GetObjectsResult {
   objects: RoolObject[];
   missing: string[];
+}
+
+type InviteRole = 'admin' | 'editor' | 'viewer';
+
+interface SpaceInvite {
+  inviteId: string;
+  spaceId: string;
+  role: InviteRole;
+  email: string | null;
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+  maxUses: number | null;
+  useCount: number;
+}
+
+// Outcome of the invite email send; null when no email was involved (open link).
+// 'not_configured' means the server has no mail provider (local dev). Future
+// codes may appear; treat unknown values as not sent.
+type InviteEmailStatus = 'sent' | 'not_configured' | 'failed' | (string & {});
+
+interface SpaceInviteCreated {
+  inviteId: string;
+  spaceId: string;
+  role: InviteRole;
+  email: string | null;
+  expiresAt: string;
+  maxUses: number | null;
+  url: string; // contains the secret token; only available at mint time
+  emailStatus: InviteEmailStatus | null;
+}
+
+interface InvitePreview {
+  spaceId: string;
+  spaceName: string;
+  role: InviteRole;
+  email: string | null;
+  inviterName: string | null;
+}
+
+interface InviteRedeemResult {
+  spaceId: string;
+  role: RoolUserRole;
+  status: 'joined' | 'upgraded' | 'already_member';
 }
 
 interface RoolObjectStat {

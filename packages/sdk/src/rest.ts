@@ -1,6 +1,26 @@
 import type { AuthManager } from './auth.js';
-import type { GetObjectsResult } from './types.js';
+import type { GetObjectsResult, InvitePreview, InviteRedeemResult } from './types.js';
 import { fetchWithReroute, isThrowRetryable } from './reroute.js';
+
+export type InviteErrorCode =
+  | 'INVITE_INVALID'
+  | 'INVITE_EXPIRED'
+  | 'INVITE_REVOKED'
+  | 'INVITE_EXHAUSTED'
+  | 'INVITE_EMAIL_MISMATCH';
+
+export class InviteError extends Error {
+  constructor(readonly code: InviteErrorCode, message: string) {
+    super(message);
+    this.name = 'InviteError';
+  }
+}
+
+async function throwInviteError(response: Response): Promise<never> {
+  const body = await response.json().catch(() => null) as { code?: InviteErrorCode; error?: string } | null;
+  if (body?.code) throw new InviteError(body.code, body.error ?? body.code);
+  throw new Error(`Invite request failed: ${response.status}`);
+}
 
 export interface RestClientConfig {
   apiUrl: string;
@@ -88,6 +108,22 @@ export class RestClient {
 
     const result = await response.json() as { spaceId: string; name: string };
     return result.spaceId;
+  }
+
+  /** Look up an invite by token. Works without authentication (join page before sign-in). */
+  async previewInvite(token: string): Promise<InvitePreview> {
+    const response = await fetch(`${this.apiUrl}/invites/${encodeURIComponent(token)}`);
+    if (!response.ok) await throwInviteError(response);
+    return await response.json() as InvitePreview;
+  }
+
+  /** Redeem an invite for the authenticated user, joining (or upgrading in) the space. */
+  async redeemInvite(token: string): Promise<InviteRedeemResult> {
+    const response = await this.authenticatedFetch(`/invites/${encodeURIComponent(token)}/redeem`, {
+      method: 'POST',
+    });
+    if (!response.ok) await throwInviteError(response);
+    return await response.json() as InviteRedeemResult;
   }
 
   private async authenticatedFetch(path: string, init: RequestInit): Promise<Response> {
