@@ -415,6 +415,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async getCurrentUser(): Promise<CurrentUser> {
     const user = await this.graphqlClient.getCurrentUser();
+    // First hydration (e.g. an offline boot recovering via a poll before the
+    // subscription reconnects): populate the storage cache before emitting,
+    // like fetchUserAndStorage(), so listeners don't observe a user with
+    // empty storage. Skipped once hydrated — optimistic local writes
+    // (setUserStorage) must not be clobbered by a polled snapshot.
+    if (!this._currentUser) {
+      this._storageCache = user.storage ?? {};
+    }
     this.setCurrentUser(user);
     return user;
   }
