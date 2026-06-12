@@ -90,6 +90,11 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       authProvider: config.authProvider,
       logger: this.logger,
       onAuthStateChanged: (authenticated) => {
+        // Covers every sign-out path (logout() and 401-driven token clearing).
+        if (!authenticated) {
+          this._storageCache = {};
+          this.setCurrentUser(null);
+        }
         this.emit('authStateChanged', authenticated);
       },
     });
@@ -122,15 +127,42 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Fetch currentUser, populate storage cache, and start the client
-   * subscription. Shared by initialize() and verify() — any path that
-   * lands the user in an authenticated state needs this hydration.
+   * Start the realtime subscription and load the current user/storage. Shared
+   * by initialize() and verify() — any path that lands the user in an
+   * authenticated state needs this hydration.
+   *
+   * Hydration is best-effort and never throws: a backend outage must not read
+   * as a logout. The subscription owns reconnect/backoff and refetches the user
+   * on (re)connect (see ensureSubscribed), so a session that boots while the
+   * server is down stays authenticated and self-heals when it returns. Only a
+   * hard auth failure (401) ends the session, via the token layer.
    */
   private async hydrateAuthenticatedSession(): Promise<void> {
-    const user = await this.getCurrentUser();
-    this._currentUser = user;
+    this.ensureSubscribed().catch((error) => {
+      this.logger.warn('[RoolClient] subscription start deferred:', error);
+    });
+
+    try {
+      await this.fetchUserAndStorage();
+    } catch (error) {
+      this.logger.warn('[RoolClient] user hydration deferred (offline?):', error);
+    }
+  }
+
+  /**
+   * Fetch the current user and populate the storage cache, then emit
+   * currentUserChanged. Cache is set before the emit so listeners reading
+   * getAllUserStorage() in response see fresh storage.
+   */
+  private async fetchUserAndStorage(): Promise<void> {
+    const user = await this.graphqlClient.getCurrentUser();
     this._storageCache = user.storage ?? {};
-    await this.ensureSubscribed();
+    this.setCurrentUser(user);
+  }
+
+  private setCurrentUser(user: CurrentUser | null): void {
+    this._currentUser = user;
+    this.emit('currentUserChanged', user);
   }
 
   /**
@@ -383,7 +415,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async getCurrentUser(): Promise<CurrentUser> {
     const user = await this.graphqlClient.getCurrentUser();
-    this._currentUser = user;
+    this.setCurrentUser(user);
     return user;
   }
 
@@ -401,7 +433,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async updateCurrentUser(input: { name?: string; slug?: string; marketingOptIn?: boolean }): Promise<CurrentUser> {
     const user = await this.graphqlClient.updateCurrentUser(input);
-    this._currentUser = user;
+    this.setCurrentUser(user);
     return user;
   }
 
@@ -479,6 +511,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       onEvent: (event) => this.handleClientEvent(event),
       onConnectionStateChanged: (state: ConnectionState) => {
         this.emit('connectionStateChanged', state);
+        // Finish a deferred hydration: if we booted while the server was down,
+        // _currentUser is still null. Now that we're connected, fetch the user
+        // and storage so the app can complete sign-in.
+        if (state === 'connected' && !this._currentUser) {
+          this.fetchUserAndStorage().catch((error) => {
+            this.logger.warn('[RoolClient] deferred user hydration failed:', error);
+          });
+        }
       },
       onError: (error) => {
         this.emit('error', error, 'subscription');

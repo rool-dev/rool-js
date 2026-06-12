@@ -473,6 +473,8 @@ export interface UserStorageChangedEvent {
 export interface RoolClientEvents {
   /** Emitted when authentication state changes */
   authStateChanged: (authenticated: boolean) => void;
+  /** Emitted when the current user profile is (re)hydrated, updated, or cleared */
+  currentUserChanged: (user: CurrentUser | null) => void;
   /** Emitted when a space is added to the user's list (created or access granted) */
   spaceAdded: (space: RoolSpaceInfo) => void;
   /** Emitted when a space is removed from the user's list (deleted or access revoked) */

@@ -73,11 +73,16 @@ export class BrowserAuthProvider implements AuthProvider {
     }
 
     /**
-     * Check if user is currently authenticated (validates token is usable).
+     * Check if user is currently authenticated.
+     *
+     * This reports identity (do we hold credentials), NOT server reachability.
+     * It deliberately does not perform a network refresh: a backend outage must
+     * not read as "logged out". A genuinely invalid/expired refresh token
+     * surfaces later as a 401 on first real use, which clears tokens and fires
+     * onAuthStateChanged(false) — the only path that ends the session.
      */
     async isAuthenticated(): Promise<boolean> {
-        const tokens = await this.getTokens();
-        return tokens !== undefined;
+        return this.readAccessToken() !== null;
     }
 
     /**

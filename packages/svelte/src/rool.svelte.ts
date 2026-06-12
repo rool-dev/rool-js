@@ -44,14 +44,27 @@ class RoolImpl {
       if (auth) {
         this.#refreshSpaces();
       } else {
+        // currentUser/userStorage clear via currentUserChanged(null)
         this.spaces = undefined;
       }
     };
     this.#client.on('authStateChanged', onAuthStateChanged);
     this.#unsubscribers.push(() => this.#client.off('authStateChanged', onAuthStateChanged));
 
+    const onCurrentUserChanged = (user: CurrentUser | null) => {
+      this.currentUser = user;
+      this.userStorage = this.#client.getAllUserStorage();
+    };
+    this.#client.on('currentUserChanged', onCurrentUserChanged);
+    this.#unsubscribers.push(() => this.#client.off('currentUserChanged', onCurrentUserChanged));
+
     const onConnectionStateChanged = (state: ConnectionState) => {
       this.connectionState = state;
+      // Re-fetch spaces on (re)connect: an offline boot leaves the list in an
+      // error state, and a long outage may have dropped space events.
+      if (state === 'connected' && this.authenticated) {
+        this.#refreshSpaces();
+      }
     };
     this.#client.on('connectionStateChanged', onConnectionStateChanged);
     this.#unsubscribers.push(() => this.#client.off('connectionStateChanged', onConnectionStateChanged));
@@ -100,16 +113,17 @@ class RoolImpl {
     try {
       this.authenticated = await this.#client.initialize();
     } catch {
-      this.authenticated = false;
-      return false;
+      // initialize() handles transient outages internally, so a throw here is
+      // unexpected. Don't bounce a credentialed user to login — fall back to a
+      // credential check (no network) and stay authenticated if we hold tokens.
+      this.authenticated = await this.#client.isAuthenticated();
     }
     if (this.authenticated) {
-      // Populate reactive state from SDK (now fresh from server)
-      this.currentUser = this.#client.currentUser;
-      this.userStorage = this.#client.getAllUserStorage();
+      // currentUser/userStorage are mirrored by the currentUserChanged listener
+      // (during initialize(), or after reconnect on an offline boot).
       await this.#refreshSpaces();
     }
-    return this.authenticated;
+    return this.authenticated ?? false;
   }
 
   /**
@@ -132,16 +146,9 @@ class RoolImpl {
    * to be called when the app detects `?verify=<token>` on load.
    */
   async verify(token: string): Promise<boolean> {
-    const ok = await this.#client.verify(token);
-    if (ok) {
-      // Client has already hydrated currentUser, storage, and subscriptions.
-      // Mirror that state into our reactive fields — spaces refresh is
-      // triggered by the authStateChanged event, which also updates
-      // `authenticated`.
-      this.currentUser = this.#client.currentUser;
-      this.userStorage = this.#client.getAllUserStorage();
-    }
-    return ok;
+    // Reactive state is mirrored by the currentUserChanged and authStateChanged
+    // listeners during the client's verify/hydration.
+    return this.#client.verify(token);
   }
 
   /**

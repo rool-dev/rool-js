@@ -151,9 +151,13 @@ if (!authenticated) throw new Error('Login required');
 | `signup(appName, params?): Promise<void>` | Start signup flow. |
 | `verify(token): Promise<boolean>` | Complete email verification token flow; returns `false` when the active auth provider does not implement verification. |
 | `logout(): void` | Clear auth state and close open spaces. |
-| `isAuthenticated(): Promise<boolean>` | Validate current auth state. |
+| `isAuthenticated(): Promise<boolean>` | Whether credentials are held locally. No network call — a server outage does not read as logged out. |
 | `getAuthUser(): AuthUser` | Return auth identity decoded from the token. |
 | `setPassword(password): Promise<void>` | Set/change password for the current user. |
+
+### Offline behavior
+
+A temporarily unreachable server never reads as "logged out". `initialize()` reports authentication from stored credentials, so on an offline start it can return `true` while `currentUser` is still `null` and user storage is empty — the SDK keeps reconnecting in the background and hydrates both automatically once the server is reachable, emitting `currentUserChanged`. Only an invalid or expired refresh token ends the session, via `authStateChanged(false)`.
 
 ## Spaces and Channels
 
@@ -543,6 +547,7 @@ const client = new RoolClient({
 
 ```typescript
 client.on('authStateChanged', (authenticated) => void 0);
+client.on('currentUserChanged', (user) => void 0); // CurrentUser | null; null on sign-out
 client.on('spaceAdded', (space) => void 0);
 client.on('spaceRemoved', (spaceId) => void 0);
 client.on('spaceRenamed', (spaceId, newName) => void 0);
