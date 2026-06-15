@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Rool Auth Example</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; padding: 2rem 1.25rem; max-width: 32rem; }
+      h1 { font-size: 1.25rem; }
+      button { font-size: 1rem; padding: 0.6rem 1rem; margin: 0.25rem 0.25rem 0.25rem 0; border-radius: 0.5rem; cursor: pointer; }
+      #status { font-weight: 600; }
+      #platform-note { color: #b45309; }
+      #log { background: rgba(127,127,127,0.12); padding: 0.75rem; border-radius: 0.5rem; font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; max-height: 16rem; overflow: auto; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <h1>Rool native auth</h1>
+    <p id="status">Starting…</p>
+    <p id="platform-note" hidden>
+      Running in a browser — custom-scheme deep links only complete on a device/emulator.
+    </p>
+
+    <section id="signed-out" hidden>
+      <button id="login-google">Sign in with Google</button>
+      <button id="login-apple">Sign in with Apple</button>
+    </section>
+
+    <section id="signed-in" hidden>
+      <p id="user"></p>
+      <button id="refresh-spaces">List my spaces</button>
+      <button id="logout">Sign out</button>
+      <p id="spaces-status"></p>
+      <ul id="spaces"></ul>
+    </section>
+
+    <h2 style="font-size: 0.9rem; margin-top: 1.5rem;">Log</h2>
+    <pre id="log"></pre>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

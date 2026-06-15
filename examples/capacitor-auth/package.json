@@ -1,0 +1,31 @@
+{
+  "name": "@rool-dev/example-capacitor-auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal Capacitor app exercising the SDK's native PKCE auth flow",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "sync": "cap sync",
+    "add:android": "cap add android",
+    "add:ios": "cap add ios",
+    "run:android": "cap run android",
+    "open:android": "cap open android",
+    "open:ios": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
+    "@capacitor/core": "^8.4.0",
+    "@rool-dev/sdk": "file:../../packages/sdk"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.5"
+  }
+}

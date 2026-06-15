@@ -24,12 +24,13 @@ export class AuthManager {
     if (config.authProvider) {
       this.provider = config.authProvider;
       // Inject auth URL if the provider supports it (e.g. NodeAuthProvider)
-      if ('setAuthUrl' in this.provider && typeof (this.provider as any).setAuthUrl === 'function') {
-        (this.provider as any).setAuthUrl(config.authUrl);
-      }
+      this.provider.setAuthUrl?.(config.authUrl);
       // Inject logger if the provider supports it
-      if ('setLogger' in this.provider && typeof (this.provider as any).setLogger === 'function') {
-        (this.provider as any).setLogger(config.logger);
+      this.provider.setLogger?.(config.logger);
+      // Bridge auth-state to client events/state (e.g. NativePkceAuthProvider),
+      // so provider-driven sign-out and 401 token clearing reach the client.
+      if (config.onAuthStateChanged) {
+        this.provider.setAuthStateChangedHandler?.(config.onAuthStateChanged);
       }
     } else {
       // Default to BrowserAuthProvider if no external provider specified
@@ -96,6 +97,16 @@ export class AuthManager {
   async verify(token: string): Promise<boolean> {
     if (!this.provider.verify) return false;
     return this.provider.verify(token);
+  }
+
+  /**
+   * Complete a native deep-link auth callback (PKCE providers). The app calls
+   * this from its platform deep-link handler with the full callback URL.
+   * Returns true if the user is signed in as a result.
+   */
+  async handleRedirect(url: string): Promise<boolean> {
+    if (!this.provider.handleRedirect) return false;
+    return this.provider.handleRedirect(url);
   }
 
   /**

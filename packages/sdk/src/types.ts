@@ -197,10 +197,22 @@ export interface SpaceInvite {
 
 /**
  * Outcome of the invite email send. Null when no email was involved (open link).
- * 'not_configured' means the server has no mail provider (local dev). Future
- * codes (e.g. rate limiting) may appear; treat unknown values as not sent.
+ * The invite is always minted and its `url` is usable regardless of this value;
+ * only the email delivery is reflected here.
+ * - 'sent': email dispatched
+ * - 'not_configured': server has no mail provider (local dev)
+ * - 'failed': provider rejected the send
+ * - 'cooldown': a recent invite to this same address was already emailed
+ * - 'rate_limited': the inviter hit their daily email-invite cap
+ * Treat unknown values as not sent.
  */
-export type InviteEmailStatus = 'sent' | 'not_configured' | 'failed' | (string & {});
+export type InviteEmailStatus =
+  | 'sent'
+  | 'not_configured'
+  | 'failed'
+  | 'cooldown'
+  | 'rate_limited'
+  | (string & {});
 
 export interface SpaceInviteCreated {
   inviteId: string;
@@ -460,10 +472,25 @@ export interface AuthProvider {
    * Optional: providers that don't implement it will reject the call.
    */
   verify?: (token: string) => Promise<boolean>;
+  /**
+   * Complete a native deep-link auth callback (PKCE). The app calls this from
+   * its platform deep-link handler with the full callback URL. Optional:
+   * providers that don't implement it reject the call.
+   */
+  handleRedirect?: (url: string) => Promise<boolean>;
   /** Logout and clear session */
   logout: () => void;
   /** Clean up resources (e.g. stop timers) */
   destroy?: () => void;
+  /** Optional: receive the resolved auth URL from the client. */
+  setAuthUrl?: (url: string) => void;
+  /** Optional: receive the client's logger. */
+  setLogger?: (logger: import('./logger.js').Logger) => void;
+  /**
+   * Optional: receive the client's auth-state handler so provider-driven
+   * sign-in/out (and 401 token clearing) reach client events and state.
+   */
+  setAuthStateChangedHandler?: (handler: (authenticated: boolean) => void) => void;
 }
 
 export interface RoolClientConfig {

@@ -142,6 +142,42 @@ if (!authenticated) {
 if (!authenticated) throw new Error('Login required');
 ```
 
+### Native (Capacitor, Cordova, Tauri, ...)
+
+Use the native PKCE provider for JS app shells that sign in through an external
+system browser. `login()`/`signup()` open the auth server's `/authorize` page
+via the `openExternal` callback you supply; when the deep link returns, feed it
+to `client.handleAuthRedirect(url)` from your platform's deep-link handler. The
+code is exchanged for a session at `/token` and tokens are stored like the
+browser provider.
+
+```typescript
+import { RoolClient, NativePkceAuthProvider } from '@rool-dev/sdk';
+import { Browser } from '@capacitor/browser';
+import { App } from '@capacitor/app';
+
+const client = new RoolClient({
+  authProvider: new NativePkceAuthProvider({
+    redirectUri: 'roolandroidauth://auth/callback', // must match the server allowlist
+    defaultProvider: 'google',                       // 'google' | 'apple'
+    openExternal: (url) => Browser.open({ url }),
+  }),
+});
+
+// Complete sign-in when the OS hands the app its deep link.
+App.addListener('appUrlOpen', async ({ url }) => {
+  if (await client.handleAuthRedirect(url)) {
+    await Browser.close();
+    // Now authenticated — refresh your UI.
+  }
+});
+
+if (!(await client.initialize())) {
+  // Opens the system browser; completion arrives via the listener above.
+  await client.login('My App'); // pass { provider: 'apple' } to override the default
+}
+```
+
 ### Auth API
 
 | Method | Description |
@@ -150,6 +186,7 @@ if (!authenticated) throw new Error('Login required');
 | `login(appName, params?): Promise<void>` | Start login flow. |
 | `signup(appName, params?): Promise<void>` | Start signup flow. |
 | `verify(token): Promise<boolean>` | Complete email verification token flow; returns `false` when the active auth provider does not implement verification. |
+| `handleAuthRedirect(url): Promise<boolean>` | Complete a native PKCE sign-in from a deep-link callback URL. Returns `false` when the active auth provider does not implement it. |
 | `logout(): void` | Clear auth state and close open spaces. |
 | `isAuthenticated(): Promise<boolean>` | Whether credentials are held locally. No network call — a server outage does not read as logged out. |
 | `getAuthUser(): AuthUser` | Return auth identity decoded from the token. |
@@ -717,10 +754,22 @@ interface SpaceInvite {
   useCount: number;
 }
 
-// Outcome of the invite email send; null when no email was involved (open link).
-// 'not_configured' means the server has no mail provider (local dev). Future
-// codes may appear; treat unknown values as not sent.
-type InviteEmailStatus = 'sent' | 'not_configured' | 'failed' | (string & {});
+// Outcome of the invite email send. Null when no email was involved (open link).
+// The invite is always minted and its `url` is usable regardless of this value;
+// only the email delivery is reflected here.
+// - 'sent': email dispatched
+// - 'not_configured': server has no mail provider (local dev)
+// - 'failed': provider rejected the send
+// - 'cooldown': a recent invite to this same address was already emailed
+// - 'rate_limited': the inviter hit their daily email-invite cap
+// Treat unknown values as not sent.
+type InviteEmailStatus =
+  | 'sent'
+  | 'not_configured'
+  | 'failed'
+  | 'cooldown'
+  | 'rate_limited'
+  | (string & {});
 
 interface SpaceInviteCreated {
   inviteId: string;

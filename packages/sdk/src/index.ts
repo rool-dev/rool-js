@@ -40,6 +40,10 @@ export type { InviteErrorCode } from './rest.js';
 // Event emitter (for extending)
 export { EventEmitter } from './event-emitter.js';
 
+// Native PKCE auth provider (for JS app shells: Capacitor, Cordova, ...)
+export { NativePkceAuthProvider } from './auth-native.js';
+export type { NativePkceAuthConfig, NativeAuthFlowProvider } from './auth-native.js';
+
 // Logger
 export type { Logger } from './logger.js';
 

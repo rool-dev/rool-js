@@ -214,6 +214,21 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
+   * Complete a native sign-in (PKCE) from a deep-link callback URL. Call this
+   * from the app's platform deep-link handler (e.g. Capacitor's `appUrlOpen`)
+   * with the full callback URL. Exchanges the code for a live session.
+   *
+   * Returns true if the user is now signed in as a result.
+   */
+  async handleAuthRedirect(url: string): Promise<boolean> {
+    const ok = await this.authManager.handleRedirect(url);
+    if (ok) {
+      await this.hydrateAuthenticatedSession();
+    }
+    return ok;
+  }
+
+  /**
    * Set or change the current user's password. Requires an authenticated session.
    * Password must be at least 8 characters and contain both letters and either
    * digits or symbols.

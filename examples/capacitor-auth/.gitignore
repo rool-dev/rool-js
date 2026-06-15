@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+
+# Capacitor native projects are generated with `cap add` — not checked in.
+android/
+ios/
