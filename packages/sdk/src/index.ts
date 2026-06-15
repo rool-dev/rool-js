@@ -119,4 +119,5 @@ export type {
   RoolSpaceEvents,
   AuthTokens,
   AuthProvider,
+  PasswordSignInResult,
 } from './types.js';

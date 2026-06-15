@@ -20,6 +20,7 @@ import type {
   InviteRedeemResult,
   AuthUser,
   ConnectionState,
+  PasswordSignInResult,
 } from './types.js';
 
 type ResolvedUrls = {
@@ -226,6 +227,30 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       await this.hydrateAuthenticatedSession();
     }
     return ok;
+  }
+
+  /**
+   * Sign in with email + password. Resolves to `{ status: 'signed_in' }` once
+   * authenticated, or `{ status: 'verify_required' }` when the account's email
+   * isn't verified yet (a magic link has been emailed). Rejects with a
+   * human-readable Error on bad credentials or server failure.
+   */
+  async signInWithPassword(email: string, password: string): Promise<PasswordSignInResult> {
+    const result = await this.authManager.signInWithPassword(email, password);
+    if (result.status === 'signed_in') {
+      await this.hydrateAuthenticatedSession();
+    }
+    return result;
+  }
+
+  /**
+   * Request a magic sign-in link by email. The server emails a link; the user
+   * completes sign-in by following it, which is finished via `verify()` /
+   * `handleAuthRedirect()` when it lands back in the app. Resolves once the
+   * email is accepted; rejects with a human-readable Error on a bad address.
+   */
+  async requestMagicLink(email: string): Promise<void> {
+    return this.authManager.requestMagicLink(email);
   }
 
   /**

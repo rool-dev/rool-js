@@ -4,9 +4,16 @@ Minimal [Capacitor](https://capacitorjs.com/) app that exercises the SDK's
 native PKCE sign-in (`NativePkceAuthProvider` + `client.handleAuthRedirect`)
 on Android and iOS. Vanilla TypeScript + Vite, no framework.
 
-It signs in through the system browser, catches the deep-link callback, exchanges
-the code for a session, then calls `client.listSpaces()` and lists them — proving
-the token works against the API end-to-end. A test harness, not a real app.
+It signs in through the system browser (Google/Apple PKCE), catches the deep-link
+callback, exchanges the code for a session, then calls `client.listSpaces()` and
+lists them — proving the token works against the API end-to-end. It also exercises
+email/password (`signInWithPassword`) and magic-link (`requestMagicLink`) sign-in.
+A test harness, not a real app.
+
+> **Magic links:** the emailed link is an `https://` URL, so on native it opens
+> the Rool **website**, not this app, until iOS Universal Links / Android App
+> Links are configured for the domain. The app's `appUrlOpen` handler already
+> branches on a `?verify=<token>` link (→ `client.verify`) for when they are.
 
 > The auth server's native-client allowlist must include the redirect URIs used
 > here (`roolandroidauth://auth/callback`, `rooliosauth://auth/callback`).
@@ -157,6 +164,8 @@ links only complete on a device/emulator.
 
 ## Files
 
-- `src/main.ts` — client setup, deep-link listener, spaces smoke test, UI wiring
-- `index.html` — minimal UI (login buttons, status, spaces list, log)
+- `src/main.ts` — client setup, deep-link listener (`code` vs `verify` branch),
+  password / magic-link handlers, spaces smoke test, UI wiring
+- `index.html` — Rool-styled card UI (social + email/password + magic link, spaces, debug log)
+- `public/rool-logotype.svg` — brand logo (from rool-website)
 - `capacitor.config.ts` — app id / name / web dir

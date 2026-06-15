@@ -178,6 +178,38 @@ if (!(await client.initialize())) {
 }
 ```
 
+#### Email + password and magic links (native)
+
+The native provider also supports email/password sign-in and magic links —
+no system browser, the server returns the token set as JSON directly.
+
+```typescript
+// Password sign-in
+const result = await client.signInWithPassword(email, password);
+if (result.status === 'signed_in') {
+  // authenticated — refresh your UI
+} else {
+  // status === 'verify_required': the email isn't verified yet and the server
+  // has emailed a magic link. Tell the user to check their inbox.
+}
+
+// Or request a magic link explicitly
+await client.requestMagicLink(email);
+```
+
+The magic link carries a `?verify=<token>` param; complete sign-in by passing
+that token to `client.verify(token)` once the link lands back in the app.
+
+> **⚠️ Magic links open the website, not the app, until Universal Links / App
+> Links are configured.** The emailed link is an `https://` URL for the Rool
+> web app. On native, an `https` link only re-opens your app if you've set up
+> [iOS Universal Links](https://developer.apple.com/ios/universal-links/) /
+> [Android App Links](https://developer.android.com/training/app-links) for that
+> domain (custom-scheme deep links don't apply to email links). **Without that
+> setup the magic link completes sign-in in the browser/website, not in the
+> native app** — so for now treat magic links on native as a website hand-off,
+> and prefer password or social sign-in for an in-app experience.
+
 ### Auth API
 
 | Method | Description |
@@ -187,6 +219,8 @@ if (!(await client.initialize())) {
 | `signup(appName, params?): Promise<void>` | Start signup flow. |
 | `verify(token): Promise<boolean>` | Complete email verification token flow; returns `false` when the active auth provider does not implement verification. |
 | `handleAuthRedirect(url): Promise<boolean>` | Complete a native PKCE sign-in from a deep-link callback URL. Returns `false` when the active auth provider does not implement it. |
+| `signInWithPassword(email, password): Promise<PasswordSignInResult>` | Email + password sign-in (native provider). Resolves `{ status: 'signed_in' }`, or `{ status: 'verify_required' }` when the email is unverified (a magic link was emailed). Rejects on bad credentials. |
+| `requestMagicLink(email): Promise<void>` | Email the user a magic sign-in link (native provider). See the caveat below — on native the link opens the **website**, not the app, until Universal Links / App Links are configured. |
 | `logout(): void` | Clear auth state and close open spaces. |
 | `isAuthenticated(): Promise<boolean>` | Whether credentials are held locally. No network call — a server outage does not read as logged out. |
 | `getAuthUser(): AuthUser` | Return auth identity decoded from the token. |
@@ -708,6 +742,10 @@ Archives include objects, metadata, channels/conversations, and file storage.
 ## Data Types
 
 ```typescript
+// Outcome of signInWithPassword. 'verify_required' means the account's email
+// isn't verified yet and the server has emailed a magic link.
+type PasswordSignInResult = { status: 'signed_in' | 'verify_required' };
+
 type FieldType =
   | { kind: 'string' }
   | { kind: 'number' }

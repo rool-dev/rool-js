@@ -3,7 +3,7 @@
 // Handles authentication via configurable AuthProvider
 // =============================================================================
 
-import type { AuthUser, AuthProvider } from './types.js';
+import type { AuthUser, AuthProvider, PasswordSignInResult } from './types.js';
 import { BrowserAuthProvider } from './auth-browser.js';
 import type { Logger } from './logger.js';
 
@@ -107,6 +107,28 @@ export class AuthManager {
   async handleRedirect(url: string): Promise<boolean> {
     if (!this.provider.handleRedirect) return false;
     return this.provider.handleRedirect(url);
+  }
+
+  /**
+   * Sign in with email + password. Resolves `signed_in` or `verify_required`;
+   * rejects on bad credentials or if the provider doesn't support it.
+   */
+  async signInWithPassword(email: string, password: string): Promise<PasswordSignInResult> {
+    if (!this.provider.signInWithPassword) {
+      throw new Error('Password sign-in is not supported by this auth provider');
+    }
+    return this.provider.signInWithPassword(email, password);
+  }
+
+  /**
+   * Request a magic sign-in link by email. Resolves once accepted; rejects on a
+   * bad address or if the provider doesn't support it.
+   */
+  async requestMagicLink(email: string): Promise<void> {
+    if (!this.provider.requestMagicLink) {
+      throw new Error('Magic-link sign-in is not supported by this auth provider');
+    }
+    return this.provider.requestMagicLink(email);
   }
 
   /**

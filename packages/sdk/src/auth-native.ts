@@ -11,6 +11,7 @@
 // =============================================================================
 
 import { BaseTokenAuthProvider } from './auth-base.js';
+import type { PasswordSignInResult } from './types.js';
 
 export type NativeAuthFlowProvider = 'google' | 'apple';
 
@@ -151,6 +152,99 @@ export class NativePkceAuthProvider extends BaseTokenAuthProvider {
         this.acceptTokens(idToken, refreshToken, data.rool_token ?? null, expiresAt);
         this.notifyAuthState(true);
         return true;
+    }
+
+    /**
+     * Sign in with email + password. No redirect involved — the auth server
+     * returns the token set as JSON, which we persist directly.
+     *
+     * Resolves `signed_in` on success, or `verify_required` when the account's
+     * email isn't verified (the server has emailed a magic link). Rejects with
+     * a human-readable Error on bad credentials or server failure.
+     */
+    async signInWithPassword(email: string, password: string): Promise<PasswordSignInResult> {
+        let response: Response;
+        try {
+            response = await fetch(`${this.authBaseUrl}/login-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            });
+        } catch (err) {
+            this.logger.error('[RoolClient] login-password network error:', err);
+            throw new Error('Network error. Please try again.');
+        }
+
+        let data: {
+            ok?: boolean;
+            status?: 'signed_in' | 'verify_required';
+            error?: string;
+            id_token?: string;
+            refresh_token?: string;
+            expires_in?: number;
+            rool_token?: string;
+        };
+        try {
+            data = await response.json();
+        } catch {
+            throw new Error('Unexpected response. Please try again.');
+        }
+
+        if (!response.ok || data.ok === false) {
+            throw new Error(data.error || 'Invalid email or password.');
+        }
+
+        if (data.status === 'verify_required') {
+            return { status: 'verify_required' };
+        }
+
+        const idToken = data.id_token ?? null;
+        const refreshToken = data.refresh_token ?? null;
+        const expiresAt = data.expires_in ? Date.now() + data.expires_in * 1000 : NaN;
+        if (!idToken || !Number.isFinite(expiresAt)) {
+            this.logger.error('[RoolClient] login-password response missing id_token or expires_in');
+            throw new Error('Sign-in failed. Please try again.');
+        }
+
+        this.acceptTokens(idToken, refreshToken, data.rool_token ?? null, expiresAt);
+        this.notifyAuthState(true);
+        return { status: 'signed_in' };
+    }
+
+    /**
+     * Request a magic sign-in link by email. The server emails a link carrying
+     * a verify token; the user completes sign-in by following it, which lands
+     * back in the app and is finished via `verify(token)`. Resolves once the
+     * email is accepted; rejects with a human-readable Error if the address is
+     * rejected (invalid / disposable / unreachable).
+     *
+     * NOTE: the emailed link is an https URL (`<appsDomain>/?verify=…`), so on
+     * native it only re-opens the app if Universal Links / App Links are set up
+     * for that domain. Without them the link completes on the website instead.
+     */
+    async requestMagicLink(email: string): Promise<void> {
+        let response: Response;
+        try {
+            response = await fetch(`${this.authBaseUrl}/magic-link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+        } catch (err) {
+            this.logger.error('[RoolClient] magic-link network error:', err);
+            throw new Error('Network error. Please try again.');
+        }
+
+        let data: { ok?: boolean; error?: string };
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok || data.ok === false) {
+            throw new Error(data.error || 'Could not send the sign-in link. Please try again.');
+        }
     }
 
     // ===========================================================================

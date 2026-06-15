@@ -130,3 +130,86 @@ test('handleRedirect ignores deep links for other URIs', async () => {
   const ok = await provider.handleRedirect('https://example.com/callback?code=x&state=y');
   assert.equal(ok, false);
 });
+
+test('signInWithPassword stores tokens and reports signed_in', async () => {
+  let body: { email?: string; password?: string } = {};
+  const { provider, authStates } = makeProvider(async (url, init) => {
+    assert.equal(url, `${AUTH_URL}/login-password`);
+    body = JSON.parse(init.body);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        status: 'signed_in',
+        id_token: 'header.payload.sig',
+        refresh_token: 'refresh-pw',
+        rool_token: 'rool-pw',
+        expires_in: 3600,
+      }),
+    };
+  });
+
+  const result = await provider.signInWithPassword('a@b.com', 'hunter2!');
+
+  assert.deepEqual(body, { email: 'a@b.com', password: 'hunter2!' });
+  assert.deepEqual(result, { status: 'signed_in' });
+  assert.deepEqual(authStates, [true]);
+  assert.equal(await provider.isAuthenticated(), true);
+  const tokens = await provider.getTokens();
+  assert.equal(tokens?.accessToken, 'header.payload.sig');
+  assert.equal(tokens?.roolToken, 'rool-pw');
+});
+
+test('signInWithPassword surfaces verify_required without signing in', async () => {
+  const { provider, authStates } = makeProvider(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ ok: true, status: 'verify_required' }),
+  }));
+
+  const result = await provider.signInWithPassword('a@b.com', 'hunter2!');
+
+  assert.deepEqual(result, { status: 'verify_required' });
+  assert.deepEqual(authStates, []);
+  assert.equal(await provider.isAuthenticated(), false);
+});
+
+test('signInWithPassword rejects bad credentials with the server message', async () => {
+  const { provider } = makeProvider(async () => ({
+    ok: false,
+    status: 401,
+    json: async () => ({ ok: false, error: 'Invalid email or password. Please try again.' }),
+  }));
+
+  await assert.rejects(
+    () => provider.signInWithPassword('a@b.com', 'wrong'),
+    /Invalid email or password/,
+  );
+  assert.equal(await provider.isAuthenticated(), false);
+});
+
+test('requestMagicLink posts the email and resolves on acceptance', async () => {
+  let body: { email?: string } = {};
+  const { provider } = makeProvider(async (url, init) => {
+    assert.equal(url, `${AUTH_URL}/magic-link`);
+    body = JSON.parse(init.body);
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
+  });
+
+  await provider.requestMagicLink('a@b.com');
+  assert.deepEqual(body, { email: 'a@b.com' });
+});
+
+test('requestMagicLink rejects a bad address with the server message', async () => {
+  const { provider } = makeProvider(async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({ ok: false, error: 'Please enter a valid email address.' }),
+  }));
+
+  await assert.rejects(
+    () => provider.requestMagicLink('not-an-email'),
+    /valid email address/,
+  );
+});

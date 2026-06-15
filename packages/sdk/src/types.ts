@@ -450,6 +450,14 @@ export interface ChannelEvent {
 }
 
 /**
+ * Result of an email+password sign-in.
+ * - `signed_in`: tokens issued, the user is now authenticated.
+ * - `verify_required`: the account's email isn't verified yet; a magic link
+ *   has been emailed and the user must complete verification before signing in.
+ */
+export type PasswordSignInResult = { status: 'signed_in' | 'verify_required' };
+
+/**
  * External auth provider interface for Electron or custom auth flows.
  * When provided, the SDK delegates all auth operations to this provider.
  */
@@ -478,6 +486,18 @@ export interface AuthProvider {
    * providers that don't implement it reject the call.
    */
   handleRedirect?: (url: string) => Promise<boolean>;
+  /**
+   * Sign in with email + password. Resolves to `signed_in` (authenticated) or
+   * `verify_required` (magic link emailed); rejects on bad credentials.
+   * Optional: providers that don't implement it reject the call.
+   */
+  signInWithPassword?: (email: string, password: string) => Promise<PasswordSignInResult>;
+  /**
+   * Request a magic sign-in link by email. Resolves once the email is accepted,
+   * rejects if the address is rejected. Completion happens later via `verify`.
+   * Optional: providers that don't implement it reject the call.
+   */
+  requestMagicLink?: (email: string) => Promise<void>;
   /** Logout and clear session */
   logout: () => void;
   /** Clean up resources (e.g. stop timers) */
