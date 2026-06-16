@@ -19,7 +19,7 @@ Six states. Each has a defined resource footprint; transitioning in allocates th
 | `backoff` | `timer` | waiting to retry after failure |
 | `closed` | none | terminal; no further transitions |
 
-**Splitting `probing` / `live`:** the server's `connected` event is how we know the backend acknowledged our subscription (not just that the TCP connection opened). The initial-connect promise (§6) resolves on `probing → live`, and `onConnectionStateChanged('connected')` fires on the same transition. All other transitions treat `probing` and `live` identically.
+**Splitting `probing` / `live`:** the server's `connected` event is how we know the backend acknowledged our subscription (not just that the TCP connection opened). The initial-connect promise (§6) resolves on `probing → live`, and `onConnectionStateChanged('connected')` fires on the same transition. `watchdog_stale` also distinguishes them — it resets `backoffDelay` only when leaving `live` (see §5/§7), so a probe that never connected keeps backing off. All other transitions treat `probing` and `live` identically.
 
 **Merging "awaiting token" with "creating client":** token resolution and `createClient` happen back-to-back in one function. Splitting them into two states would add no observable behavior because `createClient` is synchronous.
 
@@ -59,7 +59,7 @@ Every (state × input) cell has a defined outcome. "Ignore" means no-op. "Imposs
 | `auth_failed` | impossible | reject init promise if present (§6), → backoff | stale, ignore | stale, ignore | ignore |
 | `message_received` | impossible | impossible | update `lastMessageAt`, reset `backoffDelay`; if event is `connected` and state is `probing` → live (resolve init promise §6, emit `'connected'`); deliver event to consumer | stale, ignore | ignore |
 | `stream_closing` | impossible | impossible | teardown; `backoffDelay = INITIAL` → awaiting_auth (no backoff wait — this is a clean handoff, not a failure) | stale, ignore | ignore |
-| `watchdog_stale` | impossible | impossible | teardown; `backoffDelay = INITIAL` → backoff | impossible (no watchdog in backoff) | impossible |
+| `watchdog_stale` | impossible | impossible | teardown; reset `backoffDelay` to `INITIAL` only if leaving `live` (a probe that never connected keeps its escalated delay) → backoff | impossible (no watchdog in backoff) | impossible |
 | `backoff_fired` | impossible | impossible | impossible (no timer) | → awaiting_auth, start `getTokens` | ignore |
 | `online_event` | ignore | ignore | ignore | `backoffDelay = INITIAL` (timer left alone) | ignore |
 
@@ -87,7 +87,7 @@ These properties must hold after every transition:
 | `watchdog` interval | entering `probing`, with `lastMessageAt = Date.now()` | leaving `probing`/`live` |
 | `backoff` timer | entering `backoff` | leaving `backoff` (either `backoff_fired` or `stop()`) |
 | `online` listener | `start()` (when leaving `idle`) | `stop()` (when entering `closed`) |
-| `backoffDelay` (number, not a resource) | persists across transitions; reset on `message_received` and `online_event`; doubled (capped at `MAX`) when entering `backoff` |
+| `backoffDelay` (number, not a resource) | persists across transitions; reset on `message_received`, `online_event`, and `watchdog_stale` from `live` (not from `probing`); doubled (capped at `MAX`) when entering `backoff` |
 
 **Watchdog starts at subscription creation.** `lastMessageAt` is initialized to `Date.now()` when we enter `probing`. If the server never sends anything — not even a heartbeat — the watchdog fires after `HEARTBEAT_TIMEOUT` and we retry.
 

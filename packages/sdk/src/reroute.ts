@@ -73,5 +73,16 @@ export async function fetchWithReroute(opts: RerouteOptions): Promise<Response> 
   }
 
   if (response === null) throw thrown;
+
+  // A suspended account is rejected on every authenticated request with 403 +
+  // { code: 'SUSPENDED', error }. Surface the server's message so callers'
+  // error toasts read well.
+  if (response.status === 403) {
+    const body = (await response.clone().json().catch(() => null)) as { code?: string; error?: string } | null;
+    if (body?.code === 'SUSPENDED') {
+      throw new Error(body.error ?? 'Your account has been suspended.');
+    }
+  }
+
   return response;
 }

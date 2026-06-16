@@ -159,7 +159,8 @@ class Subscription<TEvent> {
       case 'watchdog_stale':
         if (state.kind !== 'probing' && state.kind !== 'live') return;
         this.rejectInitIfPending(new Error('Heartbeat timeout'));
-        this.backoffDelay = INITIAL_RECONNECT_DELAY;
+        // A previously-live connection dropping warrants a fast reconnect.
+        if (state.kind === 'live') this.backoffDelay = INITIAL_RECONNECT_DELAY;
         this.enterBackoff('heartbeat timeout');
         return;
 
