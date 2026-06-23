@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, SpaceEvent, RoolEventSource, SpaceSchema, Conversation } from './types.js';
+import type { ConnectionState, ClientEvent, SpaceEvent, RoolEventSource, Conversation } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 
@@ -462,7 +462,7 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
 
 // =============================================================================
 // Space Subscription Manager
-// One per space. Handles object, schema, metadata, and conversation events.
+// One per space. Handles conversation and file sync events.
 // =============================================================================
 
 export interface SpaceSubscriptionConfig {
@@ -517,19 +517,9 @@ function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): SpaceEve
 
   if (!rawType || !spaceId) return null;
 
-  // Object/file reactivity is WebDAV sync based. Ignore old object
-  // notifications if an older server still emits them.
-  if (rawType.startsWith('object_')) return null;
-
   switch (rawType) {
     case 'connected':
       return { type: 'connected', spaceId, timestamp, source, serverVersion: raw.serverVersion as string };
-    case 'space_changed':
-      return { type: 'space_changed', spaceId, timestamp, source };
-    case 'schema_updated':
-      return { type: 'schema_updated', spaceId, timestamp, source, schema: raw.schema as SpaceSchema };
-    case 'metadata_updated':
-      return { type: 'metadata_updated', spaceId, timestamp, source, metadata: raw.metadata as Record<string, unknown> };
     case 'conversation_updated':
       return { type: 'conversation_updated', spaceId, timestamp, source, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
     case 'space_files_changed':

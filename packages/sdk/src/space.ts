@@ -96,6 +96,9 @@ export class RoolSpace extends SpaceOperations {
     this._route = config.initialRoute;
     this.onCloseCallback = config.onClose;
     this._conversationInfos = this.getConversations();
+    this.on('conversationUpdated', () => {
+      this._conversationInfos = this.getConversations();
+    });
 
     this._graphqlClient.setOnRefused(() => this.reroute());
     this._restClient.setOnRefused(async () => {
@@ -317,8 +320,8 @@ export class RoolSpace extends SpaceOperations {
    * Applies bounded space-state events and emits space events.
    */
   private handleSpaceEvent(event: SpaceEvent): void {
-    // Reconnect or full state change: single fetch, apply to the space
-    if (event.type === 'connected' || event.type === 'space_changed') {
+    // Reconnect: fetch the current full state once and apply it locally.
+    if (event.type === 'connected') {
       this.handleResync();
       return;
     }
@@ -340,16 +343,12 @@ export class RoolSpace extends SpaceOperations {
     }
 
     this._handleEvent(event);
-
-    if (event.type === 'conversation_updated' && event.conversationId) {
-      this._conversationInfos = this.getConversations();
-    }
   }
 
   // Reconnect resync: fetch full state and distribute. Retries until it lands —
   // a single failure used to leave the client empty until reload. Single-flight:
   // an event arriving mid-resync sets _resyncPending so we re-run once afterward,
-  // ensuring the final state reflects the latest space_changed.
+  // ensuring the final state reflects the latest server-side file change.
   private handleResync(): void {
     if (this._resyncing) { this._resyncPending = true; return; }
     this._resyncing = true;

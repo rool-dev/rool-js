@@ -370,9 +370,6 @@ export type ClientEvent =
 
 export type SpaceEventType =
   | 'connected'
-  | 'space_changed'
-  | 'schema_updated'
-  | 'metadata_updated'
   | 'conversation_updated'
   | 'space_files_changed'
   | 'space_files_reset';
@@ -383,10 +380,6 @@ export interface SpaceEvent {
   spaceId: string;
   timestamp: number;
   source: RoolEventSource;
-  // Schema events
-  schema?: SpaceSchema;
-  // Metadata events
-  metadata?: Record<string, unknown>;
   // Conversation events
   conversationId?: string;
   conversation?: Conversation;

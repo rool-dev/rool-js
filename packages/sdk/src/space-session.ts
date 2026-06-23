@@ -886,24 +886,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     const changeSource = event.source === 'agent' ? 'remote_agent' : 'remote_user';
 
     switch (event.type) {
-      case 'connected':
-        // Resync is handled by the client via _applyResyncData.
-        break;
-
-      case 'schema_updated':
-        if (event.schema) {
-          this._schema = event.schema;
-          this.emit('schemaUpdated', { schema: this._schema, source: changeSource });
-        }
-        break;
-
-      case 'metadata_updated':
-        if (event.metadata) {
-          this._meta = event.metadata;
-          this.emit('metadataUpdated', { metadata: this._meta, source: changeSource });
-        }
-        break;
-
       case 'conversation_updated':
         if (event.conversationId) {
           const prev = this._conversations[event.conversationId];
@@ -932,10 +914,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
             source: changeSource,
           });
         }
-        break;
-
-      case 'space_changed':
-        // Resync is handled by the client via _applyResyncData.
         break;
     }
   }

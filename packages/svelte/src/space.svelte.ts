@@ -21,9 +21,9 @@ class ReactiveSpaceImpl {
   constructor(space: RoolSpace) {
     this.#space = space;
     this.#fileTree = new ReactiveFileTree(space);
-    this.#conversationList = space.conversations;
+    this.#conversationList = [...space.conversations];
 
-    const refreshConversations = () => { this.#conversationList = space.conversations; };
+    const refreshConversations = () => { this.#conversationList = [...space.conversations]; };
     space.on('conversationUpdated', refreshConversations);
     this.#unsubscribers.push(() => space.off('conversationUpdated', refreshConversations));
     space.on('reset', refreshConversations);
