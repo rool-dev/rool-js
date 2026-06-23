@@ -11,10 +11,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: news-browsers');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('news-browsers-eval');
+      const conversation = space.conversation('news-browsers-eval');
       await createCollectionWithRetry(conversation, 'browser', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },

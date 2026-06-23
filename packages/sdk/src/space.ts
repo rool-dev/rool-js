@@ -1,9 +1,8 @@
 
-import { EventEmitter } from './event-emitter.js';
 import type { GraphQLClient, OpenSpaceFullResult } from './graphql.js';
 import type { RestClient } from './rest.js';
 import { SpaceSubscriptionManager } from './subscription.js';
-import { RoolChannel } from './channel.js';
+import { SpaceOperations, ConversationHandle } from './space-session.js';
 import { RoolWebDAV, type SpaceFileStorageUsage } from './webdav.js';
 import { machinePath } from './path.js';
 import type { AuthManager } from './auth.js';
@@ -15,12 +14,8 @@ import type {
   SpaceInvite,
   SpaceInviteCreated,
   SpaceMember,
-  ChannelInfo,
-  ChannelEvent,
-  Channel,
-  RoolSpaceEvents,
-  RoolObjectStat,
-  SpaceSchema,
+  ConversationInfo,
+  SpaceEvent,
   ConnectionState,
 } from './types.js';
 
@@ -42,104 +37,71 @@ export interface SpaceConfig {
   onClose: () => void;
 }
 
-/** Convert a full Channel object to a ChannelInfo summary. */
-function channelToInfo(id: string, ch: Channel): ChannelInfo {
-  return {
-    id,
-    name: ch.name ?? null,
-    createdAt: ch.createdAt,
-    createdBy: ch.createdBy,
-    createdByName: ch.createdByName ?? null,
-    interactionCount: Object.values(ch.conversations ?? {}).reduce(
-      (sum, conv) => sum + (conv.interactions ? Object.keys(conv.interactions).length : 0), 0
-    ),
-  };
-}
 
 /**
- * A space is a container for objects, schema, metadata, and channels.
+ * A space is a container for objects, schema, metadata, and conversations.
  *
- * RoolSpace owns the real-time SSE subscription for the space. All channel
- * lifecycle events (created, updated, deleted) are emitted here. Open channels
- * on a space to work with objects and AI.
+ * RoolSpace owns the real-time SSE subscription for the space and exposes
+ * space-level object, schema, metadata, and AI operations.
  *
  * Call close() when done to stop the subscription.
  */
-export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
-  private _id: string;
-  private _name: string;
-  private _role: RoolUserRole;
-  private _userId: string;
+export class RoolSpace extends SpaceOperations {
   private _memberCount: number;
-  private _channels: ChannelInfo[];
-  private _knownChannelIds: Set<string>;
-  private graphqlClient: GraphQLClient;
-  private restClient: RestClient;
+  private _conversationInfos: ConversationInfo[];
   private authManager: AuthManager;
   private router: SpaceRouter;
   private _route: RouteInfo;
-  private _webdav: RoolWebDAV;
-  private logger: Logger;
   private onCloseCallback: () => void;
 
   // Subscription
   private subscriptionManager: SpaceSubscriptionManager | null = null;
-  private _closed = false;
   private _resyncing = false;
   private _resyncPending = false;
   private _resyncTimer: ReturnType<typeof setTimeout> | null = null;
   private _subscriptionReady: Promise<void> | null = null;
 
-  // Open channels on this space
-  private openChannels = new Map<string, RoolChannel>();
-
-  // Full space data (for channel creation)
-  private _objectStats: Record<string, RoolObjectStat>;
-  private _schema: SpaceSchema;
-  private _meta: Record<string, unknown>;
-  private _channelData: Record<string, Channel>;
-
   constructor(config: SpaceConfig) {
-    super();
-    this._emitterLogger = config.logger;
-    this._id = config.id;
-    this._name = config.name;
-    this._role = config.role;
-    this._userId = config.userId;
+    let self!: RoolSpace;
+    const webdav = new RoolWebDAV({
+      webdavUrl: config.initialRoute.server,
+      spaceId: config.id,
+      authManager: config.authManager,
+      onRefused: async () => {
+        await self.reroute();
+        return self._route.server;
+      },
+    });
+
+    super({
+      id: config.id,
+      name: config.name,
+      role: config.role,
+      userId: config.userId,
+      objectStats: config.fullData.objectStats,
+      schema: config.fullData.schema,
+      meta: config.fullData.meta,
+      conversations: config.fullData.conversations,
+      graphqlClient: config.graphqlClient,
+      restClient: config.restClient,
+      webdav,
+      logger: config.logger,
+      onClose: () => {},
+    });
+    self = this;
+
     this._memberCount = config.memberCount;
-    this.graphqlClient = config.graphqlClient;
-    this.restClient = config.restClient;
     this.authManager = config.authManager;
     this.router = config.router;
     this._route = config.initialRoute;
-    this._webdav = new RoolWebDAV({
-      webdavUrl: this._route.server,
-      spaceId: this._id,
-      authManager: this.authManager,
-      onRefused: async () => {
-        await this.reroute();
-        return this._route.server;
-      },
-    });
-    this.logger = config.logger;
     this.onCloseCallback = config.onClose;
+    this._conversationInfos = this.getConversations();
 
-    this.graphqlClient.setOnRefused(() => this.reroute());
-    this.restClient.setOnRefused(async () => {
+    this._graphqlClient.setOnRefused(() => this.reroute());
+    this._restClient.setOnRefused(async () => {
       await this.reroute();
       return this._route.server;
     });
-
-    // Store full space data
-    const fd = config.fullData;
-    this._objectStats = fd.objectStats;
-    this._schema = fd.schema;
-    this._meta = fd.meta;
-    this._channelData = fd.channels;
-
-    // Build channel list from full data
-    this._channels = Object.entries(fd.channels).map(([id, ch]) => channelToInfo(id, ch));
-    this._knownChannelIds = new Set(this._channels.map(c => c.id));
 
     // Start subscription
     this.startSubscription();
@@ -149,6 +111,10 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   get id(): string { return this._id; }
   get name(): string { return this._name; }
   get role(): RoolUserRole { return this._role; }
+  get userId(): string { return this._userId; }
+  get spaceId(): string { return this._id; }
+  get spaceName(): string { return this._name; }
+  get isReadOnly(): boolean { return this._role === 'viewer'; }
   get memberCount(): number { return this._memberCount; }
 
   get route(): RouteInfo { return this._route; }
@@ -173,11 +139,8 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     return this.webdav.get(canonical, options);
   }
 
-  /**
-   * Live list of channels in this space.
-   * Auto-updates via SSE when channels are created, updated, or deleted.
-   */
-  get channels(): ChannelInfo[] { return this._channels; }
+  /** Live list of conversations in this space. */
+  get conversations(): ConversationInfo[] { return this._conversationInfos; }
 
 
   private startSubscription(): void {
@@ -186,19 +149,19 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       getGraphqlUrl: async () => {
         if (firstProbe) {
           firstProbe = false;
-          return this.graphqlClient.graphqlUrl;
+          return this._graphqlClient.graphqlUrl;
         }
         return this.reroute();
       },
       authManager: this.authManager,
-      logger: this.logger,
+      logger: this._logger,
       spaceId: this._id,
       onEvent: (event) => this.handleSpaceEvent(event),
       onConnectionStateChanged: (state: ConnectionState) => {
         this.emit('connectionStateChanged', state);
       },
       onError: (error) => {
-        this.logger.error(`[RoolSpace] Space ${this._id} subscription error:`, error);
+        this._logger.error(`[RoolSpace] Space ${this._id} subscription error:`, error);
       },
     });
 
@@ -211,69 +174,20 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     const route = await this.router.resolve(this._id);
     this._route = route;
     this._webdav.setWebDAVUrl(route.server);
-    this.restClient.setApiUrl(route.server);
+    this._restClient.setApiUrl(route.server);
     const url = `${route.server.replace(/\/+$/, '')}/graphql`;
-    this.graphqlClient.setGraphqlUrl(url);
+    this._graphqlClient.setGraphqlUrl(url);
     return url;
   }
 
-  /** Wait for the subscription to be connected. */
-  private ensureSubscribed(): Promise<void> {
-    return this._subscriptionReady ?? Promise.resolve();
-  }
 
 
-  /**
-   * Open a channel on this space.
-   * If the channel doesn't exist, the server creates it.
-   */
-  async openChannel(channelId: string): Promise<RoolChannel> {
-    if (!channelId || channelId.length > 32 || !/^[a-zA-Z0-9_-]+$/.test(channelId)) {
-      throw new Error('channelId must be 1–32 characters containing only alphanumeric characters, hyphens, and underscores');
+  /** Get a handle for a conversation in this space. */
+  override conversation(conversationId: string): ConversationHandle {
+    if (!conversationId || conversationId.length > 32 || !/^[a-zA-Z0-9_-]+$/.test(conversationId)) {
+      throw new Error('conversationId must be 1–32 characters containing only alphanumeric characters, hyphens, and underscores');
     }
-
-    // Ensure channel exists — create if missing
-    let channelData = this._channelData[channelId];
-    if (!channelData) {
-      try {
-        channelData = await this.graphqlClient.createChannel(this._id, channelId);
-        this._channelData[channelId] = channelData;
-      } catch {
-        // Race: another client may have created it. Re-fetch.
-        const refreshed = await this.graphqlClient.openSpaceFull(this._id);
-        this.applyFullData(refreshed);
-        channelData = this._channelData[channelId];
-        if (!channelData) throw new Error(`Failed to create channel "${channelId}"`);
-      }
-    }
-
-    const channel = new RoolChannel({
-      id: this._id,
-      name: this._name,
-      role: this._role,
-      userId: this._userId,
-      objectStats: this._objectStats,
-      schema: this._schema,
-      meta: this._meta,
-      channel: channelData,
-      channelId,
-      graphqlClient: this.graphqlClient,
-      restClient: this.restClient,
-      webdav: this.webdav,
-      logger: this.logger,
-      onClose: () => this.unregisterChannel(channelId),
-    });
-
-    this.openChannels.set(channelId, channel);
-
-    // Ensure subscription is connected before returning
-    await this.ensureSubscribed();
-
-    return channel;
-  }
-
-  private unregisterChannel(channelId: string): void {
-    this.openChannels.delete(channelId);
+    return super.conversation(conversationId);
   }
 
 
@@ -281,7 +195,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
    * Rename this space.
    */
   async rename(newName: string): Promise<void> {
-    await this.graphqlClient.renameSpace(this._id, newName);
+    await this._graphqlClient.renameSpace(this._id, newName);
     this._name = newName;
   }
 
@@ -289,7 +203,7 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
    * Delete this space permanently. Cannot be undone.
    */
   async delete(): Promise<void> {
-    await this.graphqlClient.deleteSpace(this._id);
+    await this._graphqlClient.deleteSpace(this._id);
   }
 
 
@@ -297,21 +211,21 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
    * List users with access to this space.
    */
   async listUsers(): Promise<SpaceMember[]> {
-    return this.graphqlClient.listSpaceUsers(this._id);
+    return this._graphqlClient.listSpaceUsers(this._id);
   }
 
   /**
    * Change an existing member's role. New members join via invites.
    */
   async setUserRole(userId: string, role: InviteRole): Promise<void> {
-    return this.graphqlClient.setSpaceUserRole(this._id, userId, role);
+    return this._graphqlClient.setSpaceUserRole(this._id, userId, role);
   }
 
   /**
    * Remove a user from this space.
    */
   async removeUser(userId: string): Promise<void> {
-    return this.graphqlClient.removeSpaceUser(this._id, userId);
+    return this._graphqlClient.removeSpaceUser(this._id, userId);
   }
 
   /**
@@ -324,40 +238,23 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     role: InviteRole,
     options?: { email?: string; expiresInDays?: number; maxUses?: number }
   ): Promise<SpaceInviteCreated> {
-    return this.graphqlClient.createSpaceInvite(this._id, role, options);
+    return this._graphqlClient.createSpaceInvite(this._id, role, options);
   }
 
   /**
    * List this space's currently redeemable invites. Requires owner or admin role.
    */
   async listInvites(): Promise<SpaceInvite[]> {
-    return this.graphqlClient.listSpaceInvites(this._id);
+    return this._graphqlClient.listSpaceInvites(this._id);
   }
 
   /**
    * Revoke an invite so its link stops working. Requires owner or admin role.
    */
   async revokeInvite(inviteId: string): Promise<boolean> {
-    return this.graphqlClient.revokeSpaceInvite(this._id, inviteId);
+    return this._graphqlClient.revokeSpaceInvite(this._id, inviteId);
   }
 
-  /**
-   * Rename a channel in this space.
-   */
-  async renameChannel(channelId: string, name: string): Promise<void> {
-    await this.graphqlClient.renameChannel(this._id, channelId, name);
-  }
-
-  /**
-   * Delete a channel from this space.
-   */
-  async deleteChannel(channelId: string): Promise<void> {
-    await this.graphqlClient.deleteChannel(this._id, channelId);
-    // SSE will update the channel list; also update optimistically
-    this._channels = this._channels.filter(c => c.id !== channelId);
-    this._knownChannelIds.delete(channelId);
-    delete this._channelData[channelId];
-  }
 
 
   // Targets the owning shard
@@ -388,25 +285,20 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
   /**
    * Refresh space data from the server.
-   * Updates name, role, channel list, and all cached data.
+   * Updates name, role, conversation list, and all cached data.
    */
   async refresh(): Promise<void> {
-    const data = await this.graphqlClient.openSpaceFull(this._id);
+    const data = await this._graphqlClient.openSpaceFull(this._id);
     this.applyFullData(data);
   }
 
 
   /**
-   * Close the space subscription and all open channels.
+   * Close the space subscription.
    */
   close(): void {
     this._closed = true;
     if (this._resyncTimer) { clearTimeout(this._resyncTimer); this._resyncTimer = null; }
-    // Close all open channels
-    for (const channel of this.openChannels.values()) {
-      channel.close();
-    }
-    this.openChannels.clear();
 
     // Stop subscription
     if (this.subscriptionManager) {
@@ -422,10 +314,10 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
   /**
    * Handle a space event from the SSE subscription.
-   * Routes to channels and emits channel lifecycle events.
+   * Applies bounded space-state events and emits space events.
    */
-  private handleSpaceEvent(event: ChannelEvent): void {
-    // Reconnect or full state change: single fetch, distribute to all channels
+  private handleSpaceEvent(event: SpaceEvent): void {
+    // Reconnect or full state change: single fetch, apply to the space
     if (event.type === 'connected' || event.type === 'space_changed') {
       this.handleResync();
       return;
@@ -433,60 +325,24 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
 
     if (event.type === 'space_files_changed') {
       this.emit('filesChanged', { spaceId: event.spaceId, source: event.source, timestamp: event.timestamp });
+      // WebDAV is now the source of truth for object/schema/meta writes. Keep
+      // the SDK's bounded caches (schema, metadata, object stats, conversations)
+      // coherent with remote/local file mutations; the file tree still handles
+      // path-level reconciliation via this event.
+      this.handleResync();
       return;
     }
 
     if (event.type === 'space_files_reset') {
       this.emit('filesReset', { spaceId: event.spaceId, source: event.source, timestamp: event.timestamp });
+      this.handleResync();
       return;
     }
 
-    // Channel lifecycle events: derive channelCreated/channelUpdated/channelDeleted
-    if (event.type === 'channel_updated' && event.channelId && event.channel) {
-      const info = channelToInfo(event.channelId, event.channel);
+    this._handleEvent(event);
 
-      // Update internal channel data
-      this._channelData[event.channelId] = event.channel;
-
-      if (this._knownChannelIds.has(event.channelId)) {
-        // Known channel — update in list
-        this._channels = this._channels.map(c => c.id === event.channelId ? info : c);
-        this.emit('channelUpdated', info);
-      } else {
-        // New channel
-        this._knownChannelIds.add(event.channelId);
-        this._channels = [...this._channels, info];
-        this.emit('channelCreated', info);
-      }
-
-      // Also route to the open channel for channel-internal handling.
-      const channel = this.openChannels.get(event.channelId);
-      if (channel) channel._handleEvent(event);
-      return;
-    }
-
-    if (event.type === 'channel_deleted' && event.channelId) {
-      this._knownChannelIds.delete(event.channelId);
-      this._channels = this._channels.filter(c => c.id !== event.channelId);
-      delete this._channelData[event.channelId];
-      this.emit('channelDeleted', event.channelId);
-
-      // Route to the open channel (so it can clean up)
-      const channel = this.openChannels.get(event.channelId);
-      if (channel) channel._handleEvent(event);
-      return;
-    }
-
-    // Channel-specific events (conversation_updated): route to the matching channel only
-    if ('channelId' in event && event.channelId) {
-      const channel = this.openChannels.get(event.channelId);
-      if (channel) channel._handleEvent(event);
-      return;
-    }
-
-    // Space-wide non-file events (schema, metadata): broadcast to all channels on this space
-    for (const channel of this.openChannels.values()) {
-      channel._handleEvent(event);
+    if (event.type === 'conversation_updated' && event.conversationId) {
+      this._conversationInfos = this.getConversations();
     }
   }
 
@@ -503,25 +359,15 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
   private _resyncWithRetry(attempt: number): void {
     this._resyncTimer = null;
     if (this._closed) { this._resyncing = false; return; }
-    void this.graphqlClient.openSpaceFull(this._id).then((result) => {
+    void this._graphqlClient.openSpaceFull(this._id).then((result) => {
       if (this._closed) { this._resyncing = false; return; }
       this.applyFullData(result);
-      for (const [channelId, channel] of this.openChannels) {
-        const channelData = result.channels[channelId];
-        if (!channelData) continue; // Channel deleted between fetch and distribution
-        channel._applyResyncData({
-          meta: result.meta,
-          schema: result.schema,
-          objectStats: result.objectStats,
-          channel: channelData,
-        });
-      }
-      this.logger.info(`[RoolSpace] Space ${this._id} resync complete`);
+      this._logger.info(`[RoolSpace] Space ${this._id} resync complete`);
       this._finishResync();
     }).catch((error) => {
       if (this._closed) { this._resyncing = false; return; }
       const ms = Math.min(1000 * 2 ** attempt, 30000);
-      this.logger.error(`[RoolSpace] Space ${this._id} resync failed (attempt ${attempt + 1}), retrying in ${ms}ms:`, error);
+      this._logger.error(`[RoolSpace] Space ${this._id} resync failed (attempt ${attempt + 1}), retrying in ${ms}ms:`, error);
       this._resyncTimer = setTimeout(() => this._resyncWithRetry(attempt + 1), ms);
     });
   }
@@ -542,11 +388,12 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
     this._name = data.name;
     this._role = data.role as RoolUserRole;
     this._memberCount = data.memberCount;
-    this._objectStats = data.objectStats;
     this._schema = data.schema;
     this._meta = data.meta;
-    this._channelData = data.channels;
-    this._channels = Object.entries(data.channels).map(([id, ch]) => channelToInfo(id, ch));
-    this._knownChannelIds = new Set(this._channels.map(c => c.id));
+    this._conversations = data.conversations;
+    this._objectStats = new Map(Object.entries(data.objectStats));
+    this._activeLeaves.clear();
+    this._conversationInfos = this.getConversations();
+    this.emit('reset', { source: 'system' });
   }
 }

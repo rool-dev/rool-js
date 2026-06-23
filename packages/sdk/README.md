@@ -4,9 +4,8 @@ TypeScript SDK for Rool, a persistent collaborative workspace for objects, AI-as
 
 Core primitives:
 
-- **Spaces** — containers for objects, schema, metadata, channels, collaborators, and files.
-- **Channels** — named contexts within a space for object operations and AI conversations.
-- **Conversations** — independent interaction histories within a channel.
+- **Spaces** — containers for objects, schema, metadata, conversations, collaborators, and files.
+- **Conversations** — independent interaction histories in a space.
 - **Objects** — JSON records addressed by object paths such as `/space/article/welcome.json`.
 - **Files** — user-visible files stored under `/rool-drive/...` through WebDAV.
 
@@ -31,36 +30,36 @@ async function main() {
   }
 
   const space = await client.createSpace('Solar System');
-  const channel = await space.openChannel('main');
+  const conversation = space.conversation('main');
 
-  await channel.createCollection('body', [
+  await conversation.createCollection('body', [
     { name: 'name', type: { kind: 'string' } },
     { name: 'mass', type: { kind: 'string' } },
     { name: 'radius', type: { kind: 'string' } },
     { name: 'orbits', type: { kind: 'maybe', inner: { kind: 'ref' } } },
   ]);
 
-  const { object: sun } = await channel.putObject('/space/body/sun.json', {
+  const { object: sun } = await conversation.putObject('/space/body/sun.json', {
     name: 'Sun',
     mass: '1 solar mass',
     radius: '696,340 km',
   });
 
-  const { object: earth } = await channel.putObject('/space/body/earth.json', {
+  const { object: earth } = await conversation.putObject('/space/body/earth.json', {
     name: 'Earth',
     mass: '1 Earth mass',
     radius: '6,371 km',
     orbits: sun.path,
   });
 
-  const { message, objects } = await channel.prompt(
+  const { message, objects } = await conversation.prompt(
     'Add the other planets in our solar system, each referencing the Sun.'
   );
 
   console.log(message);
   console.log(`Modified ${objects.length} objects`);
 
-  const loadedEarth = await channel.getObject(earth.path);
+  const loadedEarth = await space.getObject(earth.path);
   console.log(loadedEarth?.body.name);
 
   space.close();
@@ -230,58 +229,57 @@ that token to `client.verify(token)` once the link lands back in the app.
 
 A temporarily unreachable server never reads as "logged out". `initialize()` reports authentication from stored credentials, so on an offline start it can return `true` while `currentUser` is still `null` and user storage is empty — the SDK keeps reconnecting in the background and hydrates both automatically once the server is reachable, emitting `currentUserChanged`. Only an invalid or expired refresh token ends the session, via `authStateChanged(false)`.
 
-## Spaces and Channels
+## Spaces and Conversations
 
-Open a space to receive live events and manage collaborators, file storage, and channels. Open a channel to work with objects, schema, metadata, and AI.
+Open a space to receive live events and manage collaborators, file storage, and conversations. Open a conversation to work with objects, schema, metadata, and AI.
 
 ```typescript
 const space = await client.openSpace('space-id');
 
-space.on('channelCreated', (channel) => console.log(channel.id));
+const conversation = space.conversation('main');
 space.on('filesChanged', () => console.log('files changed'));
 
-const channel = await space.openChannel('main');
-await channel.prompt('Summarize this space');
+await conversation.prompt('Summarize this space');
 ```
 
-Channel IDs must be 1–32 characters and contain only letters, numbers, `_`, and `-`.
+Conversation IDs must be 1–32 characters and contain only letters, numbers, `_`, and `-`.
 
 ## Object Operations
 
 Objects are JSON files under `/space`. Create the collection before writing objects in it.
 
 ```typescript
-await channel.createCollection('article', [
+await conversation.createCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'string' } },
 ]);
 
 // Create or replace an exact object path
-const { object } = await channel.putObject('/space/article/welcome.json', {
+const { object } = await conversation.putObject('/space/article/welcome.json', {
   title: 'Welcome',
   status: 'draft',
 });
 
 // Patch fields; null or undefined deletes a field
-await channel.patchObject(object.path, {
+await conversation.patchObject(object.path, {
   data: { status: 'published', obsoleteField: null },
 });
 
 // Read one or many objects
-await channel.getObject('/space/article/welcome.json');
-await channel.getObjects([
+await space.getObject('/space/article/welcome.json');
+await space.getObjects([
   '/space/article/welcome.json',
   '/space/article/intro.json',
 ]);
 
 // Rename or move an object
-await channel.moveObject(
+await conversation.moveObject(
   '/space/article/welcome.json',
   '/space/article/hello-world.json'
 );
 
 // Delete objects
-await channel.deleteObjects(['/space/article/hello-world.json']);
+await conversation.deleteObjects(['/space/article/hello-world.json']);
 ```
 
 | Method | Description |
@@ -299,7 +297,7 @@ await channel.deleteObjects(['/space/article/hello-world.json']);
 `prompt()` invokes the AI agent. The agent can inspect space context and, unless `readOnly` or a read-only effort is used, create/modify/move/delete objects.
 
 ```typescript
-const { message, objects } = await channel.prompt(
+const { message, objects } = await conversation.prompt(
   'Create a topic node for the solar system, then child nodes for each planet.'
 );
 
@@ -322,12 +320,12 @@ console.log(objects.map((object) => object.path));
 
 ```typescript
 // Read-only quick question
-await channel.prompt('What topics are covered?', {
+await conversation.prompt('What topics are covered?', {
   effort: 'QUICK', // fast/read-only
 });
 
 // Focus on existing objects and files
-await channel.prompt('Compare these resources', {
+await conversation.prompt('Compare these resources', {
   attachments: [
     '/space/article/intro.json',
     'rool-machine:/rool-drive/docs/report.pdf',
@@ -335,12 +333,12 @@ await channel.prompt('Compare these resources', {
 });
 
 // Upload a local file as an attachment
-await channel.prompt('Describe this image', {
+await conversation.prompt('Describe this image', {
   attachments: [fileInput.files![0]],
 });
 
 // Structured response
-const { message } = await channel.prompt('Categorize these items', {
+const { message } = await conversation.prompt('Categorize these items', {
   responseSchema: {
     type: 'object',
     properties: {
@@ -353,7 +351,7 @@ const result = JSON.parse(message);
 
 // Stop a long prompt with a signal (when the caller holds the controller)
 const ac = new AbortController();
-const promptPromise = channel.prompt('Do a deep analysis', {
+const promptPromise = conversation.prompt('Do a deep analysis', {
   effort: 'RESEARCH',
   signal: ac.signal,
 });
@@ -365,39 +363,33 @@ await promptPromise;
 
 Use `signal` when the same call site cancels the prompt. When the Stop button
 lives elsewhere — a different component, after a reload, or a prompt another
-client started — stop by ID or stop the conversation's active interaction
-instead. Both are best-effort: the server halts the agent loop and closes the
-stream, but an LLM turn already in flight keeps generating server-side and is
-billed.
+client started — stop by interaction ID or through a conversation handle. Both
+are best-effort: the server halts the agent loop and closes the stream, but an
+LLM turn already in flight keeps generating server-side and is billed.
 
 ```typescript
-// Stop whatever is in flight on this channel's (default) conversation.
-// No-op returning false when nothing is running.
-await channel.stop();
-
-// Stop a specific interaction by ID (e.g. from channel.activeLeafId or
-// the interactions list). Returns whether the server stopped it.
-await channel.stopInteraction(channel.activeLeafId!);
+// Stop a specific interaction by ID (for example, from conversation.activeLeafId
+// or the interactions list). Returns whether the server stopped it.
+await space.stopInteraction(conversation.activeLeafId!);
 
 // Conversation handles stop their own in-flight interaction.
-const thread = channel.conversation('thread-42');
+const thread = space.conversation('thread-42');
 await thread.stop();
 ```
 
 | Method | Description |
 | --- | --- |
-| `stop(): Promise<boolean>` | Stop the in-flight interaction on the default conversation; `false` if none. |
 | `stopInteraction(id): Promise<boolean>` | Ask the server to stop a specific interaction by ID. |
 | `conversation.stop(): Promise<boolean>` | Stop a specific conversation's in-flight interaction. |
 
 ## Conversations
 
-Every channel has a default conversation. Use `channel.conversation(id)` for independent histories (for example, multiple chat threads). Conversations are represented as trees: interactions point at a `parentId`, and the SDK tracks an active leaf for each conversation.
+Use `space.conversation(id)` for independent histories (for example, multiple chat threads). Conversations are represented as trees: interactions point at a `parentId`, and the SDK tracks an active leaf for each conversation.
 
 ```typescript
-await channel.prompt('Hello'); // default conversation
+await conversation.prompt('Hello');
 
-const thread = channel.conversation('thread-42');
+const thread = space.conversation('thread-42');
 await thread.prompt('Hello from another thread');
 await thread.setSystemInstruction('Answer in haiku');
 
@@ -411,15 +403,14 @@ if (thread.activeLeafId) {
 
 | Method/property | Description |
 | --- | --- |
-| `channel.conversation(id): ConversationHandle` | Get a conversation-scoped handle. |
+| `space.conversation(id): ConversationHandle` | Get a conversation-scoped handle. |
 | `getInteractions(): Interaction[]` | Active branch as a flat list. |
 | `getTree(): Record<string, Interaction>` | Full interaction tree. |
 | `activeLeafId` | Current branch tip. |
 | `setActiveLeaf(id): void` | Switch branches. |
 | `getSystemInstruction()` / `setSystemInstruction(value)` | Manage conversation system instruction. Pass `null` to clear. |
-| `getConversations(): ConversationInfo[]` | List channel conversations (on `RoolChannel`). |
+| `getConversations(): ConversationInfo[]` | List conversations in the space. |
 | `deleteConversation(id): Promise<void>` | Delete a non-active conversation. |
-| `renameConversation(name): Promise<void>` | Rename the current/default conversation (on `RoolChannel`). |
 | `conversation.rename(name): Promise<void>` | Rename a specific conversation handle. |
 
 `ConversationHandle` also supports conversation-scoped `putObject`, `patchObject`, `moveObject`, `deleteObjects`, `prompt`, `stop`, collection-schema methods, and `setMetadata`.
@@ -429,7 +420,7 @@ if (thread.activeLeafId) {
 Collections define the schema visible to the AI agent. Hidden body fields whose names start with `_` are useful for app/UI state that should not be considered by AI.
 
 ```typescript
-await channel.createCollection('article', {
+await conversation.createCollection('article', {
   schemaOrgType: 'Article',
   fields: [
     { name: 'title', type: { kind: 'string' } },
@@ -439,15 +430,15 @@ await channel.createCollection('article', {
   ],
 });
 
-const schema = channel.getSchema();
+const schema = space.getSchema();
 
-await channel.alterCollection('article', [
+await conversation.alterCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'string' } },
 ]);
 
-channel.setMetadata('viewport', { x: 0, y: 0, zoom: 1 });
-const viewport = channel.getMetadata('viewport');
+conversation.setMetadata('viewport', { x: 0, y: 0, zoom: 1 });
+const viewport = space.getMetadata('viewport');
 ```
 
 | Method | Description |
@@ -464,14 +455,14 @@ Field kinds: `string`, `number`, `boolean`, `ref`, `enum`, `literal`, `array`, a
 
 ## Undo/Redo
 
-Undo/redo uses checkpoints for the current channel ID. A checkpoint captures space state; call `checkpoint()` before a user action you want to make undoable.
+Undo/redo uses checkpoints over the whole space. A checkpoint captures space state; call `checkpoint()` before a user action you want to make undoable.
 
 ```typescript
-await channel.checkpoint('Delete article');
-await channel.deleteObjects(['/space/article/welcome.json']);
+await space.checkpoint('Delete article');
+await conversation.deleteObjects(['/space/article/welcome.json']);
 
-if (await channel.canUndo()) {
-  await channel.undo();
+if (await space.canUndo()) {
+  await space.undo();
 }
 ```
 
@@ -484,7 +475,7 @@ if (await channel.canUndo()) {
 | `redo(): Promise<boolean>` | Reapply undone work. |
 | `clearHistory(): Promise<void>` | Clear checkpoint history. |
 
-Undo/redo availability and history are scoped to the channel handle (`channel.channelId`).
+Undo/redo availability and history are scoped to the space.
 
 ## File Storage and WebDAV
 
@@ -650,7 +641,7 @@ const client = new RoolClient({
 | `getAllUserStorage(): Record<string, unknown>` | Copy all cached user storage. |
 | `reportEvent(event, url?): void` | Fire-and-forget telemetry event. |
 | `destroy(): void` | Close subscriptions, spaces, auth resources, and listeners. |
-| `generateId(): string` | Generate a 6-character alphanumeric ID. |
+| `generateId(): string` | Generate a unique ID suitable for conversation IDs. |
 
 ### Client events
 
@@ -660,9 +651,6 @@ client.on('currentUserChanged', (user) => void 0); // CurrentUser | null; null o
 client.on('spaceAdded', (space) => void 0);
 client.on('spaceRemoved', (spaceId) => void 0);
 client.on('spaceRenamed', (spaceId, newName) => void 0);
-client.on('channelCreated', (spaceId, channel) => void 0);
-client.on('channelUpdated', (spaceId, channel) => void 0);
-client.on('channelDeleted', (spaceId, channelId) => void 0);
 client.on('userStorageChanged', ({ key, value, source }) => void 0);
 client.on('connectionStateChanged', (state) => void 0);
 client.on('error', (error, context) => void 0);
@@ -670,12 +658,18 @@ client.on('error', (error, context) => void 0);
 
 ## RoolSpace API
 
-Properties: `id`, `name`, `role`, `memberCount`, `channels`, `route`, `webdav`.
+Properties: `id`, `name`, `role`, `memberCount`, `conversations`, `route`, `webdav`.
 
 | Method | Description |
 | --- | --- |
-| `openChannel(channelId): Promise<RoolChannel>` | Open/create a channel. |
-| `close(): void` | Stop subscription and close open channels. |
+| `conversation(conversationId): ConversationHandle` | Get a conversation-scoped handle. |
+| `getObject`, `getObjects`, `stat` | Read object data and stats. |
+| `getConversations`, `deleteConversation` | List and delete conversations. |
+| `getMetadata`, `getAllMetadata`, `getSchema` | Read metadata and schema. |
+| `checkpoint`, `canUndo`, `canRedo`, `undo`, `redo`, `clearHistory` | Space history controls. |
+| `stopInteraction(interactionId): Promise<boolean>` | Stop an in-flight interaction by ID. |
+| `fetch(url, init?): Promise<Response>` | Proxy an external HTTP request through the server to bypass browser CORS. |
+| `close(): void` | Stop the space subscription. |
 | `rename(newName): Promise<void>` | Rename the space. |
 | `delete(): Promise<void>` | Permanently delete the space. |
 | `listUsers(): Promise<SpaceMember[]>` | List collaborators. |
@@ -684,8 +678,6 @@ Properties: `id`, `name`, `role`, `memberCount`, `channels`, `route`, `webdav`.
 | `createInvite(role, options?): Promise<SpaceInviteCreated>` | Mint an invite link; `options` takes `email`, `expiresInDays`, `maxUses`. |
 | `listInvites(): Promise<SpaceInvite[]>` | List currently redeemable invites. |
 | `revokeInvite(inviteId): Promise<boolean>` | Revoke an invite so its link stops working. |
-| `renameChannel(channelId, name): Promise<void>` | Rename a channel. |
-| `deleteChannel(channelId): Promise<void>` | Delete a channel and history. |
 | `exportArchive(): Promise<Blob>` | Export a space archive. |
 | `refresh(): Promise<void>` | Refresh cached space data. |
 | `fetchPath(path, options?): Promise<Response>` | Fetch a `/rool-drive/...` file. |
@@ -694,42 +686,15 @@ Properties: `id`, `name`, `role`, `memberCount`, `channels`, `route`, `webdav`.
 Events:
 
 ```typescript
-space.on('channelCreated', (channel) => void 0);
-space.on('channelUpdated', (channel) => void 0);
-space.on('channelDeleted', (channelId) => void 0);
+space.on('metadataUpdated', ({ metadata, source }) => void 0);
+space.on('schemaUpdated', ({ schema, source }) => void 0);
+space.on('conversationUpdated', ({ conversationId, source }) => void 0);
+space.on('reset', ({ source }) => void 0);
+space.on('syncError', (error) => void 0);
 space.on('filesChanged', ({ spaceId, source, timestamp }) => void 0);
 space.on('filesReset', ({ spaceId, source, timestamp }) => void 0);
 space.on('connectionStateChanged', (state) => void 0);
 ```
-
-## RoolChannel API
-
-Properties: `id` (space ID), `name` (space name), `role`, `userId`, `channelId`, `channelName`, `conversationId`, `isReadOnly`, `activeLeafId`.
-
-| Area | Methods |
-| --- | --- |
-| Lifecycle | `close()`, `rename(name)`, `conversation(id)` |
-| Objects | `getObject`, `getObjects`, `stat`, `putObject`, `patchObject`, `moveObject`, `deleteObjects` |
-| Schema | `getSchema`, `createCollection`, `alterCollection`, `dropCollection` |
-| Metadata | `setMetadata`, `getMetadata`, `getAllMetadata` |
-| Conversations | `getInteractions`, `getTree`, `setActiveLeaf`, `getConversations`, `deleteConversation`, `getSystemInstruction`, `setSystemInstruction`, `renameConversation` |
-| AI | `prompt`, `stop`, `stopInteraction` |
-| Undo/redo | `checkpoint`, `canUndo`, `canRedo`, `undo`, `redo`, `clearHistory` |
-| Utilities | `fetch(url, init?)` server-side proxied fetch |
-
-Channel events:
-
-```typescript
-channel.on('metadataUpdated', ({ metadata, source }) => void 0);
-channel.on('schemaUpdated', ({ schema, source }) => void 0);
-channel.on('channelUpdated', ({ channelId, source }) => void 0);
-channel.on('conversationUpdated', ({ conversationId, channelId, source }) => void 0);
-channel.on('reset', ({ source }) => void 0);
-channel.on('syncError', (error) => void 0);
-```
-
-`channel.fetch(url, init?)` proxies external HTTP requests through the server to bypass browser CORS.
-
 ## Import/Export
 
 ```typescript
@@ -737,7 +702,7 @@ const archive = await space.exportArchive();
 const imported = await client.importArchive('Imported Data', archive);
 ```
 
-Archives include objects, metadata, channels/conversations, and file storage.
+Archives include objects, metadata, conversations, and file storage.
 
 ## Data Types
 
@@ -839,7 +804,6 @@ interface RoolObjectStat {
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
-  modifiedInChannel: string;
   modifiedInConversation: string | null;
   modifiedInInteraction: string | null;
 }

@@ -18,10 +18,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: topic-expand');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('topic-expand-eval');
+      const conversation = space.conversation('topic-expand-eval');
       await createCollectionWithRetry(conversation, 'topic', [
         { name: 'headline', type: { kind: 'string' } },
       ]);

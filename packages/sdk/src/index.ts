@@ -1,8 +1,8 @@
 // Main client
 export { RoolClient } from './client.js';
 
-// Channel class
-export { RoolChannel, ConversationHandle, generateEntityId } from './channel.js';
+// Space operation helpers
+export { ConversationHandle, generateEntityId } from './space-session.js';
 
 // Space class
 export { RoolSpace } from './space.js';
@@ -58,8 +58,8 @@ export type {
   // Subscription event types (wire protocol)
   ClientEvent,
   ClientEventType,
-  ChannelEvent,
-  ChannelEventType,
+  SpaceEvent,
+  SpaceEventType,
   RoolEventSource,
 
   // User types
@@ -95,16 +95,13 @@ export type {
 
   // Event types (emitter)
   ChangeSource,
-  ChannelEvents,
+  SpaceContentEvents,
   MetadataUpdatedEvent,
   SchemaUpdatedEvent,
-  ChannelUpdatedEvent,
   ConversationUpdatedEvent,
   ResetEvent,
 
-  // Channel types
-  Channel,
-  ChannelInfo,
+  // Conversation types
   Conversation,
   ConversationInfo,
   Interaction,

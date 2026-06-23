@@ -7,14 +7,14 @@ import type {
   RoolObject,
   GetObjectsResult,
   RoolObjectStat,
-  ChannelEvents,
+  RoolSpaceEvents,
   RoolUserRole,
   PromptOptions,
   UpdateObjectOptions,
   MoveObjectOptions,
-  ChannelEvent,
+  SpaceEvent,
   Interaction,
-  Channel,
+  Conversation,
   ConversationInfo,
   SpaceSchema,
   CollectionDef,
@@ -187,7 +187,7 @@ function base64Body(data: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export interface ChannelConfig {
+export interface SpaceOperationsConfig {
   id: string;
   name: string;
   role: RoolUserRole;
@@ -199,10 +199,8 @@ export interface ChannelConfig {
   schema: SpaceSchema;
   /** Space metadata */
   meta: Record<string, unknown>;
-  /** This channel's data (undefined if new) */
-  channel: Channel | undefined;
-  /** Channel ID for this channel (required). */
-  channelId: string;
+  /** Conversations keyed by ID. */
+  conversations: Record<string, Conversation>;
   graphqlClient: GraphQLClient;
   restClient: RestClient;
   webdav: RoolWebDAV;
@@ -211,59 +209,52 @@ export interface ChannelConfig {
 }
 
 /**
- * A channel is a space + channelId pair.
+ * Operational handle for a space.
  *
- * All object operations go through a channel. The channelId is fixed
- * at open time and cannot be changed. To use a different channel,
- * open a second one.
- *
- * Objects are addressed by machine path (`/space/.../*.json`).
- * Only schema, metadata, object stats, and the channel's own history are cached
- * locally. Object bodies are fetched on demand. Object/file reactivity is
- * exposed at the space level via WebDAV sync notifications.
+ * Objects are addressed by machine path (`/space/.../*.json`). Conversation handles
+ * control attribution and AI history. Only schema, metadata,
+ * object stats, and conversation history are cached locally. Object bodies are
+ * fetched on demand. Object/file reactivity is exposed at the space level via
+ * WebDAV sync notifications.
  */
-export class RoolChannel extends EventEmitter<ChannelEvents> {
-  private _id: string;
-  private _name: string;
-  private _role: RoolUserRole;
-  private _userId: string;
-  private _channelId: string;
-  private _conversationId: string;
-  private _closed: boolean = false;
-  private graphqlClient: GraphQLClient;
-  private restClient: RestClient;
-  private webdav: RoolWebDAV;
-  private onCloseCallback: () => void;
-  private logger: Logger;
+export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
+  protected _id: string;
+  protected _name: string;
+  protected _role: RoolUserRole;
+  protected _userId: string;
+  protected _closed: boolean = false;
+  protected _graphqlClient: GraphQLClient;
+  protected _restClient: RestClient;
+  protected _webdav: RoolWebDAV;
+  protected _onCloseCallback: () => void;
+  protected _logger: Logger;
 
-  // Local cache for bounded data (schema, metadata, own channel, object stats)
-  private _meta: Record<string, unknown>;
-  private _schema: SpaceSchema;
-  private _channel: Channel | undefined;
-  private _objectStats: Map<string, RoolObjectStat>;
+  // Local cache for bounded data (schema, metadata, conversations, object stats)
+  protected _meta: Record<string, unknown>;
+  protected _schema: SpaceSchema;
+  protected _conversations: Record<string, Conversation>;
+  protected _objectStats: Map<string, RoolObjectStat>;
 
   // Active leaf per conversation (client-side tree cursor)
-  private _activeLeaves = new Map<string, string>();
+  protected _activeLeaves = new Map<string, string>();
 
-  constructor(config: ChannelConfig) {
+  constructor(config: SpaceOperationsConfig) {
     super();
     this._id = config.id;
     this._name = config.name;
     this._role = config.role;
     this._userId = config.userId;
     this._emitterLogger = config.logger;
-    this._channelId = config.channelId;
-    this._conversationId = 'default';
-    this.graphqlClient = config.graphqlClient;
-    this.restClient = config.restClient;
-    this.webdav = config.webdav;
-    this.logger = config.logger;
-    this.onCloseCallback = config.onClose;
+    this._graphqlClient = config.graphqlClient;
+    this._restClient = config.restClient;
+    this._webdav = config.webdav;
+    this._logger = config.logger;
+    this._onCloseCallback = config.onClose;
 
     // Initialize local cache from server data
     this._meta = config.meta;
     this._schema = config.schema;
-    this._channel = config.channel ?? undefined;
+    this._conversations = config.conversations;
     this._objectStats = new Map(Object.entries(config.objectStats));
   }
 
@@ -272,26 +263,26 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Called by the client's event router.
    * @internal
    */
-  _handleEvent(event: ChannelEvent): void {
-    this.handleChannelEvent(event);
+  _handleEvent(event: SpaceEvent): void {
+    this.applySpaceContentEvent(event);
   }
 
   /**
    * Apply resync data after reconnection. Called by the client, which
-   * fetches space data once and distributes to all channels.
+   * fetches space data once and applies it.
    * @internal
    */
   _applyResyncData(data: {
     meta: Record<string, unknown>;
     schema: SpaceSchema;
     objectStats: Record<string, RoolObjectStat>;
-    channel: Channel | undefined;
+    conversations: Record<string, Conversation>;
   }): void {
     if (this._closed) return;
     this._meta = data.meta;
     this._schema = data.schema;
     this._objectStats = new Map(Object.entries(data.objectStats));
-    if (data.channel) this._channel = data.channel;
+    this._conversations = data.conversations;
     this._activeLeaves.clear();
     this.emit('reset', { source: 'system' });
   }
@@ -313,45 +304,16 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this._userId;
   }
 
-  /**
-   * Get the channel's display name, or null if not set.
-   */
-  get channelName(): string | null {
-    return this._channel?.name ?? null;
-  }
 
-  /**
-   * Get the channel ID for this channel.
-   * Fixed at open time — cannot be changed.
-   */
-  get channelId(): string {
-    return this._channelId;
-  }
-
-  /**
-   * Get the conversation ID for this channel.
-   * Defaults to 'default' for most apps.
-   */
-  get conversationId(): string {
-    return this._conversationId;
-  }
 
   get isReadOnly(): boolean {
     return this._role === 'viewer';
   }
 
 
-  /**
-   * Get the active branch of the current conversation as a flat array (root → leaf).
-   * Walks from the active leaf up through parentId pointers.
-   */
-  getInteractions(): Interaction[] {
-    return this._getInteractionsImpl(this._conversationId);
-  }
-
   /** @internal */
   _getInteractionsImpl(conversationId: string): Interaction[] {
-    const interactions = this._channel?.conversations[conversationId]?.interactions;
+    const interactions = this._conversations[conversationId]?.interactions;
     if (!interactions) return [];
 
     // Handle legacy array format
@@ -363,63 +325,37 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return walkBranch(interactions, leafId);
   }
 
-  /**
-   * Get the full interaction tree for a conversation as a record.
-   * For clients that need to render branch navigation UI.
-   */
-  getTree(): Record<string, Interaction> {
-    return this._getTreeImpl(this._conversationId);
-  }
-
   /** @internal */
   _getTreeImpl(conversationId: string): Record<string, Interaction> {
-    const interactions = this._channel?.conversations[conversationId]?.interactions;
+    const interactions = this._conversations[conversationId]?.interactions;
     if (!interactions || Array.isArray(interactions)) return {};
     return interactions;
   }
 
-  /**
-   * Get the active leaf interaction ID for a conversation.
-   * Returns undefined if the conversation has no interactions.
-   */
-  get activeLeafId(): string | undefined {
-    return this._getActiveLeafImpl(this._conversationId);
-  }
-
   /** @internal */
   _getActiveLeafImpl(conversationId: string): string | undefined {
-    return this._activeLeaves.get(conversationId) ?? findDefaultLeaf(this._channel?.conversations[conversationId]?.interactions);
-  }
-
-  /**
-   * Set the active leaf for a conversation (switch branches).
-   * Emits a conversationUpdated event so reactive wrappers refresh.
-   */
-  setActiveLeaf(interactionId: string): void {
-    this._setActiveLeafImpl(interactionId, this._conversationId);
+    return this._activeLeaves.get(conversationId) ?? findDefaultLeaf(this._conversations[conversationId]?.interactions);
   }
 
   /** @internal */
   _setActiveLeafImpl(interactionId: string, conversationId: string): void {
-    const interactions = this._channel?.conversations[conversationId]?.interactions;
+    const interactions = this._conversations[conversationId]?.interactions;
     if (!interactions || Array.isArray(interactions) || !interactions[interactionId]) {
       throw new Error(`Interaction "${interactionId}" not found in conversation "${conversationId}"`);
     }
     this._activeLeaves.set(conversationId, interactionId);
     this.emit('conversationUpdated', {
       conversationId,
-      channelId: this._channelId,
       source: 'local_user',
     });
   }
 
   /**
-   * Get all conversations in this channel.
+   * Get all conversations in this space.
    * Returns summary info (no full interaction data) for each conversation.
    */
   getConversations(): ConversationInfo[] {
-    if (!this._channel) return [];
-    return Object.entries(this._channel.conversations).map(([id, conv]) => ({
+    return Object.entries(this._conversations).map(([id, conv]) => ({
       id,
       name: conv.name ?? null,
       systemInstruction: conv.systemInstruction ?? null,
@@ -430,41 +366,35 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Delete a conversation from this channel.
-   * Cannot delete the conversation you are currently using.
+   * Delete a conversation from this space.
    */
   async deleteConversation(conversationId: string): Promise<void> {
-    if (conversationId === this._conversationId) {
-      throw new Error('Cannot delete the active conversation');
-    }
-    await this.graphqlClient.deleteConversation(this._id, this._channelId, conversationId);
+    await this._graphqlClient.deleteConversation(this._id, conversationId);
 
     // Optimistic local update — remove from cache and emit event
     // in case the server doesn't send a conversation_updated event for deletes
-    if (this._channel?.conversations[conversationId]) {
-      delete this._channel.conversations[conversationId];
+    if (this._conversations[conversationId]) {
+      delete this._conversations[conversationId];
       this.emit('conversationUpdated', {
         conversationId,
-        channelId: this._channelId,
         source: 'local_user',
       });
     }
   }
 
   /**
-   * Get a handle for a specific conversation within this channel.
+   * Get a handle for a specific conversation.
    */
   conversation(conversationId: string): ConversationHandle {
     return new ConversationHandle(this, conversationId);
   }
 
   /**
-   * Close this channel and clean up resources.
-   * Stops real-time subscription and unregisters from client.
+   * Close this space session and clean up resources.
    */
   close(): void {
     this._closed = true;
-    this.onCloseCallback();
+    this._onCloseCallback();
 
     this.removeAllListeners();
   }
@@ -473,46 +403,44 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
    * Create a checkpoint of the current space state.
    */
   async checkpoint(label: string = 'Change'): Promise<string> {
-    const result = await this.graphqlClient.checkpoint(
+    const result = await this._graphqlClient.checkpoint(
       this._id,
       label,
-      this._channelId,
     );
     return result.checkpointId;
   }
 
   /** Check if undo is available for this space. */
   async canUndo(): Promise<boolean> {
-    const status = await this.graphqlClient.checkpointStatus(this._id, this._channelId);
+    const status = await this._graphqlClient.checkpointStatus(this._id);
     return status.canUndo;
   }
 
   /** Check if redo is available for this space. */
   async canRedo(): Promise<boolean> {
-    const status = await this.graphqlClient.checkpointStatus(this._id, this._channelId);
+    const status = await this._graphqlClient.checkpointStatus(this._id);
     return status.canRedo;
   }
 
   /** Restore the space to the most recent checkpoint. */
   async undo(): Promise<boolean> {
-    const result = await this.graphqlClient.undo(this._id, this._channelId);
+    const result = await this._graphqlClient.undo(this._id);
     return result.success;
   }
 
   /** Reapply the most recently undone checkpoint. */
   async redo(): Promise<boolean> {
-    const result = await this.graphqlClient.redo(this._id, this._channelId);
+    const result = await this._graphqlClient.redo(this._id);
     return result.success;
   }
 
   /** Clear the space's checkpoint history. */
   async clearHistory(): Promise<void> {
-    await this.graphqlClient.clearCheckpointHistory(this._id, this._channelId);
+    await this._graphqlClient.clearCheckpointHistory(this._id);
   }
 
   private davHeaders(conversationId: string, interactionId?: string): Headers {
     const headers = new Headers({
-      'X-Rool-Channel-Id': this._channelId,
       'X-Rool-Conversation-Id': conversationId,
     });
     if (interactionId) headers.set('X-Rool-Interaction-Id', interactionId);
@@ -522,7 +450,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   private async readObject(path: string): Promise<{ object: RoolObject; etag: string | null } | undefined> {
     const canonical = objectPath(path);
     try {
-      const response = await this.webdav.get(canonical);
+      const response = await this._webdav.get(canonical);
       const body = jsonObject(await response.json(), `Object ${canonical}`);
       return { object: objectFromBody(canonical, body), etag: response.headers.get('ETag') };
     } catch (error) {
@@ -551,7 +479,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const result: GetObjectsResult = { objects: [], missing: [] };
     for (let i = 0; i < canonical.length; i += GET_OBJECTS_CHUNK_SIZE) {
       const chunk = canonical.slice(i, i + GET_OBJECTS_CHUNK_SIZE);
-      const partial = await this.restClient.getObjects(this._id, chunk);
+      const partial = await this._restClient.getObjects(this._id, chunk);
       result.objects.push(...partial.objects);
       result.missing.push(...partial.missing);
     }
@@ -563,10 +491,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this._objectStats.get(objectPath(path));
   }
 
-  /** Create or replace an object JSON file at an exact machine path. */
-  async putObject(path: string, body: Record<string, unknown>): Promise<{ object: RoolObject; message: string }> {
-    return this._putObjectImpl(path, body, this._conversationId);
-  }
 
   /** @internal */
   async _putObjectImpl(path: string, body: Record<string, unknown>, conversationId: string): Promise<{ object: RoolObject; message: string }> {
@@ -575,23 +499,19 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const interactionId = generateEntityId();
-      await this.webdav.put(canonical, JSON.stringify(body), {
+      await this._webdav.put(canonical, JSON.stringify(body), {
         contentType: 'application/json',
         headers: this.davHeaders(conversationId, interactionId),
       });
       const fresh = await this.getObject(canonical) ?? optimistic;
       return { object: fresh, message: `Put ${canonical}` };
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to put object:', error);
+      this._logger.error('[RoolSpace] Failed to put object:', error);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
 
-  /** Patch an existing object. Null or undefined deletes a field. */
-  async patchObject(path: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._patchObjectImpl(path, options, this._conversationId);
-  }
 
   /** @internal */
   async _patchObjectImpl(path: string, options: UpdateObjectOptions, conversationId: string): Promise<{ object: RoolObject; message: string }> {
@@ -604,7 +524,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const interactionId = generateEntityId();
-      await this.webdav.put(canonical, JSON.stringify(body), {
+      await this._webdav.put(canonical, JSON.stringify(body), {
         contentType: 'application/json',
         ifMatch: current.etag ?? undefined,
         headers: this.davHeaders(conversationId, interactionId),
@@ -612,16 +532,12 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       const fresh = await this.getObject(canonical) ?? optimistic;
       return { object: fresh, message: `Patched ${canonical}` };
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to patch object:', error);
+      this._logger.error('[RoolSpace] Failed to patch object:', error);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
 
-  /** Move an object JSON file to a new machine path, optionally replacing its body. */
-  async moveObject(from: string, to: string, options?: MoveObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._moveObjectImpl(from, to, options, this._conversationId);
-  }
 
   /** @internal */
   async _moveObjectImpl(from: string, to: string, options: MoveObjectOptions | undefined, conversationId: string): Promise<{ object: RoolObject; message: string }> {
@@ -631,11 +547,11 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const interactionId = generateEntityId();
-      await this.webdav.move(fromPath, toPath, {
+      await this._webdav.move(fromPath, toPath, {
         headers: this.davHeaders(conversationId, interactionId),
       });
       if (options?.body) {
-        await this.webdav.put(toPath, JSON.stringify(options.body), {
+        await this._webdav.put(toPath, JSON.stringify(options.body), {
           contentType: 'application/json',
           headers: this.davHeaders(conversationId, interactionId),
         });
@@ -644,21 +560,12 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
       const fresh = await this.getObject(toPath) ?? optimistic;
       return { object: fresh, message: `Moved ${fromPath} to ${toPath}` };
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to move object:', error);
+      this._logger.error('[RoolSpace] Failed to move object:', error);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
 
-  /** Delete object JSON files by machine path. */
-  async deleteObjects(paths: string[]): Promise<void> {
-    return this._deleteObjectsImpl(paths, this._conversationId);
-  }
-
-  /** @deprecated Use deleteObjects instead. */
-  async deletePaths(paths: string[]): Promise<void> {
-    return this.deleteObjects(paths);
-  }
 
   /** @internal */
   async _deleteObjectsImpl(paths: string[], conversationId: string): Promise<void> {
@@ -668,13 +575,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     try {
       const interactionId = generateEntityId();
       for (const path of canonical) {
-        await this.webdav.delete(path, {
+        await this._webdav.delete(path, {
           headers: this.davHeaders(conversationId, interactionId),
         });
         this._objectStats.delete(path);
       }
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to delete paths:', error);
+      this._logger.error('[RoolSpace] Failed to delete paths:', error);
       this.emit('syncError', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
@@ -685,10 +592,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this._schema;
   }
 
-  /** Create a new collection schema. */
-  async createCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
-    return this._createCollectionImpl(name, fields, options, this._conversationId);
-  }
 
   /** @internal */
   async _createCollectionImpl(name: string, fields: FieldDef[] | CollectionDef, options: CollectionOptions | undefined, conversationId: string): Promise<CollectionDef> {
@@ -701,24 +604,20 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this._schema[name] = optimisticDef;
 
     try {
-      await this.webdav.mkcol(collectionPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
-      await this.webdav.put(schemaPath(name), JSON.stringify(optimisticDef), {
+      await this._webdav.mkcol(collectionPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
+      await this._webdav.put(schemaPath(name), JSON.stringify(optimisticDef), {
         contentType: 'application/json',
         headers: this.davHeaders(conversationId, generateEntityId()),
       });
       this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
       return optimisticDef;
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to create collection:', error);
+      this._logger.error('[RoolSpace] Failed to create collection:', error);
       delete this._schema[name];
       throw error;
     }
   }
 
-  /** Alter an existing collection schema, replacing its field definitions. */
-  async alterCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
-    return this._alterCollectionImpl(name, fields, options, this._conversationId);
-  }
 
   /** @internal */
   async _alterCollectionImpl(name: string, fields: FieldDef[] | CollectionDef, options: CollectionOptions | undefined, conversationId: string): Promise<CollectionDef> {
@@ -731,23 +630,19 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     try {
       const updated = this._schema[name];
-      await this.webdav.put(schemaPath(name), JSON.stringify(updated), {
+      await this._webdav.put(schemaPath(name), JSON.stringify(updated), {
         contentType: 'application/json',
         headers: this.davHeaders(conversationId, generateEntityId()),
       });
       this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
       return updated;
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to alter collection:', error);
+      this._logger.error('[RoolSpace] Failed to alter collection:', error);
       this._schema[name] = previous;
       throw error;
     }
   }
 
-  /** Drop a collection schema. */
-  async dropCollection(name: string): Promise<void> {
-    return this._dropCollectionImpl(name, this._conversationId);
-  }
 
   /** @internal */
   async _dropCollectionImpl(name: string, conversationId: string): Promise<void> {
@@ -759,36 +654,26 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     delete this._schema[name];
 
     try {
-      await this.webdav.delete(collectionPath(name), { collection: true, headers: this.davHeaders(conversationId, generateEntityId()) });
+      await this._webdav.delete(collectionPath(name), { collection: true, headers: this.davHeaders(conversationId, generateEntityId()) });
       this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to drop collection:', error);
+      this._logger.error('[RoolSpace] Failed to drop collection:', error);
       this._schema[name] = previous;
       throw error;
     }
   }
 
-  /**
-   * Get the system instruction for the current conversation.
-   */
-  getSystemInstruction(): string | undefined {
-    return this._getSystemInstructionImpl(this._conversationId);
-  }
 
   /** @internal */
   _getSystemInstructionImpl(conversationId: string): string | undefined {
-    return this._channel?.conversations[conversationId]?.systemInstruction;
+    return this._conversations[conversationId]?.systemInstruction;
   }
 
-  /** Set the system instruction for the current conversation. */
-  async setSystemInstruction(instruction: string | null): Promise<void> {
-    return this._setSystemInstructionImpl(instruction, this._conversationId);
-  }
 
   /** @internal */
   async _setSystemInstructionImpl(instruction: string | null, conversationId: string): Promise<void> {
     this._ensureConversationImpl(conversationId);
-    const conv = this._channel!.conversations[conversationId];
+    const conv = this._conversations[conversationId];
     const previousInstruction = conv.systemInstruction;
     if (instruction === null) {
       delete conv.systemInstruction;
@@ -798,25 +683,17 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     this.emit('conversationUpdated', {
       conversationId,
-      channelId: this._channelId,
       source: 'local_user',
     });
-    if (conversationId === this._conversationId) {
-      this.emit('channelUpdated', {
-        channelId: this._channelId,
-        source: 'local_user',
-      });
-    }
 
     try {
-      await this.graphqlClient.updateConversation(
+      await this._graphqlClient.updateConversation(
         this._id,
-        this._channelId,
         conversationId,
         { systemInstruction: instruction },
       );
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to set system instruction:', error);
+      this._logger.error('[RoolSpace] Failed to set system instruction:', error);
       if (previousInstruction === undefined) {
         delete conv.systemInstruction;
       } else {
@@ -826,39 +703,26 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
   }
 
-  /** Rename the current conversation. */
-  async renameConversation(name: string): Promise<void> {
-    return this._renameConversationImpl(name, this._conversationId);
-  }
-
   /** @internal */
   async _renameConversationImpl(name: string, conversationId: string): Promise<void> {
     this._ensureConversationImpl(conversationId);
-    const conv = this._channel!.conversations[conversationId];
+    const conv = this._conversations[conversationId];
     const previousName = conv.name;
     conv.name = name;
 
     this.emit('conversationUpdated', {
       conversationId,
-      channelId: this._channelId,
       source: 'local_user',
     });
-    if (conversationId === this._conversationId) {
-      this.emit('channelUpdated', {
-        channelId: this._channelId,
-        source: 'local_user',
-      });
-    }
 
     try {
-      await this.graphqlClient.updateConversation(
+      await this._graphqlClient.updateConversation(
         this._id,
-        this._channelId,
         conversationId,
         { name },
       );
     } catch (error) {
-      this.logger.error('[RoolChannel] Failed to rename conversation:', error);
+      this._logger.error('[RoolSpace] Failed to rename conversation:', error);
       conv.name = previousName;
       throw error;
     }
@@ -866,15 +730,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
   /** @internal */
   _ensureConversationImpl(conversationId: string): void {
-    if (!this._channel) {
-      this._channel = {
-        createdAt: Date.now(),
-        createdBy: this._userId,
-        conversations: {},
-      };
-    }
-    if (!this._channel.conversations[conversationId]) {
-      this._channel.conversations[conversationId] = {
+    if (!this._conversations[conversationId]) {
+      this._conversations[conversationId] = {
         createdAt: Date.now(),
         createdBy: this._userId,
         interactions: {},
@@ -882,10 +739,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     }
   }
 
-  /** Set a space-level metadata value. */
-  setMetadata(key: string, value: unknown): void {
-    this._setMetadataImpl(key, value, this._conversationId);
-  }
 
   /** @internal */
   _setMetadataImpl(key: string, value: unknown, conversationId: string): void {
@@ -893,9 +746,9 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     this.emit('metadataUpdated', { metadata: this._meta, source: 'local_user' });
 
     // Fire-and-forget server call
-    this.graphqlClient.setSpaceMeta(this._id, this._meta, this._channelId, conversationId)
+    this._graphqlClient.setSpaceMeta(this._id, this._meta, conversationId)
       .catch((error) => {
-        this.logger.error('[RoolChannel] Failed to set meta:', error);
+        this._logger.error('[RoolSpace] Failed to set meta:', error);
       });
   }
 
@@ -907,14 +760,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   /** Get all space-level metadata. */
   getAllMetadata(): Record<string, unknown> {
     return this._meta;
-  }
-
-  /**
-   * Send a prompt to the AI agent for space manipulation.
-   * @returns The message from the AI and the list of objects that were created or modified.
-   */
-  async prompt(prompt: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
-    return this._promptImpl(prompt, options, this._conversationId);
   }
 
   /** @internal */
@@ -954,7 +799,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     let result;
     try {
-      result = await this.graphqlClient.prompt(this._id, prompt, this._channelId, conversationId, {
+      result = await this._graphqlClient.prompt(this._id, prompt, conversationId, {
         ...rest,
         attachmentRefs,
         interactionId,
@@ -977,25 +822,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
   }
 
   /**
-   * Stop the in-flight interaction on the default conversation, if any.
-   *
-   * No-op returning `false` when the active leaf is already finished or the
-   * conversation has no interactions. Stopping is best-effort: the server
-   * halts the agent loop and closes the stream, but an LLM turn already in
-   * flight keeps generating server-side and is billed.
-   */
-  async stop(): Promise<boolean> {
-    return this._stopImpl(this._conversationId);
-  }
-
-  /**
    * Request that the server stop a specific in-flight interaction by ID.
    *
    * Returns whether the server stopped an interaction (`false` if it had
-   * already finished). Stopping is best-effort — see {@link stop}.
+   * already finished). Stopping is best-effort — see {@link ConversationHandle.stop}.
    */
   async stopInteraction(interactionId: string): Promise<boolean> {
-    return this.graphqlClient.stopInteraction(this._id, interactionId);
+    return this._graphqlClient.stopInteraction(this._id, interactionId);
   }
 
   /** @internal */
@@ -1003,7 +836,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     const leafId = this._getActiveLeafImpl(conversationId);
     if (!leafId) return false;
 
-    const interactions = this._channel?.conversations[conversationId]?.interactions;
+    const interactions = this._conversations[conversationId]?.interactions;
     const interaction = interactions && !Array.isArray(interactions) ? interactions[leafId] : undefined;
     // Skip the round trip when we already know the interaction has settled.
     if (interaction && (interaction.status === 'done' || interaction.status === 'error')) {
@@ -1013,25 +846,6 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     return this.stopInteraction(leafId);
   }
 
-  /** Rename this channel. */
-  async rename(newName: string): Promise<void> {
-    const previousName = this._channel?.name;
-    if (this._channel) {
-      this._channel.name = newName;
-    }
-    this.emit('channelUpdated', { channelId: this._channelId, source: 'local_user' });
-
-    try {
-      await this.graphqlClient.renameChannel(this._id, this._channelId, newName);
-    } catch (error) {
-      this.logger.error('[RoolChannel] Failed to rename channel:', error);
-      if (this._channel) {
-        this._channel.name = previousName;
-      }
-      throw error;
-    }
-  }
-
   /**
    * Fetch an external URL via the server proxy, bypassing CORS restrictions.
    */
@@ -1039,7 +853,7 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
     url: string,
     init?: { method?: string; headers?: Record<string, string>; body?: unknown }
   ): Promise<Response> {
-    return this.restClient.proxyFetch(this._id, url, init);
+    return this._restClient.proxyFetch(this._id, url, init);
   }
 
   private async uploadAttachment(
@@ -1052,21 +866,21 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
     const attachment = attachmentBody(file);
     const path = `${directory}/${attachment.filename}`;
-    await this.webdav.put(path, attachment.body, { contentType: attachment.contentType });
+    await this._webdav.put(path, attachment.body, { contentType: attachment.contentType });
     return path;
   }
 
   private async ensureCollection(path: string): Promise<void> {
-    const response = await this.webdav.request('MKCOL', path, { collection: true });
+    const response = await this._webdav.request('MKCOL', path, { collection: true });
     if (response.status === 201 || response.status === 405) return;
     throw new Error(`Failed to create collection ${path}: ${response.status} ${await response.text()}`);
   }
 
   /**
-   * Handle a channel event from the subscription.
+   * Handle a space event from the subscription.
    * @internal
    */
-  private handleChannelEvent(event: ChannelEvent): void {
+  private applySpaceContentEvent(event: SpaceEvent): void {
     if (this._closed) return;
 
     const changeSource = event.source === 'agent' ? 'remote_agent' : 'remote_user';
@@ -1090,39 +904,13 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
         }
         break;
 
-      case 'channel_updated':
-        if (event.channelId === this._channelId && event.channel) {
-          const changed = JSON.stringify(this._channel) !== JSON.stringify(event.channel);
-          this._channel = event.channel;
-          if (changed) {
-            this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
-          }
-        }
-        break;
-
-      case 'channel_deleted':
-        if (event.channelId === this._channelId) {
-          this._channel = undefined;
-          this._activeLeaves.clear();
-          this.emit('reset', { source: changeSource });
-        }
-        break;
-
       case 'conversation_updated':
-        if (event.channelId === this._channelId && event.conversationId) {
-          if (!this._channel) {
-            this._channel = {
-              createdAt: Date.now(),
-              createdBy: this._userId,
-              conversations: {},
-            };
-          }
-
-          const prev = this._channel.conversations[event.conversationId];
+        if (event.conversationId) {
+          const prev = this._conversations[event.conversationId];
           if (event.conversation) {
-            this._channel.conversations[event.conversationId] = event.conversation;
+            this._conversations[event.conversationId] = event.conversation;
           } else {
-            delete this._channel.conversations[event.conversationId];
+            delete this._conversations[event.conversationId];
           }
 
           if (JSON.stringify(prev) === JSON.stringify(event.conversation)) break;
@@ -1141,13 +929,8 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 
           this.emit('conversationUpdated', {
             conversationId: event.conversationId,
-            channelId: event.channelId,
             source: changeSource,
           });
-
-          if (event.conversationId === this._conversationId) {
-            this.emit('channelUpdated', { channelId: event.channelId, source: changeSource });
-          }
         }
         break;
 
@@ -1159,16 +942,16 @@ export class RoolChannel extends EventEmitter<ChannelEvents> {
 }
 
 /**
- * A lightweight handle for a specific conversation within a channel.
+ * A lightweight handle for a specific conversation.
  */
 export class ConversationHandle {
   /** @internal */
-  private _channel: RoolChannel;
+  private _space: SpaceOperations;
   private _conversationId: string;
 
   /** @internal */
-  constructor(channel: RoolChannel, conversationId: string) {
-    this._channel = channel;
+  constructor(space: SpaceOperations, conversationId: string) {
+    this._space = space;
     this._conversationId = conversationId;
   }
 
@@ -1177,57 +960,62 @@ export class ConversationHandle {
 
   /** Get the active branch of this conversation as a flat array (root → leaf). */
   getInteractions(): Interaction[] {
-    return this._channel._getInteractionsImpl(this._conversationId);
+    return this._space._getInteractionsImpl(this._conversationId);
   }
 
   /** Get the full interaction tree as a record. */
   getTree(): Record<string, Interaction> {
-    return this._channel._getTreeImpl(this._conversationId);
+    return this._space._getTreeImpl(this._conversationId);
   }
 
   /** Get the active leaf interaction ID, or undefined if empty. */
   get activeLeafId(): string | undefined {
-    return this._channel._getActiveLeafImpl(this._conversationId);
+    return this._space._getActiveLeafImpl(this._conversationId);
   }
 
   /** Switch to a different branch by setting the active leaf. */
   setActiveLeaf(interactionId: string): void {
-    this._channel._setActiveLeafImpl(interactionId, this._conversationId);
+    this._space._setActiveLeafImpl(interactionId, this._conversationId);
   }
 
   /** Get the system instruction for this conversation. */
   getSystemInstruction(): string | undefined {
-    return this._channel._getSystemInstructionImpl(this._conversationId);
+    return this._space._getSystemInstructionImpl(this._conversationId);
   }
 
   /** Set the system instruction for this conversation. Pass null to clear. */
   async setSystemInstruction(instruction: string | null): Promise<void> {
-    return this._channel._setSystemInstructionImpl(instruction, this._conversationId);
+    return this._space._setSystemInstructionImpl(instruction, this._conversationId);
   }
 
   /** Rename this conversation. */
   async rename(name: string): Promise<void> {
-    return this._channel._renameConversationImpl(name, this._conversationId);
+    return this._space._renameConversationImpl(name, this._conversationId);
+  }
+
+  /** Delete this conversation. */
+  async delete(): Promise<void> {
+    return this._space.deleteConversation(this._conversationId);
   }
 
   /** Create or replace an object JSON file. */
   async putObject(path: string, body: Record<string, unknown>): Promise<{ object: RoolObject; message: string }> {
-    return this._channel._putObjectImpl(path, body, this._conversationId);
+    return this._space._putObjectImpl(path, body, this._conversationId);
   }
 
   /** Patch an existing object JSON file. */
   async patchObject(path: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._channel._patchObjectImpl(path, options, this._conversationId);
+    return this._space._patchObjectImpl(path, options, this._conversationId);
   }
 
   /** Move (rename/relocate) an object. */
   async moveObject(from: string, to: string, options?: MoveObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._channel._moveObjectImpl(from, to, options, this._conversationId);
+    return this._space._moveObjectImpl(from, to, options, this._conversationId);
   }
 
   /** Delete object JSON files by path. */
   async deleteObjects(paths: string[]): Promise<void> {
-    return this._channel._deleteObjectsImpl(paths, this._conversationId);
+    return this._space._deleteObjectsImpl(paths, this._conversationId);
   }
 
   /** @deprecated Use deleteObjects instead. */
@@ -1237,34 +1025,34 @@ export class ConversationHandle {
 
   /** Send a prompt to the AI agent, scoped to this conversation's history. */
   async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
-    return this._channel._promptImpl(text, options, this._conversationId);
+    return this._space._promptImpl(text, options, this._conversationId);
   }
 
   /**
    * Stop this conversation's in-flight interaction, if any. No-op returning
    * `false` when nothing is running. Stopping is best-effort — see
-   * {@link RoolChannel.stop}.
+   * {@link RoolSpace.stopInteraction}.
    */
   async stop(): Promise<boolean> {
-    return this._channel._stopImpl(this._conversationId);
+    return this._space._stopImpl(this._conversationId);
   }
 
   /** Create a new collection schema. */
   async createCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
-    return this._channel._createCollectionImpl(name, fields, options, this._conversationId);
+    return this._space._createCollectionImpl(name, fields, options, this._conversationId);
   }
 
   /** Alter an existing collection schema. */
   async alterCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
-    return this._channel._alterCollectionImpl(name, fields, options, this._conversationId);
+    return this._space._alterCollectionImpl(name, fields, options, this._conversationId);
   }
 
   /** Drop a collection schema. */
   async dropCollection(name: string): Promise<void> {
-    return this._channel._dropCollectionImpl(name, this._conversationId);
+    return this._space._dropCollectionImpl(name, this._conversationId);
   }
 
   setMetadata(key: string, value: unknown): void {
-    return this._channel._setMetadataImpl(key, value, this._conversationId);
+    return this._space._setMetadataImpl(key, value, this._conversationId);
   }
 }

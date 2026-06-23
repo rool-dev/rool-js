@@ -17,10 +17,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: find-video');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('find-video-eval');
+      const conversation = space.conversation('find-video-eval');
       const { objects } = await conversation.prompt(`Create a video object with the ukulele performance of "While My Guitar Gently Weeps" by Jake Shimabukuro.`);
 
       expect(objects).to.have.length(1);

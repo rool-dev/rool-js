@@ -60,10 +60,11 @@ async function main(): Promise<void> {
   const space = await client.createSpace(`machine attachments transport ${new Date().toISOString()}`);
   console.log('space id:', space.id);
 
-  let channel: Awaited<ReturnType<typeof space.openChannel>> | undefined;
+  let opened = false;
   try {
-    channel = await space.openChannel('main');
-    console.log('channel:', channel.channelId, 'conversation:', channel.conversationId);
+    const conversation = space.conversation('main');
+    opened = true;
+    console.log('conversation:', conversation.conversationId);
 
     step('prepare machine resources');
     // The server validates object refs syntactically and uses them as focused
@@ -95,7 +96,7 @@ async function main(): Promise<void> {
       filename: 'local-upload.txt',
     };
     const promptText = 'Reply with exactly: attachments smoke ok';
-    const { message } = await channel.prompt(promptText, {
+    const { message } = await conversation.prompt(promptText, {
       effort: 'QUICK',
       readOnly: true,
       attachments: [objectResource, fileResource, localUpload],
@@ -103,13 +104,13 @@ async function main(): Promise<void> {
     console.log('AI:', message);
 
     step('validate interaction attachments');
-    const interaction = latestPromptInteraction(channel.getInteractions());
+    const interaction = latestPromptInteraction(conversation.getInteractions());
     assert(interaction.input === promptText, 'prompt input should not contain hidden/injected machine refs');
     assert(interaction.attachments?.length === 3, `expected 3 stored attachments, got ${interaction.attachments?.length ?? 0}`);
     assert(interaction.attachments.includes(objectRef), 'stored attachments should include object machine ref');
     assert(interaction.attachments.includes(fileRef), 'stored attachments should include existing file machine ref');
-    const uploadedRef = interaction.attachments.find((ref) => ref.includes(`/rool-drive/attachments/${channel.conversationId}/local-upload.txt`));
-    assert(uploadedRef, `expected uploaded local file ref under attachments/${channel.conversationId}/local-upload.txt`);
+    const uploadedRef = interaction.attachments.find((ref) => ref.includes(`/rool-drive/attachments/${conversation.conversationId}/local-upload.txt`));
+    assert(uploadedRef, `expected uploaded local file ref under attachments/${conversation.conversationId}/local-upload.txt`);
     console.log('stored attachments:', interaction.attachments);
 
     step('fetch file refs through machine paths');
@@ -123,10 +124,11 @@ async function main(): Promise<void> {
       console.log(ref, '→', JSON.stringify(text.slice(0, 80)));
     }
 
-    channel.close();
+    space.close();
+    opened = false;
   } finally {
     step('cleanup');
-    channel?.close();
+    if (opened) space.close();
     await client.deleteSpace(space.id).catch((error: unknown) => {
       console.warn('cleanup deleteSpace failed:', error);
     });

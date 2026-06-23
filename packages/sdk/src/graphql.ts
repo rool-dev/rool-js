@@ -5,7 +5,7 @@ import type {
   SpaceMember,
   CurrentUser,
   RoolObjectStat,
-  Channel,
+  Conversation,
   SpaceSchema,
   InviteRole,
   SpaceInvite,
@@ -31,7 +31,7 @@ export interface GraphQLClientConfig {
   onRefused?: () => Promise<string>;
 }
 
-/** Result from the openSpace full query — space data + all channels. */
+/** Result from the openSpace full query — space data + all conversations. */
 export interface OpenSpaceFullResult {
   name: string;
   role: string;
@@ -40,7 +40,7 @@ export interface OpenSpaceFullResult {
   objectStats: Record<string, RoolObjectStat>;
   schema: SpaceSchema;
   meta: Record<string, unknown>;
-  channels: Record<string, Channel>;
+  conversations: Record<string, Conversation>;
 }
 
 interface GraphQLResponse<T> {
@@ -118,7 +118,7 @@ export class GraphQLClient {
     return { spaceId: response.duplicateSpace.spaceId };
   }
 
-  /** Full space data — object stats, schema, metadata, all channels. */
+  /** Full space data — object stats, schema, metadata, all conversations. */
   async openSpaceFull(spaceId: string): Promise<OpenSpaceFullResult> {
     const query = `
       query OpenSpaceFull($id: String!) {
@@ -132,13 +132,12 @@ export class GraphQLClient {
             modifiedAt
             modifiedBy
             modifiedByName
-            modifiedInChannel
             modifiedInConversation
             modifiedInInteraction
           }
           schema
           meta
-          channels
+          conversations
         }
       }
     `;
@@ -148,7 +147,7 @@ export class GraphQLClient {
         objectStatEntries: RoolObjectStat[] | null;
         schema: SpaceSchema | null;
         meta: Record<string, unknown> | null;
-        channels: Record<string, Channel> | null;
+        conversations: Record<string, Conversation> | null;
       }
     }>(query, { id: spaceId });
 
@@ -165,24 +164,10 @@ export class GraphQLClient {
       objectStats,
       schema: r.schema ?? {},
       meta: r.meta ?? {},
-      channels: r.channels ?? {},
+      conversations: r.conversations ?? {},
     };
   }
 
-  /** Create a channel. Throws if channel already exists. */
-  async createChannel(spaceId: string, channelId: string, options?: { name?: string }): Promise<Channel> {
-    const mutation = `
-      mutation CreateChannel($spaceId: String!, $channelId: String!, $name: String) {
-        createChannel(spaceId: $spaceId, channelId: $channelId, name: $name)
-      }
-    `;
-    const response = await this.request<{ createChannel: Channel }>(mutation, {
-      spaceId,
-      channelId,
-      name: options?.name,
-    });
-    return response.createChannel;
-  }
 
   async deleteSpace(spaceId: string): Promise<void> {
     const mutation = `
@@ -202,75 +187,54 @@ export class GraphQLClient {
     await this.request(mutation, { id: spaceId, name });
   }
 
-  async setSpaceMeta(spaceId: string, meta: Record<string, unknown>, channelId: string, conversationId: string): Promise<void> {
+  async setSpaceMeta(spaceId: string, meta: Record<string, unknown>, conversationId: string): Promise<void> {
     const mutation = `
-      mutation SetSpaceMeta($id: String!, $meta: JSON!, $channelId: String!, $conversationId: String!) {
-        setSpaceMeta(id: $id, meta: $meta, channelId: $channelId, conversationId: $conversationId)
+      mutation SetSpaceMeta($id: String!, $meta: JSON!, $conversationId: String!) {
+        setSpaceMeta(id: $id, meta: $meta, conversationId: $conversationId)
       }
     `;
     await this.request(mutation, {
       id: spaceId,
       meta,
-      channelId,
       conversationId,
     });
   }
 
-  async deleteChannel(spaceId: string, channelId: string): Promise<void> {
-    const mutation = `
-      mutation DeleteChannel($spaceId: String!, $channelId: String!) {
-        deleteChannel(spaceId: $spaceId, channelId: $channelId)
-      }
-    `;
-    await this.request(mutation, { spaceId, channelId });
-  }
-
-  async renameChannel(spaceId: string, channelId: string, name: string): Promise<void> {
-    const mutation = `
-      mutation UpdateChannel($spaceId: String!, $channelId: String!, $name: String!) {
-        updateChannel(spaceId: $spaceId, channelId: $channelId, name: $name)
-      }
-    `;
-    await this.request(mutation, { spaceId, channelId, name });
-  }
 
   async updateConversation(
     spaceId: string,
-    channelId: string,
     conversationId: string,
     options: { name?: string; systemInstruction?: string | null },
   ): Promise<void> {
     const mutation = `
-      mutation UpdateConversation($spaceId: String!, $channelId: String!, $conversationId: String!, $name: String, $systemInstruction: String) {
-        updateConversation(spaceId: $spaceId, channelId: $channelId, conversationId: $conversationId, name: $name, systemInstruction: $systemInstruction)
+      mutation UpdateConversation($spaceId: String!, $conversationId: String!, $name: String, $systemInstruction: String) {
+        updateConversation(spaceId: $spaceId, conversationId: $conversationId, name: $name, systemInstruction: $systemInstruction)
       }
     `;
     await this.request(mutation, {
       spaceId,
-      channelId,
       conversationId,
       name: options.name,
       systemInstruction: options.systemInstruction,
     });
   }
 
-  async deleteConversation(spaceId: string, channelId: string, conversationId: string): Promise<void> {
+  async deleteConversation(spaceId: string, conversationId: string): Promise<void> {
     const mutation = `
-      mutation DeleteConversation($spaceId: String!, $channelId: String!, $conversationId: String!) {
-        deleteConversation(spaceId: $spaceId, channelId: $channelId, conversationId: $conversationId)
+      mutation DeleteConversation($spaceId: String!, $conversationId: String!) {
+        deleteConversation(spaceId: $spaceId, conversationId: $conversationId)
       }
     `;
-    await this.request(mutation, { spaceId, channelId, conversationId });
+    await this.request(mutation, { spaceId, conversationId });
   }
 
   async checkpoint(
     spaceId: string,
     label: string | undefined,
-    channelId: string,
   ): Promise<{ checkpointId: string }> {
     const mutation = `
-      mutation Checkpoint($spaceId: String!, $label: String, $channelId: String!) {
-        checkpoint(spaceId: $spaceId, label: $label, channelId: $channelId) {
+      mutation Checkpoint($spaceId: String!, $label: String) {
+        checkpoint(spaceId: $spaceId, label: $label) {
           checkpointId
         }
       }
@@ -278,42 +242,38 @@ export class GraphQLClient {
     const result = await this.request<{ checkpoint: { checkpointId: string } }>(mutation, {
       spaceId,
       label,
-      channelId,
     });
     return result.checkpoint;
   }
 
-  async undo(spaceId: string, channelId: string): Promise<{ success: boolean }> {
+  async undo(spaceId: string): Promise<{ success: boolean }> {
     const mutation = `
-      mutation Undo($spaceId: String!, $channelId: String!) {
-        undo(spaceId: $spaceId, channelId: $channelId) {
+      mutation Undo($spaceId: String!) {
+        undo(spaceId: $spaceId) {
           success
         }
       }
     `;
-    const result = await this.request<{ undo: { success: boolean } }>(mutation, { spaceId, channelId });
+    const result = await this.request<{ undo: { success: boolean } }>(mutation, { spaceId });
     return result.undo;
   }
 
-  async redo(spaceId: string, channelId: string): Promise<{ success: boolean }> {
+  async redo(spaceId: string): Promise<{ success: boolean }> {
     const mutation = `
-      mutation Redo($spaceId: String!, $channelId: String!) {
-        redo(spaceId: $spaceId, channelId: $channelId) {
+      mutation Redo($spaceId: String!) {
+        redo(spaceId: $spaceId) {
           success
         }
       }
     `;
-    const result = await this.request<{ redo: { success: boolean } }>(mutation, { spaceId, channelId });
+    const result = await this.request<{ redo: { success: boolean } }>(mutation, { spaceId });
     return result.redo;
   }
 
-  async checkpointStatus(
-    spaceId: string,
-    channelId: string,
-  ): Promise<{ canUndo: boolean; canRedo: boolean }> {
+  async checkpointStatus(spaceId: string): Promise<{ canUndo: boolean; canRedo: boolean }> {
     const query = `
-      query CheckpointStatus($spaceId: String!, $channelId: String!) {
-        checkpointStatus(spaceId: $spaceId, channelId: $channelId) {
+      query CheckpointStatus($spaceId: String!) {
+        checkpointStatus(spaceId: $spaceId) {
           canUndo
           canRedo
         }
@@ -321,29 +281,28 @@ export class GraphQLClient {
     `;
     const result = await this.request<{
       checkpointStatus: { canUndo: boolean; canRedo: boolean }
-    }>(query, { spaceId, channelId });
+    }>(query, { spaceId });
     return result.checkpointStatus;
   }
 
-  async clearCheckpointHistory(spaceId: string, channelId: string): Promise<void> {
+  async clearCheckpointHistory(spaceId: string): Promise<void> {
     const mutation = `
-      mutation ClearCheckpointHistory($spaceId: String!, $channelId: String!) {
-        clearCheckpointHistory(spaceId: $spaceId, channelId: $channelId)
+      mutation ClearCheckpointHistory($spaceId: String!) {
+        clearCheckpointHistory(spaceId: $spaceId)
       }
     `;
-    await this.request(mutation, { spaceId, channelId });
+    await this.request(mutation, { spaceId });
   }
 
   async prompt(
     spaceId: string,
     prompt: string,
-    channelId: string,
     conversationId: string,
     options: Omit<PromptOptions, 'attachments'> & { attachmentRefs?: string[]; interactionId: string }
   ): Promise<{ message: string; modifiedObjectPaths: string[] }> {
     const mutation = `
-      mutation Prompt($spaceId: String!, $prompt: String!, $responseSchema: JSON, $channelId: String!, $conversationId: String!, $effort: PromptEffort!, $ephemeral: Boolean!, $readOnly: Boolean!, $attachments: [String!]!, $interactionId: String!, $parentInteractionId: String, $eventName: String!) {
-        prompt(spaceId: $spaceId, prompt: $prompt, responseSchema: $responseSchema, channelId: $channelId, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId, parentInteractionId: $parentInteractionId, eventName: $eventName) {
+      mutation Prompt($spaceId: String!, $prompt: String!, $responseSchema: JSON, $conversationId: String!, $effort: PromptEffort!, $ephemeral: Boolean!, $readOnly: Boolean!, $attachments: [String!]!, $interactionId: String!, $parentInteractionId: String, $eventName: String!) {
+        prompt(spaceId: $spaceId, prompt: $prompt, responseSchema: $responseSchema, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId, parentInteractionId: $parentInteractionId, eventName: $eventName) {
           message
           modifiedObjectPaths
         }
@@ -355,7 +314,6 @@ export class GraphQLClient {
       spaceId,
       prompt,
       responseSchema: options.responseSchema,
-      channelId,
       conversationId,
       effort: options.effort ?? 'STANDARD',
       ephemeral: options.ephemeral ?? false,

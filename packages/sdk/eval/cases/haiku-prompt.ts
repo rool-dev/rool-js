@@ -11,10 +11,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: haiku-prompt');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('haiku-prompt-eval');
+      const conversation = space.conversation('haiku-prompt-eval');
       await createCollectionWithRetry(conversation, 'markdown', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },

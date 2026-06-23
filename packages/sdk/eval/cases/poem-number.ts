@@ -24,10 +24,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: poem-number');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('poem-number-eval');
+      const conversation = space.conversation('poem-number-eval');
       const { objects } = await conversation.prompt(`
         Create a markdown object with:
         - headline: a single digit (0-9) representing a randomly chosen number

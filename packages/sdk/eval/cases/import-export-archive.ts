@@ -14,7 +14,6 @@ export const testCase: TestCase = {
     // Import the archive.
     const archive = loadArchiveFixture('rools-star');
     const space = await client.importArchive('EVAL: import-export-archive', archive);
-    const channel = await space.openChannel('console');
 
     try {
       // Verify object count (4 objects: star + 3 planets).
@@ -24,7 +23,7 @@ export const testCase: TestCase = {
       const starPath = '/space/star/XIQb6n.json';
 
       // Verify the star exists.
-      const star = await channel.getObject(starPath);
+      const star = await space.getObject(starPath);
       expect(star).to.exist;
       expect(star!.body.name).to.equal("Rool's Star");
       expect(collectionOf(star!)).to.equal('star');
@@ -32,7 +31,7 @@ export const testCase: TestCase = {
       expect(star!.body.image_url).to.include('https://');
 
       // Verify a planet with a local file.
-      const enki = await channel.getObject('/space/planet/rjP7pk.json');
+      const enki = await space.getObject('/space/planet/rjP7pk.json');
       expect(enki).to.exist;
       expect(enki!.body.name).to.equal('Enki');
       expect(collectionOf(enki!)).to.equal('planet');
@@ -41,7 +40,7 @@ export const testCase: TestCase = {
       expect((enki!.body.image_url as string).length).to.be.greaterThan(0);
 
       // Verify the gas giant.
-      const an = await channel.getObject('/space/planet/1KIBtw.json');
+      const an = await space.getObject('/space/planet/1KIBtw.json');
       expect(an).to.exist;
       expect(an!.body.name).to.equal('An');
       expect(collectionOf(an!)).to.equal('planet');

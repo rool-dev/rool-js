@@ -8,7 +8,7 @@ Svelte 5 runes for the Rool platform. Published as `@rool-dev/svelte`.
 - `src/index.ts` - Main export: createRool()
 - `src/rool.svelte.ts` - Rool class with $state reactivity
 - `src/space.svelte.ts` - ReactiveSpace class
-- `src/channel.svelte.ts` - ReactiveChannel and related reactive primitives
+- `src/space-session.svelte.ts` - Reactive space operations and related reactive primitives
 
 ## Commands
 - `pnpm build` - Compile with svelte-package

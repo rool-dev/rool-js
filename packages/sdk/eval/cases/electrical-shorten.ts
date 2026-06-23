@@ -15,10 +15,9 @@ export const testCase: TestCase = {
     // Import the fixture.
     const archive = loadArchiveFixture('electrical-new');
     const space = await client.importArchive('EVAL: electrical-shorten', archive);
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('electrical-shorten-eval');
+      const conversation = space.conversation('electrical-shorten-eval');
 
       // Capture initial state.
       const initialPaths = await listObjectPaths(space);
@@ -26,7 +25,7 @@ export const testCase: TestCase = {
       const initialUntouchedData = new Map<string, string>();
 
       for (const path of initialPaths) {
-        const obj = await channel.getObject(path);
+        const obj = await space.getObject(path);
         if (collectionOf(obj!) === 'Article' && typeof obj!.body.articleBody === 'string') {
           initialArticleBodyLengths.set(path, (obj!.body.articleBody as string).length);
         } else {
@@ -43,7 +42,7 @@ export const testCase: TestCase = {
 
       // Verify objects without articleBody are unchanged.
       for (const [path, initialData] of initialUntouchedData) {
-        const finalObj = await channel.getObject(path);
+        const finalObj = await space.getObject(path);
         expect(JSON.stringify(finalObj)).to.equal(
           initialData,
           `Object ${path} (no articleBody) should be unchanged`,
@@ -52,7 +51,7 @@ export const testCase: TestCase = {
 
       // Verify articleBody was shortened.
       for (const [path, initialLength] of initialArticleBodyLengths) {
-        const finalObj = await channel.getObject(path);
+        const finalObj = await space.getObject(path);
         expect(collectionOf(finalObj!)).to.equal('Article');
         expect(finalObj!.body.articleBody).to.be.a('string');
 

@@ -14,12 +14,12 @@ npm install @rool-dev/svelte
 
 ```svelte
 <script lang="ts">
-  import { createRool, type ReactiveChannel } from '@rool-dev/svelte';
+  import { createRool, type ReactiveSpace, type ReactiveConversationHandle } from '@rool-dev/svelte';
 
   const rool = createRool();
   void rool.init();
 
-  let channel = $state<ReactiveChannel | null>(null);
+  let space = $state<ReactiveSpace | null>(null);
 </script>
 
 {#if rool.authenticated === null}
@@ -30,15 +30,15 @@ npm install @rool-dev/svelte
   <h1>My Spaces</h1>
   {#each rool.spaces ?? [] as spaceInfo}
     <button onclick={async () => {
-      const space = await rool.openSpace(spaceInfo.id);
-      channel = await space.openChannel('main');
+      space = await rool.openSpace(spaceInfo.id);
     }}>
       {spaceInfo.name}
     </button>
   {/each}
 
-  {#if channel}
-    <p>Interactions: {channel.interactions.length}</p>
+  {#if space}
+    {@const conversation = space.conversation('main')}
+    <button onclick={() => void conversation.prompt('Hello')}>Send</button>
   {/if}
 {/if}
 ```
@@ -57,10 +57,9 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `rool.connectionState` | Client SSE connection state |
 | `rool.userStorage` | User storage (cross-device preferences) |
 | `space.fileTree` | Canonical reactive WebDAV tree for `/`, including `/space` objects and `/rool-drive` user files |
-| `channel.interactions` | Current conversation interactions |
-| `channel.objectPaths` | Object paths derived from `space.fileTree` |
-| `channel.collections` | Collection directories derived from `space.fileTree` |
-| `channel.conversations` | Conversations in this channel (auto-updates on create/delete/rename) |
+| `space.objectPaths` | Object paths derived from `space.fileTree` |
+| `space.collections` | Collection directories derived from `space.fileTree` |
+| `space.conversations` | Conversations in this space (auto-updates on create/delete/rename) |
 | `thread.interactions` | Interactions for a specific conversation (auto-updates) |
 | `watch.objects` | Objects matching a filter (auto-updates) |
 | `watch.loading` | Whether watch is loading |
@@ -81,7 +80,7 @@ space.fileTree.childrenOf('/rool-drive');
 space.fileTree.objectPaths();      // object paths from /space/**/*.json
 ```
 
-Use this tree when UI needs to react to both files and objects. Object helpers like `channel.object()`, `channel.watch()`, `channel.objectPaths`, and `channel.collections` are backed by this tree.
+Use this tree when UI needs to react to both files and objects. Object helpers like `space.object()`, `space.watch()`, `space.objectPaths`, and `space.collections` are backed by this tree.
 
 ## API
 
@@ -147,17 +146,17 @@ Reactive cross-device storage for user preferences. Synced from server on `init(
 </button>
 ```
 
-### Spaces & Channels
+### Spaces & Conversations
 
-Every space has its own SSE subscription. Open a space, then open channels on it. Call `space.close()` when done — this closes all open channels and stops the subscription.
+Every space has its own SSE subscription. Open a space, then get explicit conversation handles from it. Call `space.close()` when done to stop the subscription.
 
 ```typescript
 // Open a space — reactive, with SSE
 const space = await rool.openSpace('space-id');
 
-// Open channels on the space
-const channel = await space.openChannel('my-channel');
-const other = await space.openChannel('research');  // Independent channel, same space
+// Get explicit conversation handles
+const main = space.conversation('main');
+const research = space.conversation('research');
 
 // Space admin
 await space.rename('New Name');
@@ -166,7 +165,7 @@ await space.setUserRole(userId, 'admin');
 
 // Create a new space
 const fresh = await rool.createSpace('My New Space');
-const ch = await fresh.openChannel('main');
+const mainConversation = fresh.conversation('main');
 
 // Import from a zip archive
 const imported = await rool.importArchive('Imported', archiveBlob);
@@ -174,40 +173,40 @@ const imported = await rool.importArchive('Imported', archiveBlob);
 // Delete a space permanently
 await rool.deleteSpace('space-id');
 
-// Clean up — closes all open channels AND stops the subscription
+// Clean up — closes this space and stops its subscription
 space.close();
 ```
 
-### ReactiveChannel
+### ReactiveSpace
 
-`space.openChannel()` returns a `ReactiveChannel` — the SDK's `RoolChannel` with reactive `interactions`, `objectPaths`, `collections`, `conversations`, and file-tree-backed object helpers:
+`rool.openSpace()` returns a `ReactiveSpace` with reactive `conversations`, file-tree-backed object helpers, and explicit reactive conversation handles:
 
 ```svelte
 <script lang="ts">
-  import { createRool, type ReactiveChannel, type ReactiveSpace } from '@rool-dev/svelte';
+  import { createRool, type ReactiveSpace, type ReactiveConversationHandle } from '@rool-dev/svelte';
 
   const rool = createRool();
   void rool.init();
 
   let space = $state<ReactiveSpace | null>(null);
-  let channel = $state<ReactiveChannel | null>(null);
+  let conversation = $state<ReactiveConversationHandle | null>(null);
 
   async function open(spaceId: string) {
     space = await rool.openSpace(spaceId);
-    channel = await space.openChannel('main');
+    conversation = space.conversation('main');
   }
 </script>
 
-{#if channel}
-  <!-- Reactive: updates when the current conversation changes -->
-  {#each channel.interactions as interaction}
+{#if conversation}
+  <!-- Reactive: updates when this conversation changes -->
+  {#each conversation.interactions as interaction}
     <div>
       <strong>{interaction.operation}</strong>: {interaction.output ?? ''}
     </div>
   {/each}
 
-  <!-- All SDK methods work directly -->
-  <button onclick={() => void channel.prompt('Hello')}>Send</button>
+  <!-- Conversation-scoped SDK methods work directly -->
+  <button onclick={() => void conversation.prompt('Hello')}>Send</button>
 {/if}
 ```
 
@@ -217,18 +216,17 @@ Track a single object by machine path with auto-updates:
 
 ```svelte
 <script lang="ts">
-  import { createRool, type ReactiveChannel, type ReactiveObject } from '@rool-dev/svelte';
+  import { createRool, type ReactiveSpace, type ReactiveObject } from '@rool-dev/svelte';
 
   const rool = createRool();
   void rool.init();
 
-  let channel = $state<ReactiveChannel | null>(null);
+  let space = $state<ReactiveSpace | null>(null);
   let item = $state<ReactiveObject | null>(null);
 
   async function open(spaceId: string, path: string) {
-    const space = await rool.openSpace(spaceId);
-    channel = await space.openChannel('main');
-    item = channel.object(path);  // e.g. '/space/article/welcome.json'
+    space = await rool.openSpace(spaceId);
+    item = space.object(path);  // e.g. '/space/article/welcome.json'
   }
 </script>
 
@@ -253,7 +251,7 @@ item.refresh() // Manual re-fetch
 item.close()   // Stop listening for updates
 ```
 
-**Lifecycle:** Reactive objects are tied to their channel. Closing the channel stops all updates — existing reactive objects will retain their last data but no longer refresh. Calling `channel.object()` after `close()` throws.
+**Lifecycle:** Reactive objects are tied to their space. Closing the space stops all updates — existing reactive objects will retain their last data but no longer refresh. Calling `space.object()` after `close()` throws.
 
 ### Reactive Watches
 
@@ -261,19 +259,18 @@ Create auto-updating watches of objects filtered by field values:
 
 ```svelte
 <script lang="ts">
-  import { createRool, type ReactiveChannel, type ReactiveSpace, type ReactiveWatch } from '@rool-dev/svelte';
+  import { createRool, type ReactiveSpace, type ReactiveWatch } from '@rool-dev/svelte';
 
   const rool = createRool();
   void rool.init();
 
   let space = $state<ReactiveSpace | null>(null);
-  let channel = $state<ReactiveChannel | null>(null);
   let articles = $state<ReactiveWatch | null>(null);
+
   async function open(spaceId: string) {
     space = await rool.openSpace(spaceId);
-    channel = await space.openChannel('main');
     // Create a reactive watch of all objects in the 'article' collection
-    articles = channel.watch({ collection: 'article' });
+    articles = space.watch({ collection: 'article' });
   }
 </script>
 
@@ -290,11 +287,11 @@ Create auto-updating watches of objects filtered by field values:
 
 Watches automatically re-fetch when matching object files change in `space.fileTree`.
 
-**Lifecycle:** Watches are tied to their channel. Closing the channel stops all updates — existing watches will retain their last data but no longer refresh. Calling `channel.watch()` after `close()` throws.
+**Lifecycle:** Watches are tied to their space. Closing the space stops all updates — existing watches will retain their last data but no longer refresh. Calling `space.watch()` after `close()` throws.
 
 ```typescript
 // Watch options
-const articles = channel.watch({
+const articles = space.watch({
   collection: 'article',
   where: { status: 'published' },
   order: 'desc',  // by modifiedAt (default)
@@ -310,9 +307,9 @@ articles.refresh() // Manual re-fetch
 articles.close()   // Stop listening for updates
 ```
 
-### Reactive Channel List
+### Reactive Space List
 
-`space.channels` is a reactive `ChannelInfo[]` on an opened `ReactiveSpace`. If you only need a live channel list without managing a `ReactiveSpace`, use `rool.channels(spaceId)` and call `close()` when done.
+`rool.spaces` is a reactive `RoolSpaceInfo[]`. Open individual spaces with `rool.openSpace(spaceId)` and close them when done.
 
 ```svelte
 <script lang="ts">
@@ -321,45 +318,33 @@ articles.close()   // Stop listening for updates
   const rool = createRool();
   void rool.init();
 
-  let space = $state<ReactiveSpace | null>(null);
-  async function open(spaceId: string) {
-    space = await rool.openSpace(spaceId);
-  }
+  let current = $state<ReactiveSpace | null>(null);
 </script>
 
-{#if space}
-  {#each space.channels as ch}
-    <button onclick={() => void space.openChannel(ch.id)}>{ch.name ?? ch.id}</button>
-  {/each}
-{/if}
-```
-
-```typescript
-const channels = rool.channels(spaceId);
-channels.list;       // ChannelInfo[]
-channels.loading;    // boolean
-await channels.refresh();
-channels.close();
+{#each rool.spaces ?? [] as space}
+  <button onclick={async () => current = await rool.openSpace(space.id)}>
+    {space.name}
+  </button>
+{/each}
 ```
 
 ### Reactive Conversation Handle
 
-For apps with multiple independent interaction threads (e.g., chat with threads), use `channel.conversation()` to get a handle with reactive interactions:
+For apps with multiple independent interaction threads (e.g., chat with threads), use `space.conversation()` to get a handle with reactive interactions:
 
 ```svelte
 <script lang="ts">
-  import { createRool, type ReactiveChannel, type ReactiveConversationHandle, type ReactiveSpace } from '@rool-dev/svelte';
+  import { createRool, type ReactiveConversationHandle, type ReactiveSpace } from '@rool-dev/svelte';
 
   const rool = createRool();
   void rool.init();
 
   let space = $state<ReactiveSpace | null>(null);
-  let channel = $state<ReactiveChannel | null>(null);
   let thread = $state<ReactiveConversationHandle | null>(null);
+
   async function openThread(spaceId: string, threadId: string) {
     space = await rool.openSpace(spaceId);
-    channel = await space.openChannel('main');
-    thread = channel.conversation(threadId);
+    thread = space.conversation(threadId);
   }
 </script>
 
@@ -374,7 +359,7 @@ For apps with multiple independent interaction threads (e.g., chat with threads)
 
 ```typescript
 // Reactive state
-thread.interactions   // $state<Interaction[]> — updates from space/channel events
+thread.interactions   // $state<Interaction[]> — updates from space events
 
 // Conversation-scoped methods
 await thread.prompt('Hello')
@@ -390,74 +375,60 @@ thread.getSystemInstruction()
 thread.close()   // Stop listening for updates
 ```
 
-Conversations are auto-created when you first write history or settings. Real-time events are owned by the space subscription; conversation handles subscribe to channel events locally.
+Conversations are auto-created when you first write history or settings. Real-time events are owned by the space subscription; conversation handles subscribe to space events locally.
 
-### Channel Management
+### Space Management
 
 ```typescript
-// Rename a channel on the space handle
-await space.renameChannel('channel-id', 'New Name');
+// Rename or delete the open space
+await space.rename('New Name');
+await space.delete();
 
-// Delete a channel
-await space.deleteChannel('channel-id');
-
-// Rename from within an open channel
-await channel.rename('New Name');
+// Or manage spaces from the client
+const created = await rool.createSpace('New Space');
+await rool.deleteSpace(created.id);
 ```
 
 ### Using the SDK
 
-All `RoolChannel` methods and properties are available on `ReactiveChannel`:
+Common `ReactiveSpace` and `ReactiveConversationHandle` methods:
 
 ```typescript
-// Properties
-channel.id
-channel.name
-channel.role
-channel.channelId
+// Space properties
+space.id
+space.name
+space.role
 
-// Object operations — addressed by exact machine paths
+// Read object data by exact machine path
 const path = '/space/note/welcome.json';
-await channel.getObject(path)
-await channel.putObject(path, { text: 'Hello' })
-await channel.patchObject(path, { data: { text: 'Updated' } })
-await channel.moveObject(path, '/space/note/renamed.json')
-await channel.deleteObjects(['/space/note/renamed.json'])
+await space.getObject(path)
 
-// AI
-await channel.prompt('Summarize everything')
-await channel.stop()                       // Stop the in-flight interaction (false if none)
-await channel.stopInteraction(channel.activeLeafId!)  // Stop a specific interaction by ID
+// Conversation-scoped writes and AI
+const conversation = space.conversation('thread-42');
+await conversation.putObject(path, { text: 'Hello' })
+await conversation.patchObject(path, { data: { text: 'Updated' } })
+await conversation.moveObject(path, '/space/note/renamed.json')
+await conversation.deleteObjects(['/space/note/renamed.json'])
+await conversation.prompt('Summarize everything')
+await conversation.stop()
 
-// Schema
-channel.getSchema()
-await channel.createCollection('article', [
+// Schema/metadata writes are also attributed to a conversation
+space.getSchema()
+await conversation.createCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'enum', values: ['draft', 'published'] } },
 ])
-await channel.alterCollection('article', updatedFields)
-await channel.dropCollection('article')
+await conversation.alterCollection('article', updatedFields)
+await conversation.dropCollection('article')
+await conversation.setSystemInstruction('You are helpful')
+conversation.getInteractions()
 
-// Undo/Redo
-await channel.checkpoint('Before edit')
-await channel.undo()
-await channel.redo()
-
-// Interaction history & conversations
-await channel.setSystemInstruction('You are helpful')
-channel.getInteractions()
-channel.getConversations()
-await channel.deleteConversation('old-thread')
-await channel.renameConversation('Research')
-
-// Conversation handles (reactive interactions for specific conversations)
-const thread = channel.conversation('thread-42');
-await thread.prompt('Hello');        // Uses thread-42's interaction history
-// thread.interactions is reactive $state — updates from space/channel events
-thread.close();                      // Stop listening when done
-
-// Channel admin
-await channel.rename('New Name')
+// Space history/admin
+await space.checkpoint('Before edit')
+await space.undo()
+await space.redo()
+await space.deleteConversation('old-thread')
+await space.rename('New Name')
 ```
 
 See the [SDK documentation](../sdk/README.md) for complete API details.
@@ -474,20 +445,19 @@ machineUri('/space/article/welcome.json');
 // 'rool-machine:/space/article/welcome.json'
 
 isObjectPath('/space/article/welcome.json'); // true
-generateId(); // 6-character alphanumeric ID
+generateId(); // unique ID suitable for conversation IDs
 ```
 
 ## Exported Types
 
 ```typescript
 // Package types
-import type { Rool, ReactiveSpace, ReactiveChannel, ReactiveConversationHandle, ReactiveObject, ReactiveWatch, WatchOptions, ReactiveChannelList, ReactiveFileTree, ReactiveFileNode, ReactiveFileRoot, ReactiveFileTreeEvent, ReactiveFileTreeSyncResult } from '@rool-dev/svelte';
+import type { Rool, ReactiveSpace, ReactiveConversationHandle, ReactiveObject, ReactiveWatch, WatchOptions, ReactiveFileTree, ReactiveFileNode, ReactiveFileRoot, ReactiveFileTreeEvent, ReactiveFileTreeSyncResult } from '@rool-dev/svelte';
 
 // Re-exported from @rool-dev/sdk
 import type {
   RoolClient,
   RoolClientConfig,
-  RoolChannel,
   RoolSpace,
   RoolSpaceInfo,
   RoolObject,
@@ -495,7 +465,6 @@ import type {
   RoolObjectStat,
   RoolUserRole,
   ConnectionState,
-  ChannelInfo,
   Conversation,
   ConversationInfo,
   CurrentUser,

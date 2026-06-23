@@ -12,10 +12,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: math-test');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('math-test-eval');
+      const conversation = space.conversation('math-test-eval');
       await createCollectionWithRetry(conversation, 'calculation', [
         { name: 'formula', type: { kind: 'string' } },
         { name: 'result', type: { kind: 'number' } },

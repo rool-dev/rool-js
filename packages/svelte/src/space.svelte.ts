@@ -1,37 +1,33 @@
-import type { RoolSpace, ChannelInfo, ConnectionState, RoolUserRole, SpaceMember } from '@rool-dev/sdk';
-import { wrapChannel, type ReactiveChannel } from './channel.svelte.js';
+import type { RoolSpace, ConversationInfo, ConnectionState, RoolUserRole, SpaceMember } from '@rool-dev/sdk';
+import { ReactiveConversationHandleImpl, ReactiveObjectImpl, ReactiveWatchImpl, type WatchOptions } from './space-session.svelte.js';
 import { ReactiveFileTree } from './file-tree.svelte.js';
 
 /**
- * A reactive wrapper around a RoolSpace. Exposes reactive `channels` and
- * `connectionState`, and provides `openChannel()` that returns a ReactiveChannel.
+ * A reactive wrapper around a RoolSpace. Exposes reactive `conversations` and
+ * `connectionState`, plus space-level object/conversation/AI methods.
  *
- * Lifecycle: call `close()` when done. Closes all opened channels and stops the
- * space's SSE subscription.
+ * Lifecycle: call `close()` when done to stop the space's SSE subscription.
  */
 class ReactiveSpaceImpl {
   #space: RoolSpace;
-  #channels = new Map<string, ReactiveChannel>();
   #unsubscribers: (() => void)[] = [];
   #fileTree: ReactiveFileTree;
   #closed = false;
 
   // Reactive state mirroring the underlying space
-  #channelList = $state<ChannelInfo[]>([]);
+  #conversationList = $state<ConversationInfo[]>([]);
   connectionState = $state<ConnectionState>('reconnecting');
 
   constructor(space: RoolSpace) {
     this.#space = space;
     this.#fileTree = new ReactiveFileTree(space);
-    this.#channelList = space.channels;
+    this.#conversationList = space.conversations;
 
-    const refreshChannels = () => { this.#channelList = space.channels; };
-    space.on('channelCreated', refreshChannels);
-    space.on('channelUpdated', refreshChannels);
-    space.on('channelDeleted', refreshChannels);
-    this.#unsubscribers.push(() => space.off('channelCreated', refreshChannels));
-    this.#unsubscribers.push(() => space.off('channelUpdated', refreshChannels));
-    this.#unsubscribers.push(() => space.off('channelDeleted', refreshChannels));
+    const refreshConversations = () => { this.#conversationList = space.conversations; };
+    space.on('conversationUpdated', refreshConversations);
+    this.#unsubscribers.push(() => space.off('conversationUpdated', refreshConversations));
+    space.on('reset', refreshConversations);
+    this.#unsubscribers.push(() => space.off('reset', refreshConversations));
 
     const onConnectionStateChanged = (state: ConnectionState) => {
       this.connectionState = state;
@@ -42,34 +38,18 @@ class ReactiveSpaceImpl {
 
   get isClosed() { return this.#closed; }
 
-  /**
-   * Open a channel on this space. Returns a ReactiveChannel with reactive state.
-   * Repeated calls with the same channelId return the same instance (until closed).
-   */
-  async openChannel(channelId: string): Promise<ReactiveChannel> {
-    if (this.#closed) throw new Error('Cannot open channel: space is closed');
-
-    const existing = this.#channels.get(channelId);
-    if (existing && !existing.isClosed) return existing;
-
-    const raw = await this.#space.openChannel(channelId);
-    const reactive = wrapChannel(raw, this.#fileTree);
-    this.#channels.set(channelId, reactive);
-    return reactive;
+  /** Get a reactive handle for a conversation in this space. */
+  conversation(conversationId: string) {
+    return new ReactiveConversationHandleImpl(this.#space, conversationId);
   }
 
+
   /**
-   * Close this space: closes all open reactive channels and stops the SSE
-   * subscription. Idempotent.
+   * Close this space and stop the SSE subscription. Idempotent.
    */
   close(): void {
     if (this.#closed) return;
     this.#closed = true;
-
-    for (const ch of this.#channels.values()) {
-      ch.close();
-    }
-    this.#channels.clear();
 
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;
@@ -79,7 +59,7 @@ class ReactiveSpaceImpl {
   }
 
   // Reactive getters
-  get channels(): ChannelInfo[] { return this.#channelList; }
+  get conversations(): ConversationInfo[] { return this.#conversationList; }
 
   // Proxy read-only properties
   get id(): string { return this.#space.id; }
@@ -89,6 +69,25 @@ class ReactiveSpaceImpl {
   get webdav() { return this.#space.webdav; }
   get fileTree(): ReactiveFileTree { return this.#fileTree; }
 
+  // Space-level methods
+  getObject(...args: Parameters<RoolSpace['getObject']>) { return this.#space.getObject(...args); }
+  getObjects(...args: Parameters<RoolSpace['getObjects']>) { return this.#space.getObjects(...args); }
+  object(path: string) { return new ReactiveObjectImpl(this.#space, this.#fileTree, path); }
+  watch(options: WatchOptions) { return new ReactiveWatchImpl(this.#space, this.#fileTree, options); }
+  stat(...args: Parameters<RoolSpace['stat']>) { return this.#space.stat(...args); }
+  stopInteraction(...args: Parameters<RoolSpace['stopInteraction']>) { return this.#space.stopInteraction(...args); }
+  checkpoint(...args: Parameters<RoolSpace['checkpoint']>) { return this.#space.checkpoint(...args); }
+  canUndo(...args: Parameters<RoolSpace['canUndo']>) { return this.#space.canUndo(...args); }
+  canRedo(...args: Parameters<RoolSpace['canRedo']>) { return this.#space.canRedo(...args); }
+  undo(...args: Parameters<RoolSpace['undo']>) { return this.#space.undo(...args); }
+  redo(...args: Parameters<RoolSpace['redo']>) { return this.#space.redo(...args); }
+  clearHistory(...args: Parameters<RoolSpace['clearHistory']>) { return this.#space.clearHistory(...args); }
+  getMetadata(...args: Parameters<RoolSpace['getMetadata']>) { return this.#space.getMetadata(...args); }
+  getAllMetadata(...args: Parameters<RoolSpace['getAllMetadata']>) { return this.#space.getAllMetadata(...args); }
+  getConversations(...args: Parameters<RoolSpace['getConversations']>) { return this.#space.getConversations(...args); }
+  deleteConversation(...args: Parameters<RoolSpace['deleteConversation']>) { return this.#space.deleteConversation(...args); }
+  getSchema(...args: Parameters<RoolSpace['getSchema']>) { return this.#space.getSchema(...args); }
+  fetch(...args: Parameters<RoolSpace['fetch']>) { return this.#space.fetch(...args); }
   // Proxy resource methods
   getStorageUsage(...args: Parameters<RoolSpace['getStorageUsage']>) { return this.#space.getStorageUsage(...args); }
   fetchPath(...args: Parameters<RoolSpace['fetchPath']>) { return this.#space.fetchPath(...args); }
@@ -102,12 +101,10 @@ class ReactiveSpaceImpl {
   createInvite(...args: Parameters<RoolSpace['createInvite']>) { return this.#space.createInvite(...args); }
   listInvites(...args: Parameters<RoolSpace['listInvites']>) { return this.#space.listInvites(...args); }
   revokeInvite(...args: Parameters<RoolSpace['revokeInvite']>) { return this.#space.revokeInvite(...args); }
-  renameChannel(channelId: string, name: string): Promise<void> { return this.#space.renameChannel(channelId, name); }
-  deleteChannel(channelId: string): Promise<void> { return this.#space.deleteChannel(channelId); }
   exportArchive(): Promise<Blob> { return this.#space.exportArchive(); }
   refresh(): Promise<void> { return this.#space.refresh(); }
 
-  // Events on the underlying space (channelCreated/Updated/Deleted, connectionStateChanged)
+  // Events on the underlying space (conversationUpdated, filesChanged, connectionStateChanged)
   on(...args: Parameters<RoolSpace['on']>) { return this.#space.on(...args); }
   off(...args: Parameters<RoolSpace['off']>) { return this.#space.off(...args); }
 }

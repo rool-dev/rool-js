@@ -144,7 +144,7 @@ interface SubscriptionConfig<TEvent> {
   graphqlUrl: string;
   authManager: AuthManager;
   logger: Logger;
-  logPrefix: string;               // e.g. '[RoolClient]' or '[RoolChannel] Space abc123'
+  logPrefix: string;               // e.g. '[RoolClient]' or '[RoolSpace] Space abc123'
   query: string;                   // GraphQL subscription query
   variables?: Record<string, unknown>;
   dataField: string;               // top-level field in result.data (e.g. 'clientEvents')

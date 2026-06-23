@@ -13,10 +13,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: exoplanets');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('exoplanets-eval');
+      const conversation = space.conversation('exoplanets-eval');
       await createCollectionWithRetry(conversation, 'star', [
         { name: 'name', type: { kind: 'string' } },
       ]);

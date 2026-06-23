@@ -10,10 +10,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: quickstart');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('quickstart-eval');
+      const conversation = space.conversation('quickstart-eval');
 
       // Define the schema.
       await createCollectionWithRetry(conversation, 'body', [
@@ -75,7 +74,7 @@ export const testCase: TestCase = {
 
       const result = parseJsonMessage<{ paths: string[] }>(message);
       expect(result.paths.length).to.be.at.least(2, 'Should find at least 2 inner planets');
-      const { objects: innerPlanets } = await channel.getObjects(result.paths);
+      const { objects: innerPlanets } = await space.getObjects(result.paths);
       const names = innerPlanets.map(p => String(p.body.name).toLowerCase());
       const hasInner = names.some(n => n === 'mercury' || n === 'venus');
       expect(hasInner, `Inner planets should include Mercury or Venus, got: ${names.join(', ')}`).to.be.true;

@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, ChannelEvent, RoolEventSource, SpaceSchema, Channel, Conversation } from './types.js';
+import type { ConnectionState, ClientEvent, SpaceEvent, RoolEventSource, SpaceSchema, Conversation } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 
@@ -454,18 +454,6 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
       };
     case 'user_storage_changed':
       return { type, timestamp, key: raw.key as string, value: raw.value };
-    case 'channel_created':
-      return {
-        type, timestamp, spaceId: raw.spaceId as string,
-        channelId: raw.channelId as string, name: raw.name as string | undefined,
-        channelCreatedAt: raw.createdAt as number | undefined,
-        channelCreatedBy: raw.createdBy as string | undefined,
-        channelCreatedByName: raw.createdByName as string | undefined,
-      };
-    case 'channel_renamed':
-      return { type, timestamp, spaceId: raw.spaceId as string, channelId: raw.channelId as string, name: raw.name as string };
-    case 'channel_deleted':
-      return { type, timestamp, spaceId: raw.spaceId as string, channelId: raw.channelId as string };
     default:
       logger.warn('[RoolClient] Unknown client event type:', type);
       return null;
@@ -474,8 +462,7 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
 
 // =============================================================================
 // Space Subscription Manager
-// One per space, shared by all channels. Handles object, schema, metadata,
-// channel, and conversation events for the entire space.
+// One per space. Handles object, schema, metadata, and conversation events.
 // =============================================================================
 
 export interface SpaceSubscriptionConfig {
@@ -483,20 +470,20 @@ export interface SpaceSubscriptionConfig {
   authManager: AuthManager;
   logger: Logger;
   spaceId: string;
-  onEvent: (event: ChannelEvent) => void;
+  onEvent: (event: SpaceEvent) => void;
   onConnectionStateChanged: (state: ConnectionState) => void;
   onError: (error: Error) => void;
 }
 
 export class SpaceSubscriptionManager {
-  private subscription: Subscription<ChannelEvent>;
+  private subscription: Subscription<SpaceEvent>;
 
   constructor(config: SpaceSubscriptionConfig) {
-    this.subscription = new Subscription<ChannelEvent>({
+    this.subscription = new Subscription<SpaceEvent>({
       getGraphqlUrl: config.getGraphqlUrl,
       authManager: config.authManager,
       logger: config.logger,
-      logPrefix: `[RoolChannel] Space ${config.spaceId}`,
+      logPrefix: `[RoolSpace] Space ${config.spaceId}`,
       query: `
         subscription SpaceEvents($spaceId: String!) {
           spaceEvents(spaceId: $spaceId)
@@ -521,7 +508,7 @@ export class SpaceSubscriptionManager {
   }
 }
 
-function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelEvent | null {
+function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): SpaceEvent | null {
   if (raw.type === 'heartbeat') return null;
   const rawType = raw.type as string;
   const spaceId = raw.spaceId as string;
@@ -543,18 +530,14 @@ function parseSpaceEvent(raw: Record<string, unknown>, logger: Logger): ChannelE
       return { type: 'schema_updated', spaceId, timestamp, source, schema: raw.schema as SpaceSchema };
     case 'metadata_updated':
       return { type: 'metadata_updated', spaceId, timestamp, source, metadata: raw.metadata as Record<string, unknown> };
-    case 'channel_updated':
-      return { type: 'channel_updated', spaceId, timestamp, source, channelId: raw.channelId as string, channel: raw.channel as Channel | undefined };
     case 'conversation_updated':
-      return { type: 'conversation_updated', spaceId, timestamp, source, channelId: raw.channelId as string, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
-    case 'channel_deleted':
-      return { type: 'channel_deleted', spaceId, timestamp, source, channelId: raw.channelId as string };
+      return { type: 'conversation_updated', spaceId, timestamp, source, conversationId: raw.conversationId as string, conversation: raw.conversation as Conversation };
     case 'space_files_changed':
       return { type: 'space_files_changed', spaceId, timestamp, source };
     case 'space_files_reset':
       return { type: 'space_files_reset', spaceId, timestamp, source };
     default:
-      logger.warn('[RoolChannel] Unknown space event type:', rawType);
+      logger.warn('[RoolSpace] Unknown space event type:', rawType);
       return null;
   }
 }

@@ -11,10 +11,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: company-lookup');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('company-lookup-eval');
+      const conversation = space.conversation('company-lookup-eval');
       await createCollectionWithRetry(conversation, 'company', [
         { name: 'name', type: { kind: 'string' } },
         { name: 'cvr', type: { kind: 'string' } },
@@ -31,7 +30,7 @@ export const testCase: TestCase = {
         { attachments: [companyPath] },
       );
 
-      const object = await channel.getObject(companyPath);
+      const object = await space.getObject(companyPath);
       expect(object).to.exist;
       expect(collectionOf(object!)).to.equal('company');
       expect(object!.body.name).to.equal('Aves ApS');

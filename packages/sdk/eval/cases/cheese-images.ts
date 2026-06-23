@@ -11,15 +11,14 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: cheese-images');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('cheese-images-eval');
+      const conversation = space.conversation('cheese-images-eval');
       const { objects } = await conversation.prompt(`Create three image objects with an image of cheese from the web. Each object should store the image URL in an "contentUrl" field.`);
 
       expect(objects).to.have.length(3);
       expectValidUniqueUrls(objects, 'contentUrl');
-      await expectUrlsFetchable(channel, objects, 'contentUrl');
+      await expectUrlsFetchable(space, objects, 'contentUrl');
     } finally {
       space.close();
     }

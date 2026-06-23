@@ -43,10 +43,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: sailing-split');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('sailing-split-eval');
+      const conversation = space.conversation('sailing-split-eval');
       await createCollectionWithRetry(conversation, 'markdown', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },
@@ -68,7 +67,7 @@ export const testCase: TestCase = {
       const { objects } = await conversation.prompt(prompt, { attachments: [initialPath] });
 
       // Original markdown path should no longer resolve (it was moved into topic/).
-      const stillThere = await channel.getObject(initialPath);
+      const stillThere = await space.getObject(initialPath);
       expect(stillThere, 'Original markdown path should be empty after move').to.be.undefined;
 
       // Find the topic object the agent produced.

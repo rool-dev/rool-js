@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { generateEntityId } from '../../src/channel.js';
+import { generateEntityId } from '../../src/space-session.js';
 
 /**
  * Tests branching conversations: parentInteractionId creates a tree,
@@ -11,8 +11,7 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: branching-conversation');
-    const channel = await space.openChannel('console');
-    const conv = channel.conversation(generateEntityId());
+    const conv = space.conversation(generateEntityId());
 
     try {
       // --- Linear chain: A → B ---

@@ -1,5 +1,4 @@
 import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser } from '@rool-dev/sdk';
-import { createChannelList, type ReactiveChannelList } from './channel.svelte.js';
 import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
 /**
@@ -9,7 +8,7 @@ import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
  * - Reactive auth state (`authenticated`)
  * - Reactive spaces list (`spaces`)
  * - Reactive user storage (`userStorage`)
- * - Channel-based access to spaces
+ * - Space-level access to conversations, objects, and AI
  */
 class RoolImpl {
   #client: RoolClient;
@@ -164,7 +163,6 @@ class RoolImpl {
 
   /**
    * Open a space with a live SSE subscription. Returns a ReactiveSpace.
-   * Call `space.openChannel(channelId)` to get a ReactiveChannel.
    * Call `space.close()` when done to stop the subscription.
    */
   async openSpace(spaceId: string): Promise<ReactiveSpace> {
@@ -307,15 +305,6 @@ class RoolImpl {
   }
 
 
-  /**
-   * Create a reactive channel list for a space.
-   * Auto-updates when channels are created, updated, or deleted.
-   * Returns immediately with loading=true; populates once the space is ready.
-   * Call close() when done to stop listening.
-   */
-  channels(spaceId: string): ReactiveChannelList {
-    return createChannelList(this.#client.openSpace(spaceId));
-  }
 
   /**
    * Clean up resources.

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import type { RoolChannel } from '../src/channel.js';
+import type { RoolSpace } from '../src/space.js';
 import type { RoolSpace } from '../src/space.js';
 import type { RoolObject, CollectionDef, CollectionOptions, FieldDef } from '../src/types.js';
 
@@ -51,10 +51,10 @@ export async function listObjectPaths(space: RoolSpace): Promise<string[]> {
 /**
  * Load all current objects in a space.
  */
-export async function listObjects(space: RoolSpace, channel: RoolChannel): Promise<RoolObject[]> {
+export async function listObjects(space: RoolSpace): Promise<RoolObject[]> {
   const paths = await listObjectPaths(space);
   if (paths.length === 0) return [];
-  const result = await channel.getObjects(paths);
+  const result = await space.getObjects(paths);
   return result.objects.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -100,7 +100,7 @@ export async function createCollectionWithRetry(
 /**
  * Assert that a collection exists in the space schema by exact name.
  */
-export function expectCollection(space: RoolChannel, name: string): CollectionDef {
+export function expectCollection(space: RoolSpace, name: string): CollectionDef {
   const schema = space.getSchema();
   expect(schema[name], `Expected collection "${name}" in schema`).to.exist;
   return schema[name];
@@ -110,7 +110,7 @@ export function expectCollection(space: RoolChannel, name: string): CollectionDe
  * Find a collection in the schema whose fields include all the given field names.
  * Fails if no matching collection is found.
  */
-export function expectCollectionWithFields(space: RoolChannel, fields: string[]): CollectionDef {
+export function expectCollectionWithFields(space: RoolSpace, fields: string[]): CollectionDef {
   const schema = space.getSchema();
   for (const [, def] of Object.entries(schema)) {
     const fieldNames = def.fields.map(f => f.name);
@@ -155,13 +155,13 @@ export function expectValidUniqueUrls(objects: RoolObject[], field: string): voi
 /**
  * Assert that all URLs in the specified body field are fetchable.
  */
-export async function expectUrlsFetchable(channel: RoolChannel, objects: RoolObject[], field: string): Promise<void> {
+export async function expectUrlsFetchable(space: RoolSpace, objects: RoolObject[], field: string): Promise<void> {
   for (const obj of objects) {
     const url = obj.body[field] as string;
     if (!url) continue;
 
     try {
-      const response = await channel.fetch(url);
+      const response = await space.fetch(url);
       const blob = await response.blob();
       expect(blob.size, `URL returned empty content for ${obj.path}: ${url}`).to.be.greaterThan(0);
     } catch (error) {

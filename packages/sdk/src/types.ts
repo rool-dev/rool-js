@@ -53,7 +53,7 @@ export interface GetObjectsResult {
 
 /**
  * Audit information for an object — when it was last modified, by whom,
- * and where (channel/conversation/interaction). Returned by `channel.stat`.
+ * and where (conversation/interaction). Returned by `space.stat`.
  */
 export interface RoolObjectStat {
   /** Object path these stats apply to. */
@@ -61,7 +61,6 @@ export interface RoolObjectStat {
   modifiedAt: number;
   modifiedBy: string;
   modifiedByName: string | null;
-  modifiedInChannel: string;
   modifiedInConversation: string | null;
   modifiedInInteraction: string | null;
 }
@@ -118,7 +117,7 @@ export interface Interaction {
 }
 
 /**
- * A conversation within a channel — holds interaction history and optional system instruction.
+ * A conversation in a space — holds interaction history and optional system instruction.
  */
 export interface Conversation {
   name?: string;
@@ -129,7 +128,7 @@ export interface Conversation {
 }
 
 /**
- * Summary info for a conversation (returned by openChannel, no full interaction data).
+ * Summary info for a conversation (no full interaction data).
  */
 export interface ConversationInfo {
   id: string;
@@ -140,29 +139,6 @@ export interface ConversationInfo {
   interactionCount: number;
 }
 
-/**
- * A channel container with metadata and conversations.
- */
-export interface Channel {
-  name?: string;
-  createdAt: number;
-  createdBy: string;
-  createdByName?: string;
-  conversations: Record<string, Conversation>;
-}
-
-
-/**
- * Channel info for listing - summary without full interaction history.
- */
-export interface ChannelInfo {
-  id: string;
-  name: string | null;
-  createdAt: number;
-  createdBy: string;
-  createdByName: string | null;
-  interactionCount: number;
-}
 
 
 export type RoolUserRole = 'owner' | 'admin' | 'editor' | 'viewer';
@@ -331,7 +307,7 @@ export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
 
 export type RoolEventSource = 'user' | 'agent';
 
-export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'space_access_changed' | 'user_storage_changed' | 'channel_created' | 'channel_renamed' | 'channel_deleted';
+export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'space_access_changed' | 'user_storage_changed';
 
 interface ClientEventBase {
   timestamp: number;
@@ -384,54 +360,26 @@ export interface UserStorageChangedClientEvent extends ClientEventBase {
   value: unknown;
 }
 
-export interface ChannelCreatedClientEvent extends ClientEventBase {
-  type: 'channel_created';
-  spaceId: string;
-  channelId: string;
-  name?: string;
-  channelCreatedAt?: number;
-  channelCreatedBy?: string;
-  channelCreatedByName?: string;
-}
-
-export interface ChannelRenamedClientEvent extends ClientEventBase {
-  type: 'channel_renamed';
-  spaceId: string;
-  channelId: string;
-  name: string;
-}
-
-export interface ChannelDeletedClientEvent extends ClientEventBase {
-  type: 'channel_deleted';
-  spaceId: string;
-  channelId: string;
-}
-
 export type ClientEvent =
   | ConnectedClientEvent
   | SpaceCreatedClientEvent
   | SpaceDeletedClientEvent
   | SpaceRenamedClientEvent
   | SpaceAccessChangedClientEvent
-  | UserStorageChangedClientEvent
-  | ChannelCreatedClientEvent
-  | ChannelRenamedClientEvent
-  | ChannelDeletedClientEvent;
+  | UserStorageChangedClientEvent;
 
-export type ChannelEventType =
+export type SpaceEventType =
   | 'connected'
   | 'space_changed'
   | 'schema_updated'
   | 'metadata_updated'
-  | 'channel_updated'
-  | 'channel_deleted'
   | 'conversation_updated'
   | 'space_files_changed'
   | 'space_files_reset';
 
 
-export interface ChannelEvent {
-  type: ChannelEventType;
+export interface SpaceEvent {
+  type: SpaceEventType;
   spaceId: string;
   timestamp: number;
   source: RoolEventSource;
@@ -439,9 +387,6 @@ export interface ChannelEvent {
   schema?: SpaceSchema;
   // Metadata events
   metadata?: Record<string, unknown>;
-  // Channel events
-  channelId?: string;
-  channel?: Channel;
   // Conversation events
   conversationId?: string;
   conversation?: Conversation;
@@ -566,12 +511,6 @@ export interface RoolClientEvents {
   spaceRemoved: (spaceId: string) => void;
   /** Emitted when a space is renamed (by any client) */
   spaceRenamed: (spaceId: string, newName: string) => void;
-  /** Emitted when a channel is created in a space */
-  channelCreated: (spaceId: string, channel: ChannelInfo) => void;
-  /** Emitted when a channel's metadata changes */
-  channelUpdated: (spaceId: string, channel: ChannelInfo) => void;
-  /** Emitted when a channel is deleted */
-  channelDeleted: (spaceId: string, channelId: string) => void;
   /** Emitted when user storage changes (local or remote) */
   userStorageChanged: (event: UserStorageChangedEvent) => void;
   /** Emitted when SSE connection state changes */
@@ -589,13 +528,7 @@ export interface SpaceFilesChangedEvent {
   timestamp: number;
 }
 
-export interface RoolSpaceEvents {
-  /** A new channel was created in this space */
-  channelCreated: (channel: ChannelInfo) => void;
-  /** A channel's metadata changed */
-  channelUpdated: (channel: ChannelInfo) => void;
-  /** A channel was deleted from this space */
-  channelDeleted: (channelId: string) => void;
+export interface RoolSpaceEvents extends SpaceContentEvents {
   /** File storage changed; call webdav.syncCollection() to reconcile. */
   filesChanged: (event: SpaceFilesChangedEvent) => void;
   /** WebDAV sync tokens were invalidated; discard local tokens and full-resync. */
@@ -631,36 +564,27 @@ export interface ResetEvent {
 }
 
 
-export interface ChannelUpdatedEvent {
-  channelId: string;
-  source: ChangeSource;
-}
 
 export interface ConversationUpdatedEvent {
   conversationId: string;
-  channelId: string;
   source: ChangeSource;
 }
 
 /**
- * Channel-level events (content changes within a specific channel).
- *
- * Semantic channel events describe non-file channel state. Object/file
- * reactivity is intentionally exposed via `RoolSpace` `filesChanged` /
+ * Space content events (metadata, schema, conversations, and resets).
+ * Object/file reactivity is intentionally exposed via `RoolSpace` `filesChanged` /
  * `filesReset` plus WebDAV `syncCollection()`.
  */
-export interface ChannelEvents {
+export interface SpaceContentEvents {
   /** Space metadata was updated */
   metadataUpdated: (event: MetadataUpdatedEvent) => void;
   /** Collection schema was updated */
   schemaUpdated: (event: SchemaUpdatedEvent) => void;
-  /** Channel metadata was updated */
-  channelUpdated: (event: ChannelUpdatedEvent) => void;
   /** Conversation interaction history was updated */
   conversationUpdated: (event: ConversationUpdatedEvent) => void;
   /** Full state replacement (undo/redo, resync) */
   reset: (event: ResetEvent) => void;
-  /** Emitted when a sync error occurs and the channel resyncs from server */
+  /** Emitted when a sync error occurs */
   syncError: (error: Error) => void;
   /** Index signature for EventEmitter compatibility */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

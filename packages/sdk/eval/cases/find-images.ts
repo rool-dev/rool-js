@@ -19,10 +19,9 @@ export const testCase: TestCase = {
     // Import the fixture.
     const archive = loadArchiveFixture('electrical-new');
     const space = await client.importArchive('EVAL: find-images', archive);
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('find-images-eval');
+      const conversation = space.conversation('find-images-eval');
 
       // Capture initial state.
       const initialPaths = await listObjectPaths(space);
@@ -40,7 +39,7 @@ export const testCase: TestCase = {
         },
       );
       const { paths } = parseJsonMessage<{ paths: string[] }>(message);
-      const { objects } = await channel.getObjects(paths);
+      const { objects } = await space.getObjects(paths);
 
       // Should find exactly the 2 ImageObject nodes.
       expect(objects.length).to.equal(2, 'Should find exactly 2 image objects');

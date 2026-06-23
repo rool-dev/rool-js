@@ -3,8 +3,6 @@ import { AuthManager } from './auth.js';
 import { GraphQLClient } from './graphql.js';
 import { ClientSubscriptionManager } from './subscription.js';
 import { RestClient } from './rest.js';
-
-import { generateEntityId } from './channel.js';
 import { RoolSpace } from './space.js';
 import { SpaceRouter } from './router.js';
 import { defaultLogger, type Logger } from './logger.js';
@@ -14,7 +12,6 @@ import type {
   RoolSpaceInfo,
   RoolUserRole,
   ClientEvent,
-  ChannelInfo,
   CurrentUser,
   InvitePreview,
   InviteRedeemResult,
@@ -23,6 +20,14 @@ import type {
   PasswordSignInResult,
 } from './types.js';
 
+function generateEntityId(): string {
+  const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-';
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  let id = '';
+  for (let i = 0; i < 16; i++) id += alphabet[bytes[i] & 63];
+  return id;
+}
 type ResolvedUrls = {
   graphql: string;
   auth: string;
@@ -32,12 +37,11 @@ type ResolvedUrls = {
 /**
  * Rool Client - Manages authentication, space lifecycle, and shared infrastructure.
  *
- * The client is lightweight - most operations happen on RoolSpace and RoolChannel instances.
+ * The client is lightweight - most operations happen on RoolSpace instances.
  *
  * Features:
  * - Authentication (login, logout, token management)
  * - Space lifecycle (list, create, delete, rename)
- * - Channel management (open, list, rename, delete)
  * - Client-level subscription for lifecycle events
  * - User storage (cross-device key-value storage)
  */
@@ -50,7 +54,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   private subscriptionManager: ClientSubscriptionManager | null = null;
   private logger: Logger;
 
-  // Open spaces (cached for reuse by openChannel)
+  // Open spaces (cached for reuse)
   private openSpaces = new Map<string, RoolSpace>();
 
   // User storage cache (in-memory; populated from server on initialize)
@@ -173,7 +177,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.authManager.destroy();
     this.subscriptionManager?.destroy();
 
-    // Close all open spaces (which close their channels and subscriptions)
+    // Close all open spaces and subscriptions
     for (const space of this.openSpaces.values()) space.close();
     this.openSpaces.clear();
 
@@ -271,7 +275,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.authManager.logout();
     this.unsubscribe();
 
-    // Close all open spaces (which close their channels and subscriptions)
+    // Close all open spaces and subscriptions
     for (const space of this.openSpaces.values()) space.close();
     this.openSpaces.clear();
   }
@@ -327,7 +331,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Open a space with a real-time subscription.
-   * Returns a live RoolSpace handle with channel lifecycle events.
+   * Returns a live RoolSpace handle with conversation and file events.
    * Reuses an existing handle if the space is already open.
    *
    * Call space.close() when done to stop the subscription.
@@ -372,16 +376,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
     this.openSpaces.set(spaceId, space);
 
-    // Forward space channel events to client-level events (backwards compat)
-    space.on('channelCreated', (channel: ChannelInfo) => {
-      this.emit('channelCreated', spaceId, channel);
-    });
-    space.on('channelUpdated', (channel: ChannelInfo) => {
-      this.emit('channelUpdated', spaceId, channel);
-    });
-    space.on('channelDeleted', (channelId: string) => {
-      this.emit('channelDeleted', spaceId, channelId);
-    });
 
     return space;
   }
@@ -389,7 +383,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   /**
    * Create a new space.
    * Returns a RoolSpace handle with a real-time subscription.
-   * Call space.openChannel(channelId) to start working with objects.
+   * Use the returned RoolSpace to work with objects, conversations, and AI.
    */
   async createSpace(name: string): Promise<RoolSpace> {
     // Prevents a rejection here from crashing Node before the caller awaits it.
@@ -401,7 +395,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Delete a space.
-   * Note: This does not affect any open Channel instances - they become stale.
+   * Note: This closes any cached open RoolSpace handle.
    */
   async deleteSpace(spaceId: string): Promise<void> {
     await this.graphqlClient.deleteSpace(spaceId);
@@ -614,8 +608,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
   /**
    * Handle a client-level event from the subscription.
-   * Channel events from the client SSE are ignored — they're handled by
-   * the space subscription via RoolSpace instead.
    * @internal
    */
   private handleClientEvent(event: ClientEvent): void {
@@ -664,11 +656,6 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
         this.handleUserStorageChanged(event.key, event.value);
         break;
 
-      // Channel events from client SSE are ignored — handled by RoolSpace
-      case 'channel_created':
-      case 'channel_renamed':
-      case 'channel_deleted':
-        break;
     }
   }
 

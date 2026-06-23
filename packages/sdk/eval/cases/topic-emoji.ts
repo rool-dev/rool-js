@@ -14,10 +14,9 @@ export const testCase: TestCase = {
 
   async run(client) {
     const space = await client.createSpace('EVAL: topic-emoji');
-    const channel = await space.openChannel('console');
 
     try {
-      const conversation = channel.conversation('topic-emoji-eval');
+      const conversation = space.conversation('topic-emoji-eval');
       await createCollectionWithRetry(conversation, 'topic', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'emoji', type: { kind: 'maybe', inner: { kind: 'string' } } },
@@ -34,7 +33,7 @@ export const testCase: TestCase = {
       expect(paths).to.deep.equal([topicPath]);
 
       // Verify emoji was added and is boat-related.
-      const topic = await channel.getObject(topicPath);
+      const topic = await space.getObject(topicPath);
       expect(topic!.path).to.equal(topicPath);
       expect(topic!.body.headline).to.equal('Types of Sailboats');
       expect(topic!.body.emoji).to.be.a('string');
