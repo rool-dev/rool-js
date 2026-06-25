@@ -44,6 +44,8 @@ export { EventEmitter } from './event-emitter.js';
 export { NativePkceAuthProvider } from './auth-native.js';
 export type { NativePkceAuthConfig, NativeAuthFlowProvider } from './auth-native.js';
 
+export { roolSdkVersion } from './client-info.js';
+
 // Logger
 export type { Logger } from './logger.js';
 
@@ -117,4 +119,7 @@ export type {
   AuthTokens,
   AuthProvider,
   PasswordSignInResult,
+  RoolClientIdentity,
+  ServerInfo,
+  ClientCompatibility,
 } from './types.js';

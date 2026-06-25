@@ -616,11 +616,18 @@ const client = new RoolClient({
   apiUrl: 'https://api.rool.dev',
   authUrl: 'https://rool.dev/auth',
   graphqlUrl: 'https://api.rool.dev/graphql',
+  client: {
+    appName: 'com.example.app',
+    appVersion: '1.4.2',
+    osVersion: 'iOS 17.5',
+  },
   logger: console,
 });
 ```
 
 `apiUrl` defaults to `https://api.rool.dev`; `authUrl` is derived by stripping the `api.` hostname prefix unless provided. `baseUrl` is still accepted as a deprecated alias for `apiUrl`. Pass `authProvider` for Node.js, Electron, or custom auth flows.
+
+`client` is optional application identity sent on requests alongside the SDK package name/version. Compatibility is based only on the SDK version.
 
 | Method/property | Description |
 | --- | --- |
@@ -654,6 +661,8 @@ client.on('spaceRenamed', (spaceId, newName) => void 0);
 client.on('userStorageChanged', ({ key, value, source }) => void 0);
 client.on('connectionStateChanged', (state) => void 0);
 client.on('error', (error, context) => void 0);
+client.on('serverInfoChanged', (info) => void 0);
+client.on('unsupported', (info) => void 0); // SDK older than server minimum
 ```
 
 ## RoolSpace API

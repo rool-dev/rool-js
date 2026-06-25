@@ -1,4 +1,5 @@
 import type { AuthManager } from './auth.js';
+import { addClientInfoHeaders, resolveClientInfo, type RoolClientInfo } from './client-info.js';
 
 const ROUTE_MAX_RETRIES = 6;
 const ROUTE_RETRY_BASE_MS = 150;
@@ -17,16 +18,19 @@ export interface RouteInfo {
 export interface SpaceRouterConfig {
   apiUrl: string;
   authManager: AuthManager;
+  clientInfo?: RoolClientInfo;
 }
 
 export class SpaceRouter {
   private apiUrl: string;
   private authManager: AuthManager;
+  private clientInfo: RoolClientInfo;
   private inflight = new Map<string, Promise<RouteInfo>>();
 
   constructor(config: SpaceRouterConfig) {
     this.apiUrl = config.apiUrl.replace(/\/+$/, '');
     this.authManager = config.authManager;
+    this.clientInfo = config.clientInfo ?? resolveClientInfo();
   }
 
   resolve(spaceId: string): Promise<RouteInfo> {
@@ -47,12 +51,12 @@ export class SpaceRouter {
     // A draining shard 503s /route (it must not re-claim the lease for a dying
     // instance). /route is any-shard, so retry until a live shard answers.
     for (let attempt = 0; ; attempt++) {
-      const response = await fetch(`${this.apiUrl}/route/${encodeURIComponent(spaceId)}`, {
-        headers: {
-          Authorization: `Bearer ${tokens.accessToken}`,
-          'X-Rool-Token': tokens.roolToken,
-        },
+      const headers = new Headers({
+        Authorization: `Bearer ${tokens.accessToken}`,
+        'X-Rool-Token': tokens.roolToken,
       });
+      addClientInfoHeaders(headers, this.clientInfo);
+      const response = await fetch(`${this.apiUrl}/route/${encodeURIComponent(spaceId)}`, { headers });
 
       if (response.ok) {
         const data = await response.json() as { server: string; generation: number };

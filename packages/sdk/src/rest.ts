@@ -1,6 +1,7 @@
 import type { AuthManager } from './auth.js';
 import type { GetObjectsResult, InvitePreview, InviteRedeemResult } from './types.js';
 import { fetchWithReroute, isThrowRetryable } from './reroute.js';
+import { addClientInfoHeaders, resolveClientInfo, type RoolClientInfo } from './client-info.js';
 
 export type InviteErrorCode =
   | 'INVITE_INVALID'
@@ -25,6 +26,7 @@ async function throwInviteError(response: Response): Promise<never> {
 export interface RestClientConfig {
   apiUrl: string;
   authManager: AuthManager;
+  clientInfo?: RoolClientInfo;
   /** Called on shard refusal/drain (421/503). Return the new API base URL. */
   onRefused?: () => Promise<string>;
 }
@@ -33,11 +35,13 @@ export class RestClient {
   private apiUrl: string;
   private authManager: AuthManager;
   private onRefused?: () => Promise<string>;
+  private clientInfo: RoolClientInfo;
 
   constructor(config: RestClientConfig) {
     this.apiUrl = config.apiUrl.replace(/\/+$/, '');
     this.authManager = config.authManager;
     this.onRefused = config.onRefused;
+    this.clientInfo = config.clientInfo ?? resolveClientInfo();
   }
 
   /** Update the API base URL (used after shard rerouting). */
@@ -133,6 +137,7 @@ export class RestClient {
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
     headers.set('X-Rool-Token', tokens.roolToken);
+    addClientInfoHeaders(headers, this.clientInfo);
 
     const onRefused = this.onRefused;
     return fetchWithReroute({

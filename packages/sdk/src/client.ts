@@ -6,6 +6,7 @@ import { RestClient } from './rest.js';
 import { RoolSpace } from './space.js';
 import { SpaceRouter } from './router.js';
 import { defaultLogger, type Logger } from './logger.js';
+import { addClientInfoHeaders, resolveClientInfo, type RoolClientInfo } from './client-info.js';
 import type {
   RoolClientConfig,
   RoolClientEvents,
@@ -53,6 +54,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   private router: SpaceRouter;
   private subscriptionManager: ClientSubscriptionManager | null = null;
   private logger: Logger;
+  private clientInfo: RoolClientInfo;
+  private _serverInfo: { version: string; minimumSdkVersion?: string | null; compatibility: 'ok' | 'unsupported' } | null = null;
 
   // Open spaces (cached for reuse)
   private openSpaces = new Map<string, RoolSpace>();
@@ -68,6 +71,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
 
     this.logger = config.logger ?? defaultLogger;
     this._emitterLogger = this.logger;
+    this.clientInfo = resolveClientInfo(config.client);
 
     // Resolve API origin and auth URL.
     // Auth is derived by stripping the api. hostname prefix from the API URL.
@@ -107,11 +111,13 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.graphqlClient = new GraphQLClient({
       graphqlUrl: this.urls.graphql,
       authManager: this.authManager,
+      clientInfo: this.clientInfo,
     });
 
     this.router = new SpaceRouter({
       apiUrl: this.baseUrl,
       authManager: this.authManager,
+      clientInfo: this.clientInfo,
     });
   }
 
@@ -301,6 +307,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     const headers = new Headers(init?.headers);
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
     headers.set('X-Rool-Token', tokens.roolToken);
+    addClientInfoHeaders(headers, this.clientInfo);
 
     return fetch(`${this.baseUrl}${path}`, { ...init, headers });
   }
@@ -319,6 +326,10 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   get currentUser(): CurrentUser | null {
     return this._currentUser;
+  }
+
+  get serverInfo(): { version: string; minimumSdkVersion?: string | null; compatibility: 'ok' | 'unsupported' } | null {
+    return this._serverInfo;
   }
 
 
@@ -350,10 +361,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     const scopedClient = new GraphQLClient({
       graphqlUrl: scopedGraphqlUrl,
       authManager: this.authManager,
+      clientInfo: this.clientInfo,
     });
     const scopedRestClient = new RestClient({
       apiUrl: initialRoute.server,
       authManager: this.authManager,
+      clientInfo: this.clientInfo,
     });
 
     const fullData = await scopedClient.openSpaceFull(spaceId);
@@ -368,6 +381,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       graphqlClient: scopedClient,
       restClient: scopedRestClient,
       authManager: this.authManager,
+      clientInfo: this.clientInfo,
       router: this.router,
       initialRoute,
       logger: this.logger,
@@ -539,6 +553,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     return new RestClient({
       apiUrl: this.baseUrl,
       authManager: this.authManager,
+      clientInfo: this.clientInfo,
     });
   }
 
@@ -554,6 +569,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
     this.subscriptionManager = new ClientSubscriptionManager({
       graphqlUrl: this.urls.graphql,
       authManager: this.authManager,
+      clientInfo: this.clientInfo,
       logger: this.logger,
       onEvent: (event) => this.handleClientEvent(event),
       onConnectionStateChanged: (state: ConnectionState) => {
@@ -612,6 +628,17 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   private handleClientEvent(event: ClientEvent): void {
     switch (event.type) {
+      case 'connected': {
+        const info = {
+          version: event.serverVersion,
+          minimumSdkVersion: event.minimumSdkVersion,
+          compatibility: event.compatibility ?? 'ok' as const,
+        };
+        this._serverInfo = info;
+        this.emit('serverInfoChanged', info);
+        if (info.compatibility === 'unsupported') this.emit('unsupported', info);
+        break;
+      }
       case 'space_created':
         this.emit('spaceAdded', {
           id: event.spaceId,

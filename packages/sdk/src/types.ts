@@ -305,6 +305,8 @@ export interface MoveObjectOptions {
 
 export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
 
+export type ClientCompatibility = 'ok' | 'unsupported';
+
 export type RoolEventSource = 'user' | 'agent';
 
 export type ClientEventType = 'connected' | 'space_created' | 'space_deleted' | 'space_renamed' | 'space_access_changed' | 'user_storage_changed';
@@ -316,6 +318,8 @@ interface ClientEventBase {
 export interface ConnectedClientEvent extends ClientEventBase {
   type: 'connected';
   serverVersion: string;
+  minimumSdkVersion?: string | null;
+  compatibility?: ClientCompatibility;
 }
 
 export interface SpaceCreatedClientEvent extends ClientEventBase {
@@ -451,6 +455,21 @@ export interface AuthProvider {
   setAuthStateChangedHandler?: (handler: (authenticated: boolean) => void) => void;
 }
 
+export interface RoolClientIdentity {
+  /** Application name, e.g. com.example.app or my-web-app. */
+  appName?: string;
+  /** Application version, e.g. 1.4.2. */
+  appVersion?: string;
+  /** Operating system version, e.g. iOS 17.5 or Android 15. */
+  osVersion?: string;
+}
+
+export interface ServerInfo {
+  version: string;
+  minimumSdkVersion?: string | null;
+  compatibility: ClientCompatibility;
+}
+
 export interface RoolClientConfig {
   /**
    * API server URL (default: `'https://api.rool.dev'`).
@@ -467,6 +486,8 @@ export interface RoolClientConfig {
   graphqlUrl?: string;
   /** Override auth endpoint (derived from `apiUrl` by stripping `api.` prefix) */
   authUrl?: string;
+  /** Application identity sent with SDK requests. */
+  client?: RoolClientIdentity;
   /**
    * External auth provider.
    * When provided, the SDK uses this instead of built-in browser auth.
@@ -508,6 +529,10 @@ export interface RoolClientEvents {
   userStorageChanged: (event: UserStorageChangedEvent) => void;
   /** Emitted when SSE connection state changes */
   connectionStateChanged: (state: ConnectionState) => void;
+  /** Emitted when server identity or compatibility changes */
+  serverInfoChanged: (info: ServerInfo) => void;
+  /** Emitted when this SDK is older than the server's minimum supported SDK version */
+  unsupported: (info: ServerInfo) => void;
   /** Emitted on errors */
   error: (error: Error, context?: string) => void;
   /** Index signature for EventEmitter compatibility */

@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 import type { AuthManager } from './auth.js';
 import { fetchWithReroute } from './reroute.js';
+import { addClientInfoHeaders, resolveClientInfo, type RoolClientInfo } from './client-info.js';
 
 const COMPRESSION_THRESHOLD = 2048; // Compress payloads > 2KB
 
@@ -28,6 +29,7 @@ function getTimezone(): string | undefined {
 export interface GraphQLClientConfig {
   graphqlUrl: string;
   authManager: AuthManager;
+  clientInfo?: RoolClientInfo;
   onRefused?: () => Promise<string>;
 }
 
@@ -49,11 +51,11 @@ interface GraphQLResponse<T> {
 }
 
 export class GraphQLClient {
-  private config: GraphQLClientConfig;
+  private config: GraphQLClientConfig & { clientInfo: RoolClientInfo };
   private _graphqlUrl: string;
 
   constructor(config: GraphQLClientConfig) {
-    this.config = config;
+    this.config = { ...config, clientInfo: config.clientInfo ?? resolveClientInfo() };
     this._graphqlUrl = config.graphqlUrl;
   }
 
@@ -532,23 +534,22 @@ export class GraphQLClient {
     }
 
     const body = JSON.stringify({ query, variables });
-    const headers: Record<string, string> = {
+    const headers = new Headers({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${tokens.accessToken}`,
       'X-Rool-Token': tokens.roolToken,
-    };
+    });
+    addClientInfoHeaders(headers, this.config.clientInfo);
 
     const timezone = getTimezone();
-    if (timezone) {
-      headers['X-Timezone'] = timezone;
-    }
+    if (timezone) headers.set('X-Timezone', timezone);
 
     let fetchBody: BodyInit = body;
 
     // Compress large payloads
     if (body.length > COMPRESSION_THRESHOLD) {
       const gzipped = gzipSync(new TextEncoder().encode(body));
-      headers['Content-Encoding'] = 'gzip';
+      headers.set('Content-Encoding', 'gzip');
       // Convert to ArrayBuffer for fetch compatibility
       fetchBody = gzipped.buffer.slice(
         gzipped.byteOffset,

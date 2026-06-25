@@ -5,9 +5,10 @@
 // =============================================================================
 
 import { createClient, type Client } from 'graphql-sse';
-import type { ConnectionState, ClientEvent, SpaceEvent, RoolEventSource, Conversation } from './types.js';
+import type { ConnectionState, ClientEvent, ClientCompatibility, SpaceEvent, RoolEventSource, Conversation } from './types.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
+import { clientInfoHeaderRecord, type RoolClientInfo } from './client-info.js';
 
 const INITIAL_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
@@ -27,6 +28,7 @@ interface SubscriptionConfig<TEvent> {
   authManager: AuthManager;
   logger: Logger;
   logPrefix: string;
+  clientInfo: RoolClientInfo;
   query: string;
   variables?: Record<string, unknown>;
   dataField: string;
@@ -214,10 +216,11 @@ class Subscription<TEvent> {
     try {
       client = createClient({
         url,
-        headers: {
+        headers: () => ({
           Authorization: `Bearer ${tokens.accessToken}`,
           'X-Rool-Token': tokens.roolToken,
-        },
+          ...clientInfoHeaderRecord(this.config.clientInfo),
+        }),
       });
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -384,6 +387,7 @@ export interface ClientSubscriptionConfig {
   graphqlUrl: string;
   authManager: AuthManager;
   logger: Logger;
+  clientInfo: RoolClientInfo;
   onEvent: (event: ClientEvent) => void;
   onConnectionStateChanged: (state: ConnectionState) => void;
   onError: (error: Error) => void;
@@ -397,6 +401,7 @@ export class ClientSubscriptionManager {
       getGraphqlUrl: () => Promise.resolve(config.graphqlUrl),
       authManager: config.authManager,
       logger: config.logger,
+      clientInfo: config.clientInfo,
       logPrefix: '[RoolClient]',
       query: `
         subscription ClientEvents {
@@ -430,7 +435,7 @@ function parseClientEvent(raw: Record<string, unknown>, logger: Logger): ClientE
 
   switch (type) {
     case 'connected':
-      return { type, timestamp, serverVersion: raw.serverVersion as string };
+      return { type, timestamp, serverVersion: raw.serverVersion as string, minimumSdkVersion: raw.minimumSdkVersion as string | null, compatibility: raw.compatibility as ClientCompatibility };
     case 'space_created':
       return {
         type, timestamp, spaceId: raw.spaceId as string, name: raw.name as string,
@@ -469,6 +474,7 @@ export interface SpaceSubscriptionConfig {
   getGraphqlUrl: () => Promise<string>;
   authManager: AuthManager;
   logger: Logger;
+  clientInfo: RoolClientInfo;
   spaceId: string;
   onEvent: (event: SpaceEvent) => void;
   onConnectionStateChanged: (state: ConnectionState) => void;
@@ -483,6 +489,7 @@ export class SpaceSubscriptionManager {
       getGraphqlUrl: config.getGraphqlUrl,
       authManager: config.authManager,
       logger: config.logger,
+      clientInfo: config.clientInfo,
       logPrefix: `[RoolSpace] Space ${config.spaceId}`,
       query: `
         subscription SpaceEvents($spaceId: String!) {

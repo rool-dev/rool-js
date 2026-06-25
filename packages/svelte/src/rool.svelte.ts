@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type ServerInfo } from '@rool-dev/sdk';
 import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
 /**
@@ -23,6 +23,8 @@ class RoolImpl {
   connectionState = $state<ConnectionState>('disconnected');
   userStorage = $state<Record<string, unknown>>({});
   currentUser = $state<CurrentUser | null>(null);
+  serverInfo = $state<ServerInfo | null>(null);
+  unsupported = $state(false);
 
   constructor(config?: RoolClientConfig) {
     this.#client = new RoolClient(config);
@@ -68,6 +70,12 @@ class RoolImpl {
     this.#client.on('connectionStateChanged', onConnectionStateChanged);
     this.#unsubscribers.push(() => this.#client.off('connectionStateChanged', onConnectionStateChanged));
 
+    const onServerInfoChanged = (info: ServerInfo) => {
+      this.serverInfo = info;
+      this.unsupported = info.compatibility === 'unsupported';
+    };
+    this.#client.on('serverInfoChanged', onServerInfoChanged);
+    this.#unsubscribers.push(() => this.#client.off('serverInfoChanged', onServerInfoChanged));
     const onSpaceAdded = () => this.#refreshSpaces();
     this.#client.on('spaceAdded', onSpaceAdded);
     this.#unsubscribers.push(() => this.#client.off('spaceAdded', onSpaceAdded));

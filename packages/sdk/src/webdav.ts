@@ -1,6 +1,7 @@
 import type { AuthManager } from './auth.js';
 import { machinePath } from './path.js';
 import { fetchWithReroute, isThrowRetryable } from './reroute.js';
+import { addClientInfoHeaders, resolveClientInfo, type RoolClientInfo } from './client-info.js';
 
 export type WebDAVDepth = '0' | '1' | 'infinity';
 export type WebDAVSyncLevel = '1' | 'infinite';
@@ -27,6 +28,7 @@ export interface WebDAVConfig {
   webdavUrl: string;
   spaceId: string;
   authManager: AuthManager;
+  clientInfo?: RoolClientInfo;
   /** Called on shard refusal/drain (421/503). Return the new WebDAV base URL. */
   onRefused?: () => Promise<string>;
 }
@@ -155,12 +157,14 @@ export class RoolWebDAV {
   private spaceId: string;
   private authManager: AuthManager;
   private onRefused?: () => Promise<string>;
+  private clientInfo: RoolClientInfo;
 
   constructor(config: WebDAVConfig) {
     this.webdavUrl = normalizeWebDAVBaseUrl(config.webdavUrl);
     this.spaceId = config.spaceId;
     this.authManager = config.authManager;
     this.onRefused = config.onRefused;
+    this.clientInfo = config.clientInfo ?? resolveClientInfo();
   }
 
   /** Update the WebDAV base URL (used after shard rerouting). */
@@ -420,6 +424,7 @@ export class RoolWebDAV {
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
     headers.set('X-Rool-Token', tokens.roolToken);
+    addClientInfoHeaders(headers, this.clientInfo);
     const timezone = getTimezone();
     if (timezone) headers.set('X-Timezone', timezone);
 

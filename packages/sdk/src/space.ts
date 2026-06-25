@@ -8,6 +8,7 @@ import { machinePath } from './path.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
 import type { SpaceRouter, RouteInfo } from './router.js';
+import type { RoolClientInfo } from './client-info.js';
 import type {
   RoolUserRole,
   InviteRole,
@@ -33,6 +34,7 @@ export interface SpaceConfig {
   router: SpaceRouter;
   initialRoute: RouteInfo;
   logger: Logger;
+  clientInfo: RoolClientInfo;
   /** Called when the space is closed, so the client can remove it from cache. */
   onClose: () => void;
 }
@@ -53,6 +55,7 @@ export class RoolSpace extends SpaceOperations {
   private router: SpaceRouter;
   private _route: RouteInfo;
   private onCloseCallback: () => void;
+  private clientInfo: RoolClientInfo;
 
   // Subscription
   private subscriptionManager: SpaceSubscriptionManager | null = null;
@@ -67,6 +70,7 @@ export class RoolSpace extends SpaceOperations {
       webdavUrl: config.initialRoute.server,
       spaceId: config.id,
       authManager: config.authManager,
+      clientInfo: config.clientInfo,
       onRefused: async () => {
         await self.reroute();
         return self._route.server;
@@ -88,6 +92,7 @@ export class RoolSpace extends SpaceOperations {
       logger: config.logger,
       onClose: () => {},
     });
+    this.clientInfo = config.clientInfo;
     self = this;
 
     this._memberCount = config.memberCount;
@@ -158,6 +163,7 @@ export class RoolSpace extends SpaceOperations {
       },
       authManager: this.authManager,
       logger: this._logger,
+      clientInfo: this.clientInfo,
       spaceId: this._id,
       onEvent: (event) => this.handleSpaceEvent(event),
       onConnectionStateChanged: (state: ConnectionState) => {
