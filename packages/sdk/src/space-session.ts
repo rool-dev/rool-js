@@ -764,8 +764,10 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
 
   /** @internal */
   async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
-    const { attachments, parentInteractionId: explicitParent, signal, ...rest } = options ?? {};
-    const interactionId = generateEntityId();
+    const { attachments, parentInteractionId: explicitParent, signal, interactionId: providedId, ...rest } = options ?? {};
+    // Callers may supply the id so they can render an optimistic message keyed by
+    // the id the server will echo back (see PromptOptions.interactionId).
+    const interactionId = providedId ?? generateEntityId();
 
     let attachmentRefs: string[] | undefined;
     if (attachments?.length) {

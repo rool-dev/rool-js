@@ -257,6 +257,13 @@ export interface PromptOptions {
   effort?: PromptEffort;
   /** Parent interaction in the conversation tree. Omit to auto-continue from the active leaf. Pass null to start a new root-level branch. */
   parentInteractionId?: string | null;
+  /**
+   * Client-supplied interaction id. The server echoes this id back on the
+   * resulting interaction, so a caller can render an optimistic message keyed by
+   * it and reconcile the server's copy in place (no unmount/remount). Defaults to
+   * an internally-generated id. Use {@link generateEntityId} to mint one.
+   */
+  interactionId?: string;
   /** If true, the prompt won't be recorded in interaction history. Useful for transient operations like tab completion. */
   ephemeral?: boolean;
   /** If true, mutation tools (create, update, delete) are disabled. Defaults to false. */
