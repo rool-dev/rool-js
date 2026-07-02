@@ -424,7 +424,6 @@ await conversation.setSystemInstruction('You are helpful')
 conversation.getInteractions()
 
 // Space history/admin
-await space.checkpoint('Before edit')
 await space.undo()
 await space.redo()
 await space.deleteConversation('old-thread')

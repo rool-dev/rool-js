@@ -230,24 +230,6 @@ export class GraphQLClient {
     await this.request(mutation, { spaceId, conversationId });
   }
 
-  async checkpoint(
-    spaceId: string,
-    label: string | undefined,
-  ): Promise<{ checkpointId: string }> {
-    const mutation = `
-      mutation Checkpoint($spaceId: String!, $label: String) {
-        checkpoint(spaceId: $spaceId, label: $label) {
-          checkpointId
-        }
-      }
-    `;
-    const result = await this.request<{ checkpoint: { checkpointId: string } }>(mutation, {
-      spaceId,
-      label,
-    });
-    return result.checkpoint;
-  }
-
   async undo(spaceId: string): Promise<{ success: boolean }> {
     const mutation = `
       mutation Undo($spaceId: String!) {
@@ -285,15 +267,6 @@ export class GraphQLClient {
       checkpointStatus: { canUndo: boolean; canRedo: boolean }
     }>(query, { spaceId });
     return result.checkpointStatus;
-  }
-
-  async clearCheckpointHistory(spaceId: string): Promise<void> {
-    const mutation = `
-      mutation ClearCheckpointHistory($spaceId: String!) {
-        clearCheckpointHistory(spaceId: $spaceId)
-      }
-    `;
-    await this.request(mutation, { spaceId });
   }
 
   async prompt(

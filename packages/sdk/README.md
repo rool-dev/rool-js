@@ -455,10 +455,9 @@ Field kinds: `string`, `number`, `boolean`, `ref`, `enum`, `literal`, `array`, a
 
 ## Undo/Redo
 
-Undo/redo uses checkpoints over the whole space. A checkpoint captures space state; call `checkpoint()` before a user action you want to make undoable.
+Undo/redo works over the whole space. Checkpoints are managed automatically by the server, so you don't need to create them yourself — just call `undo()`/`redo()`.
 
 ```typescript
-await space.checkpoint('Delete article');
 await conversation.deleteObjects(['/space/article/welcome.json']);
 
 if (await space.canUndo()) {
@@ -468,14 +467,12 @@ if (await space.canUndo()) {
 
 | Method | Description |
 | --- | --- |
-| `checkpoint(label?): Promise<string>` | Save current space state. |
 | `canUndo(): Promise<boolean>` | Check whether undo is available. |
 | `canRedo(): Promise<boolean>` | Check whether redo is available. |
 | `undo(): Promise<boolean>` | Restore the latest checkpoint. |
 | `redo(): Promise<boolean>` | Reapply undone work. |
-| `clearHistory(): Promise<void>` | Clear checkpoint history. |
 
-Undo/redo availability and history are scoped to the space.
+Undo/redo availability is scoped to the space.
 
 ## File Storage and WebDAV
 
@@ -675,7 +672,7 @@ Properties: `id`, `name`, `role`, `memberCount`, `conversations`, `route`, `webd
 | `getObject`, `getObjects`, `stat` | Read object data and stats. |
 | `getConversations`, `deleteConversation` | List and delete conversations. |
 | `getMetadata`, `getAllMetadata`, `getSchema` | Read metadata and schema. |
-| `checkpoint`, `canUndo`, `canRedo`, `undo`, `redo`, `clearHistory` | Space history controls. |
+| `canUndo`, `canRedo`, `undo`, `redo` | Space history controls. |
 | `stopInteraction(interactionId): Promise<boolean>` | Stop an in-flight interaction by ID. |
 | `fetch(url, init?): Promise<Response>` | Proxy an external HTTP request through the server to bypass browser CORS. |
 | `close(): void` | Stop the space subscription. |

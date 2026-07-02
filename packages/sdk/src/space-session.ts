@@ -400,14 +400,13 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   }
 
   /**
-   * Create a checkpoint of the current space state.
+   * @deprecated Checkpoints are now managed by the server; this is a no-op.
    */
-  async checkpoint(label: string = 'Change'): Promise<string> {
-    const result = await this._graphqlClient.checkpoint(
-      this._id,
-      label,
+  async checkpoint(_label: string = 'Change'): Promise<string> {
+    this._logger.warn(
+      '[RoolSpace] checkpoint() is a no-op: checkpoints are now managed by the server.',
     );
-    return result.checkpointId;
+    return '';
   }
 
   /** Check if undo is available for this space. */
@@ -434,9 +433,13 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     return result.success;
   }
 
-  /** Clear the space's checkpoint history. */
+  /**
+   * @deprecated Checkpoint history is now managed by the server; this is a no-op.
+   */
   async clearHistory(): Promise<void> {
-    await this._graphqlClient.clearCheckpointHistory(this._id);
+    this._logger.warn(
+      '[RoolSpace] clearHistory() is a no-op: checkpoint history is now managed by the server.',
+    );
   }
 
   private davHeaders(conversationId: string, interactionId?: string): Headers {
