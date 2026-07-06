@@ -447,52 +447,25 @@ isObjectPath('/space/article/welcome.json'); // true
 generateId(); // unique ID suitable for conversation IDs
 ```
 
-## Exported Types
+## Exports
 
 ```typescript
 // Package types
 import type { Rool, ReactiveSpace, ReactiveConversationHandle, ReactiveObject, ReactiveWatch, WatchOptions, ReactiveFileTree, ReactiveFileNode, ReactiveFileRoot, ReactiveFileTreeEvent, ReactiveFileTreeSyncResult } from '@rool-dev/svelte';
-
-// Re-exported from @rool-dev/sdk
-import type {
-  RoolClient,
-  RoolClientConfig,
-  RoolSpace,
-  RoolSpaceInfo,
-  RoolObject,
-  GetObjectsResult,
-  RoolObjectStat,
-  RoolUserRole,
-  ConnectionState,
-  Conversation,
-  ConversationInfo,
-  CurrentUser,
-  Interaction,
-  PromptOptions,
-  PromptAttachment,
-  UpdateObjectOptions,
-  MoveObjectOptions,
-  CollectionOptions,
-  FieldType,
-  FieldDef,
-  CollectionDef,
-  SpaceSchema,
-  SpaceMember,
-  InviteRole,
-  InviteEmailStatus,
-  SpaceInvite,
-  SpaceInviteCreated,
-  InvitePreview,
-  InviteRedeemResult,
-  SpaceFileStorageUsage,
-  RoolSpaceEvents,
-  WebDAVDepth,
-  WebDAVSyncLevel,
-  WebDAVPropName,
-  WebDAVResponse,
-  WebDAVProps,
-} from '@rool-dev/svelte';
 ```
+
+The SDK's entire public API is also re-exported, so apps never need a direct
+`@rool-dev/sdk` dependency — classes and helpers as well as every SDK type:
+
+```typescript
+import { NativePkceAuthProvider, InviteError, WebDAVError, machinePath } from '@rool-dev/svelte';
+import type { RoolObject, PromptOptions, Interaction, SpaceSchema } from '@rool-dev/svelte';
+```
+
+See the [SDK documentation](../sdk/README.md) for the full API. The one
+exception is the Node auth provider: import it from `@rool-dev/sdk/node`,
+which stays a separate entry point so Node-only dependencies never reach
+browser bundles.
 
 ## License
 
