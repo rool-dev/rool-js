@@ -286,7 +286,6 @@ await conversation.deleteObjects(['/space/article/hello-world.json']);
 | --- | --- |
 | `getObject(path): Promise<RoolObject | undefined>` | Fetch one object by object path. |
 | `getObjects(paths): Promise<GetObjectsResult>` | Fetch objects in bulk; returns `objects` and `missing`. |
-| `stat(path): RoolObjectStat | undefined` | Cached audit info for an object. |
 | `putObject(path, body): Promise<{ object, message }>` | Create or replace an object at an exact path. |
 | `patchObject(path, { data }): Promise<{ object, message }>` | Patch an object's body; `null`/`undefined` deletes fields. |
 | `moveObject(from, to, options?): Promise<{ object, message }>` | Rename or relocate an object; `options.body` can replace the body after moving. |
@@ -443,13 +442,13 @@ const viewport = space.getMetadata('viewport');
 
 | Method | Description |
 | --- | --- |
-| `getSchema(): SpaceSchema` | Get collection definitions. |
+| `getSchema(): SpaceSchema` | Collection definitions, loaded from `/space/<name>/.schema.json` on open/resync. |
 | `createCollection(name, fieldsOrDef, options?): Promise<CollectionDef>` | Create a collection. |
 | `alterCollection(name, fieldsOrDef, options?): Promise<CollectionDef>` | Replace a collection definition. |
 | `dropCollection(name): Promise<void>` | Remove a collection and its object directory. |
-| `setMetadata(key, value): void` | Set space metadata (fire-and-forget sync). |
-| `getMetadata(key): unknown` | Read metadata from local cache. |
-| `getAllMetadata(): Record<string, unknown>` | Read all metadata from local cache. |
+| `setMetadata(key, value): void` | Set space metadata (fire-and-forget sync to `/space/.meta.json`). |
+| `getMetadata(key): unknown` | Read metadata, loaded from `/space/.meta.json` on open/resync. |
+| `getAllMetadata(): Record<string, unknown>` | Read all metadata, loaded from `/space/.meta.json` on open/resync. |
 
 Field kinds: `string`, `number`, `boolean`, `ref`, `enum`, `literal`, `array`, and `maybe`.
 
@@ -806,6 +805,8 @@ interface InviteRedeemResult {
 }
 
 interface RoolObjectStat {
+  // Deprecated: object audit info is no longer carried by openSpace. Read file
+  // timestamps via WebDAV (sync-collection / PROPFIND getlastmodified) instead.
   path: string;
   modifiedAt: number;
   modifiedBy: string;

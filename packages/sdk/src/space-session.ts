@@ -6,7 +6,6 @@ import type { Logger } from './logger.js';
 import type {
   RoolObject,
   GetObjectsResult,
-  RoolObjectStat,
   RoolSpaceEvents,
   RoolUserRole,
   PromptOptions,
@@ -193,12 +192,6 @@ export interface SpaceOperationsConfig {
   role: RoolUserRole;
   /** Current user's ID (for identifying own interactions) */
   userId: string;
-  /** Object stats keyed by path */
-  objectStats: Record<string, RoolObjectStat>;
-  /** Collection schema */
-  schema: SpaceSchema;
-  /** Space metadata */
-  meta: Record<string, unknown>;
   /** Conversations keyed by ID. */
   conversations: Record<string, Conversation>;
   graphqlClient: GraphQLClient;
@@ -209,13 +202,16 @@ export interface SpaceOperationsConfig {
 }
 
 /**
- * Operational handle for a space.
+ * A thin, stateless handle over a space's raw APIs (GraphQL, WebDAV, REST) plus
+ * the conversation history the server pushes over SSE. It holds no schema or
+ * metadata state — those live in the filesystem (`/space/<collection>/.schema.json`,
+ * `/space/.meta.json`) and are read on demand via {@link readSchema} /
+ * {@link readMeta}. Reactive consumers (e.g. the Svelte wrapper) own any cached
+ * presentation of that state; this class just wraps the wire.
  *
- * Objects are addressed by machine path (`/space/.../*.json`). Conversation handles
- * control attribution and AI history. Only schema, metadata,
- * object stats, and conversation history are cached locally. Object bodies are
- * fetched on demand. Object/file reactivity is exposed at the space level via
- * WebDAV sync notifications.
+ * Objects are addressed by machine path (`/space/.../*.json`). Conversation
+ * handles carry attribution headers for WebDAV writes. Object/file reactivity
+ * is exposed via `filesChanged` / `filesReset` plus WebDAV `syncCollection()`.
  */
 export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   protected _id: string;
@@ -229,11 +225,8 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   protected _onCloseCallback: () => void;
   protected _logger: Logger;
 
-  // Local cache for bounded data (schema, metadata, conversations, object stats)
-  protected _meta: Record<string, unknown>;
-  protected _schema: SpaceSchema;
+  // Conversation history keyed by ID (the one piece of server-pushed state).
   protected _conversations: Record<string, Conversation>;
-  protected _objectStats: Map<string, RoolObjectStat>;
 
   // Active leaf per conversation (client-side tree cursor)
   protected _activeLeaves = new Map<string, string>();
@@ -250,12 +243,7 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     this._webdav = config.webdav;
     this._logger = config.logger;
     this._onCloseCallback = config.onClose;
-
-    // Initialize local cache from server data
-    this._meta = config.meta;
-    this._schema = config.schema;
     this._conversations = config.conversations;
-    this._objectStats = new Map(Object.entries(config.objectStats));
   }
 
   /**
@@ -265,26 +253,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
    */
   _handleEvent(event: SpaceEvent): void {
     this.applySpaceContentEvent(event);
-  }
-
-  /**
-   * Apply resync data after reconnection. Called by the client, which
-   * fetches space data once and applies it.
-   * @internal
-   */
-  _applyResyncData(data: {
-    meta: Record<string, unknown>;
-    schema: SpaceSchema;
-    objectStats: Record<string, RoolObjectStat>;
-    conversations: Record<string, Conversation>;
-  }): void {
-    if (this._closed) return;
-    this._meta = data.meta;
-    this._schema = data.schema;
-    this._objectStats = new Map(Object.entries(data.objectStats));
-    this._conversations = data.conversations;
-    this._activeLeaves.clear();
-    this.emit('reset', { source: 'system' });
   }
 
   get id(): string {
@@ -489,12 +457,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     return result;
   }
 
-  /** Get an object's cached audit information. */
-  stat(path: string): RoolObjectStat | undefined {
-    return this._objectStats.get(objectPath(path));
-  }
-
-
   /** @internal */
   async _putObjectImpl(path: string, body: Record<string, unknown>, conversationId: string): Promise<{ object: RoolObject; message: string }> {
     const canonical = objectPath(path);
@@ -559,7 +521,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
           headers: this.davHeaders(conversationId, interactionId),
         });
       }
-      this._objectStats.delete(fromPath);
       const fresh = await this.getObject(toPath) ?? optimistic;
       return { object: fresh, message: `Moved ${fromPath} to ${toPath}` };
     } catch (error) {
@@ -581,7 +542,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
         await this._webdav.delete(path, {
           headers: this.davHeaders(conversationId, interactionId),
         });
-        this._objectStats.delete(path);
       }
     } catch (error) {
       this._logger.error('[RoolSpace] Failed to delete paths:', error);
@@ -590,80 +550,85 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     }
   }
 
-  /** Get the current schema for this space. */
-  getSchema(): SpaceSchema {
-    return this._schema;
+  /**
+   * Read space metadata from `/space/.meta.json`. Returns `{}` when the space has
+   * no metadata file yet. Stateless — callers (e.g. a reactive wrapper) cache and
+   * re-fetch this on their own schedule, typically when a file-tree sync reports
+   * the node changed.
+   */
+  async readMeta(): Promise<Record<string, unknown>> {
+    try {
+      const response = await this._webdav.get('/space/.meta.json');
+      return jsonObject(await response.json(), 'space meta');
+    } catch (error) {
+      if (error instanceof WebDAVError && error.status === 404) return {};
+      throw error;
+    }
+  }
+
+  /**
+   * Write the full metadata blob to `/space/.meta.json`, attributed to a
+   * conversation. Callers compose the blob (e.g. read-merge-write) — this does no
+   * merging.
+   */
+  async writeMeta(meta: Record<string, unknown>, conversationId: string): Promise<void> {
+    await this._webdav.put('/space/.meta.json', JSON.stringify(meta), {
+      contentType: 'application/json',
+      headers: this.davHeaders(conversationId, generateEntityId()),
+    });
+  }
+
+  /**
+   * Read the collection schema: one `/space/<name>/.schema.json` per collection
+   * directory under `/space`. Returns `{}` for a space with no collections.
+   * Stateless — reactive callers re-fetch when a `.schema.json` node changes.
+   */
+  async readSchema(): Promise<SpaceSchema> {
+    const listing = await this._webdav.propfind('/space', { depth: '1', props: ['resourcetype'] });
+    const collections = listing.responses
+      .filter((r) => r.isCollection && r.path !== '/space')
+      .map((r) => r.path.split('/').pop() as string);
+    const entries = await Promise.all(collections.map(async (name) => {
+      try {
+        const response = await this._webdav.get(`/space/${name}/.schema.json`);
+        return [name, jsonObject(await response.json(), `schema ${name}`)] as const;
+      } catch (error) {
+        if (error instanceof WebDAVError && error.status === 404) return null;
+        throw error;
+      }
+    }));
+    const schema: SpaceSchema = {};
+    for (const entry of entries) if (entry) schema[entry[0]] = entry[1] as unknown as CollectionDef;
+    return schema;
   }
 
 
   /** @internal */
   async _createCollectionImpl(name: string, fields: FieldDef[] | CollectionDef, options: CollectionOptions | undefined, conversationId: string): Promise<CollectionDef> {
-    if (this._schema[name]) {
-      throw new Error(`Collection "${name}" already exists`);
-    }
-
-    // Optimistic local update
-    const optimisticDef = collectionDef(fields, options);
-    this._schema[name] = optimisticDef;
-
-    try {
-      await this._webdav.mkcol(collectionPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
-      await this._webdav.put(schemaPath(name), JSON.stringify(optimisticDef), {
-        contentType: 'application/json',
-        headers: this.davHeaders(conversationId, generateEntityId()),
-      });
-      this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
-      return optimisticDef;
-    } catch (error) {
-      this._logger.error('[RoolSpace] Failed to create collection:', error);
-      delete this._schema[name];
-      throw error;
-    }
+    const def = collectionDef(fields, options);
+    await this._webdav.mkcol(collectionPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
+    await this._webdav.put(schemaPath(name), JSON.stringify(def), {
+      contentType: 'application/json',
+      headers: this.davHeaders(conversationId, generateEntityId()),
+    });
+    return def;
   }
 
 
   /** @internal */
   async _alterCollectionImpl(name: string, fields: FieldDef[] | CollectionDef, options: CollectionOptions | undefined, conversationId: string): Promise<CollectionDef> {
-    if (!this._schema[name]) {
-      throw new Error(`Collection "${name}" not found`);
-    }
-
-    const previous = this._schema[name];
-    this._schema[name] = collectionDef(fields, options);
-
-    try {
-      const updated = this._schema[name];
-      await this._webdav.put(schemaPath(name), JSON.stringify(updated), {
-        contentType: 'application/json',
-        headers: this.davHeaders(conversationId, generateEntityId()),
-      });
-      this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
-      return updated;
-    } catch (error) {
-      this._logger.error('[RoolSpace] Failed to alter collection:', error);
-      this._schema[name] = previous;
-      throw error;
-    }
+    const def = collectionDef(fields, options);
+    await this._webdav.put(schemaPath(name), JSON.stringify(def), {
+      contentType: 'application/json',
+      headers: this.davHeaders(conversationId, generateEntityId()),
+    });
+    return def;
   }
 
 
   /** @internal */
   async _dropCollectionImpl(name: string, conversationId: string): Promise<void> {
-    if (!this._schema[name]) {
-      throw new Error(`Collection "${name}" not found`);
-    }
-
-    const previous = this._schema[name];
-    delete this._schema[name];
-
-    try {
-      await this._webdav.delete(collectionPath(name), { collection: true, headers: this.davHeaders(conversationId, generateEntityId()) });
-      this.emit('schemaUpdated', { schema: this._schema, source: 'local_user' });
-    } catch (error) {
-      this._logger.error('[RoolSpace] Failed to drop collection:', error);
-      this._schema[name] = previous;
-      throw error;
-    }
+    await this._webdav.delete(collectionPath(name), { collection: true, headers: this.davHeaders(conversationId, generateEntityId()) });
   }
 
 
@@ -742,28 +707,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     }
   }
 
-
-  /** @internal */
-  _setMetadataImpl(key: string, value: unknown, conversationId: string): void {
-    this._meta[key] = value;
-    this.emit('metadataUpdated', { metadata: this._meta, source: 'local_user' });
-
-    // Fire-and-forget server call
-    this._graphqlClient.setSpaceMeta(this._id, this._meta, conversationId)
-      .catch((error) => {
-        this._logger.error('[RoolSpace] Failed to set meta:', error);
-      });
-  }
-
-  /** Get a space-level metadata value. */
-  getMetadata(key: string): unknown {
-    return this._meta[key];
-  }
-
-  /** Get all space-level metadata. */
-  getAllMetadata(): Record<string, unknown> {
-    return this._meta;
-  }
 
   /** @internal */
   async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
@@ -1027,9 +970,5 @@ export class ConversationHandle {
   /** Drop a collection schema. */
   async dropCollection(name: string): Promise<void> {
     return this._space._dropCollectionImpl(name, this._conversationId);
-  }
-
-  setMetadata(key: string, value: unknown): void {
-    return this._space._setMetadataImpl(key, value, this._conversationId);
   }
 }

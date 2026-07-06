@@ -56,7 +56,7 @@ async function main(): Promise<void> {
       { name: 'title', type: { kind: 'string' } },
       { name: 'body', type: { kind: 'maybe', inner: { kind: 'string' } } },
     ]);
-    console.log('collections:', Object.keys(space.getSchema()));
+    console.log('collections:', Object.keys(await space.readSchema()));
 
     step('putObject');
     const { object: a } = await conversation.putObject('/space/note/hello.json', { title: 'Hello', body: 'World' });
@@ -109,10 +109,10 @@ async function main(): Promise<void> {
     assert(filtered[0].path === a.path, 'where filter matches');
     console.log('filtered ok');
 
-    step('stat (cached audit info, may be absent before resync)');
-    const s = space.stat(a.path);
-    if (s) assert(s.path === a.path, 'stat carries path');
-    console.log('stat:', s ?? '(not cached yet)');
+    step('object last-modified via WebDAV');
+    const meta = await space.webdav.propfind(a.path, { depth: '0', props: ['getlastmodified'] });
+    const lastModified = meta.responses[0]?.props.getlastmodified;
+    console.log('last-modified:', lastModified ?? '(none)');
 
     step('prompt (read-only, QUICK)');
     const { message } = await conversation.prompt('In one sentence, how many notes are there?', {

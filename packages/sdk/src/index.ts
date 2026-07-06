@@ -98,8 +98,6 @@ export type {
   // Event types (emitter)
   ChangeSource,
   SpaceContentEvents,
-  MetadataUpdatedEvent,
-  SchemaUpdatedEvent,
   ConversationUpdatedEvent,
   ResetEvent,
 

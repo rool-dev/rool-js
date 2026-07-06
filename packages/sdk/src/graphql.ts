@@ -4,9 +4,7 @@ import type {
   RoolSpaceInfo,
   SpaceMember,
   CurrentUser,
-  RoolObjectStat,
   Conversation,
-  SpaceSchema,
   InviteRole,
   SpaceInvite,
   SpaceInviteCreated,
@@ -33,15 +31,13 @@ export interface GraphQLClientConfig {
   onRefused?: () => Promise<string>;
 }
 
-/** Result from the openSpace full query — space data + all conversations. */
+/** Result from the openSpace full query — space identity + all conversations.
+ *  Object info, schema, and meta are read from WebDAV, not from this query. */
 export interface OpenSpaceFullResult {
   name: string;
   role: string;
   userId: string;
   memberCount: number;
-  objectStats: Record<string, RoolObjectStat>;
-  schema: SpaceSchema;
-  meta: Record<string, unknown>;
   conversations: Record<string, Conversation>;
 }
 
@@ -120,7 +116,8 @@ export class GraphQLClient {
     return { spaceId: response.duplicateSpace.spaceId };
   }
 
-  /** Full space data — object stats, schema, metadata, all conversations. */
+  /** Full space data — identity + all conversations. Object info, schema, and
+   *  meta are sourced from WebDAV by the space handle, not from this query. */
   async openSpaceFull(spaceId: string): Promise<OpenSpaceFullResult> {
     const query = `
       query OpenSpaceFull($id: String!) {
@@ -129,16 +126,6 @@ export class GraphQLClient {
           role
           userId
           memberCount
-          objectStatEntries {
-            path
-            modifiedAt
-            modifiedBy
-            modifiedByName
-            modifiedInConversation
-            modifiedInInteraction
-          }
-          schema
-          meta
           conversations
         }
       }
@@ -146,26 +133,16 @@ export class GraphQLClient {
     const response = await this.request<{
       openSpace: {
         name: string; role: string; userId: string; memberCount: number;
-        objectStatEntries: RoolObjectStat[] | null;
-        schema: SpaceSchema | null;
-        meta: Record<string, unknown> | null;
         conversations: Record<string, Conversation> | null;
       }
     }>(query, { id: spaceId });
 
     const r = response.openSpace;
-    const objectStats: Record<string, RoolObjectStat> = {};
-    for (const stat of r.objectStatEntries ?? []) {
-      objectStats[stat.path] = stat;
-    }
     return {
       name: r.name,
       role: r.role,
       userId: r.userId,
       memberCount: r.memberCount,
-      objectStats,
-      schema: r.schema ?? {},
-      meta: r.meta ?? {},
       conversations: r.conversations ?? {},
     };
   }
@@ -187,19 +164,6 @@ export class GraphQLClient {
       }
     `;
     await this.request(mutation, { id: spaceId, name });
-  }
-
-  async setSpaceMeta(spaceId: string, meta: Record<string, unknown>, conversationId: string): Promise<void> {
-    const mutation = `
-      mutation SetSpaceMeta($id: String!, $meta: JSON!, $conversationId: String!) {
-        setSpaceMeta(id: $id, meta: $meta, conversationId: $conversationId)
-      }
-    `;
-    await this.request(mutation, {
-      id: spaceId,
-      meta,
-      conversationId,
-    });
   }
 
 

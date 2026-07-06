@@ -176,6 +176,7 @@ class RoolImpl {
   async openSpace(spaceId: string): Promise<ReactiveSpace> {
     const raw = await this.#client.openSpace(spaceId);
     const reactive = wrapSpace(raw);
+    await reactive.ready();
     this.#openSpaces.add(reactive);
     return reactive;
   }
@@ -186,6 +187,7 @@ class RoolImpl {
   async createSpace(name: string): Promise<ReactiveSpace> {
     const raw = await this.#client.createSpace(name);
     const reactive = wrapSpace(raw);
+    await reactive.ready();
     this.#openSpaces.add(reactive);
     return reactive;
   }
@@ -196,6 +198,7 @@ class RoolImpl {
   async duplicateSpace(sourceSpaceId: string, name: string): Promise<ReactiveSpace> {
     const raw = await this.#client.duplicateSpace(sourceSpaceId, name);
     const reactive = wrapSpace(raw);
+    await reactive.ready();
     this.#openSpaces.add(reactive);
     return reactive;
   }
@@ -283,6 +286,7 @@ class RoolImpl {
   async importArchive(name: string, archive: Blob): Promise<ReactiveSpace> {
     const raw = await this.#client.importArchive(name, archive);
     const reactive = wrapSpace(raw);
+    await reactive.ready();
     this.#openSpaces.add(reactive);
     return reactive;
   }

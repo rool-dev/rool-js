@@ -574,16 +574,6 @@ export interface RoolSpaceEvents extends SpaceContentEvents {
  */
 export type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
 
-export interface MetadataUpdatedEvent {
-  metadata: Record<string, unknown>;
-  source: ChangeSource;
-}
-
-export interface SchemaUpdatedEvent {
-  schema: SpaceSchema;
-  source: ChangeSource;
-}
-
 export interface ResetEvent {
   source: ChangeSource;
 }
@@ -596,15 +586,13 @@ export interface ConversationUpdatedEvent {
 }
 
 /**
- * Space content events (metadata, schema, conversations, and resets).
- * Object/file reactivity is intentionally exposed via `RoolSpace` `filesChanged` /
+ * Space content events (conversations and resets). Schema and metadata have no
+ * events here — they live in the filesystem (`/space/<collection>/.schema.json`,
+ * `/space/.meta.json`) and reactive consumers re-read them when the file tree
+ * reports a change. Object/file reactivity is exposed via `filesChanged` /
  * `filesReset` plus WebDAV `syncCollection()`.
  */
 export interface SpaceContentEvents {
-  /** Space metadata was updated */
-  metadataUpdated: (event: MetadataUpdatedEvent) => void;
-  /** Collection schema was updated */
-  schemaUpdated: (event: SchemaUpdatedEvent) => void;
   /** Conversation interaction history was updated */
   conversationUpdated: (event: ConversationUpdatedEvent) => void;
   /** Full state replacement (undo/redo, resync) */

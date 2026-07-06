@@ -226,9 +226,6 @@ export class ReactiveConversationHandleImpl {
   alterCollection(...args: Parameters<ConversationHandle['alterCollection']>) { return this.#handle.alterCollection(...args); }
   dropCollection(...args: Parameters<ConversationHandle['dropCollection']>) { return this.#handle.dropCollection(...args); }
 
-  // Metadata
-  setMetadata(...args: Parameters<ConversationHandle['setMetadata']>) { return this.#handle.setMetadata(...args); }
-
   close(): void {
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;

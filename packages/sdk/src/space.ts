@@ -82,9 +82,6 @@ export class RoolSpace extends SpaceOperations {
       name: config.name,
       role: config.role,
       userId: config.userId,
-      objectStats: config.fullData.objectStats,
-      schema: config.fullData.schema,
-      meta: config.fullData.meta,
       conversations: config.fullData.conversations,
       graphqlClient: config.graphqlClient,
       restClient: config.restClient,
@@ -323,10 +320,13 @@ export class RoolSpace extends SpaceOperations {
 
   /**
    * Handle a space event from the SSE subscription.
-   * Applies bounded space-state events and emits space events.
+   *
+   * Only a reconnect resyncs conversation history (we may have missed
+   * `conversation_updated` events while disconnected). File changes are not a
+   * conversation signal — they just notify file/WebDAV consumers to sync, which
+   * the reactive file tree does at path granularity via `sync-collection`.
    */
   private handleSpaceEvent(event: SpaceEvent): void {
-    // Reconnect: fetch the current full state once and apply it locally.
     if (event.type === 'connected') {
       this.handleResync();
       return;
@@ -334,27 +334,21 @@ export class RoolSpace extends SpaceOperations {
 
     if (event.type === 'space_files_changed') {
       this.emit('filesChanged', { spaceId: event.spaceId, source: event.source, timestamp: event.timestamp });
-      // WebDAV is now the source of truth for object/schema/meta writes. Keep
-      // the SDK's bounded caches (schema, metadata, object stats, conversations)
-      // coherent with remote/local file mutations; the file tree still handles
-      // path-level reconciliation via this event.
-      this.handleResync();
       return;
     }
 
     if (event.type === 'space_files_reset') {
       this.emit('filesReset', { spaceId: event.spaceId, source: event.source, timestamp: event.timestamp });
-      this.handleResync();
       return;
     }
 
     this._handleEvent(event);
   }
 
-  // Reconnect resync: fetch full state and distribute. Retries until it lands —
-  // a single failure used to leave the client empty until reload. Single-flight:
-  // an event arriving mid-resync sets _resyncPending so we re-run once afterward,
-  // ensuring the final state reflects the latest server-side file change.
+  // Reconnect resync: refetch conversation history and apply it. Retries until it
+  // lands — a single failure used to leave the client empty until reload.
+  // Single-flight: an event arriving mid-resync sets _resyncPending so we re-run
+  // once afterward, ensuring the final state reflects the latest server state.
   private handleResync(): void {
     if (this._resyncing) { this._resyncPending = true; return; }
     this._resyncing = true;
@@ -389,14 +383,14 @@ export class RoolSpace extends SpaceOperations {
   /**
    * Apply full space data from server (initial load or resync).
    */
+  /**
+   * Apply resynced conversation history from the server (reconnect).
+   */
   private applyFullData(data: OpenSpaceFullResult): void {
     this._name = data.name;
     this._role = data.role as RoolUserRole;
     this._memberCount = data.memberCount;
-    this._schema = data.schema;
-    this._meta = data.meta;
     this._conversations = data.conversations;
-    this._objectStats = new Map(Object.entries(data.objectStats));
     this._activeLeaves.clear();
     this._conversationInfos = this.getConversations();
     this.emit('reset', { source: 'system' });

@@ -90,9 +90,6 @@ function spaceOperations(dav: FakeWebDAV, rest: RestClient = {} as RestClient): 
     name: 'Test Space',
     role: 'owner',
     userId: 'user_1',
-    objectStats: {},
-    schema: { tasks: { fields: [{ name: 'title', type: { kind: 'string' } }] } },
-    meta: {},
     conversations,
     graphqlClient: graphql,
     restClient: rest,
@@ -178,7 +175,10 @@ test('space collection schema writes use object WebDAV', async () => {
   assert.equal(dav.calls[0].path, '/space/notes');
   assert.equal(dav.calls[1].method, 'PUT');
   assert.equal(dav.calls[1].path, '/space/notes/.schema.json');
-  assert.deepEqual(ch.getSchema().notes, { fields: [{ name: 'title', type: { kind: 'string' } }], schemaOrgType: 'CreativeWork' });
+  assert.deepEqual(
+    JSON.parse(dav.files.get('/space/notes/.schema.json')!.body),
+    { fields: [{ name: 'title', type: { kind: 'string' } }], schemaOrgType: 'CreativeWork' },
+  );
 
   await conversation.alterCollection('notes', { fields: [{ name: 'done', type: { kind: 'boolean' } }], schemaOrgType: 'Action' });
   assert.deepEqual(JSON.parse(dav.files.get('/space/notes/.schema.json')!.body), { fields: [{ name: 'done', type: { kind: 'boolean' } }], schemaOrgType: 'Action' });
@@ -186,5 +186,4 @@ test('space collection schema writes use object WebDAV', async () => {
   await conversation.dropCollection('notes');
   assert.equal(dav.calls.at(-1)?.method, 'DELETE');
   assert.equal(dav.calls.at(-1)?.path, '/space/notes');
-  assert.equal('notes' in ch.getSchema(), false);
 });

@@ -1,10 +1,17 @@
-import type { RoolSpace, ConversationInfo, ConnectionState, RoolUserRole, SpaceMember } from '@rool-dev/sdk';
+import type { RoolSpace, ConversationInfo, ConnectionState, RoolUserRole, SpaceMember, SpaceSchema } from '@rool-dev/sdk';
 import { ReactiveConversationHandleImpl, ReactiveObjectImpl, ReactiveWatchImpl, type WatchOptions } from './space-session.svelte.js';
-import { ReactiveFileTree } from './file-tree.svelte.js';
+import { ReactiveFileTree, type ReactiveFileTreeEvent } from './file-tree.svelte.js';
 
 /**
- * A reactive wrapper around a RoolSpace. Exposes reactive `conversations` and
- * `connectionState`, plus space-level object/conversation/AI methods.
+ * A reactive wrapper around a RoolSpace. Exposes reactive `conversations`,
+ * `connectionState`, `meta`, and `schema`, plus space-level
+ * object/conversation/AI methods.
+ *
+ * `meta` and `schema` are read from the WebDAV filesystem (`/space/.meta.json`,
+ * `/space/<collection>/.schema.json`) and re-fetched when the file tree reports
+ * those nodes changed — so remote writes propagate the same as local ones. The
+ * underlying SDK space holds no schema/meta state; this wrapper owns the
+ * reactive presentation of it.
  *
  * Lifecycle: call `close()` when done to stop the space's SSE subscription.
  */
@@ -17,6 +24,15 @@ class ReactiveSpaceImpl {
   // Reactive state mirroring the underlying space
   #conversationList = $state<ConversationInfo[]>([]);
   connectionState = $state<ConnectionState>('reconnecting');
+
+  // Reactive space content read from the WebDAV filesystem.
+  meta = $state<Record<string, unknown>>({});
+  schema = $state<SpaceSchema>({});
+
+  // Initial load promises, awaited by ready() so callers can open a space with
+  // meta/schema already populated (avoids a default-theme flash on switch).
+  #metaReady: Promise<void> = Promise.resolve();
+  #schemaReady: Promise<void> = Promise.resolve();
 
   constructor(space: RoolSpace) {
     this.#space = space;
@@ -34,6 +50,47 @@ class ReactiveSpaceImpl {
     };
     space.on('connectionStateChanged', onConnectionStateChanged);
     this.#unsubscribers.push(() => space.off('connectionStateChanged', onConnectionStateChanged));
+
+    // Seed meta/schema from the filesystem, and re-fetch the relevant one when
+    // the file tree reports its node changed. Remote writes (another tab, the
+    // agent) land here the same as local ones.
+    this.#metaReady = this.#refreshMeta();
+    this.#schemaReady = this.#refreshSchema();
+    const onTree = (event: ReactiveFileTreeEvent) => {
+      const paths = new Set([...event.changedPaths, ...event.deletedPaths]);
+      if (event.reset || paths.has('/space/.meta.json')) void this.#refreshMeta();
+      if (event.reset || [...paths].some((p) => p.endsWith('/.schema.json'))) void this.#refreshSchema();
+    };
+    this.#unsubscribers.push(this.#fileTree.subscribe(onTree));
+  }
+
+  async #refreshMeta(): Promise<void> {
+    if (this.#closed) return;
+    try { this.meta = await this.#space.readMeta(); } catch { /* leave last known */ }
+  }
+
+  async #refreshSchema(): Promise<void> {
+    if (this.#closed) return;
+    try { this.schema = await this.#space.readSchema(); } catch { /* leave last known */ }
+  }
+
+  /** Resolve when the initial meta/schema fetch has settled. */
+  async ready(): Promise<void> {
+    await Promise.all([this.#metaReady, this.#schemaReady]);
+  }
+
+  /**
+   * Set one metadata key, merging into the reactive `meta` and writing the full
+   * blob to `/space/.meta.json` attributed to `conversationId`. A `null`/
+   * `undefined` value deletes the key. The file tree reconciles `meta` after the
+   * write lands.
+   */
+  async setMeta(key: string, value: unknown, conversationId: string): Promise<void> {
+    const next = { ...this.meta };
+    if (value === null || value === undefined) delete next[key];
+    else next[key] = value;
+    this.meta = next;
+    await this.#space.writeMeta(next, conversationId);
   }
 
   get isClosed() { return this.#closed; }
@@ -74,7 +131,6 @@ class ReactiveSpaceImpl {
   getObjects(...args: Parameters<RoolSpace['getObjects']>) { return this.#space.getObjects(...args); }
   object(path: string) { return new ReactiveObjectImpl(this.#space, this.#fileTree, path); }
   watch(options: WatchOptions) { return new ReactiveWatchImpl(this.#space, this.#fileTree, options); }
-  stat(...args: Parameters<RoolSpace['stat']>) { return this.#space.stat(...args); }
   stopInteraction(...args: Parameters<RoolSpace['stopInteraction']>) { return this.#space.stopInteraction(...args); }
   checkpoint(...args: Parameters<RoolSpace['checkpoint']>) { return this.#space.checkpoint(...args); }
   canUndo(...args: Parameters<RoolSpace['canUndo']>) { return this.#space.canUndo(...args); }
@@ -82,11 +138,8 @@ class ReactiveSpaceImpl {
   undo(...args: Parameters<RoolSpace['undo']>) { return this.#space.undo(...args); }
   redo(...args: Parameters<RoolSpace['redo']>) { return this.#space.redo(...args); }
   clearHistory(...args: Parameters<RoolSpace['clearHistory']>) { return this.#space.clearHistory(...args); }
-  getMetadata(...args: Parameters<RoolSpace['getMetadata']>) { return this.#space.getMetadata(...args); }
-  getAllMetadata(...args: Parameters<RoolSpace['getAllMetadata']>) { return this.#space.getAllMetadata(...args); }
   getConversations(...args: Parameters<RoolSpace['getConversations']>) { return this.#space.getConversations(...args); }
   deleteConversation(...args: Parameters<RoolSpace['deleteConversation']>) { return this.#space.deleteConversation(...args); }
-  getSchema(...args: Parameters<RoolSpace['getSchema']>) { return this.#space.getSchema(...args); }
   fetch(...args: Parameters<RoolSpace['fetch']>) { return this.#space.fetch(...args); }
   // Proxy resource methods
   getStorageUsage(...args: Parameters<RoolSpace['getStorageUsage']>) { return this.#space.getStorageUsage(...args); }

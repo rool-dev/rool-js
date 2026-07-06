@@ -100,8 +100,8 @@ export async function createCollectionWithRetry(
 /**
  * Assert that a collection exists in the space schema by exact name.
  */
-export function expectCollection(space: RoolSpace, name: string): CollectionDef {
-  const schema = space.getSchema();
+export async function expectCollection(space: RoolSpace, name: string): Promise<CollectionDef> {
+  const schema = await space.readSchema();
   expect(schema[name], `Expected collection "${name}" in schema`).to.exist;
   return schema[name];
 }
@@ -110,8 +110,8 @@ export function expectCollection(space: RoolSpace, name: string): CollectionDef 
  * Find a collection in the schema whose fields include all the given field names.
  * Fails if no matching collection is found.
  */
-export function expectCollectionWithFields(space: RoolSpace, fields: string[]): CollectionDef {
-  const schema = space.getSchema();
+export async function expectCollectionWithFields(space: RoolSpace, fields: string[]): Promise<CollectionDef> {
+  const schema = await space.readSchema();
   for (const [, def] of Object.entries(schema)) {
     const fieldNames = def.fields.map(f => f.name);
     if (fields.every(f => fieldNames.includes(f))) {
