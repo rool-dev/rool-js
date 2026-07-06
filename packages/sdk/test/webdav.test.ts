@@ -57,6 +57,27 @@ test('WebDAV maps machine /space paths to the object WebDAV root', async () => {
   }
 });
 
+test('WebDAV put with createParents sends the Rool-Create-Parents header', async () => {
+  const calls: Array<{ init: RequestInit }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    calls.push({ init: init ?? {} });
+    return new Response(null, { status: 201 });
+  }) as typeof fetch;
+
+  try {
+    const dav = new RoolWebDAV({ webdavUrl: 'https://api.test', spaceId: 'sp_123', authManager: auth() });
+
+    await dav.put('/rool-drive/a/b/file.txt', 'x', { createParents: true });
+    assert.equal(new Headers(calls[0].init.headers).get('Rool-Create-Parents'), '1');
+
+    await dav.put('/rool-drive/a/b/file.txt', 'x');
+    assert.equal(new Headers(calls[1].init.headers).get('Rool-Create-Parents'), null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('WebDAV retries shard refusal against the rerouted base URL', async () => {
   const calls: string[] = [];
   const originalFetch = globalThis.fetch;

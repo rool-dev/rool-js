@@ -865,20 +865,14 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     file: File | Blob | { data: string; contentType: string; filename?: string },
     conversationId: string
   ): Promise<string> {
-    await this.ensureCollection('/rool-drive/attachments');
-    const directory = `/rool-drive/attachments/${conversationId}`;
-    await this.ensureCollection(directory);
-
     const attachment = attachmentBody(file);
-    const path = `${directory}/${attachment.filename}`;
-    await this._webdav.put(path, attachment.body, { contentType: attachment.contentType });
+    const path = `/rool-drive/attachments/${conversationId}/${attachment.filename}`;
+    // createParents avoids racing MKCOLs when multiple attachments upload concurrently.
+    await this._webdav.put(path, attachment.body, {
+      contentType: attachment.contentType,
+      createParents: true,
+    });
     return path;
-  }
-
-  private async ensureCollection(path: string): Promise<void> {
-    const response = await this._webdav.request('MKCOL', path, { collection: true });
-    if (response.status === 201 || response.status === 405) return;
-    throw new Error(`Failed to create collection ${path}: ${response.status} ${await response.text()}`);
   }
 
   /**

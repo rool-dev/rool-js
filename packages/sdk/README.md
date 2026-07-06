@@ -535,7 +535,7 @@ await syncFiles();
 | `webdav.propfind(path, options)` | Read properties/list collections. `depth` is required. |
 | `webdav.syncCollection(path, options)` | WebDAV `REPORT sync-collection`; returns changed responses and next token. |
 | `webdav.get(path, options?)` / `webdav.head(path)` | Read a file; `get` supports byte ranges. |
-| `webdav.put(path, body, options?)` | Write a file/object at an exact path. Parent collection must exist. |
+| `webdav.put(path, body, options?)` | Write a file/object at an exact path. Parent collection must exist unless `createParents: true` is passed, which creates missing parent collections atomically (intended for `/rool-drive` paths). |
 | `webdav.mkcol(path)` | Create one collection. |
 | `webdav.copy(source, destination, options?)` | Copy a file or collection. |
 | `webdav.move(source, destination, options?)` | Move a file or collection. |

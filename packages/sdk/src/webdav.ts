@@ -293,6 +293,8 @@ export class RoolWebDAV {
 
   async put(path: string, body: BodyInit, options: {
     contentType?: string;
+    /** Create missing parent collections atomically (Rool-Create-Parents). */
+    createParents?: boolean;
     ifMatch?: string;
     ifNoneMatch?: string;
     lockToken?: string;
@@ -301,6 +303,7 @@ export class RoolWebDAV {
   } = {}): Promise<WebDAVWriteResult> {
     const headers = writeHeaders(options);
     if (options.contentType) headers.set('Content-Type', options.contentType);
+    if (options.createParents) headers.set('Rool-Create-Parents', '1');
 
     const response = await this.request('PUT', path, {
       signal: options.signal,
