@@ -128,15 +128,18 @@ export interface Conversation {
 }
 
 /**
- * Summary info for a conversation (no full interaction data).
+ * Lightweight conversation metadata — no interaction bodies. Returned by
+ * `openSpace` (as `conversationMeta`) and maintained from SSE events. The
+ * `updatedAt` field drives last-activity display without loading any contents.
  */
-export interface ConversationInfo {
+export interface ConversationMeta {
   id: string;
   name: string | null;
   systemInstruction: string | null;
   createdAt: number;
   createdBy: string;
   interactionCount: number;
+  updatedAt: number;
 }
 
 
@@ -582,6 +585,10 @@ export interface ResetEvent {
 
 export interface ConversationUpdatedEvent {
   conversationId: string;
+  /** The full conversation payload from SSE, or `null` when deleted. Reactive
+   *  consumers can read interaction status (e.g. the thinking dot) straight from
+   *  this without opening a conversation handle. */
+  conversation: Conversation | null;
   source: ChangeSource;
 }
 

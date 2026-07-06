@@ -17,13 +17,13 @@ export const testCase: TestCase = {
 
     try {
       const conversation = space.conversation('topic-emoji-eval');
-      await createCollectionWithRetry(conversation, 'topic', [
+      await createCollectionWithRetry(space, 'topic', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'emoji', type: { kind: 'maybe', inner: { kind: 'string' } } },
       ]);
 
       const topicPath = objectPath('topic', 'sailboats');
-      await conversation.putObject(topicPath, { headline: 'Types of Sailboats' });
+      await space.putObject(topicPath, { headline: 'Types of Sailboats' });
 
       // Run the prompt with the topic object attached.
       await conversation.prompt(prompt, { attachments: [topicPath] });

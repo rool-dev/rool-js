@@ -46,19 +46,19 @@ export const testCase: TestCase = {
 
     try {
       const conversation = space.conversation('sailing-split-eval');
-      await createCollectionWithRetry(conversation, 'markdown', [
+      await createCollectionWithRetry(space, 'markdown', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },
         { name: 'parent', type: { kind: 'maybe', inner: { kind: 'ref' } } },
       ]);
-      await createCollectionWithRetry(conversation, 'topic', [
+      await createCollectionWithRetry(space, 'topic', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'maybe', inner: { kind: 'string' } } },
       ]);
 
       // Create the initial markdown object.
       const initialPath = objectPath('markdown', 'history-of-sailing');
-      await conversation.putObject(initialPath, {
+      await space.putObject(initialPath, {
         headline: 'History of Sailing',
         text: SAILING_TEXT,
       });

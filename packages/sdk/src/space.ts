@@ -15,7 +15,7 @@ import type {
   SpaceInvite,
   SpaceInviteCreated,
   SpaceMember,
-  ConversationInfo,
+  ConversationMeta,
   SpaceEvent,
   ConnectionState,
 } from './types.js';
@@ -50,7 +50,6 @@ export interface SpaceConfig {
  */
 export class RoolSpace extends SpaceOperations {
   private _memberCount: number;
-  private _conversationInfos: ConversationInfo[];
   private authManager: AuthManager;
   private router: SpaceRouter;
   private _route: RouteInfo;
@@ -82,7 +81,7 @@ export class RoolSpace extends SpaceOperations {
       name: config.name,
       role: config.role,
       userId: config.userId,
-      conversations: config.fullData.conversations,
+      conversationMeta: config.fullData.conversationMeta,
       graphqlClient: config.graphqlClient,
       restClient: config.restClient,
       webdav,
@@ -97,10 +96,6 @@ export class RoolSpace extends SpaceOperations {
     this.router = config.router;
     this._route = config.initialRoute;
     this.onCloseCallback = config.onClose;
-    this._conversationInfos = this.getConversations();
-    this.on('conversationUpdated', () => {
-      this._conversationInfos = this.getConversations();
-    });
 
     this._graphqlClient.setOnRefused(() => this.reroute());
     this._restClient.setOnRefused(async () => {
@@ -144,8 +139,8 @@ export class RoolSpace extends SpaceOperations {
     return this.webdav.get(canonical, options);
   }
 
-  /** Live list of conversations in this space. */
-  get conversations(): ConversationInfo[] { return this._conversationInfos; }
+  /** Lightweight conversation roster (no interaction bodies). */
+  get conversations(): ConversationMeta[] { return this._conversationMeta; }
 
 
   private startSubscription(): void {
@@ -381,18 +376,15 @@ export class RoolSpace extends SpaceOperations {
   }
 
   /**
-   * Apply full space data from server (initial load or resync).
-   */
-  /**
-   * Apply resynced conversation history from the server (reconnect).
+   * Apply resynced space data from the server (reconnect). Refetches the
+   * conversation roster and reloads any live conversation handles — we may have
+   * missed SSE updates while disconnected.
    */
   private applyFullData(data: OpenSpaceFullResult): void {
     this._name = data.name;
     this._role = data.role as RoolUserRole;
     this._memberCount = data.memberCount;
-    this._conversations = data.conversations;
-    this._activeLeaves.clear();
-    this._conversationInfos = this.getConversations();
+    this._conversationMeta = data.conversationMeta;
     this.emit('reset', { source: 'system' });
   }
 }

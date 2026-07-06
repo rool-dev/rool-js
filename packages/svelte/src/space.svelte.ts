@@ -1,4 +1,4 @@
-import type { RoolSpace, ConversationInfo, ConnectionState, RoolUserRole, SpaceMember, SpaceSchema } from '@rool-dev/sdk';
+import type { RoolSpace, ConversationMeta, ConnectionState, RoolUserRole, SpaceMember, SpaceSchema } from '@rool-dev/sdk';
 import { ReactiveConversationHandleImpl, ReactiveObjectImpl, ReactiveWatchImpl, type WatchOptions } from './space-session.svelte.js';
 import { ReactiveFileTree, type ReactiveFileTreeEvent } from './file-tree.svelte.js';
 
@@ -22,7 +22,7 @@ class ReactiveSpaceImpl {
   #closed = false;
 
   // Reactive state mirroring the underlying space
-  #conversationList = $state<ConversationInfo[]>([]);
+  #conversationList = $state<ConversationMeta[]>([]);
   connectionState = $state<ConnectionState>('reconnecting');
 
   // Reactive space content read from the WebDAV filesystem.
@@ -66,12 +66,12 @@ class ReactiveSpaceImpl {
 
   async #refreshMeta(): Promise<void> {
     if (this.#closed) return;
-    try { this.meta = await this.#space.readMeta(); } catch { /* leave last known */ }
+    this.meta = await this.#space.readMeta();
   }
 
   async #refreshSchema(): Promise<void> {
     if (this.#closed) return;
-    try { this.schema = await this.#space.readSchema(); } catch { /* leave last known */ }
+    this.schema = await this.#space.readSchema();
   }
 
   /** Resolve when the initial meta/schema fetch has settled. */
@@ -81,16 +81,15 @@ class ReactiveSpaceImpl {
 
   /**
    * Set one metadata key, merging into the reactive `meta` and writing the full
-   * blob to `/space/.meta.json` attributed to `conversationId`. A `null`/
-   * `undefined` value deletes the key. The file tree reconciles `meta` after the
-   * write lands.
+   * blob to `/space/.meta.json`. A `null`/`undefined` value deletes the key.
+   * The file tree reconciles `meta` after the write lands.
    */
-  async setMeta(key: string, value: unknown, conversationId: string): Promise<void> {
+  async setMeta(key: string, value: unknown): Promise<void> {
     const next = { ...this.meta };
     if (value === null || value === undefined) delete next[key];
     else next[key] = value;
     this.meta = next;
-    await this.#space.writeMeta(next, conversationId);
+    await this.#space.writeMeta(next);
   }
 
   get isClosed() { return this.#closed; }
@@ -116,7 +115,7 @@ class ReactiveSpaceImpl {
   }
 
   // Reactive getters
-  get conversations(): ConversationInfo[] { return this.#conversationList; }
+  get conversations(): ConversationMeta[] { return this.#conversationList; }
 
   // Proxy read-only properties
   get id(): string { return this.#space.id; }
@@ -129,6 +128,13 @@ class ReactiveSpaceImpl {
   // Space-level methods
   getObject(...args: Parameters<RoolSpace['getObject']>) { return this.#space.getObject(...args); }
   getObjects(...args: Parameters<RoolSpace['getObjects']>) { return this.#space.getObjects(...args); }
+  putObject(...args: Parameters<RoolSpace['putObject']>) { return this.#space.putObject(...args); }
+  patchObject(...args: Parameters<RoolSpace['patchObject']>) { return this.#space.patchObject(...args); }
+  moveObject(...args: Parameters<RoolSpace['moveObject']>) { return this.#space.moveObject(...args); }
+  deleteObjects(...args: Parameters<RoolSpace['deleteObjects']>) { return this.#space.deleteObjects(...args); }
+  createCollection(...args: Parameters<RoolSpace['createCollection']>) { return this.#space.createCollection(...args); }
+  alterCollection(...args: Parameters<RoolSpace['alterCollection']>) { return this.#space.alterCollection(...args); }
+  dropCollection(...args: Parameters<RoolSpace['dropCollection']>) { return this.#space.dropCollection(...args); }
   object(path: string) { return new ReactiveObjectImpl(this.#space, this.#fileTree, path); }
   watch(options: WatchOptions) { return new ReactiveWatchImpl(this.#space, this.#fileTree, options); }
   stopInteraction(...args: Parameters<RoolSpace['stopInteraction']>) { return this.#space.stopInteraction(...args); }
@@ -140,6 +146,10 @@ class ReactiveSpaceImpl {
   clearHistory(...args: Parameters<RoolSpace['clearHistory']>) { return this.#space.clearHistory(...args); }
   getConversations(...args: Parameters<RoolSpace['getConversations']>) { return this.#space.getConversations(...args); }
   deleteConversation(...args: Parameters<RoolSpace['deleteConversation']>) { return this.#space.deleteConversation(...args); }
+  /** Rename a conversation without acquiring a reactive handle (avoids an unnecessary content fetch). */
+  renameConversation(conversationId: string, name: string): Promise<void> {
+    return this.#space.conversation(conversationId).rename(name);
+  }
   fetch(...args: Parameters<RoolSpace['fetch']>) { return this.#space.fetch(...args); }
   // Proxy resource methods
   getStorageUsage(...args: Parameters<RoolSpace['getStorageUsage']>) { return this.#space.getStorageUsage(...args); }

@@ -52,21 +52,21 @@ async function main(): Promise<void> {
     console.log('conversation:', conversation.conversationId, 'role:', space.role);
 
     step('createCollection');
-    await conversation.createCollection('note', [
+    await space.createCollection('note', [
       { name: 'title', type: { kind: 'string' } },
       { name: 'body', type: { kind: 'maybe', inner: { kind: 'string' } } },
     ]);
     console.log('collections:', Object.keys(await space.readSchema()));
 
     step('putObject');
-    const { object: a } = await conversation.putObject('/space/note/hello.json', { title: 'Hello', body: 'World' });
+    const { object: a } = await space.putObject('/space/note/hello.json', { title: 'Hello', body: 'World' });
     assert(a.path === '/space/note/hello.json', 'path should be exact');
     assert(a.body.title === 'Hello', 'title preserved');
     assert(!('id' in a.body) && !('type' in a.body), 'body must not contain id/type');
     console.log('put:', a.path);
 
     step('putObject (second)');
-    const { object: b } = await conversation.putObject('/space/note/welcome.json', { title: 'Pinned' });
+    const { object: b } = await space.putObject('/space/note/welcome.json', { title: 'Pinned' });
     assert(b.path === '/space/note/welcome.json', 'exact path');
     console.log('put:', b.path);
 
@@ -76,18 +76,18 @@ async function main(): Promise<void> {
     console.log('got:', got!.path, '→', got!.body);
 
     step('patchObject');
-    const { object: updated } = await conversation.patchObject(b.path, { data: { title: 'Pinned & updated' } });
+    const { object: updated } = await space.patchObject(b.path, { data: { title: 'Pinned & updated' } });
     assert(updated.body.title === 'Pinned & updated', 'title updated');
     console.log('updated:', updated.body);
 
     step('patchObject (delete field via null)');
-    const { object: trimmed } = await conversation.patchObject(a.path, { data: { body: null } });
+    const { object: trimmed } = await space.patchObject(a.path, { data: { body: null } });
     assert(!('body' in trimmed.body), 'body field removed');
     console.log('trimmed:', trimmed.body);
 
     step('moveObject');
     const newPath = '/space/note/renamed.json';
-    const { object: moved } = await conversation.moveObject(b.path, newPath);
+    const { object: moved } = await space.moveObject(b.path, newPath);
     assert(moved.path === newPath, 'object now lives at new path');
     console.log('moved:', b.path, '→', moved.path);
 
@@ -122,7 +122,7 @@ async function main(): Promise<void> {
     console.log('AI:', message);
 
     step('deleteObjects');
-    await conversation.deleteObjects([a.path, newPath]);
+    await space.deleteObjects([a.path, newPath]);
     assert(await space.getObject(a.path) === undefined, 'a was removed');
     assert(await space.getObject(newPath) === undefined, 'moved object removed');
     const afterDeleteListing = await space.webdav.propfind('/space/note', { depth: '1' });

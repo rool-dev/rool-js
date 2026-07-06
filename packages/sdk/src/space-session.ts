@@ -14,7 +14,7 @@ import type {
   SpaceEvent,
   Interaction,
   Conversation,
-  ConversationInfo,
+  ConversationMeta,
   SpaceSchema,
   CollectionDef,
   FieldDef,
@@ -48,8 +48,8 @@ function walkBranch(interactions: Record<string, Interaction>, leafId: string): 
 }
 
 /** Find the default leaf: the most recent interaction by timestamp that has no children. */
-function findDefaultLeaf(interactions: Record<string, Interaction> | Interaction[] | undefined): string | undefined {
-  if (!interactions || Array.isArray(interactions)) return undefined;
+function findDefaultLeaf(interactions: Record<string, Interaction> | undefined): string | undefined {
+  if (!interactions) return undefined;
   const childSet = new Set<string>();
   for (const ix of Object.values(interactions)) {
     if (ix.parentId) childSet.add(ix.parentId);
@@ -192,8 +192,8 @@ export interface SpaceOperationsConfig {
   role: RoolUserRole;
   /** Current user's ID (for identifying own interactions) */
   userId: string;
-  /** Conversations keyed by ID. */
-  conversations: Record<string, Conversation>;
+  /** Conversation metadata list (from openSpace). Contents are fetched on demand. */
+  conversationMeta: ConversationMeta[];
   graphqlClient: GraphQLClient;
   restClient: RestClient;
   webdav: RoolWebDAV;
@@ -202,12 +202,16 @@ export interface SpaceOperationsConfig {
 }
 
 /**
- * A thin, stateless handle over a space's raw APIs (GraphQL, WebDAV, REST) plus
- * the conversation history the server pushes over SSE. It holds no schema or
- * metadata state — those live in the filesystem (`/space/<collection>/.schema.json`,
- * `/space/.meta.json`) and are read on demand via {@link readSchema} /
- * {@link readMeta}. Reactive consumers (e.g. the Svelte wrapper) own any cached
- * presentation of that state; this class just wraps the wire.
+ * A thin handle over a space's raw APIs (GraphQL, WebDAV, REST) plus the
+ * conversation roster the server pushes over SSE. It holds no schema, metadata,
+ * or conversation *content* state — schema and meta live in the filesystem
+ * (`/space/<collection>/.schema.json`, `/space/.meta.json`) and are read on
+ * demand via {@link readSchema} / {@link readMeta}; conversation contents live
+ * on {@link ConversationHandle} objects acquired on demand via
+ * {@link conversation}. The lightweight conversation meta list (ids + names +
+ * counts) is maintained here from openSpace + SSE. Reactive consumers (e.g. the
+ * Svelte wrapper) own any cached presentation of that state; this class just
+ * wraps the wire.
  *
  * Objects are addressed by machine path (`/space/.../*.json`). Conversation
  * handles carry attribution headers for WebDAV writes. Object/file reactivity
@@ -225,11 +229,9 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   protected _onCloseCallback: () => void;
   protected _logger: Logger;
 
-  // Conversation history keyed by ID (the one piece of server-pushed state).
-  protected _conversations: Record<string, Conversation>;
-
-  // Active leaf per conversation (client-side tree cursor)
-  protected _activeLeaves = new Map<string, string>();
+  // Conversation roster — lightweight meta, no interaction bodies. Maintained
+  // from openSpace + SSE conversation_updated events.
+  protected _conversationMeta: ConversationMeta[];
 
   constructor(config: SpaceOperationsConfig) {
     super();
@@ -243,7 +245,7 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     this._webdav = config.webdav;
     this._logger = config.logger;
     this._onCloseCallback = config.onClose;
-    this._conversations = config.conversations;
+    this._conversationMeta = config.conversationMeta;
   }
 
   /**
@@ -279,82 +281,36 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   }
 
 
-  /** @internal */
-  _getInteractionsImpl(conversationId: string): Interaction[] {
-    const interactions = this._conversations[conversationId]?.interactions;
-    if (!interactions) return [];
-
-    // Handle legacy array format
-    if (Array.isArray(interactions)) return interactions as Interaction[];
-
-    const leafId = this._getActiveLeafImpl(conversationId);
-    if (!leafId) return [];
-
-    return walkBranch(interactions, leafId);
-  }
-
-  /** @internal */
-  _getTreeImpl(conversationId: string): Record<string, Interaction> {
-    const interactions = this._conversations[conversationId]?.interactions;
-    if (!interactions || Array.isArray(interactions)) return {};
-    return interactions;
-  }
-
-  /** @internal */
-  _getActiveLeafImpl(conversationId: string): string | undefined {
-    return this._activeLeaves.get(conversationId) ?? findDefaultLeaf(this._conversations[conversationId]?.interactions);
-  }
-
-  /** @internal */
-  _setActiveLeafImpl(interactionId: string, conversationId: string): void {
-    const interactions = this._conversations[conversationId]?.interactions;
-    if (!interactions || Array.isArray(interactions) || !interactions[interactionId]) {
-      throw new Error(`Interaction "${interactionId}" not found in conversation "${conversationId}"`);
-    }
-    this._activeLeaves.set(conversationId, interactionId);
-    this.emit('conversationUpdated', {
-      conversationId,
-      source: 'local_user',
-    });
-  }
-
   /**
-   * Get all conversations in this space.
-   * Returns summary info (no full interaction data) for each conversation.
+   * Lightweight conversation roster (no interaction bodies). Maintained from
+   * openSpace + SSE; reactive consumers mirror this list.
    */
-  getConversations(): ConversationInfo[] {
-    return Object.entries(this._conversations).map(([id, conv]) => ({
-      id,
-      name: conv.name ?? null,
-      systemInstruction: conv.systemInstruction ?? null,
-      createdAt: conv.createdAt,
-      createdBy: conv.createdBy,
-      interactionCount: conv.interactions ? Object.keys(conv.interactions).length : 0,
-    }));
+  getConversations(): ConversationMeta[] {
+    return this._conversationMeta;
   }
 
   /**
-   * Delete a conversation from this space.
+   * Delete a conversation. The server confirms via SSE (`conversation_updated`
+   * with a null conversation), which updates the roster and any live handle.
    */
   async deleteConversation(conversationId: string): Promise<void> {
     await this._graphqlClient.deleteConversation(this._id, conversationId);
-
-    // Optimistic local update — remove from cache and emit event
-    // in case the server doesn't send a conversation_updated event for deletes
-    if (this._conversations[conversationId]) {
-      delete this._conversations[conversationId];
-      this.emit('conversationUpdated', {
-        conversationId,
-        source: 'local_user',
-      });
-    }
   }
 
   /**
-   * Get a handle for a specific conversation.
+   * Get a handle for a conversation. The handle holds its own interaction tree
+   * + cursor; call {@link ConversationHandle.load} to fetch an existing
+   * conversation's contents, or just {@link ConversationHandle.prompt} to start
+   * a new one (SSE fills the tree). Consumers feed SSE updates into the handle
+   * via {@link ConversationHandle.applyUpdate}.
    */
   conversation(conversationId: string): ConversationHandle {
     return new ConversationHandle(this, conversationId);
+  }
+
+  /** @internal — fetch a conversation's full contents from the server. */
+  async _fetchConversationImpl(conversationId: string): Promise<Conversation | null> {
+    return this._graphqlClient.getConversation(this._id, conversationId);
   }
 
   /**
@@ -410,10 +366,8 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     );
   }
 
-  private davHeaders(conversationId: string, interactionId?: string): Headers {
-    const headers = new Headers({
-      'X-Rool-Conversation-Id': conversationId,
-    });
+  private davHeaders(interactionId?: string): Headers {
+    const headers = new Headers();
     if (interactionId) headers.set('X-Rool-Interaction-Id', interactionId);
     return headers;
   }
@@ -457,8 +411,8 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     return result;
   }
 
-  /** @internal */
-  async _putObjectImpl(path: string, body: Record<string, unknown>, conversationId: string): Promise<{ object: RoolObject; message: string }> {
+  /** Create or replace an object JSON file. */
+  async putObject(path: string, body: Record<string, unknown>): Promise<{ object: RoolObject; message: string }> {
     const canonical = objectPath(path);
     const optimistic = objectFromBody(canonical, body);
 
@@ -466,7 +420,7 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
       const interactionId = generateEntityId();
       await this._webdav.put(canonical, JSON.stringify(body), {
         contentType: 'application/json',
-        headers: this.davHeaders(conversationId, interactionId),
+        headers: this.davHeaders(interactionId),
       });
       const fresh = await this.getObject(canonical) ?? optimistic;
       return { object: fresh, message: `Put ${canonical}` };
@@ -478,8 +432,8 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   }
 
 
-  /** @internal */
-  async _patchObjectImpl(path: string, options: UpdateObjectOptions, conversationId: string): Promise<{ object: RoolObject; message: string }> {
+  /** Patch an existing object JSON file. */
+  async patchObject(path: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
     const canonical = objectPath(path);
     const data = options.data ?? {};
     const current = await this.readObject(canonical);
@@ -492,7 +446,7 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
       await this._webdav.put(canonical, JSON.stringify(body), {
         contentType: 'application/json',
         ifMatch: current.etag ?? undefined,
-        headers: this.davHeaders(conversationId, interactionId),
+        headers: this.davHeaders(interactionId),
       });
       const fresh = await this.getObject(canonical) ?? optimistic;
       return { object: fresh, message: `Patched ${canonical}` };
@@ -504,8 +458,8 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   }
 
 
-  /** @internal */
-  async _moveObjectImpl(from: string, to: string, options: MoveObjectOptions | undefined, conversationId: string): Promise<{ object: RoolObject; message: string }> {
+  /** Move (rename/relocate) an object. */
+  async moveObject(from: string, to: string, options?: MoveObjectOptions): Promise<{ object: RoolObject; message: string }> {
     const fromPath = objectPath(from);
     const toPath = objectPath(to);
     const optimistic = objectFromBody(toPath, options?.body ?? {});
@@ -513,12 +467,12 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     try {
       const interactionId = generateEntityId();
       await this._webdav.move(fromPath, toPath, {
-        headers: this.davHeaders(conversationId, interactionId),
+        headers: this.davHeaders(interactionId),
       });
       if (options?.body) {
         await this._webdav.put(toPath, JSON.stringify(options.body), {
           contentType: 'application/json',
-          headers: this.davHeaders(conversationId, interactionId),
+          headers: this.davHeaders(interactionId),
         });
       }
       const fresh = await this.getObject(toPath) ?? optimistic;
@@ -531,8 +485,8 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   }
 
 
-  /** @internal */
-  async _deleteObjectsImpl(paths: string[], conversationId: string): Promise<void> {
+  /** Delete object JSON files by path. */
+  async deleteObjects(paths: string[]): Promise<void> {
     if (paths.length === 0) return;
     const canonical = paths.map(objectPath);
 
@@ -540,7 +494,7 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
       const interactionId = generateEntityId();
       for (const path of canonical) {
         await this._webdav.delete(path, {
-          headers: this.davHeaders(conversationId, interactionId),
+          headers: this.davHeaders(interactionId),
         });
       }
     } catch (error) {
@@ -571,10 +525,10 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
    * conversation. Callers compose the blob (e.g. read-merge-write) — this does no
    * merging.
    */
-  async writeMeta(meta: Record<string, unknown>, conversationId: string): Promise<void> {
+  async writeMeta(meta: Record<string, unknown>): Promise<void> {
     await this._webdav.put('/space/.meta.json', JSON.stringify(meta), {
       contentType: 'application/json',
-      headers: this.davHeaders(conversationId, generateEntityId()),
+      headers: this.davHeaders(generateEntityId()),
     });
   }
 
@@ -603,117 +557,49 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   }
 
 
-  /** @internal */
-  async _createCollectionImpl(name: string, fields: FieldDef[] | CollectionDef, options: CollectionOptions | undefined, conversationId: string): Promise<CollectionDef> {
+  /** Create a new collection (MKCOL + schema JSON). */
+  async createCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
     const def = collectionDef(fields, options);
-    await this._webdav.mkcol(collectionPath(name), { headers: this.davHeaders(conversationId, generateEntityId()) });
+    await this._webdav.mkcol(collectionPath(name), { headers: this.davHeaders(generateEntityId()) });
     await this._webdav.put(schemaPath(name), JSON.stringify(def), {
       contentType: 'application/json',
-      headers: this.davHeaders(conversationId, generateEntityId()),
+      headers: this.davHeaders(generateEntityId()),
     });
     return def;
   }
 
 
-  /** @internal */
-  async _alterCollectionImpl(name: string, fields: FieldDef[] | CollectionDef, options: CollectionOptions | undefined, conversationId: string): Promise<CollectionDef> {
+  /** Alter an existing collection's schema JSON. */
+  async alterCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
     const def = collectionDef(fields, options);
     await this._webdav.put(schemaPath(name), JSON.stringify(def), {
       contentType: 'application/json',
-      headers: this.davHeaders(conversationId, generateEntityId()),
+      headers: this.davHeaders(generateEntityId()),
     });
     return def;
   }
 
 
-  /** @internal */
-  async _dropCollectionImpl(name: string, conversationId: string): Promise<void> {
-    await this._webdav.delete(collectionPath(name), { collection: true, headers: this.davHeaders(conversationId, generateEntityId()) });
-  }
-
-
-  /** @internal */
-  _getSystemInstructionImpl(conversationId: string): string | undefined {
-    return this._conversations[conversationId]?.systemInstruction;
+  /** Drop a collection (DELETE). */
+  async dropCollection(name: string): Promise<void> {
+    await this._webdav.delete(collectionPath(name), { collection: true, headers: this.davHeaders(generateEntityId()) });
   }
 
 
   /** @internal */
   async _setSystemInstructionImpl(instruction: string | null, conversationId: string): Promise<void> {
-    this._ensureConversationImpl(conversationId);
-    const conv = this._conversations[conversationId];
-    const previousInstruction = conv.systemInstruction;
-    if (instruction === null) {
-      delete conv.systemInstruction;
-    } else {
-      conv.systemInstruction = instruction;
-    }
-
-    this.emit('conversationUpdated', {
-      conversationId,
-      source: 'local_user',
-    });
-
-    try {
-      await this._graphqlClient.updateConversation(
-        this._id,
-        conversationId,
-        { systemInstruction: instruction },
-      );
-    } catch (error) {
-      this._logger.error('[RoolSpace] Failed to set system instruction:', error);
-      if (previousInstruction === undefined) {
-        delete conv.systemInstruction;
-      } else {
-        conv.systemInstruction = previousInstruction;
-      }
-      throw error;
-    }
+    await this._graphqlClient.updateConversation(this._id, conversationId, { systemInstruction: instruction });
   }
 
   /** @internal */
   async _renameConversationImpl(name: string, conversationId: string): Promise<void> {
-    this._ensureConversationImpl(conversationId);
-    const conv = this._conversations[conversationId];
-    const previousName = conv.name;
-    conv.name = name;
-
-    this.emit('conversationUpdated', {
-      conversationId,
-      source: 'local_user',
-    });
-
-    try {
-      await this._graphqlClient.updateConversation(
-        this._id,
-        conversationId,
-        { name },
-      );
-    } catch (error) {
-      this._logger.error('[RoolSpace] Failed to rename conversation:', error);
-      conv.name = previousName;
-      throw error;
-    }
-  }
-
-  /** @internal */
-  _ensureConversationImpl(conversationId: string): void {
-    if (!this._conversations[conversationId]) {
-      this._conversations[conversationId] = {
-        createdAt: Date.now(),
-        createdBy: this._userId,
-        interactions: {},
-      };
-    }
+    await this._graphqlClient.updateConversation(this._id, conversationId, { name });
   }
 
 
   /** @internal */
   async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
-    const { attachments, parentInteractionId: explicitParent, signal, interactionId: providedId, ...rest } = options ?? {};
-    // Callers may supply the id so they can render an optimistic message keyed by
-    // the id the server will echo back (see PromptOptions.interactionId).
-    const interactionId = providedId ?? generateEntityId();
+    const { attachments, signal, interactionId = generateEntityId(), parentInteractionId = null, ...rest } = options ?? {};
 
     let attachmentRefs: string[] | undefined;
     if (attachments?.length) {
@@ -724,14 +610,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
         })
       );
     }
-
-    // Auto-continue from active leaf if no explicit parent provided
-    const parentInteractionId = explicitParent !== undefined
-      ? explicitParent
-      : (this._getActiveLeafImpl(conversationId) ?? null);
-
-    // Optimistically set active leaf before the server call.
-    this._activeLeaves.set(conversationId, interactionId);
 
     let onAbort: (() => void) | undefined;
     if (signal) {
@@ -779,21 +657,6 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     return this._graphqlClient.stopInteraction(this._id, interactionId);
   }
 
-  /** @internal */
-  async _stopImpl(conversationId: string): Promise<boolean> {
-    const leafId = this._getActiveLeafImpl(conversationId);
-    if (!leafId) return false;
-
-    const interactions = this._conversations[conversationId]?.interactions;
-    const interaction = interactions && !Array.isArray(interactions) ? interactions[leafId] : undefined;
-    // Skip the round trip when we already know the interaction has settled.
-    if (interaction && (interaction.status === 'done' || interaction.status === 'error')) {
-      return false;
-    }
-
-    return this.stopInteraction(leafId);
-  }
-
   /**
    * Fetch an external URL via the server proxy, bypassing CORS restrictions.
    */
@@ -824,50 +687,62 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
    */
   private applySpaceContentEvent(event: SpaceEvent): void {
     if (this._closed) return;
+    if (event.type !== 'conversation_updated' || !event.conversationId) return;
 
     const changeSource = event.source === 'agent' ? 'remote_agent' : 'remote_user';
+    const conversation = event.conversation ?? null;
 
-    switch (event.type) {
-      case 'conversation_updated':
-        if (event.conversationId) {
-          const prev = this._conversations[event.conversationId];
-          if (event.conversation) {
-            this._conversations[event.conversationId] = event.conversation;
-          } else {
-            delete this._conversations[event.conversationId];
-          }
+    this._updateConversationMeta(event.conversationId, conversation);
 
-          if (JSON.stringify(prev) === JSON.stringify(event.conversation)) break;
+    this.emit('conversationUpdated', {
+      conversationId: event.conversationId,
+      conversation,
+      source: changeSource,
+    });
+  }
 
-          if (event.conversation && !Array.isArray(event.conversation.interactions)) {
-            const currentLeaf = this._getActiveLeafImpl(event.conversationId);
-            if (currentLeaf) {
-              for (const ix of Object.values(event.conversation.interactions)) {
-                if (ix.parentId === currentLeaf && ix.id !== currentLeaf) {
-                  this._activeLeaves.set(event.conversationId, ix.id);
-                  break;
-                }
-              }
-            }
-          }
-
-          this.emit('conversationUpdated', {
-            conversationId: event.conversationId,
-            source: changeSource,
-          });
-        }
-        break;
+  /** Maintain the conversation meta list from an SSE update. */
+  private _updateConversationMeta(id: string, conversation: Conversation | null): void {
+    if (conversation === null) {
+      this._conversationMeta = this._conversationMeta.filter((m) => m.id !== id);
+      return;
+    }
+    const interactionCount = conversation.interactions ? Object.keys(conversation.interactions).length : 0;
+    const entry: ConversationMeta = {
+      id,
+      name: conversation.name ?? null,
+      systemInstruction: conversation.systemInstruction ?? null,
+      createdAt: conversation.createdAt,
+      createdBy: conversation.createdBy,
+      interactionCount,
+      updatedAt: Date.now(),
+    };
+    const idx = this._conversationMeta.findIndex((m) => m.id === id);
+    if (idx >= 0) {
+      this._conversationMeta = [
+        ...this._conversationMeta.slice(0, idx),
+        entry,
+        ...this._conversationMeta.slice(idx + 1),
+      ];
+    } else {
+      this._conversationMeta = [entry, ...this._conversationMeta];
     }
   }
 }
 
 /**
- * A lightweight handle for a specific conversation.
+ * A stateful handle for a single conversation. Holds the interaction tree and a
+ * client-side branch cursor (active leaf). Acquired on demand via
+ * {@link SpaceOperations.conversation}; a fresh handle each call — the SDK
+ * holds no handle map. The handle starts unloaded; call {@link load} to fetch
+ * an existing conversation's contents, or just {@link prompt} to start a new
+ * one. Feed SSE updates via {@link applyUpdate}.
  */
 export class ConversationHandle {
-  /** @internal */
   private _space: SpaceOperations;
   private _conversationId: string;
+  private _data: Conversation | null = null;
+  private _activeLeaf: string | undefined;
 
   /** @internal */
   constructor(space: SpaceOperations, conversationId: string) {
@@ -878,29 +753,76 @@ export class ConversationHandle {
   /** The conversation ID this handle is scoped to. */
   get conversationId(): string { return this._conversationId; }
 
-  /** Get the active branch of this conversation as a flat array (root → leaf). */
-  getInteractions(): Interaction[] {
-    return this._space._getInteractionsImpl(this._conversationId);
+  /** Whether the conversation contents have been loaded. */
+  get loaded(): boolean { return this._data !== null; }
+
+  /** Fetch the full conversation from the server. Skips the overwrite if SSE
+   *  already filled the tree during the fetch (SSE is the real-time source of
+   *  truth). Pass `true` to force a reload — used after a reconnect `reset`,
+   *  where we may have missed SSE updates while disconnected. */
+  async load(force = false): Promise<void> {
+    const data = await this._space._fetchConversationImpl(this._conversationId);
+    if (!force && this._data) return;
+    this._data = data;
+    this._activeLeaf = this._data ? findDefaultLeaf(this._data.interactions) : undefined;
   }
 
-  /** Get the full interaction tree as a record. */
+  /** Apply an SSE conversation update — updates the tree + cursor. Pass `null`
+   *  for a deletion. */
+  applyUpdate(conversation: Conversation | null): void {
+    if (conversation === null) {
+      this._data = null;
+      this._activeLeaf = undefined;
+      return;
+    }
+    // Advance the cursor to a new child of the current leaf, if one appeared.
+    const currentLeaf = this._activeLeaf;
+    if (currentLeaf) {
+      for (const ix of Object.values(conversation.interactions)) {
+        if (ix.parentId === currentLeaf && ix.id !== currentLeaf) {
+          this._activeLeaf = ix.id;
+          break;
+        }
+      }
+    }
+    this._data = conversation;
+    if (this._activeLeaf === undefined) {
+      this._activeLeaf = findDefaultLeaf(conversation.interactions);
+    }
+  }
+
+  /** Get the active branch as a flat array (root → leaf). Empty until loaded. */
+  getInteractions(): Interaction[] {
+    if (!this._data) return [];
+    const leaf = this._activeLeaf ?? findDefaultLeaf(this._data.interactions);
+    if (!leaf) return [];
+    return walkBranch(this._data.interactions, leaf);
+  }
+
+  /** Get the full interaction tree as a record. Empty until loaded. */
   getTree(): Record<string, Interaction> {
-    return this._space._getTreeImpl(this._conversationId);
+    if (!this._data) return {};
+    return this._data.interactions;
   }
 
   /** Get the active leaf interaction ID, or undefined if empty. */
   get activeLeafId(): string | undefined {
-    return this._space._getActiveLeafImpl(this._conversationId);
+    if (this._activeLeaf) return this._activeLeaf;
+    if (!this._data) return undefined;
+    return findDefaultLeaf(this._data.interactions);
   }
 
   /** Switch to a different branch by setting the active leaf. */
   setActiveLeaf(interactionId: string): void {
-    this._space._setActiveLeafImpl(interactionId, this._conversationId);
+    if (!this._data || !this._data.interactions[interactionId]) {
+      throw new Error(`Interaction "${interactionId}" not found in conversation "${this._conversationId}"`);
+    }
+    this._activeLeaf = interactionId;
   }
 
   /** Get the system instruction for this conversation. */
   getSystemInstruction(): string | undefined {
-    return this._space._getSystemInstructionImpl(this._conversationId);
+    return this._data?.systemInstruction;
   }
 
   /** Set the system instruction for this conversation. Pass null to clear. */
@@ -918,34 +840,16 @@ export class ConversationHandle {
     return this._space.deleteConversation(this._conversationId);
   }
 
-  /** Create or replace an object JSON file. */
-  async putObject(path: string, body: Record<string, unknown>): Promise<{ object: RoolObject; message: string }> {
-    return this._space._putObjectImpl(path, body, this._conversationId);
-  }
-
-  /** Patch an existing object JSON file. */
-  async patchObject(path: string, options: UpdateObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._space._patchObjectImpl(path, options, this._conversationId);
-  }
-
-  /** Move (rename/relocate) an object. */
-  async moveObject(from: string, to: string, options?: MoveObjectOptions): Promise<{ object: RoolObject; message: string }> {
-    return this._space._moveObjectImpl(from, to, options, this._conversationId);
-  }
-
-  /** Delete object JSON files by path. */
-  async deleteObjects(paths: string[]): Promise<void> {
-    return this._space._deleteObjectsImpl(paths, this._conversationId);
-  }
-
-  /** @deprecated Use deleteObjects instead. */
-  async deletePaths(paths: string[]): Promise<void> {
-    return this.deleteObjects(paths);
-  }
-
-  /** Send a prompt to the AI agent, scoped to this conversation's history. */
+  /** Send a prompt to the AI agent, scoped to this conversation's history.
+   *  Auto-continues from the active leaf unless `parentInteractionId` is set. */
   async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
-    return this._space._promptImpl(text, options, this._conversationId);
+    const interactionId = options?.interactionId ?? generateEntityId();
+    const parentInteractionId = options?.parentInteractionId !== undefined
+      ? options.parentInteractionId
+      : (this.activeLeafId ?? null);
+    // Optimistic: advance the cursor to the new interaction.
+    this._activeLeaf = interactionId;
+    return this._space._promptImpl(text, { ...options, interactionId, parentInteractionId }, this._conversationId);
   }
 
   /**
@@ -954,21 +858,10 @@ export class ConversationHandle {
    * {@link RoolSpace.stopInteraction}.
    */
   async stop(): Promise<boolean> {
-    return this._space._stopImpl(this._conversationId);
-  }
-
-  /** Create a new collection schema. */
-  async createCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
-    return this._space._createCollectionImpl(name, fields, options, this._conversationId);
-  }
-
-  /** Alter an existing collection schema. */
-  async alterCollection(name: string, fields: FieldDef[] | CollectionDef, options?: CollectionOptions): Promise<CollectionDef> {
-    return this._space._alterCollectionImpl(name, fields, options, this._conversationId);
-  }
-
-  /** Drop a collection schema. */
-  async dropCollection(name: string): Promise<void> {
-    return this._space._dropCollectionImpl(name, this._conversationId);
+    const leafId = this.activeLeafId;
+    if (!leafId) return false;
+    const interaction = this._data?.interactions[leafId];
+    if (interaction && (interaction.status === 'done' || interaction.status === 'error')) return false;
+    return this._space.stopInteraction(leafId);
   }
 }

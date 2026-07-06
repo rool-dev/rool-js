@@ -15,7 +15,7 @@ export const testCase: TestCase = {
 
     try {
       const conversation = space.conversation('math-test-eval');
-      await createCollectionWithRetry(conversation, 'calculation', [
+      await createCollectionWithRetry(space, 'calculation', [
         { name: 'formula', type: { kind: 'string' } },
         { name: 'result', type: { kind: 'number' } },
       ]);

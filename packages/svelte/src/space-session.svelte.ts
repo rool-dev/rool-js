@@ -180,18 +180,30 @@ export class ReactiveConversationHandleImpl {
     this.#conversationId = conversationId;
     this.#handle = space.conversation(conversationId);
 
-    this.interactions = this.#handle.getInteractions();
+    // Cold-open: fetch the conversation contents if not already loaded (SSE may
+    // have filled it if this conversation received a recent event).
+    if (this.#handle.loaded) {
+      this.interactions = this.#handle.getInteractions();
+    } else {
+      void this.#handle.load().then(() => {
+        this.interactions = this.#handle.getInteractions();
+      });
+    }
 
     const onConversationUpdated = (event: ConversationUpdatedEvent) => {
-      if (event.conversationId === this.#conversationId) {
-        this.interactions = this.#handle.getInteractions();
-      }
+      if (event.conversationId !== this.#conversationId) return;
+      this.#handle.applyUpdate(event.conversation);
+      this.interactions = this.#handle.getInteractions();
     };
     space.on('conversationUpdated', onConversationUpdated);
     this.#unsubscribers.push(() => space.off('conversationUpdated', onConversationUpdated));
 
+    // Reconnect reset: force-reload the conversation (we may have missed SSE).
     const onReset = () => {
-      this.interactions = this.#handle.getInteractions();
+      if (!this.#handle.loaded) return;
+      void this.#handle.load(true).then(() => {
+        this.interactions = this.#handle.getInteractions();
+      });
     };
     space.on('reset', onReset);
     this.#unsubscribers.push(() => space.off('reset', onReset));
@@ -203,28 +215,18 @@ export class ReactiveConversationHandleImpl {
   getInteractions() { return this.#handle.getInteractions(); }
   getTree() { return this.#handle.getTree(); }
   get activeLeafId() { return this.#handle.activeLeafId; }
-  setActiveLeaf(interactionId: string) { this.#handle.setActiveLeaf(interactionId); }
+  setActiveLeaf(interactionId: string) {
+    this.#handle.setActiveLeaf(interactionId);
+    this.interactions = this.#handle.getInteractions();
+  }
   getSystemInstruction() { return this.#handle.getSystemInstruction(); }
   setSystemInstruction(...args: Parameters<ConversationHandle['setSystemInstruction']>) { return this.#handle.setSystemInstruction(...args); }
   rename(...args: Parameters<ConversationHandle['rename']>) { return this.#handle.rename(...args); }
   delete() { return this.#handle.delete(); }
 
-  // Object operations
-  putObject(...args: Parameters<ConversationHandle['putObject']>) { return this.#handle.putObject(...args); }
-  patchObject(...args: Parameters<ConversationHandle['patchObject']>) { return this.#handle.patchObject(...args); }
-  moveObject(...args: Parameters<ConversationHandle['moveObject']>) { return this.#handle.moveObject(...args); }
-  deleteObjects(...args: Parameters<ConversationHandle['deleteObjects']>) { return this.#handle.deleteObjects(...args); }
-  /** @deprecated Use deleteObjects instead. */
-  deletePaths(...args: Parameters<ConversationHandle['deletePaths']>) { return this.#handle.deletePaths(...args); }
-
   // AI
   prompt(...args: Parameters<ConversationHandle['prompt']>) { return this.#handle.prompt(...args); }
   stop() { return this.#handle.stop(); }
-
-  // Schema
-  createCollection(...args: Parameters<ConversationHandle['createCollection']>) { return this.#handle.createCollection(...args); }
-  alterCollection(...args: Parameters<ConversationHandle['alterCollection']>) { return this.#handle.alterCollection(...args); }
-  dropCollection(...args: Parameters<ConversationHandle['dropCollection']>) { return this.#handle.dropCollection(...args); }
 
   close(): void {
     for (const unsub of this.#unsubscribers) unsub();

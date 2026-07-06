@@ -5,6 +5,7 @@ import type {
   SpaceMember,
   CurrentUser,
   Conversation,
+  ConversationMeta,
   InviteRole,
   SpaceInvite,
   SpaceInviteCreated,
@@ -31,14 +32,15 @@ export interface GraphQLClientConfig {
   onRefused?: () => Promise<string>;
 }
 
-/** Result from the openSpace full query — space identity + all conversations.
- *  Object info, schema, and meta are read from WebDAV, not from this query. */
+/** Result from the openSpace full query — space identity + conversation meta.
+ *  Object info, schema, and meta are read from WebDAV. Conversation contents
+ *  are fetched on demand via {@link GraphQLClient.getConversation}. */
 export interface OpenSpaceFullResult {
   name: string;
   role: string;
   userId: string;
   memberCount: number;
-  conversations: Record<string, Conversation>;
+  conversationMeta: ConversationMeta[];
 }
 
 interface GraphQLResponse<T> {
@@ -116,8 +118,8 @@ export class GraphQLClient {
     return { spaceId: response.duplicateSpace.spaceId };
   }
 
-  /** Full space data — identity + all conversations. Object info, schema, and
-   *  meta are sourced from WebDAV by the space handle, not from this query. */
+  /** Space identity + conversation meta. Object info, schema, and meta are
+   *  sourced from WebDAV; conversation contents are fetched on demand. */
   async openSpaceFull(spaceId: string): Promise<OpenSpaceFullResult> {
     const query = `
       query OpenSpaceFull($id: String!) {
@@ -126,14 +128,22 @@ export class GraphQLClient {
           role
           userId
           memberCount
-          conversations
+          conversationMeta {
+            id
+            name
+            systemInstruction
+            createdAt
+            createdBy
+            interactionCount
+            updatedAt
+          }
         }
       }
     `;
     const response = await this.request<{
       openSpace: {
         name: string; role: string; userId: string; memberCount: number;
-        conversations: Record<string, Conversation> | null;
+        conversationMeta: ConversationMeta[];
       }
     }>(query, { id: spaceId });
 
@@ -143,8 +153,22 @@ export class GraphQLClient {
       role: r.role,
       userId: r.userId,
       memberCount: r.memberCount,
-      conversations: r.conversations ?? {},
+      conversationMeta: r.conversationMeta,
     };
+  }
+
+  /** Fetch a single conversation's full contents (interactions) on demand. */
+  async getConversation(spaceId: string, conversationId: string): Promise<Conversation | null> {
+    const query = `
+      query GetConversation($spaceId: String!, $conversationId: String!) {
+        conversation(spaceId: $spaceId, conversationId: $conversationId)
+      }
+    `;
+    const response = await this.request<{ conversation: Conversation | null }>(query, {
+      spaceId,
+      conversationId,
+    });
+    return response.conversation;
   }
 
 

@@ -21,22 +21,22 @@ export const testCase: TestCase = {
 
     try {
       const conversation = space.conversation('topic-expand-eval');
-      await createCollectionWithRetry(conversation, 'topic', [
+      await createCollectionWithRetry(space, 'topic', [
         { name: 'headline', type: { kind: 'string' } },
       ]);
-      await createCollectionWithRetry(conversation, 'image', [
+      await createCollectionWithRetry(space, 'image', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'image_url', type: { kind: 'string' } },
         { name: 'parent', type: { kind: 'ref' } },
       ]);
-      await createCollectionWithRetry(conversation, 'markdown', [
+      await createCollectionWithRetry(space, 'markdown', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },
         { name: 'parent', type: { kind: 'ref' } },
       ]);
 
       const topicPath = objectPath('topic', 'sailboats');
-      await conversation.putObject(topicPath, { headline: 'Types of Sailboats' });
+      await space.putObject(topicPath, { headline: 'Types of Sailboats' });
 
       const { objects } = await conversation.prompt(prompt, { attachments: [topicPath] });
 

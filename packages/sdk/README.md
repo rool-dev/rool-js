@@ -32,20 +32,20 @@ async function main() {
   const space = await client.createSpace('Solar System');
   const conversation = space.conversation('main');
 
-  await conversation.createCollection('body', [
+  await space.createCollection('body', [
     { name: 'name', type: { kind: 'string' } },
     { name: 'mass', type: { kind: 'string' } },
     { name: 'radius', type: { kind: 'string' } },
     { name: 'orbits', type: { kind: 'maybe', inner: { kind: 'ref' } } },
   ]);
 
-  const { object: sun } = await conversation.putObject('/space/body/sun.json', {
+  const { object: sun } = await space.putObject('/space/body/sun.json', {
     name: 'Sun',
     mass: '1 solar mass',
     radius: '696,340 km',
   });
 
-  const { object: earth } = await conversation.putObject('/space/body/earth.json', {
+  const { object: earth } = await space.putObject('/space/body/earth.json', {
     name: 'Earth',
     mass: '1 Earth mass',
     radius: '6,371 km',
@@ -249,19 +249,19 @@ Conversation IDs must be 1–32 characters and contain only letters, numbers, `_
 Objects are JSON files under `/space`. Create the collection before writing objects in it.
 
 ```typescript
-await conversation.createCollection('article', [
+await space.createCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'string' } },
 ]);
 
 // Create or replace an exact object path
-const { object } = await conversation.putObject('/space/article/welcome.json', {
+const { object } = await space.putObject('/space/article/welcome.json', {
   title: 'Welcome',
   status: 'draft',
 });
 
 // Patch fields; null or undefined deletes a field
-await conversation.patchObject(object.path, {
+await space.patchObject(object.path, {
   data: { status: 'published', obsoleteField: null },
 });
 
@@ -273,23 +273,23 @@ await space.getObjects([
 ]);
 
 // Rename or move an object
-await conversation.moveObject(
+await space.moveObject(
   '/space/article/welcome.json',
   '/space/article/hello-world.json'
 );
 
 // Delete objects
-await conversation.deleteObjects(['/space/article/hello-world.json']);
+await space.deleteObjects(['/space/article/hello-world.json']);
 ```
 
 | Method | Description |
 | --- | --- |
 | `getObject(path): Promise<RoolObject | undefined>` | Fetch one object by object path. |
 | `getObjects(paths): Promise<GetObjectsResult>` | Fetch objects in bulk; returns `objects` and `missing`. |
-| `putObject(path, body): Promise<{ object, message }>` | Create or replace an object at an exact path. |
-| `patchObject(path, { data }): Promise<{ object, message }>` | Patch an object's body; `null`/`undefined` deletes fields. |
-| `moveObject(from, to, options?): Promise<{ object, message }>` | Rename or relocate an object; `options.body` can replace the body after moving. |
-| `deleteObjects(paths): Promise<void>` | Delete object files. |
+| `space.putObject(path, body): Promise<{ object, message }>` | Create or replace an object at an exact path. |
+| `space.patchObject(path, { data }): Promise<{ object, message }>` | Patch an object's body; `null`/`undefined` deletes fields. |
+| `space.moveObject(from, to, options?): Promise<{ object, message }>` | Rename or relocate an object; `options.body` can replace the body after moving. |
+| `space.deleteObjects(paths): Promise<void>` | Delete object files. |
 
 ## AI Agent
 
@@ -408,18 +408,18 @@ if (thread.activeLeafId) {
 | `activeLeafId` | Current branch tip. |
 | `setActiveLeaf(id): void` | Switch branches. |
 | `getSystemInstruction()` / `setSystemInstruction(value)` | Manage conversation system instruction. Pass `null` to clear. |
-| `getConversations(): ConversationInfo[]` | List conversations in the space. |
+| `getConversations(): ConversationMeta[]` | List conversation metadata in the space. |
 | `deleteConversation(id): Promise<void>` | Delete a non-active conversation. |
 | `conversation.rename(name): Promise<void>` | Rename a specific conversation handle. |
 
-`ConversationHandle` also supports conversation-scoped `putObject`, `patchObject`, `moveObject`, `deleteObjects`, `prompt`, `stop`, collection-schema methods, and `setMetadata`.
+`ConversationHandle` also supports `prompt`, `stop`, `load`, and `applyUpdate` for interaction history.
 
 ## Schema and Metadata
 
 Collections define the schema visible to the AI agent. Hidden body fields whose names start with `_` are useful for app/UI state that should not be considered by AI.
 
 ```typescript
-await conversation.createCollection('article', {
+await space.createCollection('article', {
   schemaOrgType: 'Article',
   fields: [
     { name: 'title', type: { kind: 'string' } },
@@ -429,26 +429,25 @@ await conversation.createCollection('article', {
   ],
 });
 
-const schema = space.getSchema();
+const schema = await space.readSchema();
 
-await conversation.alterCollection('article', [
+await space.alterCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'string' } },
 ]);
 
-conversation.setMetadata('viewport', { x: 0, y: 0, zoom: 1 });
-const viewport = space.getMetadata('viewport');
+await space.writeMeta({ viewport: { x: 0, y: 0, zoom: 1 } });
+const meta = await space.readMeta();
 ```
 
 | Method | Description |
 | --- | --- |
-| `getSchema(): SpaceSchema` | Collection definitions, loaded from `/space/<name>/.schema.json` on open/resync. |
+| `readSchema(): Promise<SpaceSchema>` | Collection definitions, read from `/space/<name>/.schema.json`. |
 | `createCollection(name, fieldsOrDef, options?): Promise<CollectionDef>` | Create a collection. |
 | `alterCollection(name, fieldsOrDef, options?): Promise<CollectionDef>` | Replace a collection definition. |
 | `dropCollection(name): Promise<void>` | Remove a collection and its object directory. |
-| `setMetadata(key, value): void` | Set space metadata (fire-and-forget sync to `/space/.meta.json`). |
-| `getMetadata(key): unknown` | Read metadata, loaded from `/space/.meta.json` on open/resync. |
-| `getAllMetadata(): Record<string, unknown>` | Read all metadata, loaded from `/space/.meta.json` on open/resync. |
+| `readMeta(): Promise<Record<string, unknown>>` | Read metadata from `/space/.meta.json`. |
+| `writeMeta(meta): Promise<void>` | Write the full metadata blob to `/space/.meta.json`. |
 
 Field kinds: `string`, `number`, `boolean`, `ref`, `enum`, `literal`, `array`, and `maybe`.
 
@@ -457,7 +456,7 @@ Field kinds: `string`, `number`, `boolean`, `ref`, `enum`, `literal`, `array`, a
 Undo/redo works over the whole space. Checkpoints are managed automatically by the server, so you don't need to create them yourself — just call `undo()`/`redo()`.
 
 ```typescript
-await conversation.deleteObjects(['/space/article/welcome.json']);
+await space.deleteObjects(['/space/article/welcome.json']);
 
 if (await space.canUndo()) {
   await space.undo();

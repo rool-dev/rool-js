@@ -14,7 +14,7 @@ export const testCase: TestCase = {
 
     try {
       const conversation = space.conversation('haiku-prompt-eval');
-      await createCollectionWithRetry(conversation, 'markdown', [
+      await createCollectionWithRetry(space, 'markdown', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },
       ]);

@@ -15,7 +15,7 @@ export const testCase: TestCase = {
       const conversation = space.conversation('quickstart-eval');
 
       // Define the schema.
-      await createCollectionWithRetry(conversation, 'body', [
+      await createCollectionWithRetry(space, 'body', [
         { name: 'name', type: { kind: 'string' } },
         { name: 'mass', type: { kind: 'string' } },
         { name: 'radius', type: { kind: 'string' } },
@@ -24,7 +24,7 @@ export const testCase: TestCase = {
 
       // Create known seed objects at explicit paths.
       const sunPath = objectPath('body', 'sun');
-      const { object: sun } = await conversation.putObject(sunPath, {
+      const { object: sun } = await space.putObject(sunPath, {
         name: 'Sun',
         mass: '1 solar mass',
         radius: '696,340 km',
@@ -35,7 +35,7 @@ export const testCase: TestCase = {
       expect(sun.body.orbits).to.not.exist;
 
       const earthPath = objectPath('body', 'earth');
-      const { object: earth } = await conversation.putObject(earthPath, {
+      const { object: earth } = await space.putObject(earthPath, {
         name: 'Earth',
         mass: '1 Earth mass',
         radius: '6,371 km',

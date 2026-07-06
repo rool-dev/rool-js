@@ -14,13 +14,13 @@ export const testCase: TestCase = {
 
     try {
       const conversation = space.conversation('company-lookup-eval');
-      await createCollectionWithRetry(conversation, 'company', [
+      await createCollectionWithRetry(space, 'company', [
         { name: 'name', type: { kind: 'string' } },
         { name: 'cvr', type: { kind: 'string' } },
       ]);
 
       const companyPath = objectPath('company', 'aves');
-      await conversation.putObject(companyPath, {
+      await space.putObject(companyPath, {
         name: 'Aves ApS',
         cvr: '',
       });

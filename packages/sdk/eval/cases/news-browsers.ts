@@ -14,7 +14,7 @@ export const testCase: TestCase = {
 
     try {
       const conversation = space.conversation('news-browsers-eval');
-      await createCollectionWithRetry(conversation, 'browser', [
+      await createCollectionWithRetry(space, 'browser', [
         { name: 'headline', type: { kind: 'string' } },
         { name: 'text', type: { kind: 'string' } },
         { name: 'url', type: { kind: 'string' } },

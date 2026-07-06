@@ -102,34 +102,31 @@ function spaceOperations(dav: FakeWebDAV, rest: RestClient = {} as RestClient): 
 test('space object CRUD uses object WebDAV instead of GraphQL', async () => {
   const dav = new FakeWebDAV();
   const ch = spaceOperations(dav);
-  const conversation = ch.conversation('default');
 
-  const created = await conversation.putObject('/space/tasks/first.json', { title: 'First' });
+  const created = await ch.putObject('/space/tasks/first.json', { title: 'First' });
   assert.deepEqual(created.object, {
     path: '/space/tasks/first.json',
     body: { title: 'First' },
   });
   assert.deepEqual(JSON.parse(dav.files.get('/space/tasks/first.json')!.body), { title: 'First' });
 
-  const headers = new Headers((dav.calls[0].init as { headers: HeadersInit }).headers);
   assert.equal(dav.calls[0].method, 'PUT');
   assert.equal(dav.calls[0].path, '/space/tasks/first.json');
-  assert.equal(headers.get('X-Rool-Conversation-Id'), 'default');
 
   const loaded = await ch.getObject('/space/tasks/first.json');
   assert.equal(loaded?.body.title, 'First');
 
-  const updated = await conversation.patchObject('/space/tasks/first.json', {
+  const updated = await ch.patchObject('/space/tasks/first.json', {
     data: { title: 'Updated', done: false, obsolete: null },
   });
   assert.deepEqual(updated.object.body, { title: 'Updated', done: false });
 
-  const moved = await conversation.moveObject('/space/tasks/first.json', '/space/tasks/renamed.json');
+  const moved = await ch.moveObject('/space/tasks/first.json', '/space/tasks/renamed.json');
   assert.equal(moved.object.path, '/space/tasks/renamed.json');
   assert.equal(dav.files.has('/space/tasks/first.json'), false);
   assert.equal(dav.files.has('/space/tasks/renamed.json'), true);
 
-  await conversation.deleteObjects(['/space/tasks/renamed.json']);
+  await ch.deleteObjects(['/space/tasks/renamed.json']);
   assert.equal(dav.files.has('/space/tasks/renamed.json'), false);
 });
 
@@ -157,20 +154,18 @@ test('space getObjects normalizes machine paths, dedupes, chunks, and preserves 
 test('space object paths reject dotfiles and nested paths', async () => {
   const rest = new FakeRestClient();
   const ch = spaceOperations(new FakeWebDAV(), rest as unknown as RestClient);
-  const conversation = ch.conversation('default');
 
   await assert.rejects(() => ch.getObject('/space/.meta.json'), /Object path must be/);
   await assert.rejects(() => ch.getObjects(['/space/tasks/.schema.json']), /Object path must be/);
-  await assert.rejects(() => conversation.putObject('/space/tasks/nested/first.json', { title: 'Nested' }), /Object path must be/);
+  await assert.rejects(() => ch.putObject('/space/tasks/nested/first.json', { title: 'Nested' }), /Object path must be/);
   assert.equal(rest.calls.length, 0);
 });
 
 test('space collection schema writes use object WebDAV', async () => {
   const dav = new FakeWebDAV();
   const ch = spaceOperations(dav);
-  const conversation = ch.conversation('default');
 
-  await conversation.createCollection('notes', [{ name: 'title', type: { kind: 'string' } }], { schemaOrgType: 'CreativeWork' });
+  await ch.createCollection('notes', [{ name: 'title', type: { kind: 'string' } }], { schemaOrgType: 'CreativeWork' });
   assert.equal(dav.calls[0].method, 'MKCOL');
   assert.equal(dav.calls[0].path, '/space/notes');
   assert.equal(dav.calls[1].method, 'PUT');
@@ -180,10 +175,10 @@ test('space collection schema writes use object WebDAV', async () => {
     { fields: [{ name: 'title', type: { kind: 'string' } }], schemaOrgType: 'CreativeWork' },
   );
 
-  await conversation.alterCollection('notes', { fields: [{ name: 'done', type: { kind: 'boolean' } }], schemaOrgType: 'Action' });
+  await ch.alterCollection('notes', { fields: [{ name: 'done', type: { kind: 'boolean' } }], schemaOrgType: 'Action' });
   assert.deepEqual(JSON.parse(dav.files.get('/space/notes/.schema.json')!.body), { fields: [{ name: 'done', type: { kind: 'boolean' } }], schemaOrgType: 'Action' });
 
-  await conversation.dropCollection('notes');
+  await ch.dropCollection('notes');
   assert.equal(dav.calls.at(-1)?.method, 'DELETE');
   assert.equal(dav.calls.at(-1)?.path, '/space/notes');
 });

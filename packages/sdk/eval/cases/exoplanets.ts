@@ -16,10 +16,10 @@ export const testCase: TestCase = {
 
     try {
       const conversation = space.conversation('exoplanets-eval');
-      await createCollectionWithRetry(conversation, 'star', [
+      await createCollectionWithRetry(space, 'star', [
         { name: 'name', type: { kind: 'string' } },
       ]);
-      await createCollectionWithRetry(conversation, 'planet', [
+      await createCollectionWithRetry(space, 'planet', [
         { name: 'name', type: { kind: 'string' } },
         { name: 'orbits', type: { kind: 'ref' } },
       ]);

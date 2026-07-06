@@ -103,7 +103,7 @@ export type {
 
   // Conversation types
   Conversation,
-  ConversationInfo,
+  ConversationMeta,
   Interaction,
   InteractionStatus,
   ToolCall,
