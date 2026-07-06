@@ -432,7 +432,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Mark the current user for deletion (10-minute grace period).
+   * Mark the current user for deletion (7-day grace period).
    * Irrecoverable after the grace period elapses.
    */
   async deleteCurrentUser(): Promise<void> {
