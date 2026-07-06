@@ -598,7 +598,7 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
 
 
   /** @internal */
-  async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[] }> {
+  async _promptImpl(prompt: string, options: PromptOptions | undefined, conversationId: string): Promise<{ message: string; objects: RoolObject[]; creditsUsed: number }> {
     const { attachments, signal, interactionId = generateEntityId(), parentInteractionId = null, ...rest } = options ?? {};
 
     let attachmentRefs: string[] | undefined;
@@ -644,6 +644,7 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     return {
       message: result.message,
       objects,
+      creditsUsed: result.creditsUsed,
     };
   }
 
@@ -842,7 +843,7 @@ export class ConversationHandle {
 
   /** Send a prompt to the AI agent, scoped to this conversation's history.
    *  Auto-continues from the active leaf unless `parentInteractionId` is set. */
-  async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[] }> {
+  async prompt(text: string, options?: PromptOptions): Promise<{ message: string; objects: RoolObject[]; creditsUsed: number }> {
     const interactionId = options?.interactionId ?? generateEntityId();
     const parentInteractionId = options?.parentInteractionId !== undefined
       ? options.parentInteractionId

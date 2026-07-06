@@ -262,17 +262,18 @@ export class GraphQLClient {
     prompt: string,
     conversationId: string,
     options: Omit<PromptOptions, 'attachments'> & { attachmentRefs?: string[]; interactionId: string }
-  ): Promise<{ message: string; modifiedObjectPaths: string[] }> {
+  ): Promise<{ message: string; modifiedObjectPaths: string[]; creditsUsed: number }> {
     const mutation = `
       mutation Prompt($spaceId: String!, $prompt: String!, $responseSchema: JSON, $conversationId: String!, $effort: PromptEffort!, $ephemeral: Boolean!, $readOnly: Boolean!, $attachments: [String!]!, $interactionId: String!, $parentInteractionId: String, $eventName: String!) {
         prompt(spaceId: $spaceId, prompt: $prompt, responseSchema: $responseSchema, conversationId: $conversationId, effort: $effort, ephemeral: $ephemeral, readOnly: $readOnly, attachments: $attachments, interactionId: $interactionId, parentInteractionId: $parentInteractionId, eventName: $eventName) {
           message
           modifiedObjectPaths
+          creditsUsed
         }
       }
     `;
     const response = await this.request<{
-      prompt: { message: string; modifiedObjectPaths: string[] }
+      prompt: { message: string; modifiedObjectPaths: string[]; creditsUsed: number }
     }>(mutation, {
       spaceId,
       prompt,
@@ -289,6 +290,7 @@ export class GraphQLClient {
     return {
       message: response.prompt.message,
       modifiedObjectPaths: response.prompt.modifiedObjectPaths,
+      creditsUsed: response.prompt.creditsUsed,
     };
   }
 
