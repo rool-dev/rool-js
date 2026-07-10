@@ -5,6 +5,7 @@ import { ClientSubscriptionManager } from './subscription.js';
 import { RestClient } from './rest.js';
 import { RoolSpace } from './space.js';
 import { SpaceRouter } from './router.js';
+import { generateEntityId } from './space-session.js';
 import { defaultLogger, type Logger } from './logger.js';
 import { addClientInfoHeaders, resolveClientInfo, type RoolClientInfo } from './client-info.js';
 import type {
@@ -21,14 +22,6 @@ import type {
   PasswordSignInResult,
 } from './types.js';
 
-function generateEntityId(): string {
-  const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-';
-  const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
-  let id = '';
-  for (let i = 0; i < 16; i++) id += alphabet[bytes[i] & 63];
-  return id;
-}
 type ResolvedUrls = {
   graphql: string;
   auth: string;
