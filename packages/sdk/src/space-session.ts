@@ -15,6 +15,7 @@ import type {
   Interaction,
   Conversation,
   ConversationMeta,
+  ConversationVisibility,
   SpaceSchema,
   CollectionDef,
   FieldDef,
@@ -295,6 +296,31 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
    */
   async deleteConversation(conversationId: string): Promise<void> {
     await this._graphqlClient.deleteConversation(this._id, conversationId);
+  }
+
+  /**
+   * Create a conversation under an agent. The server mints the id (unique
+   * across the space's agents) and creates the folder with the requested
+   * visibility; prompt the returned id to start talking.
+   */
+  async createConversation(agent: string, visibility: ConversationVisibility): Promise<string> {
+    return this._graphqlClient.createConversation(this._id, agent, visibility);
+  }
+
+  /**
+   * The space's agents (folder names under /agents). Always includes the stock
+   * agent `rool`.
+   */
+  async listAgents(): Promise<string[]> {
+    return this._graphqlClient.listAgents(this._id);
+  }
+
+  /**
+   * Delete a custom agent and all its conversations. The stock agent `rool`
+   * cannot be deleted.
+   */
+  async deleteAgent(agent: string): Promise<void> {
+    await this._graphqlClient.deleteAgent(this._id, agent);
   }
 
   /**
@@ -711,6 +737,8 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     const interactionCount = conversation.interactions ? Object.keys(conversation.interactions).length : 0;
     const entry: ConversationMeta = {
       id,
+      agent: conversation.agent ?? 'rool',
+      visibility: conversation.visibility ?? 'shared',
       name: conversation.name ?? null,
       systemInstruction: conversation.systemInstruction ?? null,
       createdAt: conversation.createdAt,

@@ -121,11 +121,20 @@ export interface Interaction {
  */
 export interface Conversation {
   name?: string;
+  /** Owning agent's folder name; absent from servers that predate the field. */
+  agent?: string;
+  visibility?: ConversationVisibility;
   systemInstruction?: string;
   createdAt: number;
   createdBy: string;
   interactions: Record<string, Interaction>;
 }
+
+/**
+ * Who may see a conversation: 'shared' is every space member; 'private' is
+ * owner-only; 'temporary' is private plus auto-delete once it sits idle.
+ */
+export type ConversationVisibility = 'shared' | 'private' | 'temporary';
 
 /**
  * Lightweight conversation metadata — no interaction bodies. Returned by
@@ -134,6 +143,9 @@ export interface Conversation {
  */
 export interface ConversationMeta {
   id: string;
+  /** Owning agent's folder name under /agents ("rool" is the stock agent). */
+  agent: string;
+  visibility: ConversationVisibility;
   name: string | null;
   systemInstruction: string | null;
   createdAt: number;

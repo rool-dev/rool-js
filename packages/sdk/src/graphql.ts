@@ -6,6 +6,7 @@ import type {
   CurrentUser,
   Conversation,
   ConversationMeta,
+  ConversationVisibility,
   InviteRole,
   SpaceInvite,
   SpaceInviteCreated,
@@ -130,6 +131,8 @@ export class GraphQLClient {
           memberCount
           conversationMeta {
             id
+            agent
+            visibility
             name
             systemInstruction
             createdAt
@@ -209,6 +212,16 @@ export class GraphQLClient {
     });
   }
 
+  async createConversation(spaceId: string, agent: string, visibility: ConversationVisibility): Promise<string> {
+    const mutation = `
+      mutation CreateConversation($spaceId: String!, $agent: String!, $visibility: String!) {
+        createConversation(spaceId: $spaceId, agent: $agent, visibility: $visibility)
+      }
+    `;
+    const result = await this.request<{ createConversation: string }>(mutation, { spaceId, agent, visibility });
+    return result.createConversation;
+  }
+
   async deleteConversation(spaceId: string, conversationId: string): Promise<void> {
     const mutation = `
       mutation DeleteConversation($spaceId: String!, $conversationId: String!) {
@@ -216,6 +229,25 @@ export class GraphQLClient {
       }
     `;
     await this.request(mutation, { spaceId, conversationId });
+  }
+
+  async listAgents(spaceId: string): Promise<string[]> {
+    const query = `
+      query ListAgents($spaceId: String!) {
+        agents(spaceId: $spaceId)
+      }
+    `;
+    const result = await this.request<{ agents: string[] }>(query, { spaceId });
+    return result.agents;
+  }
+
+  async deleteAgent(spaceId: string, agent: string): Promise<void> {
+    const mutation = `
+      mutation DeleteAgent($spaceId: String!, $agent: String!) {
+        deleteAgent(spaceId: $spaceId, agent: $agent)
+      }
+    `;
+    await this.request(mutation, { spaceId, agent });
   }
 
   async undo(spaceId: string): Promise<{ success: boolean }> {

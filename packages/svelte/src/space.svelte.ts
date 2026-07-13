@@ -145,7 +145,10 @@ class ReactiveSpaceImpl {
   redo(...args: Parameters<RoolSpace['redo']>) { return this.#space.redo(...args); }
   clearHistory(...args: Parameters<RoolSpace['clearHistory']>) { return this.#space.clearHistory(...args); }
   getConversations(...args: Parameters<RoolSpace['getConversations']>) { return this.#space.getConversations(...args); }
+  createConversation(...args: Parameters<RoolSpace['createConversation']>) { return this.#space.createConversation(...args); }
   deleteConversation(...args: Parameters<RoolSpace['deleteConversation']>) { return this.#space.deleteConversation(...args); }
+  listAgents(...args: Parameters<RoolSpace['listAgents']>) { return this.#space.listAgents(...args); }
+  deleteAgent(...args: Parameters<RoolSpace['deleteAgent']>) { return this.#space.deleteAgent(...args); }
   /** Rename a conversation without acquiring a reactive handle (avoids an unnecessary content fetch). */
   renameConversation(conversationId: string, name: string): Promise<void> {
     return this.#space.conversation(conversationId).rename(name);

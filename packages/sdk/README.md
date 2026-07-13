@@ -409,10 +409,32 @@ if (thread.activeLeafId) {
 | `setActiveLeaf(id): void` | Switch branches. |
 | `getSystemInstruction()` / `setSystemInstruction(value)` | Manage conversation system instruction. Pass `null` to clear. |
 | `getConversations(): ConversationMeta[]` | List conversation metadata in the space. |
+| `createConversation(agent, visibility): Promise<string>` | Create a conversation under an agent; returns the server-minted conversation ID. |
 | `deleteConversation(id): Promise<void>` | Delete a non-active conversation. |
 | `conversation.rename(name): Promise<void>` | Rename a specific conversation handle. |
 
 `ConversationHandle` also supports `prompt`, `stop`, `load`, and `applyUpdate` for interaction history.
+
+### Agents
+
+Conversations belong to an agent. Every space has the stock agent `rool`; spaces can also host custom agents. `createConversation` creates a conversation under any agent — including `rool` — with a server-minted ID and the visibility you choose; prompt the returned ID through a normal handle. Stock (`rool`) conversations can also spring into existence from a client-minted ID on first prompt (as in the examples above); custom-agent conversations are only created explicitly.
+
+Each conversation has a visibility: `'shared'` (every space member), `'private'` (only you), or `'temporary'` (private, and auto-deleted after sitting idle). A conversation's agent and visibility are reported on its `ConversationMeta`.
+
+```typescript
+const agents = await space.listAgents(); // always includes 'rool'
+
+const id = await space.createConversation('research-bot', 'private');
+await space.conversation(id).prompt('Hello');
+
+await space.deleteAgent('research-bot'); // removes the agent and all its conversations
+```
+
+| Method | Description |
+| --- | --- |
+| `listAgents(): Promise<string[]>` | The space's agents. Always includes the stock agent `rool`. |
+| `createConversation(agent, visibility): Promise<string>` | Create a conversation under an agent with the given visibility. |
+| `deleteAgent(agent): Promise<void>` | Delete a custom agent and all its conversations. The stock agent `rool` cannot be deleted. |
 
 ## Schema and Metadata
 
@@ -668,7 +690,8 @@ Properties: `id`, `name`, `role`, `memberCount`, `conversations`, `route`, `webd
 | --- | --- |
 | `conversation(conversationId): ConversationHandle` | Get a conversation-scoped handle. |
 | `getObject`, `getObjects`, `stat` | Read object data and stats. |
-| `getConversations`, `deleteConversation` | List and delete conversations. |
+| `getConversations`, `createConversation`, `deleteConversation` | List, create, and delete conversations. |
+| `listAgents`, `deleteAgent` | List the space's agents and delete a custom agent. |
 | `getMetadata`, `getAllMetadata`, `getSchema` | Read metadata and schema. |
 | `canUndo`, `canRedo`, `undo`, `redo` | Space history controls. |
 | `stopInteraction(interactionId): Promise<boolean>` | Stop an in-flight interaction by ID. |
@@ -745,6 +768,24 @@ interface RoolObject {
 interface GetObjectsResult {
   objects: RoolObject[];
   missing: string[];
+}
+
+// Who may see a conversation: 'shared' is every space member; 'private' is
+// owner-only; 'temporary' is private plus auto-delete once it sits idle.
+type ConversationVisibility = 'shared' | 'private' | 'temporary';
+
+// Lightweight conversation roster entry (no interaction bodies), from
+// getConversations(). `updatedAt` drives last-activity display.
+interface ConversationMeta {
+  id: string;
+  agent: string; // owning agent ('rool' is the stock agent)
+  visibility: ConversationVisibility;
+  name: string | null;
+  systemInstruction: string | null;
+  createdAt: number;
+  createdBy: string;
+  interactionCount: number;
+  updatedAt: number;
 }
 
 type InviteRole = 'admin' | 'editor' | 'viewer';

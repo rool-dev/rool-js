@@ -104,6 +104,7 @@ export type {
   // Conversation types
   Conversation,
   ConversationMeta,
+  ConversationVisibility,
   Interaction,
   InteractionStatus,
   ToolCall,
