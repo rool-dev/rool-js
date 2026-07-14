@@ -1,7 +1,14 @@
-import { isObjectPath, machinePath } from '@rool-dev/sdk';
+import {
+  conversationBranch,
+  defaultConversationLeaf,
+  generateEntityId,
+  isObjectPath,
+  machinePath,
+} from '@rool-dev/sdk';
 import type {
   RoolSpace,
   Interaction,
+  Conversation,
   RoolObject,
   ConversationHandle,
   ConversationUpdatedEvent,
@@ -171,66 +178,115 @@ export type ReactiveObject = ReactiveObjectImpl;
 export class ReactiveConversationHandleImpl {
   #handle: ConversationHandle;
   #conversationId: string;
+  #activeLeafId = $state<string | undefined>(undefined);
+  #revision = 0;
+  #closed = false;
   #unsubscribers: (() => void)[] = [];
+  #onClose: () => void;
 
-  // Reactive state
+  data = $state<Conversation | null | undefined>(undefined);
   interactions = $state<Interaction[]>([]);
+  loading = $state(true);
+  error = $state<Error | null>(null);
 
-  constructor(space: RoolSpace, conversationId: string) {
+  constructor(space: RoolSpace, conversationId: string, onClose: () => void) {
     this.#conversationId = conversationId;
     this.#handle = space.conversation(conversationId);
-
-    // Cold-open: fetch the conversation contents if not already loaded (SSE may
-    // have filled it if this conversation received a recent event).
-    if (this.#handle.loaded) {
-      this.interactions = this.#handle.getInteractions();
-    } else {
-      void this.#handle.load().then(() => {
-        this.interactions = this.#handle.getInteractions();
-      });
-    }
+    this.#onClose = onClose;
+    void this.refresh();
 
     const onConversationUpdated = (event: ConversationUpdatedEvent) => {
       if (event.conversationId !== this.#conversationId) return;
-      this.#handle.applyUpdate(event.conversation);
-      this.interactions = this.#handle.getInteractions();
+      this.#revision += 1;
+      this.#apply(event.conversation);
     };
     space.on('conversationUpdated', onConversationUpdated);
     this.#unsubscribers.push(() => space.off('conversationUpdated', onConversationUpdated));
-
-    // Reconnect reset: force-reload the conversation (we may have missed SSE).
-    const onReset = () => {
-      if (!this.#handle.loaded) return;
-      void this.#handle.load(true).then(() => {
-        this.interactions = this.#handle.getInteractions();
-      });
-    };
-    space.on('reset', onReset);
-    this.#unsubscribers.push(() => space.off('reset', onReset));
   }
 
   get conversationId(): string { return this.#conversationId; }
+  get activeLeafId(): string | undefined { return this.#activeLeafId; }
 
-  // Conversation history
-  getInteractions() { return this.#handle.getInteractions(); }
-  getTree() { return this.#handle.getTree(); }
-  get activeLeafId() { return this.#handle.activeLeafId; }
-  setActiveLeaf(interactionId: string) {
-    this.#handle.setActiveLeaf(interactionId);
-    this.interactions = this.#handle.getInteractions();
+  async refresh(): Promise<void> {
+    const revision = this.#revision;
+    this.loading = true;
+    this.error = null;
+    try {
+      const conversation = await this.#handle.get();
+      if (!this.#closed && revision === this.#revision) this.#apply(conversation);
+    } catch (error) {
+      if (!this.#closed) this.error = error instanceof Error ? error : new Error(String(error));
+    } finally {
+      if (!this.#closed) this.loading = false;
+    }
   }
-  getSystemInstruction() { return this.#handle.getSystemInstruction(); }
+
+  getInteractions(): Interaction[] { return this.interactions; }
+  getTree(): Record<string, Interaction> { return this.data?.interactions ?? {}; }
+
+  setActiveLeaf(interactionId: string): void {
+    if (!this.data?.interactions[interactionId]) {
+      throw new Error(`Interaction "${interactionId}" not found in conversation "${this.#conversationId}"`);
+    }
+    this.#revision += 1;
+    this.#activeLeafId = interactionId;
+    this.interactions = conversationBranch(this.data, interactionId);
+  }
+
+  getSystemInstruction(): string | undefined { return this.data?.systemInstruction; }
   setSystemInstruction(...args: Parameters<ConversationHandle['setSystemInstruction']>) { return this.#handle.setSystemInstruction(...args); }
   rename(...args: Parameters<ConversationHandle['rename']>) { return this.#handle.rename(...args); }
   delete() { return this.#handle.delete(); }
 
-  // AI
-  prompt(...args: Parameters<ConversationHandle['prompt']>) { return this.#handle.prompt(...args); }
+  async prompt(
+    text: string,
+    options?: Parameters<ConversationHandle['prompt']>[1],
+  ): ReturnType<ConversationHandle['prompt']> {
+    const previousLeaf = this.#activeLeafId;
+    const interactionId = options?.interactionId ?? generateEntityId();
+    this.#revision += 1;
+    this.#activeLeafId = interactionId;
+    try {
+      return await this.#handle.prompt(text, {
+        ...options,
+        interactionId,
+        parentInteractionId: options?.parentInteractionId === undefined
+          ? previousLeaf ?? null
+          : options.parentInteractionId,
+      });
+    } catch (error) {
+      if (this.#activeLeafId === interactionId) this.#activeLeafId = previousLeaf;
+      throw error;
+    }
+  }
+
   stop() { return this.#handle.stop(); }
 
   close(): void {
+    if (this.#closed) return;
+    this.#closed = true;
     for (const unsub of this.#unsubscribers) unsub();
     this.#unsubscribers.length = 0;
+    this.#onClose();
+  }
+
+  #apply(conversation: Conversation | null): void {
+    this.data = conversation;
+    if (!conversation) {
+      this.#activeLeafId = undefined;
+      this.interactions = [];
+      return;
+    }
+
+    const currentLeaf = this.#activeLeafId;
+    if (currentLeaf) {
+      const child = Object.values(conversation.interactions).find((interaction) => interaction.parentId === currentLeaf);
+      if (child) this.#activeLeafId = child.id;
+    }
+    if (!this.#activeLeafId || !conversation.interactions[this.#activeLeafId]) {
+      this.#activeLeafId = defaultConversationLeaf(conversation);
+    }
+    this.interactions = conversationBranch(conversation, this.#activeLeafId);
   }
 }
 

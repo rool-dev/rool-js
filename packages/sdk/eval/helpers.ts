@@ -3,7 +3,6 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import type { RoolSpace } from '../src/space.js';
-import type { RoolSpace } from '../src/space.js';
 import type { RoolObject, CollectionDef, CollectionOptions, FieldDef } from '../src/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

@@ -2,10 +2,16 @@
 export { RoolClient } from './client.js';
 
 // Space operation helpers
-export { ConversationHandle, generateEntityId } from './space-session.js';
+export {
+  ConversationHandle,
+  conversationBranch,
+  defaultConversationLeaf,
+  generateEntityId,
+} from './space-session.js';
 
 // Space class
 export { RoolSpace } from './space.js';
+export type { OpenSpaceResult } from './graphql.js';
 
 // Machine paths
 export { isObjectPath, machinePath, machineUri } from './path.js';
@@ -54,7 +60,6 @@ export type {
   // Core types
   RoolObject,
   GetObjectsResult,
-  RoolObjectStat,
   RoolSpaceInfo,
 
   // Subscription event types (wire protocol)
@@ -99,7 +104,6 @@ export type {
   ChangeSource,
   SpaceContentEvents,
   ConversationUpdatedEvent,
-  ResetEvent,
 
   // Conversation types
   Conversation,

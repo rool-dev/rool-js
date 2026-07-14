@@ -362,15 +362,11 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       clientInfo: this.clientInfo,
     });
 
-    const fullData = await scopedClient.openSpaceFull(spaceId);
+    const openSpaceResult = await scopedClient.openSpace(spaceId);
 
     const space = new RoolSpace({
       id: spaceId,
-      name: fullData.name,
-      role: fullData.role as RoolUserRole,
-      userId: fullData.userId,
-      memberCount: fullData.memberCount,
-      fullData,
+      openSpaceResult,
       graphqlClient: scopedClient,
       restClient: scopedRestClient,
       authManager: this.authManager,

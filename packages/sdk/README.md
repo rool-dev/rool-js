@@ -231,7 +231,7 @@ A temporarily unreachable server never reads as "logged out". `initialize()` rep
 
 ## Spaces and Conversations
 
-Open a space to receive live events and manage collaborators, file storage, and conversations. Open a conversation to work with objects, schema, metadata, and AI.
+Open a space to receive live events and manage objects, schema, metadata, collaborators, file storage, and conversations. Use a conversation handle for conversation metadata and AI.
 
 ```typescript
 const space = await client.openSpace('space-id');
@@ -312,7 +312,7 @@ console.log(objects.map((object) => object.path));
 | `effort` | `'QUICK'` (fast/read-only), `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'`. |
 | `ephemeral` | Do not record the prompt in interaction history. |
 | `readOnly` | Disable mutation tools. |
-| `parentInteractionId` | Conversation-tree parent. Omit to continue from the active leaf; pass `null` for a new root branch. |
+| `parentInteractionId` | Conversation-tree parent. Omit to fetch and continue from the current default leaf; pass `null` for a new root branch. |
 | `attachments` | Existing object/file paths or `rool-machine:/...` URIs, plus local files (`File`, `Blob`, or `{ data, contentType, filename? }`). |
 | `signal` | AbortSignal used to request that the server stop an in-flight prompt. |
 | `eventName` | Optional telemetry event name. Defaults to `'prompt_user'`. |
@@ -382,43 +382,32 @@ await thread.stop();
 | `stopConversation(conversationId): Promise<boolean>` | Stop whatever is running in a conversation. |
 | `conversation.stop(): Promise<boolean>` | Stop this conversation's running work. |
 
-`stopInteraction(interactionId)` is deprecated: it reaches only a prompt the
-server is still awaiting. Use `stopConversation`, which stops the run
-regardless of how or where it was started.
-
 ## Conversations
 
-Use `space.conversation(id)` for independent histories (for example, multiple chat threads). Conversations are represented as trees: interactions point at a `parentId`, and the SDK tracks an active leaf for each conversation.
+Use `space.conversation(id)` for an imperative API scoped to one conversation. The handle retains no conversation contents or branch cursor; fetch contents when needed. With no explicit parent, `prompt()` fetches the current conversation and continues from its default leaf.
 
 ```typescript
-await conversation.prompt('Hello');
+import { conversationBranch, defaultConversationLeaf } from '@rool-dev/sdk';
 
 const thread = space.conversation('thread-42');
 await thread.prompt('Hello from another thread');
 await thread.setSystemInstruction('Answer in haiku');
 
-const branch = thread.getInteractions(); // active branch, root → leaf
-const tree = thread.getTree();           // full interaction tree
-
-if (thread.activeLeafId) {
-  thread.setActiveLeaf(thread.activeLeafId);
-}
+const conversation = await thread.get();
+const leaf = defaultConversationLeaf(conversation);
+const branch = conversationBranch(conversation, leaf);
 ```
 
 | Method/property | Description |
 | --- | --- |
-| `space.conversation(id): ConversationHandle` | Get a conversation-scoped handle. |
-| `getInteractions(): Interaction[]` | Active branch as a flat list. |
-| `getTree(): Record<string, Interaction>` | Full interaction tree. |
-| `activeLeafId` | Current branch tip. |
-| `setActiveLeaf(id): void` | Switch branches. |
-| `getSystemInstruction()` / `setSystemInstruction(value)` | Manage conversation system instruction. Pass `null` to clear. |
-| `getConversations(): ConversationMeta[]` | List conversation metadata in the space. |
+| `space.conversation(id): ConversationHandle` | Get a stateless conversation-scoped API handle. |
+| `conversation.get(): Promise<Conversation | null>` | Fetch current conversation contents. |
+| `conversation.prompt(text, options?)` | Prompt the conversation. Pass `parentInteractionId` to choose a branch explicitly. |
+| `conversation.setSystemInstruction(value)` | Set or clear the system instruction. |
+| `conversation.rename(name)` / `conversation.delete()` / `conversation.stop()` | Manage the scoped conversation. |
+| `listConversations(): Promise<ConversationMeta[]>` | Fetch the conversation roster. |
 | `createConversation(agent, visibility): Promise<string>` | Create a conversation under an agent; returns the server-minted conversation ID. |
-| `deleteConversation(id): Promise<void>` | Delete a non-active conversation. |
-| `conversation.rename(name): Promise<void>` | Rename a specific conversation handle. |
-
-`ConversationHandle` also supports `prompt`, `stop`, `load`, and `applyUpdate` for interaction history.
+| `deleteConversation(id): Promise<void>` | Delete a conversation by ID. |
 
 ### Agents
 
@@ -689,15 +678,15 @@ client.on('unsupported', (info) => void 0); // SDK older than server minimum
 
 ## RoolSpace API
 
-Properties: `id`, `name`, `role`, `memberCount`, `conversations`, `route`, `webdav`.
+Properties: `id`, `name`, `role`, `memberCount`, `openSpaceResult`, `route`, `webdav`.
 
 | Method | Description |
 | --- | --- |
-| `conversation(conversationId): ConversationHandle` | Get a conversation-scoped handle. |
-| `getObject`, `getObjects`, `stat` | Read object data and stats. |
-| `getConversations`, `createConversation`, `deleteConversation` | List, create, and delete conversations. |
+| `conversation(conversationId): ConversationHandle` | Get a stateless conversation-scoped handle. |
+| `getObject`, `getObjects` | Read object data. |
+| `listConversations`, `createConversation`, `deleteConversation` | Fetch, create, and delete conversations. |
 | `listAgents`, `deleteAgent` | List the space's agents and delete a custom agent. |
-| `getMetadata`, `getAllMetadata`, `getSchema` | Read metadata and schema. |
+| `readMeta`, `writeMeta`, `readSchema` | Read and write WebDAV-backed metadata and schema. |
 | `canUndo`, `canRedo`, `undo`, `redo` | Space history controls. |
 | `stopConversation(conversationId): Promise<boolean>` | Stop whatever is running in a conversation. |
 | `fetch(url, init?): Promise<Response>` | Proxy an external HTTP request through the server to bypass browser CORS. |
@@ -711,17 +700,14 @@ Properties: `id`, `name`, `role`, `memberCount`, `conversations`, `route`, `webd
 | `listInvites(): Promise<SpaceInvite[]>` | List currently redeemable invites. |
 | `revokeInvite(inviteId): Promise<boolean>` | Revoke an invite so its link stops working. |
 | `exportArchive(): Promise<Blob>` | Export a space archive. |
-| `refresh(): Promise<void>` | Refresh cached space data. |
+| `refresh(): Promise<OpenSpaceResult>` | Refresh identity, access, member count, and conversation metadata. |
 | `fetchPath(path, options?): Promise<Response>` | Fetch a `/rool-drive/...` file. |
 | `getStorageUsage(): Promise<SpaceFileStorageUsage>` | File-storage quota usage. |
 
 Events:
 
 ```typescript
-space.on('metadataUpdated', ({ metadata, source }) => void 0);
-space.on('schemaUpdated', ({ schema, source }) => void 0);
-space.on('conversationUpdated', ({ conversationId, source }) => void 0);
-space.on('reset', ({ source }) => void 0);
+space.on('conversationUpdated', ({ conversationId, conversation, source, timestamp }) => void 0);
 space.on('syncError', (error) => void 0);
 space.on('filesChanged', ({ spaceId, source, timestamp }) => void 0);
 space.on('filesReset', ({ spaceId, source, timestamp }) => void 0);
@@ -779,8 +765,8 @@ interface GetObjectsResult {
 // owner-only; 'temporary' is private plus auto-delete once it sits idle.
 type ConversationVisibility = 'shared' | 'private' | 'temporary';
 
-// Lightweight conversation roster entry (no interaction bodies), from
-// getConversations(). `updatedAt` drives last-activity display.
+// Lightweight conversation roster entry (no interaction bodies), returned by
+// openSpace/listConversations. `updatedAt` drives last-activity display.
 interface ConversationMeta {
   id: string;
   agent: string; // owning agent ('rool' is the stock agent)
@@ -847,17 +833,6 @@ interface InviteRedeemResult {
   spaceId: string;
   role: RoolUserRole;
   status: 'joined' | 'upgraded' | 'already_member';
-}
-
-interface RoolObjectStat {
-  // Deprecated: object audit info is no longer carried by openSpace. Read file
-  // timestamps via WebDAV (sync-collection / PROPFIND getlastmodified) instead.
-  path: string;
-  modifiedAt: number;
-  modifiedBy: string;
-  modifiedByName: string | null;
-  modifiedInConversation: string | null;
-  modifiedInInteraction: string | null;
 }
 
 type PromptAttachment =

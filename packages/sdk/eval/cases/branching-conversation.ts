@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type { TestCase } from '../types.js';
-import { generateEntityId } from '../../src/space-session.js';
+import { conversationBranch, generateEntityId } from '../../src/space-session.js';
 
 /**
  * Tests branching conversations: parentInteractionId creates a tree,
@@ -14,78 +14,52 @@ export const testCase: TestCase = {
     const conv = space.conversation(generateEntityId());
 
     try {
-      // --- Linear chain: A → B ---
+      const aId = generateEntityId();
+      await conv.prompt('My favorite color is blue. Just say OK.', {
+        readOnly: true,
+        effort: 'QUICK',
+        interactionId: aId,
+        parentInteractionId: null,
+      });
 
-      // A: tell the agent a fact
-      const { message: msgA } = await conv.prompt(
-        'My favorite color is blue. Just say OK.',
-        { readOnly: true, effort: 'QUICK' },
-      );
-      const leafAfterA = conv.activeLeafId;
-      expect(leafAfterA).to.be.a('string');
-
-      // B: follow-up, should know the color
-      const { message: msgB } = await conv.prompt(
+      const bId = generateEntityId();
+      const { message: blue } = await conv.prompt(
         'What is my favorite color? Reply with ONLY the color name, one word.',
-        { readOnly: true, effort: 'QUICK' },
+        { readOnly: true, effort: 'QUICK', interactionId: bId, parentInteractionId: aId },
       );
-      expect(msgB.toLowerCase()).to.include('blue');
+      expect(blue.toLowerCase()).to.include('blue');
 
-      const leafAfterB = conv.activeLeafId;
-      expect(leafAfterB).to.not.equal(leafAfterA);
+      const cId = generateEntityId();
+      await conv.prompt('My favorite color is red. Just say OK.', {
+        readOnly: true,
+        effort: 'QUICK',
+        interactionId: cId,
+        parentInteractionId: aId,
+      });
 
-      // --- Branch: A → C (sibling of B, same parent = A) ---
-
-      // C: tell the agent a different fact, branching from A
-      const { message: msgC } = await conv.prompt(
-        'My favorite color is red. Just say OK.',
-        { readOnly: true, effort: 'QUICK', parentInteractionId: leafAfterA },
-      );
-      const leafAfterC = conv.activeLeafId;
-
-      // D: follow-up on the red branch
-      const { message: msgD } = await conv.prompt(
+      const dId = generateEntityId();
+      const { message: red } = await conv.prompt(
         'What is my favorite color? Reply with ONLY the color name, one word.',
-        { readOnly: true, effort: 'QUICK' },
+        { readOnly: true, effort: 'QUICK', interactionId: dId, parentInteractionId: cId },
       );
-      expect(msgD.toLowerCase()).to.include('red');
-      expect(msgD.toLowerCase()).to.not.include('blue');
+      expect(red.toLowerCase()).to.include('red');
+      expect(red.toLowerCase()).to.not.include('blue');
 
-      // --- Verify tree structure ---
+      const conversation = await conv.get();
+      expect(conversation).to.not.equal(null);
+      const tree = conversation!.interactions;
+      expect(Object.keys(tree)).to.have.length(4);
+      expect(tree[aId].parentId).to.be.null;
+      expect(tree[bId].parentId).to.equal(aId);
+      expect(tree[cId].parentId).to.equal(aId);
+      expect(tree[dId].parentId).to.equal(cId);
 
-      const tree = conv.getTree();
-      const nodeCount = Object.keys(tree).length;
-      expect(nodeCount).to.equal(4); // A, B, C, D
+      const blueBranch = conversationBranch(conversation, bId);
+      expect(blueBranch.map((interaction) => interaction.id)).to.deep.equal([aId, bId]);
 
-      // A is root
-      expect(tree[leafAfterA!].parentId).to.be.null;
-
-      // B and C are both children of A (siblings)
-      expect(tree[leafAfterB!].parentId).to.equal(leafAfterA);
-      expect(tree[leafAfterC!].parentId).to.equal(leafAfterA);
-
-      // --- Switch back to blue branch and verify getInteractions ---
-
-      conv.setActiveLeaf(leafAfterB!);
-      const blueBranch = conv.getInteractions();
-      expect(blueBranch).to.have.length(2); // A, B
-      expect(blueBranch[0].id).to.equal(leafAfterA);
-      expect(blueBranch[1].id).to.equal(leafAfterB);
-
-      // Switch to red branch tip (D)
-      const leafAfterD = conv.activeLeafId; // was set to D before setActiveLeaf
-      conv.setActiveLeaf(leafAfterB!); // we switched to B above
-      // find D's ID from tree
-      const dId = Object.keys(tree).find(id =>
-        tree[id].parentId === leafAfterC && id !== leafAfterC
-      );
-      expect(dId).to.be.a('string');
-      conv.setActiveLeaf(dId!);
-      const redBranch = conv.getInteractions();
-      expect(redBranch).to.have.length(3); // A, C, D
-
+      const redBranch = conversationBranch(conversation, dId);
+      expect(redBranch.map((interaction) => interaction.id)).to.deep.equal([aId, cId, dId]);
     } finally {
-      conv.close?.();
       space.close();
     }
   },

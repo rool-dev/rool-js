@@ -52,20 +52,6 @@ export interface GetObjectsResult {
 }
 
 /**
- * Audit information for an object — when it was last modified, by whom,
- * and where (conversation/interaction). Returned by `space.stat`.
- */
-export interface RoolObjectStat {
-  /** Object path these stats apply to. */
-  path: string;
-  modifiedAt: number;
-  modifiedBy: string;
-  modifiedByName: string | null;
-  modifiedInConversation: string | null;
-  modifiedInInteraction: string | null;
-}
-
-/**
  * A tool call record is keyed by id; running calls have no result, finished calls have a string result.
  */
 export type ToolCall = RunningToolCall | FinishedToolCall;
@@ -589,14 +575,9 @@ export interface RoolSpaceEvents extends SpaceContentEvents {
  */
 export type ChangeSource = 'local_user' | 'remote_user' | 'remote_agent' | 'system';
 
-export interface ResetEvent {
-  source: ChangeSource;
-}
-
-
-
 export interface ConversationUpdatedEvent {
   conversationId: string;
+  timestamp: number;
   /** The full conversation payload from SSE, or `null` when deleted. Reactive
    *  consumers can read interaction status (e.g. the thinking dot) straight from
    *  this without opening a conversation handle. */
@@ -614,8 +595,6 @@ export interface ConversationUpdatedEvent {
 export interface SpaceContentEvents {
   /** Conversation interaction history was updated */
   conversationUpdated: (event: ConversationUpdatedEvent) => void;
-  /** Full state replacement (undo/redo, resync) */
-  reset: (event: ResetEvent) => void;
   /** Emitted when a sync error occurs */
   syncError: (error: Error) => void;
   /** Index signature for EventEmitter compatibility */

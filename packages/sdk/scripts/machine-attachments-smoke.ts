@@ -104,7 +104,9 @@ async function main(): Promise<void> {
     console.log('AI:', message);
 
     step('validate interaction attachments');
-    const interaction = latestPromptInteraction(conversation.getInteractions());
+    const storedConversation = await conversation.get();
+    assert(storedConversation, 'expected stored conversation after prompt');
+    const interaction = latestPromptInteraction(Object.values(storedConversation.interactions));
     assert(interaction.input === promptText, 'prompt input should not contain hidden/injected machine refs');
     assert(interaction.attachments?.length === 3, `expected 3 stored attachments, got ${interaction.attachments?.length ?? 0}`);
     assert(interaction.attachments.includes(objectRef), 'stored attachments should include object machine ref');

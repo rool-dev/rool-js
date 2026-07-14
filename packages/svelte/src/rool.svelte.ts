@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type ServerInfo } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type ServerInfo } from '@rool-dev/sdk';
 import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
 /**
@@ -13,7 +13,8 @@ import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 class RoolImpl {
   #client: RoolClient;
   #unsubscribers: (() => void)[] = [];
-  #openSpaces: Set<ReactiveSpace> = new Set();
+  #openSpaces = new Map<string, ReactiveSpace>();
+  #openingSpaces = new Map<string, Promise<ReactiveSpace>>();
 
   // Reactive state
   authenticated = $state<boolean | null>(null); // null = checking, false = not auth, true = auth
@@ -162,10 +163,9 @@ class RoolImpl {
    * Log out and close all open spaces.
    */
   logout(): void {
-    for (const space of this.#openSpaces) {
-      space.close();
-    }
+    for (const space of this.#openSpaces.values()) space.close();
     this.#openSpaces.clear();
+    this.#openingSpaces.clear();
     this.#client.logout();
   }
 
@@ -174,33 +174,31 @@ class RoolImpl {
    * Call `space.close()` when done to stop the subscription.
    */
   async openSpace(spaceId: string): Promise<ReactiveSpace> {
-    const raw = await this.#client.openSpace(spaceId);
-    const reactive = wrapSpace(raw);
-    await reactive.ready();
-    this.#openSpaces.add(reactive);
-    return reactive;
+    const existing = this.#openSpaces.get(spaceId);
+    if (existing && !existing.isClosed) return existing;
+
+    const opening = this.#openingSpaces.get(spaceId);
+    if (opening) return opening;
+
+    const pending = this.#client.openSpace(spaceId)
+      .then((space) => this.#wrapSpace(space))
+      .finally(() => this.#openingSpaces.delete(spaceId));
+    this.#openingSpaces.set(spaceId, pending);
+    return pending;
   }
 
   /**
    * Create a new space. Returns a ReactiveSpace.
    */
   async createSpace(name: string): Promise<ReactiveSpace> {
-    const raw = await this.#client.createSpace(name);
-    const reactive = wrapSpace(raw);
-    await reactive.ready();
-    this.#openSpaces.add(reactive);
-    return reactive;
+    return this.#wrapSpace(await this.#client.createSpace(name));
   }
 
   /**
    * Duplicate an existing space. Returns a ReactiveSpace.
    */
   async duplicateSpace(sourceSpaceId: string, name: string): Promise<ReactiveSpace> {
-    const raw = await this.#client.duplicateSpace(sourceSpaceId, name);
-    const reactive = wrapSpace(raw);
-    await reactive.ready();
-    this.#openSpaces.add(reactive);
-    return reactive;
+    return this.#wrapSpace(await this.#client.duplicateSpace(sourceSpaceId, name));
   }
 
   /**
@@ -213,8 +211,10 @@ class RoolImpl {
   /**
    * Delete a space.
    */
-  deleteSpace(spaceId: string): Promise<void> {
-    return this.#client.deleteSpace(spaceId);
+  async deleteSpace(spaceId: string): Promise<void> {
+    await this.#client.deleteSpace(spaceId);
+    this.#openSpaces.get(spaceId)?.close();
+    this.#openSpaces.delete(spaceId);
   }
 
   /**
@@ -284,11 +284,7 @@ class RoolImpl {
    * Import a space from a zip archive. Returns a ReactiveSpace.
    */
   async importArchive(name: string, archive: Blob): Promise<ReactiveSpace> {
-    const raw = await this.#client.importArchive(name, archive);
-    const reactive = wrapSpace(raw);
-    await reactive.ready();
-    this.#openSpaces.add(reactive);
-    return reactive;
+    return this.#wrapSpace(await this.#client.importArchive(name, archive));
   }
 
   /**
@@ -318,14 +314,30 @@ class RoolImpl {
 
 
 
+  async #wrapSpace(space: RoolSpace): Promise<ReactiveSpace> {
+    const existing = this.#openSpaces.get(space.id);
+    if (existing && !existing.isClosed) return existing;
+
+    const reactive = wrapSpace(space, () => {
+      if (this.#openSpaces.get(space.id) === reactive) this.#openSpaces.delete(space.id);
+    });
+    try {
+      await reactive.ready();
+    } catch (error) {
+      reactive.close();
+      throw error;
+    }
+    this.#openSpaces.set(space.id, reactive);
+    return reactive;
+  }
+
   /**
    * Clean up resources.
    */
   destroy(): void {
-    for (const space of this.#openSpaces) {
-      space.close();
-    }
+    for (const space of this.#openSpaces.values()) space.close();
     this.#openSpaces.clear();
+    this.#openingSpaces.clear();
 
     for (const unsub of this.#unsubscribers) {
       unsub();

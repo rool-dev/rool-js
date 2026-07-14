@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { SpaceOperations } from '../src/space-session.js';
+import { RoolSpace } from '../src/space.js';
 import type { RoolWebDAV, WebDAVRequestInit, WebDAVWriteResult } from '../src/webdav.js';
-import type { GraphQLClient } from '../src/graphql.js';
 import type { RestClient } from '../src/rest.js';
-import type { Conversation } from '../src/types.js';
 
 class FakeWebDAV {
   files = new Map<string, { body: string; etag: string }>();
@@ -74,29 +72,13 @@ class FakeRestClient {
   }
 }
 
-function spaceOperations(dav: FakeWebDAV, rest: RestClient = {} as RestClient): SpaceOperations {
-  const graphql = {} as unknown as GraphQLClient;
-
-  const conversations: Record<string, Conversation> = {
-    default: {
-      createdAt: Date.now(),
-      createdBy: 'user_123',
-      interactions: {},
-    },
-  };
-
-  return new SpaceOperations({
-    id: 'sp_123',
-    name: 'Test Space',
-    role: 'owner',
-    userId: 'user_1',
-    conversations,
-    graphqlClient: graphql,
-    restClient: rest,
-    webdav: dav as unknown as RoolWebDAV,
-    logger: { debug() {}, info() {}, warn() {}, error() {} },
-    onClose: () => {},
-  });
+function spaceOperations(dav: FakeWebDAV, rest: RestClient = {} as RestClient): RoolSpace {
+  return Object.assign(Object.create(RoolSpace.prototype), {
+    _id: 'sp_123',
+    _restClient: rest,
+    _webdav: dav as unknown as RoolWebDAV,
+    _logger: { debug() {}, info() {}, warn() {}, error() {} },
+  }) as RoolSpace;
 }
 
 test('space object CRUD uses object WebDAV instead of GraphQL', async () => {

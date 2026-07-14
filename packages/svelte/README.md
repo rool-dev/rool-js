@@ -59,8 +59,9 @@ The Svelte wrapper adds reactive state on top of the SDK:
 | `space.fileTree` | Canonical reactive WebDAV tree for `/`, including `/space` objects and `/rool-drive` user files |
 | `space.objectPaths` | Object paths derived from `space.fileTree` |
 | `space.collections` | Collection directories derived from `space.fileTree` |
-| `space.conversations` | Conversations in this space (auto-updates on create/delete/rename) |
-| `thread.interactions` | Interactions for a specific conversation (auto-updates) |
+| `space.conversations` | Lightweight conversation roster, kept current from `openSpace` and SSE |
+| `thread.interactions` | Active branch for one lazily opened conversation |
+| `thread.loading` / `thread.error` | Load state for that conversation only |
 | `watch.objects` | Objects matching a filter (auto-updates) |
 | `watch.loading` | Whether watch is loading |
 
@@ -148,7 +149,7 @@ Reactive cross-device storage for user preferences. Synced from server on `init(
 
 ### Spaces & Conversations
 
-Every space has its own SSE subscription. Open a space, then get explicit conversation handles from it. Call `space.close()` when done to stop the subscription.
+Every space has its own SSE subscription. Conversation metadata is reactive at the space level; full contents are loaded only for conversation handles requested through `space.conversation(id)`. Repeated calls for the same ID return the same handle. Call `space.close()` when done to stop the subscription and close its conversation handles.
 
 ```typescript
 // Open a space — reactive, with SSE
@@ -330,7 +331,7 @@ articles.close()   // Stop listening for updates
 
 ### Reactive Conversation Handle
 
-For apps with multiple independent interaction threads (e.g., chat with threads), use `space.conversation()` to get a handle with reactive interactions:
+For apps with multiple independent interaction threads, use `space.conversation()` to lazily load and retain reactive state for the threads currently in use:
 
 ```svelte
 <script lang="ts">
@@ -358,21 +359,21 @@ For apps with multiple independent interaction threads (e.g., chat with threads)
 ```
 
 ```typescript
-// Reactive state
-thread.interactions   // $state<Interaction[]> — updates from space events
+// State retained for this conversation only
+thread.data          // Conversation | null | undefined
+thread.interactions  // active branch; updates from space events
+thread.activeLeafId
+thread.loading
+thread.error
 
-// Conversation-scoped methods
 await thread.prompt('Hello')
-await thread.stop()   // Stop this thread's running work (false if nothing was running)
-await thread.putObject('/space/note/welcome.json', { text: 'Note' })
-await thread.patchObject('/space/note/welcome.json', { data: { text: 'Updated' } })
+await thread.stop()
 await thread.setSystemInstruction('Respond in haiku')
 await thread.rename('Research Thread')
-thread.getInteractions()      // Manual read
-thread.getSystemInstruction()
+thread.setActiveLeaf(interactionId)
 
-// Cleanup
-thread.close()   // Stop listening for updates
+// Evicts this handle from the space; requesting the ID again loads a new one.
+thread.close()
 ```
 
 Conversations are auto-created when you first write history or settings. Real-time events are owned by the space subscription; conversation handles subscribe to space events locally.
@@ -403,25 +404,24 @@ space.role
 const path = '/space/note/welcome.json';
 await space.getObject(path)
 
-// Conversation-scoped writes and AI
-const conversation = space.conversation('thread-42');
-await conversation.putObject(path, { text: 'Hello' })
-await conversation.patchObject(path, { data: { text: 'Updated' } })
-await conversation.moveObject(path, '/space/note/renamed.json')
-await conversation.deleteObjects(['/space/note/renamed.json'])
-await conversation.prompt('Summarize everything')
-await conversation.stop()
-
-// Schema/metadata writes are also attributed to a conversation
-space.getSchema()
-await conversation.createCollection('article', [
+// Object and schema APIs live on the space
+await space.putObject(path, { text: 'Hello' })
+await space.patchObject(path, { data: { text: 'Updated' } })
+await space.moveObject(path, '/space/note/renamed.json')
+await space.deleteObjects(['/space/note/renamed.json'])
+await space.createCollection('article', [
   { name: 'title', type: { kind: 'string' } },
   { name: 'status', type: { kind: 'enum', values: ['draft', 'published'] } },
 ])
-await conversation.alterCollection('article', updatedFields)
-await conversation.dropCollection('article')
+await space.alterCollection('article', updatedFields)
+await space.dropCollection('article')
+
+// Conversation state and operations are scoped to a lazy reactive handle
+const conversation = space.conversation('thread-42');
+await conversation.prompt('Summarize everything')
+await conversation.stop()
 await conversation.setSystemInstruction('You are helpful')
-conversation.getInteractions()
+conversation.interactions
 
 // Space history/admin
 await space.undo()

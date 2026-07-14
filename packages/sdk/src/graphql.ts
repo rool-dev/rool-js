@@ -7,6 +7,7 @@ import type {
   Conversation,
   ConversationMeta,
   ConversationVisibility,
+  RoolUserRole,
   InviteRole,
   SpaceInvite,
   SpaceInviteCreated,
@@ -33,13 +34,10 @@ export interface GraphQLClientConfig {
   onRefused?: () => Promise<string>;
 }
 
-/** Result from the openSpace full query — space identity + conversation meta.
- *  Object info, schema, and meta are read from WebDAV. Conversation contents
- *  are fetched on demand via {@link GraphQLClient.getConversation}. */
-export interface OpenSpaceFullResult {
+/** Space identity, access, and conversation roster returned by openSpace. */
+export interface OpenSpaceResult {
   name: string;
-  role: string;
-  userId: string;
+  role: RoolUserRole;
   memberCount: number;
   conversationMeta: ConversationMeta[];
 }
@@ -119,15 +117,13 @@ export class GraphQLClient {
     return { spaceId: response.duplicateSpace.spaceId };
   }
 
-  /** Space identity + conversation meta. Object info, schema, and meta are
-   *  sourced from WebDAV; conversation contents are fetched on demand. */
-  async openSpaceFull(spaceId: string): Promise<OpenSpaceFullResult> {
+  /** Space identity and conversation roster. Filesystem data comes from WebDAV. */
+  async openSpace(spaceId: string): Promise<OpenSpaceResult> {
     const query = `
-      query OpenSpaceFull($id: String!) {
+      query OpenSpace($id: String!) {
         openSpace(id: $id) {
           name
           role
-          userId
           memberCount
           conversationMeta {
             id
@@ -143,21 +139,8 @@ export class GraphQLClient {
         }
       }
     `;
-    const response = await this.request<{
-      openSpace: {
-        name: string; role: string; userId: string; memberCount: number;
-        conversationMeta: ConversationMeta[];
-      }
-    }>(query, { id: spaceId });
-
-    const r = response.openSpace;
-    return {
-      name: r.name,
-      role: r.role,
-      userId: r.userId,
-      memberCount: r.memberCount,
-      conversationMeta: r.conversationMeta,
-    };
+    const response = await this.request<{ openSpace: OpenSpaceResult }>(query, { id: spaceId });
+    return response.openSpace;
   }
 
   /** Fetch a single conversation's full contents (interactions) on demand. */
@@ -324,19 +307,6 @@ export class GraphQLClient {
       modifiedObjectPaths: response.prompt.modifiedObjectPaths,
       creditsUsed: response.prompt.creditsUsed,
     };
-  }
-
-  async stopInteraction(spaceId: string, interactionId: string): Promise<boolean> {
-    const mutation = `
-      mutation StopInteraction($spaceId: String!, $interactionId: String!) {
-        stopInteraction(spaceId: $spaceId, interactionId: $interactionId)
-      }
-    `;
-    const response = await this.request<{ stopInteraction: boolean }>(mutation, {
-      spaceId,
-      interactionId,
-    });
-    return response.stopInteraction;
   }
 
   async stopConversation(spaceId: string, conversationId: string): Promise<boolean> {
