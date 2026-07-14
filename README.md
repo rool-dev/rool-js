@@ -23,8 +23,11 @@ import { RoolClient } from '@rool-dev/sdk';
 const client = new RoolClient();
 
 const space = await client.createSpace('My Space');
-await space.createObject({
-  data: { type: 'note', content: '{{write something interesting}}' }
+await space.createCollection('note', [
+  { name: 'content', type: { kind: 'string' } },
+]);
+await space.putObject('/space/note/welcome.json', {
+  content: 'Something interesting',
 });
 ```
 
