@@ -640,10 +640,10 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
     let onAbort: (() => void) | undefined;
     if (signal) {
       if (signal.aborted) {
-        this.stopInteraction(interactionId).catch(() => { });
+        this.stopConversation(conversationId).catch(() => { });
       } else {
         onAbort = () => {
-          this.stopInteraction(interactionId).catch(() => { });
+          this.stopConversation(conversationId).catch(() => { });
         };
         signal.addEventListener('abort', onAbort, { once: true });
       }
@@ -677,11 +677,22 @@ export class SpaceOperations extends EventEmitter<RoolSpaceEvents> {
   /**
    * Request that the server stop a specific in-flight interaction by ID.
    *
-   * Returns whether the server stopped an interaction (`false` if it had
-   * already finished). Stopping is best-effort — see {@link ConversationHandle.stop}.
+   * @deprecated Reaches only a prompt the server is still awaiting; use
+   * {@link stopConversation}, which stops the run regardless of how or where
+   * it was started.
    */
   async stopInteraction(interactionId: string): Promise<boolean> {
     return this._graphqlClient.stopInteraction(this._id, interactionId);
+  }
+
+  /**
+   * Stop whatever is running in a conversation. A conversation processes one
+   * run at a time, so no interaction handle is needed.
+   *
+   * Returns whether anything was actually running.
+   */
+  async stopConversation(conversationId: string): Promise<boolean> {
+    return this._graphqlClient.stopConversation(this._id, conversationId);
   }
 
   /**
@@ -882,15 +893,10 @@ export class ConversationHandle {
   }
 
   /**
-   * Stop this conversation's in-flight interaction, if any. No-op returning
-   * `false` when nothing is running. Stopping is best-effort — see
-   * {@link RoolSpace.stopInteraction}.
+   * Stop this conversation's running work, if any. No-op returning `false`
+   * when nothing is running. See {@link RoolSpace.stopConversation}.
    */
   async stop(): Promise<boolean> {
-    const leafId = this.activeLeafId;
-    if (!leafId) return false;
-    const interaction = this._data?.interactions[leafId];
-    if (interaction && (interaction.status === 'done' || interaction.status === 'error')) return false;
-    return this._space.stopInteraction(leafId);
+    return this._space.stopConversation(this._conversationId);
   }
 }

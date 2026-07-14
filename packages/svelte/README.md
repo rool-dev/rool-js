@@ -363,7 +363,7 @@ thread.interactions   // $state<Interaction[]> — updates from space events
 
 // Conversation-scoped methods
 await thread.prompt('Hello')
-await thread.stop()   // Stop this thread's in-flight interaction (false if none)
+await thread.stop()   // Stop this thread's running work (false if nothing was running)
 await thread.putObject('/space/note/welcome.json', { text: 'Note' })
 await thread.patchObject('/space/note/welcome.json', { data: { text: 'Updated' } })
 await thread.setSystemInstruction('Respond in haiku')

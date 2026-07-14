@@ -358,28 +358,33 @@ ac.abort(); // asks the server to stop the in-flight interaction
 await promptPromise;
 ```
 
-### Stopping interactions
+### Stopping a conversation
 
 Use `signal` when the same call site cancels the prompt. When the Stop button
 lives elsewhere — a different component, after a reload, or a prompt another
-client started — stop by interaction ID or through a conversation handle. Both
-are best-effort: the server halts the agent loop and closes the stream, but an
-LLM turn already in flight keeps generating server-side and is billed.
+client started — stop the conversation itself. A conversation processes one
+run at a time, so no interaction ID is needed. Stopping is best-effort: the
+server halts the agent loop and closes the stream, but an LLM turn already in
+flight keeps generating server-side and is billed.
 
 ```typescript
-// Stop a specific interaction by ID (for example, from conversation.activeLeafId
-// or the interactions list). Returns whether the server stopped it.
-await space.stopInteraction(conversation.activeLeafId!);
+// Stop whatever is running in a conversation. Returns whether anything was
+// actually running.
+await space.stopConversation('thread-42');
 
-// Conversation handles stop their own in-flight interaction.
+// Conversation handles stop their own running work.
 const thread = space.conversation('thread-42');
 await thread.stop();
 ```
 
 | Method | Description |
 | --- | --- |
-| `stopInteraction(id): Promise<boolean>` | Ask the server to stop a specific interaction by ID. |
-| `conversation.stop(): Promise<boolean>` | Stop a specific conversation's in-flight interaction. |
+| `stopConversation(conversationId): Promise<boolean>` | Stop whatever is running in a conversation. |
+| `conversation.stop(): Promise<boolean>` | Stop this conversation's running work. |
+
+`stopInteraction(interactionId)` is deprecated: it reaches only a prompt the
+server is still awaiting. Use `stopConversation`, which stops the run
+regardless of how or where it was started.
 
 ## Conversations
 
@@ -694,7 +699,7 @@ Properties: `id`, `name`, `role`, `memberCount`, `conversations`, `route`, `webd
 | `listAgents`, `deleteAgent` | List the space's agents and delete a custom agent. |
 | `getMetadata`, `getAllMetadata`, `getSchema` | Read metadata and schema. |
 | `canUndo`, `canRedo`, `undo`, `redo` | Space history controls. |
-| `stopInteraction(interactionId): Promise<boolean>` | Stop an in-flight interaction by ID. |
+| `stopConversation(conversationId): Promise<boolean>` | Stop whatever is running in a conversation. |
 | `fetch(url, init?): Promise<Response>` | Proxy an external HTTP request through the server to bypass browser CORS. |
 | `close(): void` | Stop the space subscription. |
 | `rename(newName): Promise<void>` | Rename the space. |

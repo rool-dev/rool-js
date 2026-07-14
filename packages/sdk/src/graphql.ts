@@ -339,6 +339,19 @@ export class GraphQLClient {
     return response.stopInteraction;
   }
 
+  async stopConversation(spaceId: string, conversationId: string): Promise<boolean> {
+    const mutation = `
+      mutation StopConversation($spaceId: String!, $conversationId: String!) {
+        stopConversation(spaceId: $spaceId, conversationId: $conversationId)
+      }
+    `;
+    const response = await this.request<{ stopConversation: boolean }>(mutation, {
+      spaceId,
+      conversationId,
+    });
+    return response.stopConversation;
+  }
+
   async getCurrentUser(): Promise<CurrentUser> {
     const query = `
       query GetCurrentUser {

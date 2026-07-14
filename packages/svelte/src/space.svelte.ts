@@ -137,7 +137,9 @@ class ReactiveSpaceImpl {
   dropCollection(...args: Parameters<RoolSpace['dropCollection']>) { return this.#space.dropCollection(...args); }
   object(path: string) { return new ReactiveObjectImpl(this.#space, this.#fileTree, path); }
   watch(options: WatchOptions) { return new ReactiveWatchImpl(this.#space, this.#fileTree, options); }
+  /** @deprecated Use {@link stopConversation}. */
   stopInteraction(...args: Parameters<RoolSpace['stopInteraction']>) { return this.#space.stopInteraction(...args); }
+  stopConversation(...args: Parameters<RoolSpace['stopConversation']>) { return this.#space.stopConversation(...args); }
   checkpoint(...args: Parameters<RoolSpace['checkpoint']>) { return this.#space.checkpoint(...args); }
   canUndo(...args: Parameters<RoolSpace['canUndo']>) { return this.#space.canUndo(...args); }
   canRedo(...args: Parameters<RoolSpace['canRedo']>) { return this.#space.canRedo(...args); }
