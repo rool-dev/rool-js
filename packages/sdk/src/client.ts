@@ -401,11 +401,27 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
+   * GraphQL client pinned to a space's owning node, rerouting on refusal.
+   * Space-scoped mutations must not go to an arbitrary shard via the base URL.
+   */
+  private async scopedGraphqlClient(spaceId: string): Promise<GraphQLClient> {
+    const scopedUrl = (server: string) => `${server.replace(/\/+$/, '')}/graphql`;
+    const route = await this.router.resolve(spaceId);
+    return new GraphQLClient({
+      graphqlUrl: scopedUrl(route.server),
+      authManager: this.authManager,
+      clientInfo: this.clientInfo,
+      onRefused: async () => scopedUrl((await this.router.resolve(spaceId)).server),
+    });
+  }
+
+  /**
    * Delete a space.
    * Note: This closes any cached open RoolSpace handle.
    */
   async deleteSpace(spaceId: string): Promise<void> {
-    await this.graphqlClient.deleteSpace(spaceId);
+    const scoped = await this.scopedGraphqlClient(spaceId);
+    await scoped.deleteSpace(spaceId);
     // Close and remove the cached space if open
     const space = this.openSpaces.get(spaceId);
     if (space) {
@@ -420,7 +436,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async duplicateSpace(sourceSpaceId: string, name: string): Promise<RoolSpace> {
     this.ensureSubscribed().catch(() => { });
-    const { spaceId } = await this.graphqlClient.duplicateSpace(sourceSpaceId, name);
+    const scoped = await this.scopedGraphqlClient(sourceSpaceId);
+    const { spaceId } = await scoped.duplicateSpace(sourceSpaceId, name);
     return this.openSpace(spaceId);
   }
 
