@@ -45,10 +45,12 @@ if (!version || !/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
 const tag = `v${version}`;
 const [major, minor, patch] = version.split('-')[0].split('.').map(Number);
 
-// Find the latest existing version tag
+// Find the latest version tag reachable from HEAD. On main that is the latest
+// release; on a maintenance branch (e.g. release/0.11) it is that series' tip,
+// so patch releases validate against their own series.
 function getLatestVersion() {
   try {
-    const tags = execSync('git tag --list "v*" --sort=-version:refname', { cwd: root, encoding: 'utf-8' })
+    const tags = execSync('git tag --list "v*" --merged HEAD --sort=-version:refname', { cwd: root, encoding: 'utf-8' })
       .trim()
       .split('\n')
       .filter(t => /^v\d+\.\d+\.\d+$/.test(t));
@@ -138,5 +140,6 @@ execSync(`git add ${filesToAdd}`, { cwd: root, stdio: 'inherit' });
 execSync(`git commit -m "${tag}"`, { cwd: root, stdio: 'inherit' });
 execSync(`git tag ${tag}`, { cwd: root, stdio: 'inherit' });
 
+const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: root, encoding: 'utf-8' }).trim();
 console.log(`\nDone. Push to publish:\n`);
-console.log(`  git push origin main ${tag}`);
+console.log(`  git push origin ${branch} ${tag}`);

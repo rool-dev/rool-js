@@ -2,7 +2,7 @@ name: CI/CD
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
     tags: ['v*']
   workflow_dispatch:
 
@@ -140,11 +140,27 @@ jobs:
             echo "✓ $PKG_NAME: $PKG_VERSION"
           done
 
+      # A backport release (e.g. v0.11.16 published after v0.12.0) must not
+      # move the `latest` dist-tag backwards, so only tag `latest` when the
+      # version exceeds what npm currently serves.
+      - name: Determine npm dist-tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CURRENT=$(npm view @rool-dev/sdk version 2>/dev/null || echo "0.0.0")
+          NEWER=$(node -e "
+            const p = (v) => v.split('.').map(Number);
+            const a = p('$TAG_VERSION'), b = p('$CURRENT');
+            console.log(a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2]);
+          ")
+          if [ "$NEWER" = "true" ]; then DIST_TAG=latest; else DIST_TAG=maintenance; fi
+          echo "Publishing ${TAG_VERSION} with dist-tag '${DIST_TAG}' (npm latest is ${CURRENT})"
+          echo "DIST_TAG=${DIST_TAG}" >> "$GITHUB_ENV"
+
       - name: Publish SDK
         working-directory: packages/sdk
-        run: npm publish --access public
+        run: npm publish --access public --tag "$DIST_TAG"
 
       - name: Publish Svelte
         working-directory: packages/svelte
-        run: pnpm publish --access public --no-git-checks
+        run: pnpm publish --access public --no-git-checks --tag "$DIST_TAG"
 
