@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import open from 'open';
-import type { AuthProvider, AuthUser } from './types.js';
+import type { AuthProvider, AuthTokens, AuthUser } from './types.js';
 import { defaultLogger, type Logger } from './logger.js';
 
 export interface NodeAuthConfig {
@@ -170,6 +170,17 @@ export class NodeAuthProvider implements AuthProvider {
                 closeAll();
                 reject(err);
             });
+        });
+    }
+
+    replaceTokens(tokens: AuthTokens): void {
+        const credentials = this.readCredentials();
+        if (!credentials) throw new Error('Cannot replace a missing session');
+        this.writeCredentials({
+            access_token: tokens.accessToken,
+            refresh_token: tokens.refreshToken,
+            rool_token: credentials.rool_token,
+            expires_at: tokens.expiresAt,
         });
     }
 

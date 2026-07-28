@@ -223,7 +223,7 @@ that token to `client.verify(token)` once the link lands back in the app.
 | `logout(): void` | Clear auth state and close open spaces. |
 | `isAuthenticated(): Promise<boolean>` | Whether credentials are held locally. No network call — a server outage does not read as logged out. |
 | `getAuthUser(): AuthUser` | Return auth identity decoded from the token. |
-| `setPassword(password): Promise<void>` | Set/change password for the current user. |
+| `setPassword(password): Promise<void>` | Set/change password and sign out the user's other sessions. |
 
 ### Offline behavior
 

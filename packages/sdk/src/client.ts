@@ -257,9 +257,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Set or change the current user's password. Requires an authenticated session.
-   * Password must be at least 8 characters and contain both letters and either
-   * digits or symbols.
+   * Set or change the current user's password. Other authenticated sessions are
+   * revoked while this client receives replacement credentials.
    *
    * Throws an Error with a human-readable message on validation or server failure.
    */

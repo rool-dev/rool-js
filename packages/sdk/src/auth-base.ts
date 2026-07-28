@@ -10,7 +10,7 @@
 // tokens land (storage, refresh, decode) is shared here.
 // =============================================================================
 
-import type { AuthProvider, AuthUser } from './types.js';
+import type { AuthProvider, AuthTokens, AuthUser } from './types.js';
 import { defaultLogger, type Logger } from './logger.js';
 
 const REFRESH_BUFFER_MS = 15 * 60 * 1000; // Refresh 15 minutes before expiry
@@ -148,6 +148,11 @@ export abstract class BaseTokenAuthProvider implements AuthProvider {
         this.acceptTokens(idToken, refreshToken, data.rool_token ?? null, expiresAt);
         this.notifyAuthState(true);
         return true;
+    }
+
+    replaceTokens(tokens: AuthTokens): void {
+        this.writeTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresAt);
+        this.scheduleTokenRefresh();
     }
 
     /**

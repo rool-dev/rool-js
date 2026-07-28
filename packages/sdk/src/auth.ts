@@ -139,8 +139,8 @@ export class AuthManager {
   }
 
   /**
-   * Set or change the authenticated user's password.
-   * Requires a live session (Firebase id token). Throws on error.
+   * Set or change the authenticated user's password and install the replacement
+   * session returned after all prior sessions are revoked.
    */
   async setPassword(password: string): Promise<void> {
     const tokens = await this.getTokens();
@@ -155,13 +155,39 @@ export class AuthManager {
       body: JSON.stringify({ password }),
     });
 
+    const data = await response.json().catch(() => null) as {
+      id_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
+    } | null;
+
     if (!response.ok) {
-      let message = `set-password failed: ${response.status}`;
-      try {
-        const data = await response.json();
-        if (data && typeof data.error === 'string') message = data.error;
-      } catch { /* fall through to default message */ }
-      throw new Error(message);
+      throw new Error(data?.error ?? `set-password failed: ${response.status}`);
+    }
+
+    const expiresAt = data?.expires_in
+      ? Date.now() + data.expires_in * 1000
+      : NaN;
+    if (!data?.id_token || !data.refresh_token || !Number.isFinite(expiresAt)) {
+      this.logout();
+      return;
+    }
+
+    if (!this.provider.replaceTokens) {
+      this.logout();
+      return;
+    }
+
+    try {
+      this.provider.replaceTokens({
+        accessToken: data.id_token,
+        refreshToken: data.refresh_token,
+        expiresAt,
+      });
+    } catch (error) {
+      this.logout();
+      throw error;
     }
   }
 

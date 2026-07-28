@@ -225,7 +225,7 @@ class RoolImpl {
   }
 
   /**
-   * Set or change the current user's password.
+   * Set or change the current user's password and revoke other sessions.
    */
   setPassword(password: string): Promise<void> {
     return this.#client.setPassword(password);

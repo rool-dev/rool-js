@@ -448,6 +448,8 @@ export interface AuthProvider {
    * Optional: providers that don't implement it reject the call.
    */
   requestMagicLink?: (email: string) => Promise<void>;
+  /** Replace the current access and refresh tokens after a credential change. */
+  replaceTokens?: (tokens: AuthTokens) => void;
   /** Logout and clear session */
   logout: () => void;
   /** Clean up resources (e.g. stop timers) */
