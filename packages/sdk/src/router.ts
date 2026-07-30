@@ -12,7 +12,6 @@ function routeBackoffMs(attempt: number): number {
 
 export interface RouteInfo {
   server: string;
-  generation: number;
 }
 
 export interface SpaceRouterConfig {
@@ -59,8 +58,8 @@ export class SpaceRouter {
       const response = await fetch(`${this.apiUrl}/route/${encodeURIComponent(spaceId)}`, { headers });
 
       if (response.ok) {
-        const data = await response.json() as { server: string; generation: number };
-        return { server: data.server, generation: data.generation };
+        const data = await response.json() as { server: string };
+        return { server: data.server };
       }
       if (response.status !== 503 || attempt >= ROUTE_MAX_RETRIES) {
         throw new Error(`Route resolution failed: ${response.status} ${response.statusText}`);
