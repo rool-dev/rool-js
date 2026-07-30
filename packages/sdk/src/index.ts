@@ -19,7 +19,6 @@ export { isObjectPath, machinePath, machineUri } from './path.js';
 // WebDAV client
 export { RoolWebDAV, WebDAVError } from './webdav.js';
 export type {
-  SpaceFileStorageUsage,
   WebDAVActiveLock,
   WebDAVDepth,
   WebDAVLockDepth,

@@ -232,7 +232,6 @@ class ReactiveSpaceImpl {
   }
   fetch(...args: Parameters<RoolSpace['fetch']>) { return this.#space.fetch(...args); }
   // Proxy resource methods
-  getStorageUsage(...args: Parameters<RoolSpace['getStorageUsage']>) { return this.#space.getStorageUsage(...args); }
   fetchPath(...args: Parameters<RoolSpace['fetchPath']>) { return this.#space.fetchPath(...args); }
 
   // Proxy admin methods

@@ -512,8 +512,6 @@ console.log(await response.text());
 const file = await space.fetchPath('/rool-drive/docs/readme.md');
 console.log(file.headers.get('Content-Type'));
 
-const usage = await space.getStorageUsage();
-console.log(usage.usedBytes, usage.availableBytes, usage.limitBytes);
 ```
 
 ### Real-time file sync
@@ -557,7 +555,6 @@ await syncFiles();
 | `webdav.lock(path, options)` / `refreshLock(path, token)` / `unlock(token)` | WebDAV write locks. |
 | `webdav.request(method, path, init?)` | Raw authenticated WebDAV request. |
 | `space.fetchPath(path, options?)` | Fetch a `/rool-drive/...` file path or `rool-machine:` file URI. |
-| `space.getStorageUsage()` / `webdav.getStorageUsage()` | Storage quota usage. |
 
 High-level WebDAV methods that validate response status throw `WebDAVError` with `status`, `statusText`, and `body`; raw `request()` and `options()` return `Response`.
 
@@ -702,7 +699,6 @@ Properties: `id`, `name`, `role`, `memberCount`, `openSpaceResult`, `route`, `we
 | `exportArchive(): Promise<Blob>` | Export a space archive. |
 | `refresh(): Promise<OpenSpaceResult>` | Refresh identity, access, member count, and conversation metadata. |
 | `fetchPath(path, options?): Promise<Response>` | Fetch a `/rool-drive/...` file. |
-| `getStorageUsage(): Promise<SpaceFileStorageUsage>` | File-storage quota usage. |
 
 Events:
 

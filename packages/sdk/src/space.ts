@@ -3,7 +3,7 @@ import type { GraphQLClient, OpenSpaceResult } from './graphql.js';
 import type { RestClient } from './rest.js';
 import { SpaceSubscriptionManager } from './subscription.js';
 import { ConversationHandle, generateEntityId } from './space-session.js';
-import { RoolWebDAV, WebDAVError, type SpaceFileStorageUsage } from './webdav.js';
+import { RoolWebDAV, WebDAVError } from './webdav.js';
 import { isObjectPath, machinePath, machineUri } from './path.js';
 import type { AuthManager } from './auth.js';
 import type { Logger } from './logger.js';
@@ -593,11 +593,6 @@ export class RoolSpace extends EventEmitter<RoolSpaceEvents> {
       createParents: true,
     });
     return path;
-  }
-
-
-  async getStorageUsage(): Promise<SpaceFileStorageUsage> {
-    return this._webdav.getStorageUsage();
   }
 
   async fetchPath(path: string, options?: {
