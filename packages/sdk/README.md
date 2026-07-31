@@ -1,10 +1,12 @@
 # Rool SDK
 
-TypeScript SDK for Rool, a persistent collaborative workspace for objects, AI-assisted editing, and per-space files.
+TypeScript SDK for programmatic access to [Rool Machines](https://rool.dev) — private AI computers holding objects, files, conversations, and memory, with AI-assisted editing built in.
+
+> **Naming note:** the SDK predates the Rool Machine branding and calls a Machine a **space** (`createSpace`, `RoolSpace`, `/space/...` paths). The API keeps this legacy naming until v2; read "space" as "Machine" throughout.
 
 Core primitives:
 
-- **Spaces** — containers for objects, schema, metadata, conversations, collaborators, and files.
+- **Spaces** — Machines: containers for objects, schema, metadata, conversations, collaborators, and files.
 - **Conversations** — independent interaction histories in a space.
 - **Objects** — JSON records addressed by object paths such as `/space/article/welcome.json`.
 - **Files** — user-visible files stored under `/rool-drive/...` through WebDAV.

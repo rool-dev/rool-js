@@ -1,6 +1,6 @@
 # Rool Svelte
 
-Svelte 5 bindings for Rool Spaces. Adds reactive state to the SDK using `$state` runes.
+Svelte 5 bindings for [Rool Machines](https://rool.dev) (called *spaces* in the SDK's legacy API naming). Adds reactive state to the SDK using `$state` runes.
 
 **Requires Svelte 5.** For core concepts (objects, references, AI, WebDAV files, undo/redo), see the [SDK documentation](../sdk/README.md).
 

@@ -17,6 +17,7 @@ const contentDir = `${__dirname}/src/content/docs`;
 // Ensure content directory exists and remove stale generated docs.
 mkdirSync(contentDir, { recursive: true });
 rmSync(`${contentDir}/cli.md`, { force: true });
+rmSync(`${contentDir}/extension.md`, { force: true });
 
 function getVersion(pkgPath) {
   const pkg = JSON.parse(readFileSync(`${root}/${pkgPath}/package.json`, 'utf-8'));
@@ -29,6 +30,9 @@ function transform(content, title, pkgPath) {
     /\[LICENSE\]\(\.\.\/\.\.\/LICENSE\)/g,
     '[LICENSE](https://github.com/rool-dev/rool-js/blob/main/LICENSE)'
   );
+
+  // Point cross-package README links at the docs pages
+  content = content.replace(/\]\(\.\.\/sdk\/README\.md\)/g, '](/sdk/)');
 
   // Remove the first H1 (Starlight adds title from frontmatter)
   content = content.replace(/^# .+\n+/, '');
