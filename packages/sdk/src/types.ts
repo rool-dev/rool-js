@@ -217,6 +217,44 @@ export interface InviteRedeemResult {
   status: 'joined' | 'upgraded' | 'already_member';
 }
 
+export interface ReferralPreview {
+  inviterName: string | null;
+  /** Credits the invitee receives on redemption */
+  credits: number;
+}
+
+export type ReferralStatus = 'pending' | 'redeemed' | 'activated' | 'rewarded' | 'expired' | 'revoked';
+
+export interface ReferralInvite {
+  id: string;
+  email: string;
+  status: ReferralStatus;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface ReferralList {
+  /** Remaining invites the user may send */
+  inviteSlots: number;
+  invites: ReferralInvite[];
+}
+
+export interface ReferralCreateResult extends ReferralInvite {
+  /** Landing URL containing the secret token; only available at mint time */
+  url: string;
+  /**
+   * Always present: referral invites are email-addressed, so a send is always
+   * attempted. Only 'sent' | 'not_configured' | 'failed' occur today (referral
+   * mints reject duplicates instead of cooldown/rate-limiting the email).
+   */
+  emailStatus: InviteEmailStatus;
+}
+
+export interface ReferralRedeemResult {
+  /** Credits granted to the redeeming account */
+  credits: number;
+}
+
 export interface SpaceMember {
   id: string;
   email: string;

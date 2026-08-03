@@ -617,6 +617,62 @@ Roles (invites grant `admin`, `editor`, or `viewer` — never `owner`):
 | `editor` | Create, modify, move, and delete objects/files. |
 | `viewer` | Read-only access. |
 
+## Referrals
+
+Users can refer friends to Rool by email. Each user has a limited number of invite slots: sending a referral consumes a slot, and revoking an unredeemed one refunds it. When the invitee redeems the referral, their account is granted a signup credit bonus.
+
+Invite slots default to zero and are granted server-side, so `listReferrals()` returning `inviteSlots: 0` with no invites is the normal state for most accounts, not an error.
+
+```typescript
+// Send a referral invite by email, consuming a slot
+const invite = await client.createReferral('friend@example.com');
+console.log(invite.url); // landing URL with the secret token; only available at mint time
+if (invite.emailStatus !== 'sent') {
+  // Mail did not go out (e.g. no mail provider configured) — share invite.url yourself
+}
+
+// Remaining slots and outstanding invites
+const { inviteSlots, invites } = await client.listReferrals();
+
+// Revoke an unredeemed invite, refunding its slot
+await client.revokeReferral(invites[0].id);
+```
+
+On the referral landing page, look up the referral before sign-up and redeem it once authenticated:
+
+```typescript
+const preview = await client.previewReferral(token); // no auth required
+console.log(preview.inviterName, preview.credits);
+
+const { credits } = await client.redeemReferral(token);
+```
+
+Failed referral operations throw `ReferralError` with a `code`:
+
+| Code | Meaning |
+| --- | --- |
+| `referral_invalid` | No such invite: the token or id doesn't match a referral invite. |
+| `referral_expired` | The invite has expired. |
+| `referral_revoked` | The invite was revoked by its sender. |
+| `referral_redeemed` | This invite link was already used. |
+| `referral_no_slots` | The sender has no invite slots left. |
+| `referral_email_exists` | The address already belongs to a Rool account. |
+| `referral_email_pending` | The address already has a pending referral invite. |
+| `referral_already_redeemed` | The redeeming account already redeemed a referral. |
+| `referral_account_too_old` | The redeeming account was created before the invite was sent; referrals are for new signups. |
+
+```typescript
+import { ReferralError } from '@rool-dev/sdk';
+
+try {
+  await client.redeemReferral(token);
+} catch (error) {
+  if (error instanceof ReferralError && error.code === 'referral_expired') {
+    // Ask for a fresh referral
+  }
+}
+```
+
 ## RoolClient API
 
 ### Constructor config
@@ -647,6 +703,11 @@ const client = new RoolClient({
 | `deleteCurrentUser(): Promise<void>` | Mark account for deletion and log out. |
 | `previewInvite(token): Promise<InvitePreview>` | Look up an invite link without redeeming it. No auth required. |
 | `redeemInvite(token): Promise<InviteRedeemResult>` | Redeem an invite, joining (or upgrading in) its space. |
+| `previewReferral(token): Promise<ReferralPreview>` | Look up a referral invite without redeeming it. No auth required. |
+| `redeemReferral(token): Promise<ReferralRedeemResult>` | Redeem a referral invite, granting the signup credit bonus. |
+| `listReferrals(): Promise<ReferralList>` | The current user's referral invites and remaining invite slots. |
+| `createReferral(email): Promise<ReferralCreateResult>` | Send a referral invite by email, consuming an invite slot. |
+| `revokeReferral(id): Promise<void>` | Revoke an unredeemed referral invite, refunding its slot. |
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List accessible spaces. |
 | `openSpace(id): Promise<RoolSpace>` | Open/cached live space handle. |
 | `createSpace(name): Promise<RoolSpace>` | Create and open a space. |
@@ -831,6 +892,40 @@ interface InviteRedeemResult {
   spaceId: string;
   role: RoolUserRole;
   status: 'joined' | 'upgraded' | 'already_member';
+}
+
+interface ReferralPreview {
+  inviterName: string | null;
+  credits: number; // credits the invitee receives on redemption
+}
+
+// Lifecycle of a sent referral: pending → redeemed (invitee signed up) →
+// activated (invitee became active) → rewarded (sender received their reward);
+// expired and revoked are terminal states of an unredeemed invite.
+type ReferralStatus = 'pending' | 'redeemed' | 'activated' | 'rewarded' | 'expired' | 'revoked';
+
+interface ReferralInvite {
+  id: string;
+  email: string;
+  status: ReferralStatus;
+  createdAt: string;
+  expiresAt: string;
+}
+
+interface ReferralList {
+  inviteSlots: number; // remaining invites the user may send
+  invites: ReferralInvite[];
+}
+
+interface ReferralCreateResult extends ReferralInvite {
+  url: string; // landing URL containing the secret token; only available at mint time
+  // Always present — referrals are email-addressed, so a send is always
+  // attempted. Only 'sent' | 'not_configured' | 'failed' occur today.
+  emailStatus: InviteEmailStatus;
+}
+
+interface ReferralRedeemResult {
+  credits: number; // credits granted to the redeeming account
 }
 
 type PromptAttachment =

@@ -281,6 +281,41 @@ class RoolImpl {
   }
 
   /**
+   * Look up a referral invite by its token, without redeeming it.
+   */
+  previewReferral(token: string) {
+    return this.#client.previewReferral(token);
+  }
+
+  /**
+   * Redeem a referral invite, granting the signup credit bonus.
+   */
+  redeemReferral(token: string) {
+    return this.#client.redeemReferral(token);
+  }
+
+  /**
+   * The current user's referral invites and remaining invite slots.
+   */
+  listReferrals() {
+    return this.#client.listReferrals();
+  }
+
+  /**
+   * Send a referral invite by email, consuming an invite slot.
+   */
+  createReferral(email: string) {
+    return this.#client.createReferral(email);
+  }
+
+  /**
+   * Revoke an unredeemed referral invite (by its `id`), refunding its slot.
+   */
+  revokeReferral(id: string) {
+    return this.#client.revokeReferral(id);
+  }
+
+  /**
    * Import a space from a zip archive. Returns a ReactiveSpace.
    */
   async importArchive(name: string, archive: Blob): Promise<ReactiveSpace> {

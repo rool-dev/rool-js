@@ -17,6 +17,10 @@ import type {
   CurrentUser,
   InvitePreview,
   InviteRedeemResult,
+  ReferralCreateResult,
+  ReferralList,
+  ReferralPreview,
+  ReferralRedeemResult,
   AuthUser,
   ConnectionState,
   PasswordSignInResult,
@@ -490,6 +494,42 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async redeemInvite(token: string): Promise<InviteRedeemResult> {
     return this.restClient.redeemInvite(token);
+  }
+
+  /**
+   * Look up a referral invite by its token, without redeeming it.
+   * Does not require authentication.
+   */
+  async previewReferral(token: string): Promise<ReferralPreview> {
+    return this.restClient.previewReferral(token);
+  }
+
+  /**
+   * Redeem a referral invite, granting the signup credit bonus.
+   */
+  async redeemReferral(token: string): Promise<ReferralRedeemResult> {
+    return this.restClient.redeemReferral(token);
+  }
+
+  /**
+   * The current user's referral invites and remaining invite slots.
+   */
+  async listReferrals(): Promise<ReferralList> {
+    return this.restClient.listReferrals();
+  }
+
+  /**
+   * Send a referral invite by email, consuming an invite slot.
+   */
+  async createReferral(email: string): Promise<ReferralCreateResult> {
+    return this.restClient.createReferral(email);
+  }
+
+  /**
+   * Revoke an unredeemed referral invite (by its `id`), refunding its slot.
+   */
+  async revokeReferral(id: string): Promise<void> {
+    return this.restClient.revokeReferral(id);
   }
 
   /**
