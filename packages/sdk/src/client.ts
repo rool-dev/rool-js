@@ -17,10 +17,9 @@ import type {
   CurrentUser,
   InvitePreview,
   InviteRedeemResult,
-  ReferralCreateResult,
-  ReferralList,
-  ReferralPreview,
-  ReferralRedeemResult,
+  GiftClaimResult,
+  GiftList,
+  GiftPreview,
   AuthUser,
   ConnectionState,
   PasswordSignInResult,
@@ -497,39 +496,34 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
   }
 
   /**
-   * Look up a referral invite by its token, without redeeming it.
+   * Look up a gift by its code, without claiming it.
    * Does not require authentication.
    */
-  async previewReferral(token: string): Promise<ReferralPreview> {
-    return this.restClient.previewReferral(token);
+  async previewGift(code: string): Promise<GiftPreview> {
+    return this.restClient.previewGift(code);
   }
 
   /**
-   * Redeem a referral invite, granting the signup credit bonus.
+   * Claim a gift, granting what it holds to the current account.
+   * Refetches the user, since any gift kind changes their standing.
    */
-  async redeemReferral(token: string): Promise<ReferralRedeemResult> {
-    return this.restClient.redeemReferral(token);
+  async claimGift(code: string): Promise<GiftClaimResult> {
+    const result = await this.restClient.claimGift(code);
+    // The claim is spent and irreversible by now, so a failed refresh must not
+    // surface as a failed claim: the retry would report gift_claimed.
+    try {
+      await this.getCurrentUser();
+    } catch (error) {
+      this.logger.warn('[RoolClient] user refresh after gift claim deferred:', error);
+    }
+    return result;
   }
 
   /**
-   * The current user's referral invites and remaining invite slots.
+   * The current user's gifts, spent and unspent.
    */
-  async listReferrals(): Promise<ReferralList> {
-    return this.restClient.listReferrals();
-  }
-
-  /**
-   * Send a referral invite by email, consuming an invite slot.
-   */
-  async createReferral(email: string): Promise<ReferralCreateResult> {
-    return this.restClient.createReferral(email);
-  }
-
-  /**
-   * Revoke an unredeemed referral invite (by its `id`), refunding its slot.
-   */
-  async revokeReferral(id: string): Promise<void> {
-    return this.restClient.revokeReferral(id);
+  async listGifts(): Promise<GiftList> {
+    return this.restClient.listGifts();
   }
 
   /**

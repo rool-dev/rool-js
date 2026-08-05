@@ -1,12 +1,11 @@
 import type { AuthManager } from './auth.js';
 import type {
   GetObjectsResult,
+  GiftClaimResult,
+  GiftList,
+  GiftPreview,
   InvitePreview,
   InviteRedeemResult,
-  ReferralCreateResult,
-  ReferralList,
-  ReferralPreview,
-  ReferralRedeemResult,
 } from './types.js';
 import { fetchWithReroute, isThrowRetryable } from './reroute.js';
 import { addClientInfoHeaders, resolveClientInfo, type RoolClientInfo } from './client-info.js';
@@ -31,31 +30,22 @@ async function throwInviteError(response: Response): Promise<never> {
   throw new Error(`Invite request failed: ${response.status}`);
 }
 
-export type ReferralErrorCode =
-  | 'referral_invalid'
-  | 'referral_expired'
-  | 'referral_revoked'
-  | 'referral_redeemed' // this invite link was already used (by someone)
-  | 'referral_no_slots'
-  | 'referral_email_exists'
-  | 'referral_email_pending'
-  | 'referral_already_redeemed' // the caller's account already redeemed some referral
-  | 'referral_account_too_old';
+export type GiftErrorCode = 'gift_invalid' | 'gift_claimed';
 
-export class ReferralError extends Error {
-  constructor(readonly code: ReferralErrorCode, message: string) {
+export class GiftError extends Error {
+  constructor(readonly code: GiftErrorCode, message: string) {
     super(message);
-    this.name = 'ReferralError';
+    this.name = 'GiftError';
   }
 }
 
-// Referral endpoints are v2: errors arrive as application/problem+json.
-async function throwReferralError(response: Response): Promise<never> {
+// Gift endpoints are v2: errors arrive as application/problem+json.
+async function throwGiftError(response: Response): Promise<never> {
   const body = await response.json().catch(() => null) as { code?: string; detail?: string } | null;
-  if (body?.code?.startsWith('referral_')) {
-    throw new ReferralError(body.code as ReferralErrorCode, body.detail ?? body.code);
+  if (body?.code?.startsWith('gift_')) {
+    throw new GiftError(body.code as GiftErrorCode, body.detail ?? body.code);
   }
-  throw new Error(`Referral request failed: ${response.status}${body?.detail ? ` ${body.detail}` : ''}`);
+  throw new Error(`Gift request failed: ${response.status}${body?.detail ? ` ${body.detail}` : ''}`);
 }
 
 export interface RestClientConfig {
@@ -165,46 +155,27 @@ export class RestClient {
     return await response.json() as InviteRedeemResult;
   }
 
-  /** Look up a referral invite by token. Works without authentication (landing page before sign-up). */
-  async previewReferral(token: string): Promise<ReferralPreview> {
-    const response = await fetch(`${this.apiUrl}/v2/referrals/${encodeURIComponent(token)}`);
-    if (!response.ok) await throwReferralError(response);
-    return await response.json() as ReferralPreview;
+  /** Look up a gift by its code. Works without authentication (claim page before sign-up). */
+  async previewGift(code: string): Promise<GiftPreview> {
+    const response = await fetch(`${this.apiUrl}/v2/gifts/${encodeURIComponent(code)}`);
+    if (!response.ok) await throwGiftError(response);
+    return await response.json() as GiftPreview;
   }
 
-  /** Redeem a referral invite for the authenticated user, granting the signup bonus. */
-  async redeemReferral(token: string): Promise<ReferralRedeemResult> {
-    const response = await this.authenticatedFetch(`/v2/referrals/${encodeURIComponent(token)}/redemption`, {
+  /** Claim a gift for the authenticated user, granting what it holds. */
+  async claimGift(code: string): Promise<GiftClaimResult> {
+    const response = await this.authenticatedFetch(`/v2/gifts/${encodeURIComponent(code)}/claim`, {
       method: 'POST',
     });
-    if (!response.ok) await throwReferralError(response);
-    return await response.json() as ReferralRedeemResult;
+    if (!response.ok) await throwGiftError(response);
+    return await response.json() as GiftClaimResult;
   }
 
-  /** The authenticated user's referral invites and remaining slots. */
-  async listReferrals(): Promise<ReferralList> {
-    const response = await this.authenticatedFetch('/v2/me/referrals', { method: 'GET' });
-    if (!response.ok) await throwReferralError(response);
-    return await response.json() as ReferralList;
-  }
-
-  /** Send a referral invite, consuming a slot. */
-  async createReferral(email: string): Promise<ReferralCreateResult> {
-    const response = await this.authenticatedFetch('/v2/me/referrals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    if (!response.ok) await throwReferralError(response);
-    return await response.json() as ReferralCreateResult;
-  }
-
-  /** Revoke an unredeemed referral invite (by its `id`), refunding its slot. */
-  async revokeReferral(id: string): Promise<void> {
-    const response = await this.authenticatedFetch(`/v2/me/referrals/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) await throwReferralError(response);
+  /** The authenticated user's gifts, spent and unspent. */
+  async listGifts(): Promise<GiftList> {
+    const response = await this.authenticatedFetch('/v2/me/gifts', { method: 'GET' });
+    if (!response.ok) await throwGiftError(response);
+    return await response.json() as GiftList;
   }
 
   private async authenticatedFetch(path: string, init: RequestInit): Promise<Response> {

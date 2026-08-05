@@ -281,38 +281,25 @@ class RoolImpl {
   }
 
   /**
-   * Look up a referral invite by its token, without redeeming it.
+   * Look up a gift by its code, without claiming it.
    */
-  previewReferral(token: string) {
-    return this.#client.previewReferral(token);
+  previewGift(code: string) {
+    return this.#client.previewGift(code);
   }
 
   /**
-   * Redeem a referral invite, granting the signup credit bonus.
+   * Claim a gift, granting what it holds to the current account.
+   * The client refetches the user, so `currentUser` updates on its own.
    */
-  redeemReferral(token: string) {
-    return this.#client.redeemReferral(token);
+  claimGift(code: string) {
+    return this.#client.claimGift(code);
   }
 
   /**
-   * The current user's referral invites and remaining invite slots.
+   * The current user's gifts, spent and unspent.
    */
-  listReferrals() {
-    return this.#client.listReferrals();
-  }
-
-  /**
-   * Send a referral invite by email, consuming an invite slot.
-   */
-  createReferral(email: string) {
-    return this.#client.createReferral(email);
-  }
-
-  /**
-   * Revoke an unredeemed referral invite (by its `id`), refunding its slot.
-   */
-  revokeReferral(id: string) {
-    return this.#client.revokeReferral(id);
+  listGifts() {
+    return this.#client.listGifts();
   }
 
   /**

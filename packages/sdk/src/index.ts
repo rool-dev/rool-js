@@ -38,9 +38,9 @@ export type {
 export { SpaceRouter } from './router.js';
 export type { RouteInfo } from './router.js';
 
-// Invite redemption errors
-export { InviteError, ReferralError } from './rest.js';
-export type { InviteErrorCode, ReferralErrorCode } from './rest.js';
+// Invite redemption and gift claim errors
+export { InviteError, GiftError } from './rest.js';
+export type { InviteErrorCode, GiftErrorCode } from './rest.js';
 
 // Event emitter (for extending)
 export { EventEmitter } from './event-emitter.js';
@@ -77,12 +77,11 @@ export type {
   InviteEmailStatus,
   InvitePreview,
   InviteRedeemResult,
-  ReferralPreview,
-  ReferralStatus,
-  ReferralInvite,
-  ReferralList,
-  ReferralCreateResult,
-  ReferralRedeemResult,
+  Gift,
+  GiftPayload,
+  GiftList,
+  GiftPreview,
+  GiftClaimResult,
 
   CurrentUser,
   AuthUser,

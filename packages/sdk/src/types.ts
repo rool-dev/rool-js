@@ -217,42 +217,39 @@ export interface InviteRedeemResult {
   status: 'joined' | 'upgraded' | 'already_member';
 }
 
-export interface ReferralPreview {
-  inviterName: string | null;
-  /** Credits the invitee receives on redemption */
-  credits: number;
-}
+/** What a gift grants. Kinds are added over time, so a client that meets one
+ *  it doesn't know can always fall back to `description`. */
+export type GiftPayload = { kind: 'credits'; credits: number };
 
-export type ReferralStatus = 'pending' | 'redeemed' | 'activated' | 'rewarded' | 'expired' | 'revoked';
-
-export interface ReferralInvite {
+export interface Gift {
   id: string;
-  email: string;
-  status: ReferralStatus;
-  createdAt: string;
-  expiresAt: string;
-}
-
-export interface ReferralList {
-  /** Remaining invites the user may send */
-  inviteSlots: number;
-  invites: ReferralInvite[];
-}
-
-export interface ReferralCreateResult extends ReferralInvite {
-  /** Landing URL containing the secret token; only available at mint time */
+  /** Display form of the code, e.g. "K7M2-9QRT" */
+  code: string;
+  /** Claim URL carrying the code */
   url: string;
-  /**
-   * Always present: referral invites are email-addressed, so a send is always
-   * attempted. Only 'sent' | 'not_configured' | 'failed' occur today (referral
-   * mints reject duplicates instead of cooldown/rate-limiting the email).
-   */
-  emailStatus: InviteEmailStatus;
+  gift: GiftPayload;
+  /** The promise as a noun phrase, e.g. "10,000 AI credits" */
+  description: string;
+  /** Null while unspent */
+  claimedAt: string | null;
+  createdAt: string;
 }
 
-export interface ReferralRedeemResult {
-  /** Credits granted to the redeeming account */
-  credits: number;
+export interface GiftList {
+  gifts: Gift[];
+}
+
+export interface GiftPreview {
+  /** Display name of the person whose gift this is */
+  holderName: string | null;
+  gift: GiftPayload;
+  description: string;
+}
+
+export interface GiftClaimResult {
+  /** What the claiming account was granted */
+  gift: GiftPayload;
+  description: string;
 }
 
 export interface SpaceMember {

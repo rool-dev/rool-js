@@ -617,58 +617,51 @@ Roles (invites grant `admin`, `editor`, or `viewer` — never `owner`):
 | `editor` | Create, modify, move, and delete objects/files. |
 | `viewer` | Read-only access. |
 
-## Referrals
+## Gifts
 
-Users can refer friends to Rool by email. Each user has a limited number of invite slots: sending a referral consumes a slot, and revoking an unredeemed one refunds it. When the invitee redeems the referral, their account is granted a signup credit bonus.
+A gift is something of value carried by a short code, e.g. `K7M2-9QRT`. Users are issued gifts server-side and give them away in their own words; whoever claims one gets what it holds. Claiming your own gift is a legitimate use. A gift is unclaimed or claimed, and claiming is single-use.
 
-Invite slots default to zero and are granted server-side, so `listReferrals()` returning `inviteSlots: 0` with no invites is the normal state for most accounts, not an error.
+What a gift grants is in its `gift` field, discriminated by `kind`. Every gift also carries a server-rendered `description` such as `"10,000 AI credits"`, so UI can display any gift without knowing its kind. Prefer `description` unless you need the numbers.
+
+Narrow on `kind` before reading any other payload field. Kinds are added over time, and un-narrowed access becomes a compile error when the next one lands.
+
+Users hold no gifts by default, so `listGifts()` returning an empty list is the normal state for most accounts, not an error.
 
 ```typescript
-// Send a referral invite by email, consuming a slot
-const invite = await client.createReferral('friend@example.com');
-console.log(invite.url); // landing URL with the secret token; only available at mint time
-if (invite.emailStatus !== 'sent') {
-  // Mail did not go out (e.g. no mail provider configured) — share invite.url yourself
+// The current user's gifts, spent and unspent
+const { gifts } = await client.listGifts();
+for (const gift of gifts) {
+  console.log(gift.code, gift.url, gift.description, gift.claimedAt);
 }
-
-// Remaining slots and outstanding invites
-const { inviteSlots, invites } = await client.listReferrals();
-
-// Revoke an unredeemed invite, refunding its slot
-await client.revokeReferral(invites[0].id);
 ```
 
-On the referral landing page, look up the referral before sign-up and redeem it once authenticated:
+On the claim page, look up the gift before sign-up and claim it once authenticated:
 
 ```typescript
-const preview = await client.previewReferral(token); // no auth required
-console.log(preview.inviterName, preview.credits);
+const preview = await client.previewGift(code); // no auth required
+console.log(`${preview.holderName} gave you ${preview.description}`);
 
-const { credits } = await client.redeemReferral(token);
+const { gift } = await client.claimGift(code);
+if (gift.kind === 'credits') console.log(`+${gift.credits} credits`);
 ```
 
-Failed referral operations throw `ReferralError` with a `code`:
+Codes are case-insensitive, and the dash is optional on input.
+
+Failed gift operations throw `GiftError` with a `code`:
 
 | Code | Meaning |
 | --- | --- |
-| `referral_invalid` | No such invite: the token or id doesn't match a referral invite. |
-| `referral_expired` | The invite has expired. |
-| `referral_revoked` | The invite was revoked by its sender. |
-| `referral_redeemed` | This invite link was already used. |
-| `referral_no_slots` | The sender has no invite slots left. |
-| `referral_email_exists` | The address already belongs to a Rool account. |
-| `referral_email_pending` | The address already has a pending referral invite. |
-| `referral_already_redeemed` | The redeeming account already redeemed a referral. |
-| `referral_account_too_old` | The redeeming account was created before the invite was sent; referrals are for new signups. |
+| `gift_invalid` | No gift matches that code. |
+| `gift_claimed` | The gift has already been claimed. |
 
 ```typescript
-import { ReferralError } from '@rool-dev/sdk';
+import { GiftError } from '@rool-dev/sdk';
 
 try {
-  await client.redeemReferral(token);
+  await client.claimGift(code);
 } catch (error) {
-  if (error instanceof ReferralError && error.code === 'referral_expired') {
-    // Ask for a fresh referral
+  if (error instanceof GiftError && error.code === 'gift_claimed') {
+    // Offer a plain signup instead
   }
 }
 ```
@@ -703,11 +696,9 @@ const client = new RoolClient({
 | `deleteCurrentUser(): Promise<void>` | Mark account for deletion and log out. |
 | `previewInvite(token): Promise<InvitePreview>` | Look up an invite link without redeeming it. No auth required. |
 | `redeemInvite(token): Promise<InviteRedeemResult>` | Redeem an invite, joining (or upgrading in) its space. |
-| `previewReferral(token): Promise<ReferralPreview>` | Look up a referral invite without redeeming it. No auth required. |
-| `redeemReferral(token): Promise<ReferralRedeemResult>` | Redeem a referral invite, granting the signup credit bonus. |
-| `listReferrals(): Promise<ReferralList>` | The current user's referral invites and remaining invite slots. |
-| `createReferral(email): Promise<ReferralCreateResult>` | Send a referral invite by email, consuming an invite slot. |
-| `revokeReferral(id): Promise<void>` | Revoke an unredeemed referral invite, refunding its slot. |
+| `previewGift(code): Promise<GiftPreview>` | Look up a gift without claiming it. No auth required. |
+| `claimGift(code): Promise<GiftClaimResult>` | Claim a gift, granting what it holds to the current account. |
+| `listGifts(): Promise<GiftList>` | The current user's gifts, spent and unspent. |
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List accessible spaces. |
 | `openSpace(id): Promise<RoolSpace>` | Open/cached live space handle. |
 | `createSpace(name): Promise<RoolSpace>` | Create and open a space. |
@@ -894,38 +885,31 @@ interface InviteRedeemResult {
   status: 'joined' | 'upgraded' | 'already_member';
 }
 
-interface ReferralPreview {
-  inviterName: string | null;
-  credits: number; // credits the invitee receives on redemption
-}
+type GiftPayload = { kind: 'credits'; credits: number };
 
-// Lifecycle of a sent referral: pending → redeemed (invitee signed up) →
-// activated (invitee became active) → rewarded (sender received their reward);
-// expired and revoked are terminal states of an unredeemed invite.
-type ReferralStatus = 'pending' | 'redeemed' | 'activated' | 'rewarded' | 'expired' | 'revoked';
-
-interface ReferralInvite {
+interface Gift {
   id: string;
-  email: string;
-  status: ReferralStatus;
+  code: string;          // display form, e.g. "K7M2-9QRT"
+  url: string;           // claim URL carrying the code
+  gift: GiftPayload;
+  description: string;   // e.g. "10,000 AI credits"
+  claimedAt: string | null;  // null while unspent
   createdAt: string;
-  expiresAt: string;
 }
 
-interface ReferralList {
-  inviteSlots: number; // remaining invites the user may send
-  invites: ReferralInvite[];
+interface GiftList {
+  gifts: Gift[];
 }
 
-interface ReferralCreateResult extends ReferralInvite {
-  url: string; // landing URL containing the secret token; only available at mint time
-  // Always present — referrals are email-addressed, so a send is always
-  // attempted. Only 'sent' | 'not_configured' | 'failed' occur today.
-  emailStatus: InviteEmailStatus;
+interface GiftPreview {
+  holderName: string | null;
+  gift: GiftPayload;
+  description: string;
 }
 
-interface ReferralRedeemResult {
-  credits: number; // credits granted to the redeeming account
+interface GiftClaimResult {
+  gift: GiftPayload;
+  description: string;
 }
 
 type PromptAttachment =
