@@ -82,6 +82,7 @@ export type {
   GiftList,
   GiftPreview,
   GiftClaimResult,
+  GiftUpdate,
 
   CurrentUser,
   AuthUser,

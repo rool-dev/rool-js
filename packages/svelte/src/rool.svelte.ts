@@ -1,4 +1,4 @@
-import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type ServerInfo } from '@rool-dev/sdk';
+import { RoolClient, type RoolSpace, type RoolSpaceInfo, type ConnectionState, type RoolClientConfig, type CurrentUser, type GiftUpdate, type ServerInfo } from '@rool-dev/sdk';
 import { wrapSpace, type ReactiveSpace } from './space.svelte.js';
 
 /**
@@ -300,6 +300,20 @@ class RoolImpl {
    */
   listGifts() {
     return this.#client.listGifts();
+  }
+
+  /**
+   * Update one of the current user's gifts: note and/or archived state.
+   */
+  updateGift(giftId: string, changes: GiftUpdate) {
+    return this.#client.updateGift(giftId, changes);
+  }
+
+  /**
+   * Mint a new code for one of the current user's gifts; the old one dies.
+   */
+  rotateGiftCode(giftId: string) {
+    return this.#client.rotateGiftCode(giftId);
   }
 
   /**

@@ -232,11 +232,24 @@ export interface Gift {
   description: string;
   /** Null while unspent */
   claimedAt: string | null;
+  /** Claimer's display name, when claimed and they have one */
+  claimedByName: string | null;
   createdAt: string;
+  /** The holder's own reminder of what they did with the code */
+  note: string | null;
+  /** Set when the holder has hidden this gift; the code still claims */
+  archivedAt: string | null;
 }
 
 export interface GiftList {
   gifts: Gift[];
+}
+
+/** Changes to a gift's bookkeeping. Undefined leaves a field as it is;
+ *  note: null clears it. */
+export interface GiftUpdate {
+  note?: string | null;
+  archived?: boolean;
 }
 
 export interface GiftPreview {

@@ -647,6 +647,21 @@ if (gift.kind === 'credits') console.log(`+${gift.credits} credits`);
 
 Codes are case-insensitive, and the dash is optional on input.
 
+When a gift is claimed, `claimedByName` carries the claimer's display name — the reciprocal of the claim page showing the holder's name to the claimer. The claim page tells the claimer this will happen.
+
+A holder can annotate a gift with a note ("sent this to Peter") and archive it to hide it from their default view. Both are bookkeeping only: an archived gift's code still claims.
+
+A holder can also rotate a gift's code: a fresh code is minted and the old one stops working. Use it to take back a code that was given away but never claimed — the gift itself is untouched.
+
+```typescript
+await client.updateGift(gift.id, { note: 'sent to Peter' });
+await client.updateGift(gift.id, { archived: true });
+await client.updateGift(gift.id, { note: null }); // clear the note
+
+const updated = await client.rotateGiftCode(gift.id);
+console.log(updated.code, updated.url); // the old code and link are dead
+```
+
 Failed gift operations throw `GiftError` with a `code`:
 
 | Code | Meaning |
@@ -699,6 +714,8 @@ const client = new RoolClient({
 | `previewGift(code): Promise<GiftPreview>` | Look up a gift without claiming it. No auth required. |
 | `claimGift(code): Promise<GiftClaimResult>` | Claim a gift, granting what it holds to the current account. |
 | `listGifts(): Promise<GiftList>` | The current user's gifts, spent and unspent. |
+| `updateGift(giftId, changes): Promise<Gift>` | Set or clear a gift's note, or change its archived state. |
+| `rotateGiftCode(giftId): Promise<Gift>` | Mint a new code for a gift; the old code and link stop working. |
 | `listSpaces(): Promise<RoolSpaceInfo[]>` | List accessible spaces. |
 | `openSpace(id): Promise<RoolSpace>` | Open/cached live space handle. |
 | `createSpace(name): Promise<RoolSpace>` | Create and open a space. |
@@ -894,7 +911,15 @@ interface Gift {
   gift: GiftPayload;
   description: string;   // e.g. "10,000 AI credits"
   claimedAt: string | null;  // null while unspent
+  claimedByName: string | null; // claimer's display name, when they have one
   createdAt: string;
+  note: string | null;       // the holder's own reminder
+  archivedAt: string | null; // set when hidden; the code still claims
+}
+
+interface GiftUpdate {
+  note?: string | null;  // undefined leaves as-is, null clears
+  archived?: boolean;
 }
 
 interface GiftList {

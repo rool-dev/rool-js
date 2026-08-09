@@ -1,9 +1,11 @@
 import type { AuthManager } from './auth.js';
 import type {
   GetObjectsResult,
+  Gift,
   GiftClaimResult,
   GiftList,
   GiftPreview,
+  GiftUpdate,
   InvitePreview,
   InviteRedeemResult,
 } from './types.js';
@@ -176,6 +178,26 @@ export class RestClient {
     const response = await this.authenticatedFetch('/v2/me/gifts', { method: 'GET' });
     if (!response.ok) await throwGiftError(response);
     return await response.json() as GiftList;
+  }
+
+  /** Mint a new code for a gift; the old code and link stop working. */
+  async rotateGiftCode(giftId: string): Promise<Gift> {
+    const response = await this.authenticatedFetch(`/v2/me/gifts/${encodeURIComponent(giftId)}/code`, {
+      method: 'POST',
+    });
+    if (!response.ok) await throwGiftError(response);
+    return await response.json() as Gift;
+  }
+
+  /** Update a gift's note and/or archived state. Returns the updated gift. */
+  async updateGift(giftId: string, changes: GiftUpdate): Promise<Gift> {
+    const response = await this.authenticatedFetch(`/v2/me/gifts/${encodeURIComponent(giftId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(changes),
+    });
+    if (!response.ok) await throwGiftError(response);
+    return await response.json() as Gift;
   }
 
   private async authenticatedFetch(path: string, init: RequestInit): Promise<Response> {

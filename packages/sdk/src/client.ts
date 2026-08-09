@@ -17,9 +17,11 @@ import type {
   CurrentUser,
   InvitePreview,
   InviteRedeemResult,
+  Gift,
   GiftClaimResult,
   GiftList,
   GiftPreview,
+  GiftUpdate,
   AuthUser,
   ConnectionState,
   PasswordSignInResult,
@@ -524,6 +526,22 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async listGifts(): Promise<GiftList> {
     return this.restClient.listGifts();
+  }
+
+  /**
+   * Update one of the current user's gifts: set or clear its note, or change
+   * its archived state. Returns the updated gift.
+   */
+  async updateGift(giftId: string, changes: GiftUpdate): Promise<Gift> {
+    return this.restClient.updateGift(giftId, changes);
+  }
+
+  /**
+   * Mint a new code for one of the current user's gifts. The old code and
+   * link stop working; the gift itself is untouched.
+   */
+  async rotateGiftCode(giftId: string): Promise<Gift> {
+    return this.restClient.rotateGiftCode(giftId);
   }
 
   /**
