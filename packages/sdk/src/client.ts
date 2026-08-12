@@ -144,7 +144,8 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    * as a logout. The subscription owns reconnect/backoff and refetches the user
    * on (re)connect (see ensureSubscribed), so a session that boots while the
    * server is down stays authenticated and self-heals when it returns. Only a
-   * hard auth failure (401) ends the session, via the token layer.
+   * hard auth failure ends the session: a refresh rejection (token layer) or
+   * a 401 from the GraphQL transport, which calls authManager.logout().
    */
   private async hydrateAuthenticatedSession(): Promise<void> {
     this.ensureSubscribed().catch((error) => {
@@ -269,6 +270,19 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   async setPassword(password: string): Promise<void> {
     return this.authManager.setPassword(password);
+  }
+
+  /**
+   * Request an email address change for the current user. The server mails a
+   * confirmation link to the new address; the change applies when that link
+   * is clicked. After confirmation this session no longer belongs to the
+   * account — sign out and sign in with the new address.
+   *
+   * Rejects with EmailChangeError (code + user-facing message) on refusal,
+   * e.g. 'email_in_use' or 'invalid_email'.
+   */
+  async requestEmailChange(newEmail: string): Promise<void> {
+    return this.authManager.requestEmailChange(newEmail);
   }
 
   /**

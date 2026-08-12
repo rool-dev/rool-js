@@ -7,6 +7,25 @@ import type { AuthUser, AuthProvider, PasswordSignInResult } from './types.js';
 import { BrowserAuthProvider } from './auth-browser.js';
 import type { Logger } from './logger.js';
 
+export type EmailChangeErrorCode =
+  | 'missing_token'
+  | 'invalid_token'
+  | 'missing_email'
+  | 'invalid_email'
+  | 'account_not_found'
+  | 'account_suspended'
+  | 'same_email'
+  | 'email_in_use'
+  | 'send_failed'
+  | 'internal_error';
+
+export class EmailChangeError extends Error {
+  constructor(readonly code: EmailChangeErrorCode, message: string) {
+    super(message);
+    this.name = 'EmailChangeError';
+  }
+}
+
 export interface AuthManagerConfig {
   authUrl: string;
   logger: Logger;
@@ -189,6 +208,38 @@ export class AuthManager {
       this.logout();
       throw error;
     }
+  }
+
+  /**
+   * Request an email address change for the authenticated user. The server
+   * mails a confirmation link to the new address; the change applies when
+   * that link is clicked. After confirmation the current session no longer
+   * belongs to the account — sign out and sign in with the new address.
+   * Rejects with EmailChangeError (code + user-facing message) on refusal,
+   * e.g. 'email_in_use' or 'invalid_email'.
+   */
+  async requestEmailChange(newEmail: string): Promise<void> {
+    const tokens = await this.getTokens();
+    if (!tokens) throw new Error('Not authenticated');
+
+    const response = await fetch(`${this.authUrl}/email-change`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokens.accessToken}`,
+      },
+      body: JSON.stringify({ new_email: newEmail }),
+    });
+    if (response.ok) return;
+
+    const data = await response.json().catch(() => null) as {
+      error?: string;
+      message?: string;
+    } | null;
+    if (data?.error) {
+      throw new EmailChangeError(data.error as EmailChangeErrorCode, data.message ?? data.error);
+    }
+    throw new Error(`email-change failed: ${response.status}`);
   }
 
   /**

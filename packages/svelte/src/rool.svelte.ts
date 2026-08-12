@@ -232,6 +232,15 @@ class RoolImpl {
   }
 
   /**
+   * Request an email address change; the server mails a confirmation link
+   * to the new address. After the user confirms, sign out — this session
+   * no longer belongs to the account.
+   */
+  requestEmailChange(newEmail: string): Promise<void> {
+    return this.#client.requestEmailChange(newEmail);
+  }
+
+  /**
    * Get a value from user storage.
    */
   getUserStorage<T = unknown>(key: string): T | undefined {

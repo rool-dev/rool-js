@@ -547,6 +547,14 @@ export class GraphQLClient {
       retryOnThrow: false,
     });
 
+    // The server rejected credentials we believed valid: the identity was
+    // retired (email change) or the account deleted. Terminal — end the
+    // session so the app returns to sign-in instead of operating on a dead
+    // identity. Outage-shaped failures (5xx, network) never take this path.
+    if (response.status === 401) {
+      this.config.authManager.logout();
+      throw new Error('GraphQL request failed: 401 Unauthorized');
+    }
     if (!response.ok) {
       throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
     }

@@ -41,6 +41,8 @@ export type { RouteInfo } from './router.js';
 // Invite redemption and gift claim errors
 export { InviteError, GiftError } from './rest.js';
 export type { InviteErrorCode, GiftErrorCode } from './rest.js';
+export { EmailChangeError } from './auth.js';
+export type { EmailChangeErrorCode } from './auth.js';
 
 // Event emitter (for extending)
 export { EventEmitter } from './event-emitter.js';
