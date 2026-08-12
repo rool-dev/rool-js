@@ -159,10 +159,13 @@ export abstract class BaseTokenAuthProvider implements AuthProvider {
      * Logout - clear all tokens and state.
      */
     logout(): void {
+        // Notify only on a real transition, so concurrent 401-driven logouts
+        // (parallel in-flight requests) emit a single sign-out.
+        const wasAuthenticated = this.readAccessToken() !== null;
         this.clearTokens();
         this.clearTransientState();
         this.cancelScheduledRefresh();
-        this.notifyAuthState(false);
+        if (wasAuthenticated) this.notifyAuthState(false);
     }
 
     /**

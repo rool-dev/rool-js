@@ -27,6 +27,7 @@ export class NodeAuthProvider implements AuthProvider {
     private config: NodeAuthConfig;
     private _authUrl: string | null = null;
     private logger: Logger = defaultLogger;
+    private authStateChangedHandler: ((authenticated: boolean) => void) | null = null;
 
     constructor(config: NodeAuthConfig = {}) {
         this.config = config;
@@ -35,6 +36,16 @@ export class NodeAuthProvider implements AuthProvider {
     /** Called by AuthManager to inject the auth URL */
     setAuthUrl(url: string): void {
         this._authUrl = url;
+    }
+
+    /** Called by AuthManager to bridge auth state to client events */
+    setAuthStateChangedHandler(handler: (authenticated: boolean) => void): void {
+        this.authStateChangedHandler = handler;
+    }
+
+    private notifyAuthState(authenticated: boolean): void {
+        this.config.onAuthStateChanged?.(authenticated);
+        this.authStateChangedHandler?.(authenticated);
     }
 
     /** Called by AuthManager to inject the logger */
@@ -160,7 +171,7 @@ export class NodeAuthProvider implements AuthProvider {
                     rool_token: tokens.rool_token ?? null,
                     expires_at: expiresAt
                 });
-                this.config.onAuthStateChanged?.(true);
+                this.notifyAuthState(true);
                 closeAll();
                 resolve();
             });
@@ -185,11 +196,12 @@ export class NodeAuthProvider implements AuthProvider {
     }
 
     logout(): void {
+        // Notify only on a real transition, so concurrent 401-driven logouts
+        // emit a single sign-out.
         const filePath = this.credentialsPath;
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
-        this.config.onAuthStateChanged?.(false);
+        if (!fs.existsSync(filePath)) return;
+        fs.unlinkSync(filePath);
+        this.notifyAuthState(false);
     }
 
     // ===========================================================================

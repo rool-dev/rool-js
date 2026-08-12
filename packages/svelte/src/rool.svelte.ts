@@ -46,7 +46,10 @@ class RoolImpl {
       if (auth) {
         this.#refreshSpaces();
       } else {
-        // currentUser/userStorage clear via currentUserChanged(null)
+        // currentUser/userStorage clear via currentUserChanged(null).
+        // Covers 401-driven sign-out too, where logout() is never called.
+        for (const space of this.#openSpaces.values()) space.close();
+        this.#openSpaces.clear();
         this.spaces = undefined;
       }
     };

@@ -226,10 +226,37 @@ that token to `client.verify(token)` once the link lands back in the app.
 | `isAuthenticated(): Promise<boolean>` | Whether credentials are held locally. No network call — a server outage does not read as logged out. |
 | `getAuthUser(): AuthUser` | Return auth identity decoded from the token. |
 | `setPassword(password): Promise<void>` | Set/change password and sign out the user's other sessions. |
+| `requestEmailChange(newEmail): Promise<void>` | Start an email address change. The server mails a confirmation link to the new address; the change applies when that link is clicked. |
+
+### Changing email
+
+`requestEmailChange` starts the flow; nothing changes until the user clicks the confirmation link mailed to the new address. After confirmation the current session no longer belongs to the account — the next API call fails with a 401, which ends the session via `authStateChanged(false)`. Have the user sign in again with the new address.
+
+```typescript
+import { EmailChangeError } from '@rool-dev/sdk';
+
+try {
+  await client.requestEmailChange('new@example.com');
+  // Tell the user to check the new address's inbox.
+} catch (error) {
+  if (error instanceof EmailChangeError) {
+    showFormError(error.message); // user-facing message
+  }
+}
+```
+
+Refusals throw `EmailChangeError` with a `code` and a user-facing `message`. Codes worth branching on:
+
+| Code | Meaning |
+| --- | --- |
+| `invalid_email` | The new address is not a valid email. |
+| `same_email` | The new address is the account's current address. |
+| `email_in_use` | Another account already uses the new address. |
+| `send_failed` | The confirmation email could not be sent. |
 
 ### Offline behavior
 
-A temporarily unreachable server never reads as "logged out". `initialize()` reports authentication from stored credentials, so on an offline start it can return `true` while `currentUser` is still `null` and user storage is empty — the SDK keeps reconnecting in the background and hydrates both automatically once the server is reachable, emitting `currentUserChanged`. Only an invalid or expired refresh token ends the session, via `authStateChanged(false)`.
+A temporarily unreachable server never reads as "logged out". `initialize()` reports authentication from stored credentials, so on an offline start it can return `true` while `currentUser` is still `null` and user storage is empty — the SDK keeps reconnecting in the background and hydrates both automatically once the server is reachable, emitting `currentUserChanged`. Only a hard auth failure ends the session — an invalid or expired refresh token, or a 401 from the API (the identity was retired, e.g. after an email change, or the account deleted) — via `authStateChanged(false)`.
 
 ## Spaces and Conversations
 

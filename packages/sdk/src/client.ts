@@ -98,9 +98,12 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
       logger: this.logger,
       onAuthStateChanged: (authenticated) => {
         // Covers every sign-out path (logout() and 401-driven token clearing).
+        // Subscriptions must die with the session, or they would keep
+        // reconnecting — and would pick up the next account's tokens.
         if (!authenticated) {
           this._storageCache = {};
           this.setCurrentUser(null);
+          this.closeRealtimeResources();
         }
         this.emit('authStateChanged', authenticated);
       },
@@ -180,12 +183,7 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   destroy(): void {
     this.authManager.destroy();
-    this.subscriptionManager?.destroy();
-
-    // Close all open spaces and subscriptions
-    for (const space of this.openSpaces.values()) space.close();
-    this.openSpaces.clear();
-
+    this.closeRealtimeResources();
     this.removeAllListeners();
   }
 
@@ -290,9 +288,14 @@ export class RoolClient extends EventEmitter<RoolClientEvents> {
    */
   logout(): void {
     this.authManager.logout();
-    this.unsubscribe();
+    // Redundant when the provider notified (the auth-state handler already
+    // tore down), but kept for providers without auth-state bridging.
+    this.closeRealtimeResources();
+  }
 
-    // Close all open spaces and subscriptions
+  /** Stop the client subscription and close all open spaces. Idempotent. */
+  private closeRealtimeResources(): void {
+    this.unsubscribe();
     for (const space of this.openSpaces.values()) space.close();
     this.openSpaces.clear();
   }
