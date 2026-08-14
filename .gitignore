@@ -39,3 +39,7 @@ docs/public/llms.txt
 
 # Lockfile (regenerated)
 # Keep pnpm-lock.yaml in repo for reproducible builds
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/

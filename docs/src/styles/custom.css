@@ -7,7 +7,7 @@
 }
 
 /* Light mode overrides */
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   --sl-color-accent: #2563eb;
   --sl-color-accent-low: #dbeafe;
   --sl-color-accent-high: #1e40af;

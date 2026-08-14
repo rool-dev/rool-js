@@ -9,6 +9,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r clean",
+    "format": "prettier --write .",
     "docs:prebuild": "node docs/build-docs.js",
     "docs:dev": "pnpm run docs:prebuild && astro dev --root docs",
     "docs:build": "pnpm run docs:prebuild && astro build --root docs",
@@ -16,18 +17,19 @@
     "release": "node scripts/release.js"
   },
   "devDependencies": {
-    "@astrojs/starlight": "^0.32.6",
-    "astro": "^5.18.1",
-    "sharp": "^0.33.5"
+    "@astrojs/starlight": "^0.41.5",
+    "astro": "^7.1.6",
+    "prettier": "^3.9.6",
+    "sharp": "^0.35.3"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rool-dev/rool-js.git"
   },
   "author": {
-    "name": "Lightpost One",
-    "email": "info@lightpost.one",
-    "url": "https://lightpost.one"
+    "name": "Rool",
+    "email": "hello@rool.dev",
+    "url": "https://rool.dev"
   },
   "license": "MIT"
 }

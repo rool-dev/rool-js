@@ -1,38 +1,25 @@
 # rool-js
 
-Official TypeScript SDK and Svelte bindings for the Rool platform. This is a pnpm monorepo.
+Official TypeScript SDK and Svelte bindings for Rool. This is a pnpm monorepo.
 
 ## Packages
 
-| Package | Path | npm |
-|---------|------|-----|
-| @rool-dev/sdk | `packages/sdk/` | TypeScript SDK |
-| @rool-dev/svelte | `packages/svelte/` | Svelte wrapper |
+| Package         | Path               | npm                |
+| --------------- | ------------------ | ------------------ |
+| SDK             | `packages/sdk/`    | `@rool-dev/sdk`    |
+| Svelte bindings | `packages/svelte/` | `@rool-dev/svelte` |
+
+Read the package-specific `CLAUDE.md` before working in a package.
 
 ## Commands
-- `pnpm install` - Install all dependencies
-- `pnpm build` - Build all packages
-- `pnpm typecheck` - Type check all packages
-
-## Package-specific instructions
-- @packages/sdk/CLAUDE.md
-- @packages/svelte/CLAUDE.md
-
-## Development
-Packages depend on the SDK via `workspace:*`. Changes to the SDK are immediately available during development.
 
 ```bash
 pnpm install
 pnpm build
+pnpm typecheck
+pnpm docs:build
 ```
 
-## Docs Site
-The `docs/` folder is a Starlight (Astro) site. The SDK and Svelte doc pages are **generated from package READMEs** by `docs/build-docs.js` at build time (`pnpm docs:build`). The generated files (`docs/src/content/docs/{sdk,svelte}.md` and `docs/public/llms.txt`) are gitignored. Static pages like `index.md` are checked in directly. **Do not edit the generated doc pages — edit the package READMEs instead.**
+Packages share one version and are published together. Use `pnpm release <version>` to prepare a release; pushing the resulting tag publishes it.
 
-## Publishing
-All packages share a single version number and are published together under the `@rool-dev` scope.
-
-```bash
-pnpm release 0.2.0          # bumps all package.json files, commits, and tags v0.2.0
-git push origin main --tags  # triggers CI to publish all packages
-```
+Package READMEs are the source for `docs/src/content/docs/sdk.md` and `svelte.md`. Do not edit those generated files.

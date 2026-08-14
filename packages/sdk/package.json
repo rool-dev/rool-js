@@ -1,7 +1,7 @@
 {
   "name": "@rool-dev/sdk",
-  "version": "0.12.5",
-  "description": "TypeScript SDK for working with Rool Spaces",
+  "version": "0.12.2",
+  "description": "TypeScript SDK for Rool Machines",
   "packageManager": "pnpm@10.17.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,12 +21,13 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
+    "build": "rm -rf dist && tsc",
+    "dev": "rm -rf dist && tsc --watch",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "node --import tsx --test test/*.test.ts",
-    "clean": "rm -rf dist",
-    "eval": "node --import tsx eval/main.ts"
+    "test:v2": "node --env-file=.env --import tsx test/integration/v2/run.ts",
+    "notebook": "pnpm build && ./scripts/notebook.sh",
+    "clean": "rm -rf dist"
   },
   "publishConfig": {
     "access": "public"
@@ -40,10 +41,7 @@
   "keywords": [
     "rool",
     "sdk",
-    "graph",
-    "hypergraph",
-    "api-client",
-    "real-time"
+    "api-client"
   ],
   "author": {
     "name": "Rool Limited",
@@ -52,15 +50,12 @@
   },
   "license": "MIT",
   "dependencies": {
-    "fflate": "^0.8.2",
-    "graphql-sse": "^2.6.0",
     "open": "^11.0.0"
   },
   "devDependencies": {
-    "@types/chai": "^5.2.3",
     "@types/node": "^25.6.0",
-    "chai": "^6.2.2",
-    "tsx": "^4.21.0",
+    "tslab": "^1.0.22",
+    "tsx": "^4.23.1",
     "typescript": "^5.9.3"
   }
 }

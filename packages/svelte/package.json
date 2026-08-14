@@ -1,7 +1,7 @@
 {
   "name": "@rool-dev/svelte",
-  "version": "0.12.5",
-  "description": "Svelte 5 runes for Rool Spaces",
+  "version": "0.12.2",
+  "description": "Svelte 5 bindings for Rool Machines",
   "packageManager": "pnpm@10.17.1",
   "type": "module",
   "svelte": "./dist/index.js",
@@ -21,7 +21,7 @@
   "scripts": {
     "build": "svelte-package -i src -o dist",
     "dev": "svelte-package -i src -o dist --watch",
-    "typecheck": "pnpm --filter @rool-dev/sdk build && svelte-check --tsconfig ./tsconfig.json",
+    "typecheck": "pnpm --filter @rool-dev/sdk build && tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "publishConfig": {
@@ -54,9 +54,8 @@
     "svelte": "^5.0.0"
   },
   "devDependencies": {
-    "@sveltejs/package": "^2.5.7",
-    "svelte": "^5.55.4",
-    "svelte-check": "^4.4.6",
+    "@sveltejs/package": "^2.5.8",
+    "svelte": "^5.56.8",
     "typescript": "^5.9.3"
   }
 }

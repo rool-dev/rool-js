@@ -2,13 +2,16 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, 'release/**']
-    tags: ['v*']
+    branches: [main, v2api, "release/**"]
+    tags: ["v*"]
   workflow_dispatch:
 
 concurrency:
   group: npm-publish
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   ci:
@@ -27,11 +30,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          cache: 'pnpm'
+          node-version: "24"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level high
 
       - name: Build all packages
         run: pnpm build
@@ -60,9 +66,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
 
       - name: Upgrade npm for trusted publishing
         run: npm install -g npm@11
@@ -114,9 +120,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
 
       - name: Upgrade npm for trusted publishing
         run: npm install -g npm@11
@@ -163,4 +169,3 @@ jobs:
       - name: Publish Svelte
         working-directory: packages/svelte
         run: pnpm publish --access public --no-git-checks --tag "$DIST_TAG"
-

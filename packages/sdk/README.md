@@ -1,15 +1,6 @@
 # Rool SDK
 
-TypeScript SDK for programmatic access to [Rool Machines](https://rool.dev) — private AI computers holding objects, files, conversations, and memory, with AI-assisted editing built in.
-
-> **Naming note:** the SDK predates the Rool Machine branding and calls a Machine a **space** (`createSpace`, `RoolSpace`, `/space/...` paths). The API keeps this legacy naming until v2; read "space" as "Machine" throughout.
-
-Core primitives:
-
-- **Spaces** — Machines: containers for objects, schema, metadata, conversations, collaborators, and files.
-- **Conversations** — independent interaction histories in a space.
-- **Objects** — JSON records addressed by object paths such as `/space/article/welcome.json`.
-- **Files** — user-visible files stored under `/rool-drive/...` through WebDAV.
+TypeScript SDK for Rool Machines.
 
 ## Installation
 
@@ -17,991 +8,648 @@ Core primitives:
 npm install @rool-dev/sdk
 ```
 
-## Quick Start
+## User and session API
 
 ```typescript
-import { RoolClient } from '@rool-dev/sdk';
-
-async function main() {
-  const client = new RoolClient();
-
-  if (!(await client.initialize())) {
-    await client.login('My App');
-    // Browser auth redirects away. Run startup again after the auth callback.
-    return;
-  }
-
-  const space = await client.createSpace('Solar System');
-  const conversation = space.conversation('main');
-
-  await space.createCollection('body', [
-    { name: 'name', type: { kind: 'string' } },
-    { name: 'mass', type: { kind: 'string' } },
-    { name: 'radius', type: { kind: 'string' } },
-    { name: 'orbits', type: { kind: 'maybe', inner: { kind: 'ref' } } },
-  ]);
-
-  const { object: sun } = await space.putObject('/space/body/sun.json', {
-    name: 'Sun',
-    mass: '1 solar mass',
-    radius: '696,340 km',
-  });
-
-  const { object: earth } = await space.putObject('/space/body/earth.json', {
-    name: 'Earth',
-    mass: '1 Earth mass',
-    radius: '6,371 km',
-    orbits: sun.path,
-  });
-
-  const { message, objects } = await conversation.prompt(
-    'Add the other planets in our solar system, each referencing the Sun.'
-  );
-
-  console.log(message);
-  console.log(`Modified ${objects.length} objects`);
-
-  const loadedEarth = await space.getObject(earth.path);
-  console.log(loadedEarth?.body.name);
-
-  space.close();
-}
-
-void main();
-```
-
-## Paths and Resource URIs
-
-Most SDK methods take plain path strings:
-
-- Object paths: `/space/<collection>/<name>.json` (exactly three segments; no dotfile collection or object names)
-- File paths: `/rool-drive/<path/to/file>`
-
-`rool-machine:/...` URIs are the user-facing/canonical form for resource references in prompt attachments and interaction history. The exported helpers normalize between these forms when you need them.
-
-```typescript
-import { machinePath, machineUri, isObjectPath } from '@rool-dev/sdk';
-
-machinePath('rool-machine:/rool-drive/docs/read%20me.md');
-// '/rool-drive/docs/read me.md'
-
-machineUri('/space/article/welcome.json');
-// 'rool-machine:/space/article/welcome.json'
-
-isObjectPath('/space/article/welcome.json'); // true
-```
-
-Object APIs require full object paths. References between objects are ordinary body fields containing object paths:
-
-```typescript
-{
-  path: '/space/body/earth.json',
-  body: { name: 'Earth', orbits: '/space/body/sun.json' },
-}
-```
-
-## Authentication
-
-### Browser
-
-The default auth provider stores tokens in browser storage and redirects to the Rool auth page.
-
-```typescript
-async function start() {
-  const client = new RoolClient();
-
-  if (!(await client.initialize())) {
-    await client.login('My App');
-    // Browser auth redirects; stop startup until the callback reloads the app.
-    return;
-  }
-
-  // Use the authenticated client here.
-}
-
-void start();
-```
-
-### Node.js
-
-Use the Node auth provider for CLIs and scripts. It stores endpoint-scoped credentials under `~/.config/rool/` by default (for example, `credentials-<hash>.json`) and opens a browser for login.
-
-```typescript
-import { RoolClient } from '@rool-dev/sdk';
-import { NodeAuthProvider } from '@rool-dev/sdk/node';
-
-const client = new RoolClient({ authProvider: new NodeAuthProvider() });
-let authenticated = await client.initialize();
-
-if (!authenticated) {
-  await client.login('My CLI Tool');
-  // Re-run initialize after the non-redirect login to hydrate currentUser,
-  // user storage, and client-level event subscriptions.
-  authenticated = await client.initialize();
-}
-
-if (!authenticated) throw new Error('Login required');
-```
-
-### Native (Capacitor, Cordova, Tauri, ...)
-
-Use the native PKCE provider for JS app shells that sign in through an external
-system browser. `login()`/`signup()` open the auth server's `/authorize` page
-via the `openExternal` callback you supply; when the deep link returns, feed it
-to `client.handleAuthRedirect(url)` from your platform's deep-link handler. The
-code is exchanged for a session at `/token` and tokens are stored like the
-browser provider.
-
-```typescript
-import { RoolClient, NativePkceAuthProvider } from '@rool-dev/sdk';
-import { Browser } from '@capacitor/browser';
-import { App } from '@capacitor/app';
+import { RoolClient } from "@rool-dev/sdk";
 
 const client = new RoolClient({
-  authProvider: new NativePkceAuthProvider({
-    redirectUri: 'roolandroidauth://auth/callback', // must match the server allowlist
-    defaultProvider: 'google',                       // 'google' | 'apple'
-    openExternal: (url) => Browser.open({ url }),
+  getTokens: () => ({
+    accessToken: currentAccessToken,
+    roolToken: currentRoolToken,
   }),
 });
 
-// Complete sign-in when the OS hands the app its deep link.
-App.addListener('appUrlOpen', async ({ url }) => {
-  if (await client.handleAuthRedirect(url)) {
-    await Browser.close();
-    // Now authenticated — refresh your UI.
+const session = await client.getSession();
+const account = await client.getAccount();
+const profile = await client.getProfile();
+const userAppData = await client.getUserAppData();
+const greeting = await client.getGreeting("en");
+
+await client.replaceProfile({
+  name: "Ada",
+  marketingOptIn: true,
+});
+await client.setUserAppData("theme", "dark");
+await client.deleteUserAppData("theme");
+await client.deleteAccount();
+```
+
+`UserAppData` is an opaque cross-device JSON object. App data is changed one key at a time so unrelated settings cannot overwrite each other.
+
+## Account events
+
+```typescript
+const unsubscribe = client.events.subscribe(async (event) => {
+  if (event.type === "session") {
+    renderSession(event.session);
+  } else if (event.type === "account_changed") {
+    renderAccount(await client.getAccount());
+  } else if (event.type === "profile_changed") {
+    renderProfile(await client.getProfile());
+  } else if (event.type === "user_app_data_changed") {
+    renderUserAppData(await client.getUserAppData());
+  } else if (event.type === "machines_changed") {
+    renderMachines(await client.listMachines());
+  } else if (event.type === "machine_members_changed") {
+    renderMembers(
+      event.machineId,
+      await client.machine(event.machineId).members.list(),
+    );
   }
 });
 
-if (!(await client.initialize())) {
-  // Opens the system browser; completion arrives via the listener above.
-  await client.login('My App'); // pass { provider: 'apple' } to override the default
+unsubscribe();
+```
+
+Account events tell the client when something changed. Fetch the relevant route to get the latest data. The SDK starts with `/v2/session`, then long-polls for changes using its account sync token. Empty polls and network retries do not produce events or refresh the session. If a token expires, the SDK fetches a new session and sends another `session` event.
+
+`getTokens` may return tokens synchronously or asynchronously. The SDK sends the access token as `Authorization: Bearer …` and the Rool token as `X-Rool-Token`. Bearer-only integrations can use `getAccessToken` instead. Use `apiUrl` to target a non-production server and `fetch` to provide a custom transport.
+
+## Authentication
+
+Auth clients own login, credential storage, and refresh. `RoolClient` only asks one for tokens and tells it when authentication is invalidated.
+
+### Browser authentication
+
+```typescript
+import { BrowserAuth, RoolClient } from "@rool-dev/sdk";
+
+const auth = new BrowserAuth();
+const client = new RoolClient({
+  getTokens: auth.getTokens,
+  onAuthInvalidated: auth.logout,
+});
+
+auth.onAuthStateChanged(renderSignedInState);
+if (!(await auth.initialize())) {
+  await auth.login("My App");
 }
 ```
 
-#### Email + password and magic links (native)
+`initialize()` processes an auth callback in the URL. Tokens are stored in endpoint-scoped browser storage and refreshed when requested.
 
-The native provider also supports email/password sign-in and magic links —
-no system browser, the server returns the token set as JSON directly.
+### Native authentication
+
+`NativeAuth` uses system-browser PKCE for Google and Apple while also supporting password and magic-link sign-in.
 
 ```typescript
-// Password sign-in
-const result = await client.signInWithPassword(email, password);
-if (result.status === 'signed_in') {
-  // authenticated — refresh your UI
-} else {
-  // status === 'verify_required': the email isn't verified yet and the server
-  // has emailed a magic link. Tell the user to check their inbox.
+import { App } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
+import { NativeAuth, RoolClient } from "@rool-dev/sdk";
+
+const auth = new NativeAuth({
+  redirectUri: "roolandroidauth://auth/callback",
+  defaultProvider: "google",
+  openExternal: (url) => Browser.open({ url }),
+});
+const client = new RoolClient({
+  getTokens: auth.getTokens,
+  onAuthInvalidated: auth.logout,
+});
+
+App.addListener("appUrlOpen", async ({ url }) => {
+  await Browser.close();
+  await auth.handleRedirect(url);
+});
+
+if (!(await auth.initialize())) await auth.login("My App");
+```
+
+The redirect URI must exactly match the app setup and auth server allowlist. Pass `{ provider: "apple" }` to `login()` or `signup()` to override the default provider.
+
+```typescript
+const result = await auth.signInWithPassword(email, password);
+if (result.status === "verify_required") showCheckYourEmailMessage();
+
+await auth.requestMagicLink(email);
+await auth.verify(verifyToken);
+```
+
+On native, an HTTPS magic link only returns to the app when Universal Links or App Links are configured for that domain.
+
+### Password and account methods
+
+Browser and native auth clients also provide:
+
+- `setPassword(password)`
+- `requestEmailChange(newEmail)`
+- `verify(token)`
+- `logout()`
+- `isAuthenticated()`
+
+### Node.js authentication
+
+```typescript
+import { RoolClient } from "@rool-dev/sdk";
+import { NodeAuth } from "@rool-dev/sdk/node";
+
+const auth = new NodeAuth();
+if (!(await auth.initialize())) await auth.login("My CLI");
+
+const client = new RoolClient({
+  getTokens: auth.getTokens,
+  onAuthInvalidated: auth.logout,
+});
+```
+
+`NodeAuth` opens the system browser for login and stores endpoint-scoped credentials under `~/.config/rool/`. It refreshes the access and Rool tokens when requested. Pass `apiUrl` to select another deployed environment; the corresponding auth URL is derived from it. When the API uses a loopback URL, pass `authUrl` explicitly.
+
+Use `profile` or `credentialsPath` when an application needs multiple independent accounts:
+
+```typescript
+const auth = new NodeAuth({
+  apiUrl: "https://api.example.com",
+  profile: "automation",
+});
+```
+
+API errors are thrown as `RoolProblem` with the server's stable `code`, HTTP `status`, `title`, and `detail`.
+
+## Machine API
+
+```typescript
+const created = await client.createMachine({ name: "Research" });
+const machine = client.machine(created.id);
+
+const details = await machine.get();
+await machine.settings.replace({ name: "Field research" });
+const copy = await machine.duplicate({ name: "Research copy" });
+const response = await machine.fetchUrl("https://example.com/data.json");
+await client.machine(copy.id).delete();
+```
+
+`client.machine(id)` returns a stable machine handle that owns machine-scoped APIs and synchronization state. Creation, listing, sessions, duplication, and `machine.get()` all return the same point-in-time `MachineSummary`; bind its ID to a handle before performing machine operations. Summaries include the machine's inbound email address, lifecycle `state`, and an opaque `meta` JSON object. `fetchUrl()` returns the upstream `Response`, including non-success statuses.
+
+## Machine checkpoints
+
+```typescript
+const history = await machine.checkpoints.list();
+const checkpoint = history.checkpoints.at(-1);
+if (checkpoint) {
+  await machine.checkpoints.restore(checkpoint.id);
 }
-
-// Or request a magic link explicitly
-await client.requestMagicLink(email);
 ```
 
-The magic link carries a `?verify=<token>` param; complete sign-in by passing
-that token to `client.verify(token)` once the link lands back in the app.
+The checkpoint collection contains the currently restorable timeline and the `baseCheckpointId` underlying the live filesystem. The live filesystem can contain newer uncheckpointed changes. Restoring a checkpoint preserves those changes as a new checkpoint and causes a watched machine file tree to reconcile completely. Moving backward does not discard later checkpoints, but modifying the filesystem from that earlier position replaces the later timeline.
 
-> **⚠️ Magic links open the website, not the app, until Universal Links / App
-> Links are configured.** The emailed link is an `https://` URL for the Rool
-> web app. On native, an `https` link only re-opens your app if you've set up
-> [iOS Universal Links](https://developer.apple.com/ios/universal-links/) /
-> [Android App Links](https://developer.android.com/training/app-links) for that
-> domain (custom-scheme deep links don't apply to email links). **Without that
-> setup the magic link completes sign-in in the browser/website, not in the
-> native app** — so for now treat magic links on native as a website hand-off,
-> and prefer password or social sign-in for an in-app experience.
-
-### Auth API
-
-| Method | Description |
-| --- | --- |
-| `initialize(): Promise<boolean>` | Call on startup. Initializes auth, refreshes user/storage state, and starts client events when authenticated. |
-| `login(appName, params?): Promise<void>` | Start login flow. |
-| `signup(appName, params?): Promise<void>` | Start signup flow. |
-| `verify(token): Promise<boolean>` | Complete email verification token flow; returns `false` when the active auth provider does not implement verification. |
-| `handleAuthRedirect(url): Promise<boolean>` | Complete a native PKCE sign-in from a deep-link callback URL. Returns `false` when the active auth provider does not implement it. |
-| `signInWithPassword(email, password): Promise<PasswordSignInResult>` | Email + password sign-in (native provider). Resolves `{ status: 'signed_in' }`, or `{ status: 'verify_required' }` when the email is unverified (a magic link was emailed). Rejects on bad credentials. |
-| `requestMagicLink(email): Promise<void>` | Email the user a magic sign-in link (native provider). See the caveat below — on native the link opens the **website**, not the app, until Universal Links / App Links are configured. |
-| `logout(): void` | Clear auth state and close open spaces. |
-| `isAuthenticated(): Promise<boolean>` | Whether credentials are held locally. No network call — a server outage does not read as logged out. |
-| `getAuthUser(): AuthUser` | Return auth identity decoded from the token. |
-| `setPassword(password): Promise<void>` | Set/change password and sign out the user's other sessions. |
-| `requestEmailChange(newEmail): Promise<void>` | Start an email address change. The server mails a confirmation link to the new address; the change applies when that link is clicked. |
-
-### Changing email
-
-`requestEmailChange` starts the flow; nothing changes until the user clicks the confirmation link mailed to the new address. After confirmation the current session no longer belongs to the account — the next API call fails with a 401, which ends the session via `authStateChanged(false)`. Have the user sign in again with the new address.
+## Machine files
 
 ```typescript
-import { EmailChangeError } from '@rool-dev/sdk';
+const files = machine.files;
+const path = "/rool-drive/documents/report.pdf";
 
-try {
-  await client.requestEmailChange('new@example.com');
-  // Tell the user to check the new address's inbox.
-} catch (error) {
-  if (error instanceof EmailChangeError) {
-    showFormError(error.message); // user-facing message
-  }
-}
-```
-
-Refusals throw `EmailChangeError` with a `code` and a user-facing `message`. Codes worth branching on:
-
-| Code | Meaning |
-| --- | --- |
-| `invalid_email` | The new address is not a valid email. |
-| `same_email` | The new address is the account's current address. |
-| `email_in_use` | Another account already uses the new address. |
-| `send_failed` | The confirmation email could not be sent. |
-
-### Offline behavior
-
-A temporarily unreachable server never reads as "logged out". `initialize()` reports authentication from stored credentials, so on an offline start it can return `true` while `currentUser` is still `null` and user storage is empty — the SDK keeps reconnecting in the background and hydrates both automatically once the server is reachable, emitting `currentUserChanged`. Only a hard auth failure ends the session — an invalid or expired refresh token, or a 401 from the API (the identity was retired, e.g. after an email change, or the account deleted) — via `authStateChanged(false)`.
-
-## Spaces and Conversations
-
-Open a space to receive live events and manage objects, schema, metadata, collaborators, file storage, and conversations. Use a conversation handle for conversation metadata and AI.
-
-```typescript
-const space = await client.openSpace('space-id');
-
-const conversation = space.conversation('main');
-space.on('filesChanged', () => console.log('files changed'));
-
-await conversation.prompt('Summarize this space');
-```
-
-Conversation IDs must be 1–32 characters and contain only letters, numbers, `_`, and `-`.
-
-## Object Operations
-
-Objects are JSON files under `/space`. Create the collection before writing objects in it.
-
-```typescript
-await space.createCollection('article', [
-  { name: 'title', type: { kind: 'string' } },
-  { name: 'status', type: { kind: 'string' } },
-]);
-
-// Create or replace an exact object path
-const { object } = await space.putObject('/space/article/welcome.json', {
-  title: 'Welcome',
-  status: 'draft',
-});
-
-// Patch fields; null or undefined deletes a field
-await space.patchObject(object.path, {
-  data: { status: 'published', obsoleteField: null },
-});
-
-// Read one or many objects
-await space.getObject('/space/article/welcome.json');
-await space.getObjects([
-  '/space/article/welcome.json',
-  '/space/article/intro.json',
-]);
-
-// Rename or move an object
-await space.moveObject(
-  '/space/article/welcome.json',
-  '/space/article/hello-world.json'
-);
-
-// Delete objects
-await space.deleteObjects(['/space/article/hello-world.json']);
-```
-
-| Method | Description |
-| --- | --- |
-| `getObject(path): Promise<RoolObject | undefined>` | Fetch one object by object path. |
-| `getObjects(paths): Promise<GetObjectsResult>` | Fetch objects in bulk; returns `objects` and `missing`. |
-| `space.putObject(path, body): Promise<{ object, message }>` | Create or replace an object at an exact path. |
-| `space.patchObject(path, { data }): Promise<{ object, message }>` | Patch an object's body; `null`/`undefined` deletes fields. |
-| `space.moveObject(from, to, options?): Promise<{ object, message }>` | Rename or relocate an object; `options.body` can replace the body after moving. |
-| `space.deleteObjects(paths): Promise<void>` | Delete object files. |
-
-## AI Agent
-
-`prompt()` invokes the AI agent. The agent can inspect space context and, unless `readOnly` or a read-only effort is used, create/modify/move/delete objects.
-
-```typescript
-const { message, objects } = await conversation.prompt(
-  'Create a topic node for the solar system, then child nodes for each planet.'
-);
-
-console.log(message);
-console.log(objects.map((object) => object.path));
-```
-
-### Prompt Options
-
-| Option | Description |
-| --- | --- |
-| `responseSchema` | Request structured JSON text matching a JSON-schema-like shape. |
-| `effort` | `'QUICK'` (fast/read-only), `'STANDARD'` (default), `'REASONING'`, or `'RESEARCH'`. |
-| `ephemeral` | Do not record the prompt in interaction history. |
-| `readOnly` | Disable mutation tools. |
-| `parentInteractionId` | Conversation-tree parent. Omit to fetch and continue from the current default leaf; pass `null` for a new root branch. |
-| `attachments` | Existing object/file paths or `rool-machine:/...` URIs, plus local files (`File`, `Blob`, or `{ data, contentType, filename? }`). |
-| `signal` | AbortSignal used to request that the server stop an in-flight prompt. |
-| `eventName` | Optional telemetry event name. Defaults to `'prompt_user'`. |
-
-```typescript
-// Read-only quick question
-await conversation.prompt('What topics are covered?', {
-  effort: 'QUICK', // fast/read-only
-});
-
-// Focus on existing objects and files
-await conversation.prompt('Compare these resources', {
-  attachments: [
-    '/space/article/intro.json',
-    'rool-machine:/rool-drive/docs/report.pdf',
-  ],
-});
-
-// Upload a local file as an attachment
-await conversation.prompt('Describe this image', {
-  attachments: [fileInput.files![0]],
-});
-
-// Structured response
-const { message } = await conversation.prompt('Categorize these items', {
-  responseSchema: {
-    type: 'object',
-    properties: {
-      categories: { type: 'array', items: { type: 'string' } },
-      summary: { type: 'string' },
-    },
+const storage = await files.getStorageUsage();
+console.log(storage.usedBytes, storage.availableBytes);
+await files.createDirectory("/rool-drive/documents");
+const written = await files.write(path, reportBlob, {
+  contentType: "application/pdf",
+  ifNoneMatch: "*",
+  onUploadProgress: ({ transferredBytes, totalBytes }) => {
+    if (totalBytes) renderUploadProgress(transferredBytes / totalBytes);
   },
 });
-const result = JSON.parse(message);
-
-// Stop a long prompt with a signal (when the caller holds the controller)
-const ac = new AbortController();
-const promptPromise = conversation.prompt('Do a deep analysis', {
-  effort: 'RESEARCH',
-  signal: ac.signal,
+const info = await files.stat(path);
+const documents = await files.list("/rool-drive/documents");
+const response = await files.read(path, {
+  range: { start: 0, end: 1023 },
+  ifMatch: info.etag,
 });
-ac.abort(); // asks the server to stop the in-flight interaction
-await promptPromise;
+const hydrated = await files.readMultiple([
+  "/space/.meta.json",
+  "/rool-drive/documents/notes.json",
+]);
+await files.copy(path, "/rool-drive/documents/report-backup.pdf", {
+  overwrite: false,
+  ifMatch: written.etag,
+});
+await files.move(path, "/rool-drive/documents/final-report.pdf");
+const deleted = await files.deleteMultiple([
+  "/rool-drive/documents/final-report.pdf",
+  { path: "/rool-drive/documents/notes.json", ifMatch: '"notes-etag"' },
+]);
+for (const result of deleted) {
+  if (!result.ok)
+    console.error(`Failed to delete ${result.path}`, result.error);
+}
 ```
 
-### Stopping a conversation
+Paths are absolute machine paths under `/space` or `/rool-drive`. `list()` without a path enumerates those storage roots; pass `{ recursive: true }` to enumerate a complete subtree. File and directory metadata has a discriminating `kind` field. Reads return the native `Response` so callers can stream the body. `readMultiple()` hydrates ordered small files in one request and returns an `ok` result with binary-safe bytes and validators, or a per-file HTTP failure. A batch accepts at most 128 paths, 2 MiB per successful file, and 16 MiB across successful files. Writes accept any `BodyInit`, including `Blob` and `ReadableStream`, and return the same complete file metadata as `stat()` and `list()`. `onUploadProgress` reports transferred bytes and includes the total size when it is known; successful completion is confirmed by the `write()` promise. Copy and move operations overwrite by default; pass `{ overwrite: false }` for create-only behavior.
 
-Use `signal` when the same call site cancels the prompt. When the Stop button
-lives elsewhere — a different component, after a reload, or a prompt another
-client started — stop the conversation itself. A conversation processes one
-run at a time, so no interaction ID is needed. Stopping is best-effort: the
-server halts the agent loop and closes the stream, but an LLM turn already in
-flight keeps generating server-side and is billed.
+`deleteMultiple()` sends independent DAV requests with at most eight in flight. It accepts plain paths and targets carrying their own HTTP preconditions, and returns one ordered success or failure result per target. The requests are not atomic. A directory target recursively deletes its contents, so callers should omit redundant descendants; duplicate and overlapping targets otherwise remain independent and can race.
+
+Every file and directory has protected `access` metadata. `currentUser` says whether the requesting user can read or write it. `readableBy` and `writableBy` describe its filesystem audiences as `resource-owner`, `machine-admins`, `machine-editors`, and `machine-members`. For a file, write means changing its contents. For a directory, write means adding, removing, or renaming entries. Members without read access to a directory do not receive that directory through listing, direct lookup, or synchronization.
+
+`getStorageUsage()` reports the used and writable bytes on the machine's complete live persistent filesystem, including public files and private runtime or system state. It excludes checkpoint history and the ephemeral operating-system overlay.
+
+Watch the files when an application needs a live machine file tree:
 
 ```typescript
-// Stop whatever is running in a conversation. Returns whether anything was
-// actually running.
-await space.stopConversation('thread-42');
+await files.watch();
 
-// Conversation handles stop their own running work.
-const thread = space.conversation('thread-42');
-await thread.stop();
+const unsubscribe = files.tree.subscribe(({ reset, changed, deleted }) => {
+  renderFileChanges({ reset, changed, deleted });
+});
+
+const cached = files.tree.get("/rool-drive/documents/final-report.pdf");
+const etag = files.tree.etag("/rool-drive/documents/final-report.pdf");
+const allDocuments = files.tree.list("/rool-drive/documents", {
+  recursive: true,
+});
+
+unsubscribe();
+files.unwatch();
 ```
 
-| Method | Description |
-| --- | --- |
-| `stopConversation(conversationId): Promise<boolean>` | Stop whatever is running in a conversation. |
-| `conversation.stop(): Promise<boolean>` | Stop this conversation's running work. |
+`files.watch()` performs a complete `sync-collection`, then keeps the machine's file metadata and ETag cache current with long-poll incremental reports. DAV writes and guest-program changes enter the same tree. An invalid or expired sync token causes an atomic complete reconciliation and a change event with `reset: true`. Transient sync errors are retried and available as `files.watchError`; `files.unwatch()` aborts the active long poll.
 
-## Conversations
+## Rool Object Collections
 
-Use `space.conversation(id)` for an imperative API scoped to one conversation. The handle retains no conversation contents or branch cursor; fetch contents when needed. With no explicit parent, `prompt()` fetches the current conversation and continues from its default leaf.
+Objects are JSON stored under `/space`. Collections are directories with a `.schema.json` definition and objects are schema-checked JSON files.
 
 ```typescript
-import { conversationBranch, defaultConversationLeaf } from '@rool-dev/sdk';
+await machine.files.watch();
 
-const thread = space.conversation('thread-42');
-await thread.prompt('Hello from another thread');
-await thread.setSystemInstruction('Answer in haiku');
-
-const conversation = await thread.get();
-const leaf = defaultConversationLeaf(conversation);
-const branch = conversationBranch(conversation, leaf);
-```
-
-| Method/property | Description |
-| --- | --- |
-| `space.conversation(id): ConversationHandle` | Get a stateless conversation-scoped API handle. |
-| `conversation.get(): Promise<Conversation | null>` | Fetch current conversation contents. |
-| `conversation.prompt(text, options?)` | Prompt the conversation. Pass `parentInteractionId` to choose a branch explicitly. |
-| `conversation.setSystemInstruction(value)` | Set or clear the system instruction. |
-| `conversation.rename(name)` / `conversation.delete()` / `conversation.stop()` | Manage the scoped conversation. |
-| `listConversations(): Promise<ConversationMeta[]>` | Fetch the conversation roster. |
-| `createConversation(agent, visibility): Promise<string>` | Create a conversation under an agent; returns the server-minted conversation ID. |
-| `deleteConversation(id): Promise<void>` | Delete a conversation by ID. |
-
-### Agents
-
-Conversations belong to an agent. Every space has the stock agent `rool`; spaces can also host custom agents. `createConversation` creates a conversation under any agent — including `rool` — with a server-minted ID and the visibility you choose; prompt the returned ID through a normal handle. Stock (`rool`) conversations can also spring into existence from a client-minted ID on first prompt (as in the examples above); custom-agent conversations are only created explicitly.
-
-Each conversation has a visibility: `'shared'` (every space member), `'private'` (only you), or `'temporary'` (private, and auto-deleted after sitting idle). A conversation's agent and visibility are reported on its `ConversationMeta`.
-
-```typescript
-const agents = await space.listAgents(); // always includes 'rool'
-
-const id = await space.createConversation('research-bot', 'private');
-await space.conversation(id).prompt('Hello');
-
-await space.deleteAgent('research-bot'); // removes the agent and all its conversations
-```
-
-| Method | Description |
-| --- | --- |
-| `listAgents(): Promise<string[]>` | The space's agents. Always includes the stock agent `rool`. |
-| `createConversation(agent, visibility): Promise<string>` | Create a conversation under an agent with the given visibility. |
-| `deleteAgent(agent): Promise<void>` | Delete a custom agent and all its conversations. The stock agent `rool` cannot be deleted. |
-
-## Schema and Metadata
-
-Collections define the schema visible to the AI agent. Hidden body fields whose names start with `_` are useful for app/UI state that should not be considered by AI.
-
-```typescript
-await space.createCollection('article', {
-  schemaOrgType: 'Article',
+const task = await machine.collections.create("task", {
   fields: [
-    { name: 'title', type: { kind: 'string' } },
-    { name: 'status', type: { kind: 'enum', values: ['draft', 'published'] } },
-    { name: 'tags', type: { kind: 'array', inner: { kind: 'string' } } },
-    { name: 'author', type: { kind: 'ref' } },
+    { name: "title", type: { kind: "string" } },
+    { name: "done", type: { kind: "boolean" } },
   ],
 });
 
-const schema = await space.readSchema();
-
-await space.alterCollection('article', [
-  { name: 'title', type: { kind: 'string' } },
-  { name: 'status', type: { kind: 'string' } },
+const first = await machine.objects.create("/space/task/first.json", {
+  title: "First task",
+  done: false,
+});
+const objectPaths = machine.objects.list({ collection: "task" });
+const object = await machine.objects.get(first.path);
+const [sameObject, missing] = await machine.objects.getMultiple([
+  first.path,
+  "/space/task/missing.json",
 ]);
 
-await space.writeMeta({ viewport: { x: 0, y: 0, zoom: 1 } });
-const meta = await space.readMeta();
+await machine.objects.patch(first.path, { done: true });
+await machine.objects.move(first.path, "/space/task/renamed.json");
+const [removal] = await machine.objects.removeMultiple([
+  "/space/task/renamed.json",
+]);
+if (!removal) throw new Error("Object removal returned no result");
+if (!removal.ok) throw removal.error;
+await machine.collections.remove(task.name);
 ```
 
-| Method | Description |
-| --- | --- |
-| `readSchema(): Promise<SpaceSchema>` | Collection definitions, read from `/space/<name>/.schema.json`. |
-| `createCollection(name, fieldsOrDef, options?): Promise<CollectionDef>` | Create a collection. |
-| `alterCollection(name, fieldsOrDef, options?): Promise<CollectionDef>` | Replace a collection definition. |
-| `dropCollection(name): Promise<void>` | Remove a collection and its object directory. |
-| `readMeta(): Promise<Record<string, unknown>>` | Read metadata from `/space/.meta.json`. |
-| `writeMeta(meta): Promise<void>` | Write the full metadata blob to `/space/.meta.json`. |
+`machine.objects.list()` returns object paths from the synchronized file tree without reading their bodies. `get()` reads one object and `getMultiple()` preserves the input positions and returns `undefined` for missing objects. Every call reads the current bodies from DAV, with multiple reads using bounded `read-multiple` batches. Collection schemas are read in the same way and schema replacement follows the guest's lazy-migration rule: existing objects are checked again only when edited.
 
-Field kinds: `string`, `number`, `boolean`, `ref`, `enum`, `literal`, `array`, and `maybe`.
+Creates are create-only. Metadata, schema, and object replacements plus object patches, moves, and removals use ETags and report status `412` when state changed concurrently. `removeMultiple()` uses a separate conditional DAV request for each object and returns ordered per-object results. Removing a collection recursively deletes its contents. Object moves do not overwrite by default; pass `{ overwrite: true }` explicitly. Patch values of `null` or `undefined` remove fields.
 
-## Undo/Redo
+The semantic APIs use the machine's shared file tree and sync loop. They do not create separate synchronization state. Body reads and mutations also work without `machine.files.watch()` by reading current DAV state directly; `objects.list()` reflects the shared file tree, so watch the machine's files before enumerating paths.
 
-Undo/redo works over the whole space. Checkpoints are managed automatically by the server, so you don't need to create them yourself — just call `undo()`/`redo()`.
+## Agents
+
+Agents and conversations use stable JSON routes; their private machine files are not part of the SDK. Prompting does not require `machine.files.watch()`.
 
 ```typescript
-await space.deleteObjects(['/space/article/welcome.json']);
+const defaultAgent = await machine.agents.get("rool");
+if (!defaultAgent) throw new Error("Rool agent is unavailable");
 
-if (await space.canUndo()) {
-  await space.undo();
-}
-```
+const conversation = defaultAgent.conversation("research-chat");
+await conversation.prompt("Explain the result.", { effort: "reasoning" });
 
-| Method | Description |
-| --- | --- |
-| `canUndo(): Promise<boolean>` | Check whether undo is available. |
-| `canRedo(): Promise<boolean>` | Check whether redo is available. |
-| `undo(): Promise<boolean>` | Restore the latest checkpoint. |
-| `redo(): Promise<boolean>` | Reapply undone work. |
-
-Undo/redo availability is scoped to the space.
-
-## File Storage and WebDAV
-
-Every space has authenticated WebDAV storage. WebDAV methods take SDK machine paths such as `/space/...`, `/rool-drive/...`, or `/` for the root collection.
-
-```typescript
-const webdav = space.webdav;
-
-await webdav.mkcol('/rool-drive/docs');
-await webdav.put('/rool-drive/docs/readme.md', '# Hello', {
-  contentType: 'text/markdown',
-  ifNoneMatch: '*',
+renderSettled(await conversation.listTurns());
+clearUnsettled();
+await conversation.follow({
+  onEvent: (event) => {
+    if (event.type !== "output.delta") return;
+    if (event.content.type === "text") {
+      renderUnsettledText(event.content.text);
+    } else if (event.content.type === "tool_call") {
+      showRunningTool(event.content.id, event.content.name);
+    } else if (event.content.type === "tool_result") {
+      showToolResult(event.content.id, event.content.content);
+    }
+  },
 });
+renderSettled(await conversation.listTurns());
+```
 
-const listing = await webdav.propfind('/rool-drive/docs', {
-  depth: '1',
-  props: ['displayname', 'getcontentlength', 'getcontenttype', 'getetag'],
+`prompt()` starts the conversation's current run and resolves once the server accepts it. The agent runs as a detached job. A conversation can only have one current run; call `cancel()` and wait for `follow()` to finish before prompting again. The `readOnly` option is accepted for compatibility with legacy prompting but currently has no effect.
+
+`follow()` performs one `GET` of the conversation's current run. It receives the complete unsettled part of the conversation and then continues with new events until that response ends. Tool calls and their results arrive as `output.delta` events with matching IDs. A tool result contains nested content parts and an optional `error` flag. `follow()` returns `false` when there is no current run. A client can always render the conversation from its durable turns plus the events from its latest `follow()` call.
+
+A `conversation_changed` account event tells clients to fetch the durable turns and follow the current run again. Aborting `follow()` only stops watching. Call `cancel()` to stop the detached job.
+
+Prompt attachments are existing `/space` or `/rool-drive` paths. Pass a durable user turn's `id` as `replaceTurnId` to replace that message and everything after it. This supports edits and rerolls, including the first message. A replacement gets a new user turn ID; use that ID to edit it again.
+
+Pass a JSON Schema as `responseSchema` to request structured output. Tools are skipped for that run. The successful assistant turn contains one JSON content part; the value is JSON directly, not a JSON string.
+
+```typescript
+await conversation.prompt("Return the number of records.", {
+  responseSchema: {
+    type: "object",
+    properties: { count: { type: "integer" } },
+    required: ["count"],
+    additionalProperties: false,
+  },
 });
+await conversation.follow();
 
-const response = await webdav.get('/rool-drive/docs/readme.md');
-console.log(await response.text());
-
-const file = await space.fetchPath('/rool-drive/docs/readme.md');
-console.log(file.headers.get('Content-Type'));
-
+const turns = await conversation.listTurns();
+const part = turns.at(-1)?.body.content[0];
+if (part?.type !== "json") throw new Error("No structured result");
+console.log(part.value); // { count: ... }
 ```
 
-### Real-time file sync
-
-Object and file changes are announced at the space level. Use WebDAV `syncCollection()` to reconcile changes.
+Custom agent definitions currently contain one plain system prompt. The server owns the executable agent implementation.
 
 ```typescript
-let token: string | null = null;
-
-async function syncFiles() {
-  const result = await space.webdav.syncCollection('/', {
-    token,
-    level: 'infinite',
-    props: ['displayname', 'getetag', 'getlastmodified', 'resourcetype'],
-  });
-  token = result.token;
-  updateFileTree(result.responses);
-}
-
-space.on('filesChanged', syncFiles);
-space.on('filesReset', () => {
-  token = null;
-  void syncFiles();
+const researcher = await machine.agents.create("researcher", {
+  system: "Investigate carefully and distinguish facts from uncertainty.",
 });
-
-await syncFiles();
+const customConversation = await researcher.createConversation({
+  name: "Climate report",
+  visibility: "private",
+});
+await customConversation.prompt("Investigate this claim.");
 ```
 
-| Method | Description |
-| --- | --- |
-| `webdav.href(path)` / `webdav.url(path)` | Return WebDAV href/URL for an absolute SDK path. |
-| `webdav.options(path)` | Send `OPTIONS`. |
-| `webdav.propfind(path, options)` | Read properties/list collections. `depth` is required. |
-| `webdav.syncCollection(path, options)` | WebDAV `REPORT sync-collection`; returns changed responses and next token. |
-| `webdav.get(path, options?)` / `webdav.head(path)` | Read a file; `get` supports byte ranges. |
-| `webdav.put(path, body, options?)` | Write a file/object at an exact path. Parent collection must exist unless `createParents: true` is passed, which creates missing parent collections atomically (intended for `/rool-drive` paths). |
-| `webdav.mkcol(path)` | Create one collection. |
-| `webdav.copy(source, destination, options?)` | Copy a file or collection. |
-| `webdav.move(source, destination, options?)` | Move a file or collection. |
-| `webdav.delete(path, options?)` | Delete a file or collection. |
-| `webdav.lock(path, options)` / `refreshLock(path, token)` / `unlock(token)` | WebDAV write locks. |
-| `webdav.request(method, path, init?)` | Raw authenticated WebDAV request. |
-| `space.fetchPath(path, options?)` | Fetch a `/rool-drive/...` file path or `rool-machine:` file URI. |
+Agents expose `replace()` and `delete()`. Conversations expose metadata replacement, listing, durable turn reads, rename, and deletion. Listed and fetched conversation metadata includes server-managed ISO 8601 `createdAt` and `updatedAt` timestamps plus `isRunning`, which can drive a running indicator without opening every run stream. Visibility defaults to private. The built-in `rool` agent cannot be replaced or deleted.
 
-High-level WebDAV methods that validate response status throw `WebDAVError` with `status`, `statusText`, and `body`; raw `request()` and `options()` return `Response`.
-
-## Collaboration
-
-New members join a space by redeeming an invite. Owners and admins mint invites; the returned `url` contains the secret token and is only available at mint time.
+## Members and invites
 
 ```typescript
-// Shareable invite link
-const invite = await space.createInvite('editor', { expiresInDays: 7 });
-console.log(invite.url);
+const invite = await machine.invites.create({
+  role: "editor",
+  maxUses: 1,
+});
+const token = invite.url.split("/").at(-1)!;
 
-// Email-guarded invite: single-use, locked to that address, sent by mail
-const emailed = await space.createInvite('viewer', { email: 'colleague@example.com' });
-if (emailed.emailStatus !== 'sent') {
-  // Mail did not go out (e.g. no mail provider configured) — share emailed.url yourself
-}
+await client.getInvitePreview(token);
+await client.redeemInvite(token);
 
-// Manage outstanding invites
-const invites = await space.listInvites();
-await space.revokeInvite(invites[0].inviteId);
-
-// Change an existing member's role, or remove them
-await space.setUserRole(userId, 'admin');
-await space.removeUser(userId);
+const members = await machine.members.list();
+console.log(members[1].name ?? members[1].email);
+await machine.members.replaceRole(members[1].userId, { role: "viewer" });
+await machine.members.remove(members[1].userId);
+await machine.invites.revoke(invite.id);
 ```
 
-On the join page, look up the invite before sign-in and redeem it once authenticated:
-
-```typescript
-const preview = await client.previewInvite(token); // no auth required
-console.log(preview.spaceName, preview.role, preview.inviterName);
-
-const result = await client.redeemInvite(token);
-console.log(result.spaceId, result.status); // 'joined' | 'upgraded' | 'already_member'
-```
-
-Invalid, expired, revoked, exhausted, or email-mismatched invites throw `InviteError` with a `code` of `'INVITE_INVALID' | 'INVITE_EXPIRED' | 'INVITE_REVOKED' | 'INVITE_EXHAUSTED' | 'INVITE_EMAIL_MISMATCH'`.
-
-```typescript
-import { InviteError } from '@rool-dev/sdk';
-
-try {
-  await client.redeemInvite(token);
-} catch (error) {
-  if (error instanceof InviteError && error.code === 'INVITE_EXPIRED') {
-    // Ask for a fresh invite
-  }
-}
-```
-
-Roles (invites grant `admin`, `editor`, or `viewer` — never `owner`):
-
-| Role | Capabilities |
-| --- | --- |
-| `owner` | Full control. |
-| `admin` | Editor capabilities plus user/link management. |
-| `editor` | Create, modify, move, and delete objects/files. |
-| `viewer` | Read-only access. |
+Invite URLs contain a secret token and are returned only when an invite is created. Invites can optionally be bound to an email address. Role replacement never creates membership or transfers ownership.
 
 ## Gifts
 
-A gift is something of value carried by a short code, e.g. `K7M2-9QRT`. Users are issued gifts server-side and give them away in their own words; whoever claims one gets what it holds. Claiming your own gift is a legitimate use. A gift is unclaimed or claimed, and claiming is single-use.
-
-What a gift grants is in its `gift` field, discriminated by `kind`. Every gift also carries a server-rendered `description` such as `"10,000 AI credits"`, so UI can display any gift without knowing its kind. Prefer `description` unless you need the numbers.
-
-Narrow on `kind` before reading any other payload field. Kinds are added over time, and un-narrowed access becomes a compile error when the next one lands.
-
-Users hold no gifts by default, so `listGifts()` returning an empty list is the normal state for most accounts, not an error.
+A gift carries something of value in a short code. Users receive gifts from Rool and give the codes away themselves. Claiming a gift is single-use, and claiming your own gift is allowed.
 
 ```typescript
-// The current user's gifts, spent and unspent
 const { gifts } = await client.listGifts();
 for (const gift of gifts) {
   console.log(gift.code, gift.url, gift.description, gift.claimedAt);
 }
-```
 
-On the claim page, look up the gift before sign-up and claim it once authenticated:
-
-```typescript
 const preview = await client.previewGift(code); // no auth required
-console.log(`${preview.holderName} gave you ${preview.description}`);
+console.log(
+  `${preview.holderName ?? "Someone"} gave you ${preview.description}`,
+);
 
 const { gift } = await client.claimGift(code);
-if (gift.kind === 'credits') console.log(`+${gift.credits} credits`);
+if (gift.kind === "credits") console.log(`+${gift.credits} credits`);
 ```
 
-Codes are case-insensitive, and the dash is optional on input.
+Codes are case-insensitive and the dash is optional. Prefer the server-rendered `description` for display. Narrow `gift.kind` when using the structured payload because new gift kinds may be added.
 
-When a gift is claimed, `claimedByName` carries the claimer's display name — the reciprocal of the claim page showing the holder's name to the claimer. The claim page tells the claimer this will happen.
-
-A holder can annotate a gift with a note ("sent this to Peter") and archive it to hide it from their default view. Both are bookkeeping only: an archived gift's code still claims.
-
-A holder can also rotate a gift's code: a fresh code is minted and the old one stops working. Use it to take back a code that was given away but never claimed — the gift itself is untouched.
+A holder can add a note, archive a gift, or replace an unclaimed gift's code. These actions do not change what the gift grants. Archiving only hides it from the holder's normal view.
 
 ```typescript
-await client.updateGift(gift.id, { note: 'sent to Peter' });
-await client.updateGift(gift.id, { archived: true });
-await client.updateGift(gift.id, { note: null }); // clear the note
-
-const updated = await client.rotateGiftCode(gift.id);
-console.log(updated.code, updated.url); // the old code and link are dead
+await client.updateGift(giftId, { note: "sent to Peter" });
+await client.updateGift(giftId, { archived: true });
+await client.updateGift(giftId, { note: null });
+const updated = await client.rotateGiftCode(giftId);
 ```
 
-Failed gift operations throw `GiftError` with a `code`:
+Gift failures are `RoolProblem` errors. `gift_invalid` means the code or gift is unavailable to the caller. `gift_claimed` means it was already claimed.
 
-| Code | Meaning |
-| --- | --- |
-| `gift_invalid` | No gift matches that code. |
-| `gift_claimed` | The gift has already been claimed. |
+## API problems
 
-```typescript
-import { GiftError } from '@rool-dev/sdk';
+Each problem `type` links to its entry below.
 
-try {
-  await client.claimGift(code);
-} catch (error) {
-  if (error instanceof GiftError && error.code === 'gift_claimed') {
-    // Offer a plain signup instead
-  }
-}
+<a id="problem-authentication_required"></a>
+
+### `authentication_required`
+
+**Documentation placeholder.**
+
+<a id="problem-invalid_authentication"></a>
+
+### `invalid_authentication`
+
+**Documentation placeholder.**
+
+<a id="problem-email_unverified"></a>
+
+### `email_unverified`
+
+**Documentation placeholder.**
+
+<a id="problem-account_suspended"></a>
+
+### `account_suspended`
+
+**Documentation placeholder.**
+
+<a id="problem-invalid_profile"></a>
+
+### `invalid_profile`
+
+**Documentation placeholder.**
+
+<a id="problem-invalid_user_app_data"></a>
+
+### `invalid_user_app_data`
+
+**Documentation placeholder.**
+
+<a id="problem-invalid_json"></a>
+
+### `invalid_json`
+
+**Documentation placeholder.**
+
+<a id="problem-payload_too_large"></a>
+
+### `payload_too_large`
+
+**Documentation placeholder.**
+
+<a id="problem-user_app_data_too_large"></a>
+
+### `user_app_data_too_large`
+
+**Documentation placeholder.**
+
+<a id="problem-not_found"></a>
+
+### `not_found`
+
+**Documentation placeholder.**
+
+<a id="problem-checkpoint_not_found"></a>
+
+### `checkpoint_not_found`
+
+**Documentation placeholder.**
+
+<a id="problem-sync_token_required"></a>
+
+### `sync_token_required`
+
+The account event route requires the sync token returned by `/v2/session`.
+
+<a id="problem-invalid_sync_token"></a>
+
+### `invalid_sync_token`
+
+The account event history no longer contains everything after this token. Fetch `/v2/session` and continue with its new token.
+
+<a id="problem-invalid_wait_preference"></a>
+
+### `invalid_wait_preference`
+
+The account event wait must be an integer from 0 through 50 seconds.
+
+<a id="problem-internal_error"></a>
+
+### `internal_error`
+
+**Documentation placeholder.**
+
+<a id="problem-server_misconfigured"></a>
+
+### `server_misconfigured`
+
+**Documentation placeholder.**
+
+<a id="problem-current_run_exists"></a>
+
+### `current_run_exists`
+
+The conversation is already running. Cancel or follow that run before prompting again. This also applies to prompts with `replaceTurnId`.
+
+<a id="problem-replace_turn_not_found"></a>
+
+### `replace_turn_not_found`
+
+The user turn supplied as `replaceTurnId` is no longer in the conversation. Fetch the turns again before retrying the edit.
+
+<a id="problem-invalid_member_role"></a>
+
+### `invalid_member_role`
+
+**Documentation placeholder.**
+
+<a id="problem-role_not_replaceable"></a>
+
+### `role_not_replaceable`
+
+**Documentation placeholder.**
+
+<a id="problem-membership_not_removable"></a>
+
+### `membership_not_removable`
+
+**Documentation placeholder.**
+
+<a id="problem-invalid_invite"></a>
+
+### `invalid_invite`
+
+**Documentation placeholder.**
+
+<a id="problem-invite_invalid"></a>
+
+### `invite_invalid`
+
+**Documentation placeholder.**
+
+<a id="problem-invite_expired"></a>
+
+### `invite_expired`
+
+**Documentation placeholder.**
+
+<a id="problem-invite_revoked"></a>
+
+### `invite_revoked`
+
+**Documentation placeholder.**
+
+<a id="problem-invite_exhausted"></a>
+
+### `invite_exhausted`
+
+**Documentation placeholder.**
+
+<a id="problem-invite_email_mismatch"></a>
+
+### `invite_email_mismatch`
+
+**Documentation placeholder.**
+
+<a id="problem-gift_invalid"></a>
+
+### `gift_invalid`
+
+The code is not valid, or the requested gift does not belong to the current user.
+
+<a id="problem-gift_claimed"></a>
+
+### `gift_claimed`
+
+The gift has already been claimed. A claimed gift cannot be claimed again or given a new code.
+
+<a id="problem-invalid_input"></a>
+
+### `invalid_input`
+
+The gift update is empty or contains an invalid note or archived value.
+
+## Development
+
+```bash
+pnpm build
+pnpm typecheck
 ```
 
-## RoolClient API
+The user-route smoke test must target a dedicated non-production account. It replaces profile and app data, then schedules and cancels account deletion. The member-route smoke test requires a second non-production account to exercise invite redemption and membership changes. The local gift fixture accounts are deleted after the gift smoke test.
 
-### Constructor config
+Copy `.env.example` to the ignored `.env` file and configure the local endpoints and expected primary account ID.
 
-```typescript
-const client = new RoolClient({
-  apiUrl: 'https://api.rool.dev',
-  authUrl: 'https://rool.dev/auth',
-  graphqlUrl: 'https://api.rool.dev/graphql',
-  client: {
-    appName: 'com.example.app',
-    appVersion: '1.4.2',
-    osVersion: 'iOS 17.5',
-  },
-  logger: console,
-});
+| Variable                        | Purpose                                                                |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `ROOL_TEST_API_URL`             | API origin. HTTPS is required except for loopback development servers. |
+| `ROOL_TEST_AUTH_URL`            | Auth endpoint override required for a loopback API.                    |
+| `ROOL_TEST_ROUTER_URL`          | Local machine-router origin.                                           |
+| `ROOL_TEST_USER_ID`             | Expected primary account ID, preventing mutation of the wrong account. |
+| `ROOL_TEST_GIFT_HOLDER_EMAIL`   | Local fixture account that holds a gift.                               |
+| `ROOL_TEST_GIFT_CLAIMANT_EMAIL` | Local fixture account that claims the gift.                            |
+| `ROOL_TEST_INTERNAL_SECRET`     | Local rool-server secret used to create and remove fixtures.           |
+
+Log the `sdk-v2-primary` and `sdk-v2-member` Node profiles into two dedicated accounts:
+
+```bash
+node --env-file=.env --import tsx test/integration/v2/login.ts
 ```
 
-`apiUrl` defaults to `https://api.rool.dev`; `authUrl` is derived by stripping the `api.` hostname prefix unless provided. `baseUrl` is still accepted as a deprecated alias for `apiUrl`. Pass `authProvider` for Node.js, Electron, or custom auth flows.
+Then run the complete v2 smoke-test suite:
 
-`client` is optional application identity sent on requests alongside the SDK package name/version. Compatibility is based only on the SDK version.
-
-| Method/property | Description |
-| --- | --- |
-| `currentUser: CurrentUser | null` | Cached user profile from initialization/fetch. |
-| `getCurrentUser(): Promise<CurrentUser>` | Fetch current user. |
-| `updateCurrentUser(input): Promise<CurrentUser>` | Update `name`, `slug`, or `marketingOptIn`. |
-| `deleteCurrentUser(): Promise<void>` | Mark account for deletion and log out. |
-| `previewInvite(token): Promise<InvitePreview>` | Look up an invite link without redeeming it. No auth required. |
-| `redeemInvite(token): Promise<InviteRedeemResult>` | Redeem an invite, joining (or upgrading in) its space. |
-| `previewGift(code): Promise<GiftPreview>` | Look up a gift without claiming it. No auth required. |
-| `claimGift(code): Promise<GiftClaimResult>` | Claim a gift, granting what it holds to the current account. |
-| `listGifts(): Promise<GiftList>` | The current user's gifts, spent and unspent. |
-| `updateGift(giftId, changes): Promise<Gift>` | Set or clear a gift's note, or change its archived state. |
-| `rotateGiftCode(giftId): Promise<Gift>` | Mint a new code for a gift; the old code and link stop working. |
-| `listSpaces(): Promise<RoolSpaceInfo[]>` | List accessible spaces. |
-| `openSpace(id): Promise<RoolSpace>` | Open/cached live space handle. |
-| `createSpace(name): Promise<RoolSpace>` | Create and open a space. |
-| `duplicateSpace(sourceId, name): Promise<RoolSpace>` | Duplicate a space. |
-| `deleteSpace(id): Promise<void>` | Permanently delete a space. |
-| `importArchive(name, archive): Promise<RoolSpace>` | Import a zip archive as a new space. |
-| `getUserStorage<T>(key): T | undefined` | Sync read from user-storage cache. |
-| `setUserStorage(key, value): void` | Update user storage; `null`/`undefined` deletes. |
-| `getAllUserStorage(): Record<string, unknown>` | Copy all cached user storage. |
-| `reportEvent(event, url?): void` | Fire-and-forget telemetry event. |
-| `destroy(): void` | Close subscriptions, spaces, auth resources, and listeners. |
-| `generateId(): string` | Generate a unique ID suitable for conversation IDs. |
-
-### Client events
-
-```typescript
-client.on('authStateChanged', (authenticated) => void 0);
-client.on('currentUserChanged', (user) => void 0); // CurrentUser | null; null on sign-out
-client.on('spaceAdded', (space) => void 0);
-client.on('spaceRemoved', (spaceId) => void 0);
-client.on('spaceRenamed', (spaceId, newName) => void 0);
-client.on('userStorageChanged', ({ key, value, source }) => void 0);
-client.on('connectionStateChanged', (state) => void 0);
-client.on('error', (error, context) => void 0);
-client.on('serverInfoChanged', (info) => void 0);
-client.on('unsupported', (info) => void 0); // SDK older than server minimum
+```bash
+pnpm test:v2
 ```
 
-## RoolSpace API
+To run one smoke test manually, invoke its script directly, for example:
 
-Properties: `id`, `name`, `role`, `memberCount`, `openSpaceResult`, `route`, `webdav`.
-
-| Method | Description |
-| --- | --- |
-| `conversation(conversationId): ConversationHandle` | Get a stateless conversation-scoped handle. |
-| `getObject`, `getObjects` | Read object data. |
-| `listConversations`, `createConversation`, `deleteConversation` | Fetch, create, and delete conversations. |
-| `listAgents`, `deleteAgent` | List the space's agents and delete a custom agent. |
-| `readMeta`, `writeMeta`, `readSchema` | Read and write WebDAV-backed metadata and schema. |
-| `canUndo`, `canRedo`, `undo`, `redo` | Space history controls. |
-| `stopConversation(conversationId): Promise<boolean>` | Stop whatever is running in a conversation. |
-| `fetch(url, init?): Promise<Response>` | Proxy an external HTTP request through the server to bypass browser CORS. |
-| `close(): void` | Stop the space subscription. |
-| `rename(newName): Promise<void>` | Rename the space. |
-| `delete(): Promise<void>` | Permanently delete the space. |
-| `listUsers(): Promise<SpaceMember[]>` | List collaborators. |
-| `setUserRole(userId, role): Promise<void>` | Change an existing member's role. |
-| `removeUser(userId): Promise<void>` | Remove collaborator. |
-| `createInvite(role, options?): Promise<SpaceInviteCreated>` | Mint an invite link; `options` takes `email`, `expiresInDays`, `maxUses`. |
-| `listInvites(): Promise<SpaceInvite[]>` | List currently redeemable invites. |
-| `revokeInvite(inviteId): Promise<boolean>` | Revoke an invite so its link stops working. |
-| `exportArchive(): Promise<Blob>` | Export a space archive. |
-| `refresh(): Promise<OpenSpaceResult>` | Refresh identity, access, member count, and conversation metadata. |
-| `fetchPath(path, options?): Promise<Response>` | Fetch a `/rool-drive/...` file. |
-
-Events:
-
-```typescript
-space.on('conversationUpdated', ({ conversationId, conversation, source, timestamp }) => void 0);
-space.on('syncError', (error) => void 0);
-space.on('filesChanged', ({ spaceId, source, timestamp }) => void 0);
-space.on('filesReset', ({ spaceId, source, timestamp }) => void 0);
-space.on('connectionStateChanged', (state) => void 0);
-```
-## Import/Export
-
-```typescript
-const archive = await space.exportArchive();
-const imported = await client.importArchive('Imported Data', archive);
-```
-
-Archives include objects, metadata, conversations, and file storage.
-
-## Data Types
-
-```typescript
-// Outcome of signInWithPassword. 'verify_required' means the account's email
-// isn't verified yet and the server has emailed a magic link.
-type PasswordSignInResult = { status: 'signed_in' | 'verify_required' };
-
-type FieldType =
-  | { kind: 'string' }
-  | { kind: 'number' }
-  | { kind: 'boolean' }
-  | { kind: 'array'; inner?: FieldType }
-  | { kind: 'maybe'; inner: FieldType }
-  | { kind: 'enum'; values: string[] }
-  | { kind: 'literal'; value: string | number | boolean }
-  | { kind: 'ref' };
-
-interface FieldDef {
-  name: string;
-  type: FieldType;
-}
-
-interface CollectionDef {
-  fields: FieldDef[];
-  schemaOrgType?: string;
-}
-
-type SpaceSchema = Record<string, CollectionDef>;
-
-interface RoolObject {
-  path: string;
-  body: Record<string, unknown>;
-}
-
-interface GetObjectsResult {
-  objects: RoolObject[];
-  missing: string[];
-}
-
-// Who may see a conversation: 'shared' is every space member; 'private' is
-// owner-only; 'temporary' is private plus auto-delete once it sits idle.
-type ConversationVisibility = 'shared' | 'private' | 'temporary';
-
-// Lightweight conversation roster entry (no interaction bodies), returned by
-// openSpace/listConversations. `updatedAt` drives last-activity display.
-interface ConversationMeta {
-  id: string;
-  agent: string; // owning agent ('rool' is the stock agent)
-  visibility: ConversationVisibility;
-  name: string | null;
-  systemInstruction: string | null;
-  createdAt: number;
-  createdBy: string;
-  interactionCount: number;
-  updatedAt: number;
-}
-
-type InviteRole = 'admin' | 'editor' | 'viewer';
-
-interface SpaceInvite {
-  inviteId: string;
-  spaceId: string;
-  role: InviteRole;
-  email: string | null;
-  createdBy: string;
-  createdAt: string;
-  expiresAt: string;
-  maxUses: number | null;
-  useCount: number;
-}
-
-// Outcome of the invite email send. Null when no email was involved (open link).
-// The invite is always minted and its `url` is usable regardless of this value;
-// only the email delivery is reflected here.
-// - 'sent': email dispatched
-// - 'not_configured': server has no mail provider (local dev)
-// - 'failed': provider rejected the send
-// - 'cooldown': a recent invite to this same address was already emailed
-// - 'rate_limited': the inviter hit their daily email-invite cap
-// Treat unknown values as not sent.
-type InviteEmailStatus =
-  | 'sent'
-  | 'not_configured'
-  | 'failed'
-  | 'cooldown'
-  | 'rate_limited'
-  | (string & {});
-
-interface SpaceInviteCreated {
-  inviteId: string;
-  spaceId: string;
-  role: InviteRole;
-  email: string | null;
-  expiresAt: string;
-  maxUses: number | null;
-  url: string; // contains the secret token; only available at mint time
-  emailStatus: InviteEmailStatus | null;
-}
-
-interface InvitePreview {
-  spaceId: string;
-  spaceName: string;
-  role: InviteRole;
-  email: string | null;
-  inviterName: string | null;
-}
-
-interface InviteRedeemResult {
-  spaceId: string;
-  role: RoolUserRole;
-  status: 'joined' | 'upgraded' | 'already_member';
-}
-
-type GiftPayload = { kind: 'credits'; credits: number };
-
-interface Gift {
-  id: string;
-  code: string;          // display form, e.g. "K7M2-9QRT"
-  url: string;           // claim URL carrying the code
-  gift: GiftPayload;
-  description: string;   // e.g. "10,000 AI credits"
-  claimedAt: string | null;  // null while unspent
-  claimedByName: string | null; // claimer's display name, when they have one
-  createdAt: string;
-  note: string | null;       // the holder's own reminder
-  archivedAt: string | null; // set when hidden; the code still claims
-}
-
-interface GiftUpdate {
-  note?: string | null;  // undefined leaves as-is, null clears
-  archived?: boolean;
-}
-
-interface GiftList {
-  gifts: Gift[];
-}
-
-interface GiftPreview {
-  holderName: string | null;
-  gift: GiftPayload;
-  description: string;
-}
-
-interface GiftClaimResult {
-  gift: GiftPayload;
-  description: string;
-}
-
-type PromptAttachment =
-  | File
-  | Blob
-  | { data: string; contentType: string; filename?: string }
-  | string;
-
-type PromptEffort = 'QUICK' | 'STANDARD' | 'REASONING' | 'RESEARCH';
-
-interface PromptOptions {
-  responseSchema?: Record<string, unknown>;
-  effort?: PromptEffort;
-  parentInteractionId?: string | null;
-  ephemeral?: boolean;
-  readOnly?: boolean;
-  attachments?: PromptAttachment[];
-  signal?: AbortSignal;
-  eventName?: string;
-}
-
-type InteractionStatus = 'pending' | 'streaming' | 'done' | 'error';
-
-interface Interaction {
-  id: string;
-  parentId: string | null;
-  timestamp: number;
-  userId: string;
-  userName?: string | null;
-  operation: 'prompt' | 'putObject' | 'patchObject' | 'moveObject' | 'deleteObjects' | 'deletePaths' | string;
-  input: string;
-  output: string | null;
-  status: InteractionStatus;
-  ai: boolean;
-  modifiedObjectPaths: string[];
-  toolCalls: ToolCall[];
-  attachments?: string[];
-}
+```bash
+node --env-file=.env --import tsx test/integration/v2/machine-routes.test.ts
 ```
 
 ## License
 
-MIT - see [LICENSE](../../LICENSE) for details.
+MIT — see [LICENSE](../../LICENSE).

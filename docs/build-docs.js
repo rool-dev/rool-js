@@ -6,21 +6,21 @@
  * Static pages (index.md) are checked into git directly.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'fs';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { dirname } from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = dirname(__dirname);
 const contentDir = `${__dirname}/src/content/docs`;
 
-// Ensure content directory exists and remove stale generated docs.
+// Ensure content directory exists.
 mkdirSync(contentDir, { recursive: true });
-rmSync(`${contentDir}/cli.md`, { force: true });
-rmSync(`${contentDir}/extension.md`, { force: true });
 
 function getVersion(pkgPath) {
-  const pkg = JSON.parse(readFileSync(`${root}/${pkgPath}/package.json`, 'utf-8'));
+  const pkg = JSON.parse(
+    readFileSync(`${root}/${pkgPath}/package.json`, "utf-8"),
+  );
   return pkg.version;
 }
 
@@ -28,14 +28,11 @@ function transform(content, title, pkgPath) {
   // Fix LICENSE links (make them external GitHub links)
   content = content.replace(
     /\[LICENSE\]\(\.\.\/\.\.\/LICENSE\)/g,
-    '[LICENSE](https://github.com/rool-dev/rool-js/blob/main/LICENSE)'
+    "[LICENSE](https://github.com/rool-dev/rool-js/blob/main/LICENSE)",
   );
 
-  // Point cross-package README links at the docs pages
-  content = content.replace(/\]\(\.\.\/sdk\/README\.md\)/g, '](/sdk/)');
-
   // Remove the first H1 (Starlight adds title from frontmatter)
-  content = content.replace(/^# .+\n+/, '');
+  content = content.replace(/^# .+\n+/, "");
 
   // Add frontmatter for Starlight
   const version = getVersion(pkgPath);
@@ -51,18 +48,24 @@ title: ${title}
 }
 
 // SDK README → sdk.md (will be at /sdk/)
-const sdkReadme = readFileSync(`${root}/packages/sdk/README.md`, 'utf-8');
-writeFileSync(`${contentDir}/sdk.md`, transform(sdkReadme, 'Rool SDK', 'packages/sdk'));
+const sdkReadme = readFileSync(`${root}/packages/sdk/README.md`, "utf-8");
+writeFileSync(
+  `${contentDir}/sdk.md`,
+  transform(sdkReadme, "Rool SDK", "packages/sdk"),
+);
 
 // Svelte README → svelte.md (will be at /svelte/)
-const svelteReadme = readFileSync(`${root}/packages/svelte/README.md`, 'utf-8');
-writeFileSync(`${contentDir}/svelte.md`, transform(svelteReadme, 'Rool Svelte', 'packages/svelte'));
+const svelteReadme = readFileSync(`${root}/packages/svelte/README.md`, "utf-8");
+writeFileSync(
+  `${contentDir}/svelte.md`,
+  transform(svelteReadme, "Rool Svelte", "packages/svelte"),
+);
 
 // Generate llms.txt from index.md (strip frontmatter, fix relative links)
-const indexMd = readFileSync(`${contentDir}/index.md`, 'utf-8');
+const indexMd = readFileSync(`${contentDir}/index.md`, "utf-8");
 const llmsTxt = indexMd
-  .replace(/^---[\s\S]*?---\n+/, '# Rool\n\n') // Replace frontmatter with title
-  .replace(/\]\(\//g, '](https://docs.rool.dev/'); // Make relative links absolute
+  .replace(/^---[\s\S]*?---\n+/, "# Rool\n\n") // Replace frontmatter with title
+  .replace(/\]\(\//g, "](https://docs.rool.dev/"); // Make relative links absolute
 writeFileSync(`${__dirname}/public/llms.txt`, llmsTxt);
 
-console.log('Docs built from READMEs');
+console.log("Docs built from READMEs");

@@ -1,135 +1,131 @@
-// Main client
-export { RoolClient } from './client.js';
-
-// Space operation helpers
-export {
-  ConversationHandle,
-  conversationBranch,
-  defaultConversationLeaf,
-  generateEntityId,
-} from './space-session.js';
-
-// Space class
-export { RoolSpace } from './space.js';
-export type { OpenSpaceResult } from './graphql.js';
-
-// Machine paths
-export { isObjectPath, machinePath, machineUri } from './path.js';
-
-// WebDAV client
-export { RoolWebDAV, WebDAVError } from './webdav.js';
+export { RoolClient, roolSdkVersion } from "./client.js";
+export { EmailChangeError } from "./auth-base.js";
+export type { EmailChangeErrorCode } from "./auth-base.js";
+export { BrowserAuth } from "./auth-browser.js";
+export type { BrowserAuthConfig } from "./auth-browser.js";
+export { NativeAuth } from "./auth-native.js";
+export type { NativeAuthConfig, NativeAuthProvider } from "./auth-native.js";
+export { RoolProblem } from "./problem.js";
+export { RoolFileError } from "./files.js";
 export type {
-  WebDAVActiveLock,
-  WebDAVDepth,
-  WebDAVLockDepth,
-  WebDAVLockResult,
-  WebDAVMultiStatus,
-  WebDAVSyncCollectionResult,
-  WebDAVSyncLevel,
-  WebDAVPropName,
-  WebDAVProps,
-  WebDAVPropstat,
-  WebDAVRequestInit,
-  WebDAVResponse,
-  WebDAVWriteResult,
-} from './webdav.js';
-
-// Space router (shard resolution for space-scoped traffic)
-export { SpaceRouter } from './router.js';
-export type { RouteInfo } from './router.js';
-
-// Invite redemption and gift claim errors
-export { InviteError, GiftError } from './rest.js';
-export type { InviteErrorCode, GiftErrorCode } from './rest.js';
-export { EmailChangeError } from './auth.js';
-export type { EmailChangeErrorCode } from './auth.js';
-
-// Event emitter (for extending)
-export { EventEmitter } from './event-emitter.js';
-
-// Native PKCE auth provider (for JS app shells: Capacitor, Cordova, ...)
-export { NativePkceAuthProvider } from './auth-native.js';
-export type { NativePkceAuthConfig, NativeAuthFlowProvider } from './auth-native.js';
-
-export { roolSdkVersion } from './client-info.js';
-
-// Logger
-export type { Logger } from './logger.js';
-
-// Types
+  AgentRequestOptions,
+  MachineAgent,
+  MachineAgentCreateInput,
+  MachineAgentDefinition,
+  MachineAgents,
+  MachineAssistantFinish,
+  MachineConversation,
+  MachineConversationCancelOptions,
+  MachineConversationContentPart,
+  MachineConversationCreateOptions,
+  MachineConversationFollowOptions,
+  MachineConversationMetadata,
+  MachineConversationMetadataInput,
+  MachineConversationPromptOptions,
+  MachineConversationState,
+  MachineConversationSummary,
+  MachineConversationTurn,
+  MachineConversationTurnBody,
+  MachineConversationTurnRole,
+  MachineConversationVisibility,
+  MachinePromptEffort,
+  MachineRunEvent,
+} from "./agents.js";
+export { isRoolObjectPath } from "./structured.js";
 export type {
-  // Core types
-  RoolObject,
-  GetObjectsResult,
-  RoolSpaceInfo,
-
-  // Subscription event types (wire protocol)
-  ClientEvent,
-  ClientEventType,
-  SpaceEvent,
-  SpaceEventType,
-  RoolEventSource,
-
-  // User types
-  SpaceMember,
-  RoolUserRole,
-  InviteRole,
-  SpaceInvite,
-  SpaceInviteCreated,
-  InviteEmailStatus,
-  InvitePreview,
-  InviteRedeemResult,
-  Gift,
-  GiftPayload,
-  GiftList,
-  GiftPreview,
-  GiftClaimResult,
-  GiftUpdate,
-
-  CurrentUser,
-  AuthUser,
-
-
-  // Schema types
-  FieldType,
-  FieldDef,
+  RoolAccountEvent,
+  RoolClientEvent,
+  RoolEvents,
+} from "./events.js";
+export type {
+  MachineDirectoryCreateOptions,
+  MachineFileAccess,
+  MachineFileAccessAudience,
+  MachineFileCapabilities,
+  MachineFileCopyOptions,
+  MachineFileDeleteMultipleOptions,
+  MachineFileDeleteOptions,
+  MachineFileDeleteResult,
+  MachineFileDeleteTarget,
+  MachineFileInfo,
+  MachineFileListOptions,
+  MachineFilePath,
+  MachineFiles,
+  MachineFileRange,
+  MachineFileReadMultipleOptions,
+  MachineFileReadOptions,
+  MachineFileReadResult,
+  MachineFileTransferOptions,
+  MachineFileTransferResult,
+  MachineFileTree,
+  MachineFileTreeChange,
+  MachineFileTreeListOptions,
+  MachineFileUploadProgress,
+  MachineFileWriteOptions,
+  MachineStorageUsage,
+} from "./files.js";
+export type {
+  MachineCheckpointsApi,
+  MachineInvitesApi,
+  MachineMembersApi,
+  MachineSettingsApi,
+  RoolMachine,
+} from "./machine.js";
+export type {
   CollectionDef,
-  CollectionOptions,
+  FieldDef,
+  FieldType,
+  MachineCollection,
+  MachineCollectionPath,
+  MachineCollectionsApi,
+  MachineMetadata,
+  MachineMetadataApi,
+  MachineObjectsApi,
+  MachineStructuredRequestOptions,
+  RoolObject,
+  RoolObjectMoveOptions,
+  RoolObjectPath,
+  RoolObjectRemoveResult,
   SpaceSchema,
-
-  // AI types
-  PromptOptions,
-  PromptAttachment,
-  PromptEffort,
-  UpdateObjectOptions,
-  MoveObjectOptions,
-
-  // Connection types
-  ConnectionState,
-
-  // Event types (emitter)
-  ChangeSource,
-  SpaceContentEvents,
-  ConversationUpdatedEvent,
-
-  // Conversation types
-  Conversation,
-  ConversationMeta,
-  ConversationVisibility,
-  Interaction,
-  InteractionStatus,
-  ToolCall,
-  RunningToolCall,
-  FinishedToolCall,
-
-  // Config types
-  RoolClientConfig,
-  RoolClientEvents,
-  RoolSpaceEvents,
-  AuthTokens,
-  AuthProvider,
-  PasswordSignInResult,
-  RoolClientIdentity,
-  ServerInfo,
+} from "./structured.js";
+export type {
   ClientCompatibility,
-} from './types.js';
+  CreateMachineInvite,
+  CreatedMachineInvite,
+  Gift,
+  GiftClaimResult,
+  GiftList,
+  GiftPayload,
+  GiftPreview,
+  GiftUpdate,
+  Greeting,
+  InviteRedemption,
+  InviteRedemptionStatus,
+  MachineCheckpoint,
+  MachineCheckpointCollection,
+  MachineFetchInit,
+  MachineInvite,
+  MachineInviteEmailStatus,
+  MachineInvitePreview,
+  MachineInviteRole,
+  MachineLifecycleState,
+  MachineMember,
+  MachineMemberRoleConfiguration,
+  MachineMeta,
+  MachineRole,
+  MachineSettings,
+  MachineSummary,
+  PasswordSignInResult,
+  RoolAuth,
+  RoolClientConfig,
+  RoolClientIdentity,
+  RoolPlan,
+  RoolProblemDetails,
+  RoolRequestTokens,
+  RoolSession,
+  RoolTokenSource,
+  ServerInfo,
+  UserAccount,
+  UserAppData,
+  UserProfile,
+} from "./types.js";

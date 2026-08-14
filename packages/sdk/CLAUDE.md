@@ -1,34 +1,23 @@
-# rool-sdk
+# Rool SDK
 
-TypeScript SDK for the Rool platform. Published as `@rool-dev/sdk`.
-
-@README.md — Full API documentation and usage patterns
+TypeScript SDK for Rool Machines. Published as `@rool-dev/sdk`.
 
 ## Structure
-- `src/client.ts` - RoolClient: auth, space lifecycle, user storage
-- `src/space.ts` - RoolSpace: live space handle with SSE, users, invites, conversations, objects, AI prompts, schema, undo/redo, export, events
-- `src/space-session.ts` - Internal space operation helpers and ConversationHandle
-- `src/auth-browser.ts` - Browser auth (localStorage, redirects)
-- `src/auth-node.ts` - Node.js auth (file-based, opens browser)
-- `src/subscription.ts` - SSE real-time sync
-- `src/webdav.ts` - WebDAV client for per-space file storage
-- `src/graphql.ts` - GraphQL client
-- `src/types.ts` - TypeScript types
-- `eval/` - Evaluation framework (see below)
+
+- `src/client.ts` — public client and HTTP problem handling
+- `src/auth-node.ts` — Node.js login and credential refresh
+- `src/types.ts` — public wire types
+- `test/integration/v2/` — local integration smoke tests
 
 ## Commands
-- `pnpm build` - Compile TypeScript
-- `pnpm typecheck` - Type check without emitting
-- `pnpm eval` - Run evaluation suite (takes about 30 secs)
 
-## Eval Framework
-Located in `eval/`. Uses chai assertions. Add test cases in `eval/cases/`.
-- `pnpm eval` - Run all cases
-- `pnpm eval --include <pattern>` - Run cases matching pattern (substring match)
+```bash
+pnpm build
+pnpm typecheck
+pnpm test
+pnpm test:v2
+```
 
 ## Design
-In designing the SDK, we prioritize:
-- developer ergonomics
-- consistent patterns
-- discoverability
-- simplicity
+
+Prioritize developer ergonomics, consistent patterns, discoverability, and simplicity. Build API functionality in vertical slices with local integration smoke tests under `test/integration/v2/`.

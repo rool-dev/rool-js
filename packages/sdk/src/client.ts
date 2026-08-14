@@ -1,783 +1,425 @@
-import { EventEmitter } from './event-emitter.js';
-import { AuthManager } from './auth.js';
-import { GraphQLClient } from './graphql.js';
-import { ClientSubscriptionManager } from './subscription.js';
-import { RestClient } from './rest.js';
-import { RoolSpace } from './space.js';
-import { SpaceRouter } from './router.js';
-import { generateEntityId } from './space-session.js';
-import { defaultLogger, type Logger } from './logger.js';
-import { addClientInfoHeaders, resolveClientInfo, type RoolClientInfo } from './client-info.js';
+import packageJson from "../package.json" with { type: "json" };
+import { createRoolEvents, type RoolEvents } from "./events.js";
+import type { MachineFileUploadProgress } from "./files.js";
+import { RoolMachine } from "./machine.js";
+import { throwProblemResponse } from "./problem.js";
 import type {
-  RoolClientConfig,
-  RoolClientEvents,
-  RoolSpaceInfo,
-  RoolUserRole,
-  ClientEvent,
-  CurrentUser,
-  InvitePreview,
-  InviteRedeemResult,
   Gift,
   GiftClaimResult,
   GiftList,
   GiftPreview,
   GiftUpdate,
-  AuthUser,
-  ConnectionState,
-  PasswordSignInResult,
-} from './types.js';
+  Greeting,
+  InviteRedemption,
+  MachineInvitePreview,
+  MachineSettings,
+  MachineSummary,
+  RoolClientConfig,
+  RoolRequestTokens,
+  RoolSession,
+  UserAccount,
+  UserAppData,
+  UserProfile,
+} from "./types.js";
 
-type ResolvedUrls = {
-  graphql: string;
-  auth: string;
-  webdav: string;
+const DEFAULT_API_URL = "https://api.rool.dev";
+
+type SendOptions = {
+  accept?: string;
+  onUploadProgress?: (progress: MachineFileUploadProgress) => void;
 };
 
-/**
- * Rool Client - Manages authentication, space lifecycle, and shared infrastructure.
- *
- * The client is lightweight - most operations happen on RoolSpace instances.
- *
- * Features:
- * - Authentication (login, logout, token management)
- * - Space lifecycle (list, create, delete, rename)
- * - Client-level subscription for lifecycle events
- * - User storage (cross-device key-value storage)
- */
-export class RoolClient extends EventEmitter<RoolClientEvents> {
-  private baseUrl: string;
-  private urls: ResolvedUrls;
-  private authManager: AuthManager;
-  private graphqlClient: GraphQLClient;
-  private router: SpaceRouter;
-  private subscriptionManager: ClientSubscriptionManager | null = null;
-  private logger: Logger;
-  private clientInfo: RoolClientInfo;
-  private _serverInfo: { version: string; minimumSdkVersion?: string | null; compatibility: 'ok' | 'unsupported' } | null = null;
+export const roolSdkVersion = packageJson.version;
 
-  // Open spaces (cached for reuse)
-  private openSpaces = new Map<string, RoolSpace>();
-
-  // User storage cache (in-memory; populated from server on initialize)
-  private _storageCache: Record<string, unknown> = {};
-
-  // Current user (fetched during initialize)
-  private _currentUser: CurrentUser | null = null;
+export class RoolClient {
+  private readonly apiUrl: string;
+  private readonly fetchRequest: typeof globalThis.fetch;
+  private readonly usesDefaultFetch: boolean;
+  private readonly getTokens: () => Promise<RoolRequestTokens | undefined>;
+  private readonly onAuthInvalidated: RoolClientConfig["onAuthInvalidated"];
+  private readonly identity: RoolClientConfig["client"];
+  private readonly machines = new Map<string, RoolMachine>();
+  readonly events: RoolEvents;
 
   constructor(config: RoolClientConfig = {}) {
-    super();
+    this.apiUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/+$/, "");
+    this.fetchRequest = config.fetch ?? globalThis.fetch;
+    this.usesDefaultFetch = config.fetch === undefined;
+    this.identity = config.client;
+    this.onAuthInvalidated = config.onAuthInvalidated;
 
-    this.logger = config.logger ?? defaultLogger;
-    this._emitterLogger = this.logger;
-    this.clientInfo = resolveClientInfo(config.client);
+    if (config.getTokens && config.getAccessToken) {
+      throw new Error("getTokens and getAccessToken cannot be used together");
+    }
+    if (config.getTokens) {
+      this.getTokens = async () => (await config.getTokens!()) ?? undefined;
+    } else if (config.getAccessToken) {
+      this.getTokens = async () => {
+        const accessToken = await config.getAccessToken!();
+        return accessToken ? { accessToken, roolToken: "" } : undefined;
+      };
+    } else {
+      this.getTokens = async () => undefined;
+    }
 
-    // Resolve API origin and auth URL.
-    // Auth is derived by stripping the api. hostname prefix from the API URL.
-    // For local dev (localhost etc.), set authUrl explicitly.
-    const apiOrigin = ((config.apiUrl ?? config.baseUrl) ?? 'https://api.rool.dev').replace(/\/+$/, '');
+    this.events = createRoolEvents({
+      poll: (syncToken, signal) => {
+        const query = new URLSearchParams({ syncToken });
+        return this.request(
+          `/v2/events?${query}`,
+          { headers: { Prefer: "wait=45" }, signal },
+          true,
+        );
+      },
+      getSession: () => this.getSession(),
+    });
+  }
 
-    let authOrigin = apiOrigin;
-    try {
-      const parsed = new URL(apiOrigin);
-      if (parsed.hostname.startsWith('api.')) {
-        parsed.hostname = parsed.hostname.slice(4);
-        authOrigin = parsed.origin;
-      }
-    } catch { /* keep apiOrigin as fallback */ }
+  getSession(): Promise<RoolSession> {
+    return this.requestJson("/v2/session");
+  }
 
-    this.baseUrl = apiOrigin;
-    this.urls = {
-      graphql: config.graphqlUrl ?? `${apiOrigin}/graphql`,
-      auth: config.authUrl ?? `${authOrigin}/auth`,
-      webdav: apiOrigin,
+  getAccount(): Promise<UserAccount> {
+    return this.requestJson("/v2/me");
+  }
+
+  async deleteAccount(): Promise<void> {
+    await this.request("/v2/me", { method: "DELETE" });
+  }
+
+  getProfile(): Promise<UserProfile> {
+    return this.requestJson("/v2/me/profile");
+  }
+
+  replaceProfile(profile: UserProfile): Promise<UserProfile> {
+    return this.requestJson("/v2/me/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    });
+  }
+
+  getUserAppData(): Promise<UserAppData> {
+    return this.requestJson("/v2/me/app-data");
+  }
+
+  async setUserAppData(key: string, value: unknown): Promise<void> {
+    await this.request(`/v2/me/app-data/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+  }
+
+  async deleteUserAppData(key: string): Promise<void> {
+    await this.request(`/v2/me/app-data/${encodeURIComponent(key)}`, {
+      method: "DELETE",
+    });
+  }
+
+  getGreeting(language?: string): Promise<Greeting> {
+    if (!language) return this.requestJson("/v2/greeting");
+    const query = new URLSearchParams({ language });
+    return this.requestJson(`/v2/greeting?${query}`);
+  }
+
+  listMachines(): Promise<MachineSummary[]> {
+    return this.requestJson("/v2/machines");
+  }
+
+  createMachine(settings: MachineSettings): Promise<MachineSummary> {
+    return this.requestJson("/v2/machines", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+  }
+
+  machine(machineId: string): RoolMachine {
+    let machine = this.machines.get(machineId);
+    if (machine) return machine;
+
+    machine = new RoolMachine(machineId, {
+      send: (path, init, onUploadProgress) =>
+        this.send(path, init, { onUploadProgress }),
+      request: (path, init, allowHttpErrors) =>
+        this.request(path, init, allowHttpErrors),
+      requestJson: <T>(path: string, init?: RequestInit) =>
+        this.requestJson<T>(path, init),
+      deleted: () => this.machines.delete(machineId),
+    });
+    this.machines.set(machineId, machine);
+    return machine;
+  }
+
+  getInvitePreview(token: string): Promise<MachineInvitePreview> {
+    return this.requestJson(`/v2/invites/${encodeURIComponent(token)}`);
+  }
+
+  redeemInvite(token: string): Promise<InviteRedemption> {
+    return this.requestJson(
+      `/v2/invites/${encodeURIComponent(token)}/redemption`,
+      { method: "POST" },
+    );
+  }
+
+  /** Look up a gift by its code without claiming it. */
+  previewGift(code: string): Promise<GiftPreview> {
+    return this.requestJson(`/v2/gifts/${encodeURIComponent(code)}`);
+  }
+
+  /** Claim a gift for the current account. */
+  claimGift(code: string): Promise<GiftClaimResult> {
+    return this.requestJson(`/v2/gifts/${encodeURIComponent(code)}/claim`, {
+      method: "POST",
+    });
+  }
+
+  /** List the current user's claimed and unclaimed gifts. */
+  listGifts(): Promise<GiftList> {
+    return this.requestJson("/v2/me/gifts");
+  }
+
+  /** Set or clear a gift's note, or change its archived state. */
+  updateGift(giftId: string, changes: GiftUpdate): Promise<Gift> {
+    return this.requestJson(`/v2/me/gifts/${encodeURIComponent(giftId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    });
+  }
+
+  /** Mint a new code for an unclaimed gift. */
+  rotateGiftCode(giftId: string): Promise<Gift> {
+    return this.requestJson(`/v2/me/gifts/${encodeURIComponent(giftId)}/code`, {
+      method: "POST",
+    });
+  }
+
+  private async requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+    const response = await this.request(path, init);
+    return response.json() as Promise<T>;
+  }
+
+  private async request(
+    path: string,
+    init?: RequestInit,
+    allowHttpErrors = false,
+  ): Promise<Response> {
+    const accept =
+      new Headers(init?.headers).get("Accept") ?? "application/json";
+    const response = await this.send(path, init, { accept });
+    if (response.status === 401) void this.onAuthInvalidated?.();
+    if (response.ok || allowHttpErrors) return response;
+
+    return throwProblemResponse(response);
+  }
+
+  private async send(
+    path: string,
+    init?: RequestInit,
+    options: SendOptions = {},
+  ): Promise<Response> {
+    const headers = new Headers(init?.headers);
+    if (options.accept) headers.set("Accept", options.accept);
+    headers.set("X-Rool-SDK-Name", packageJson.name);
+    headers.set("X-Rool-SDK-Version", packageJson.version);
+    if (this.identity?.appName) {
+      headers.set("X-Rool-App-Name", this.identity.appName);
+    }
+    if (this.identity?.appVersion) {
+      headers.set("X-Rool-App-Version", this.identity.appVersion);
+    }
+    if (this.identity?.osVersion) {
+      headers.set("X-Rool-OS-Version", this.identity.osVersion);
+    }
+
+    const tokens = await this.getTokens();
+    if (tokens?.accessToken) {
+      headers.set("Authorization", `Bearer ${tokens.accessToken}`);
+    }
+    if (tokens?.roolToken) headers.set("X-Rool-Token", tokens.roolToken);
+
+    const requestInit: RequestInit & { duplex?: "half" } = {
+      ...init,
+      headers,
+    };
+    if (isReadableStream(init?.body)) requestInit.duplex = "half";
+
+    const url = `${this.apiUrl}${path}`;
+    const body = init?.body;
+    if (!options.onUploadProgress || body === undefined || body === null) {
+      return this.fetchRequest(url, requestInit);
+    }
+
+    const useXmlHttpRequest =
+      this.usesDefaultFetch &&
+      typeof XMLHttpRequest !== "undefined" &&
+      !isReadableStream(body);
+    if (useXmlHttpRequest) {
+      return sendXmlHttpRequest(
+        url,
+        requestInit,
+        body,
+        options.onUploadProgress,
+      );
+    }
+
+    const progressRequest = requestWithUploadProgress(
+      url,
+      requestInit,
+      body,
+      options.onUploadProgress,
+    );
+    return this.fetchRequest(url, progressRequest);
+  }
+}
+
+function isReadableStream(
+  body: BodyInit | null | undefined,
+): body is ReadableStream {
+  return (
+    typeof ReadableStream !== "undefined" && body instanceof ReadableStream
+  );
+}
+
+function requestWithUploadProgress(
+  url: string,
+  init: RequestInit,
+  body: BodyInit,
+  onUploadProgress: (progress: MachineFileUploadProgress) => void,
+): RequestInit & { duplex: "half" } {
+  const preparedInit: RequestInit & { duplex?: "half" } = { ...init };
+  if (isReadableStream(body)) preparedInit.duplex = "half";
+  const preparedRequest = new Request(url, preparedInit);
+  if (!preparedRequest.body)
+    throw new Error("Upload request is missing its body");
+
+  const totalBytes = uploadBodySize(body);
+  let transferredBytes = 0;
+  reportUploadProgress(onUploadProgress, transferredBytes, totalBytes);
+  const progressBody = preparedRequest.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        controller.enqueue(chunk);
+        transferredBytes += chunk.byteLength;
+        reportUploadProgress(onUploadProgress, transferredBytes, totalBytes);
+      },
+    }),
+  );
+
+  return {
+    ...init,
+    headers: preparedRequest.headers,
+    body: progressBody,
+    duplex: "half",
+  };
+}
+
+function sendXmlHttpRequest(
+  url: string,
+  init: RequestInit,
+  body: Exclude<BodyInit, ReadableStream>,
+  onUploadProgress: (progress: MachineFileUploadProgress) => void,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    const signal = init.signal;
+    const totalBytes = uploadBodySize(body);
+    let transferredBytes = 0;
+
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    const abort = () => request.abort();
+    request.upload.onprogress = (event) => {
+      transferredBytes = event.loaded;
+      const reportedTotal = event.lengthComputable ? event.total : totalBytes;
+      reportUploadProgress(onUploadProgress, transferredBytes, reportedTotal);
+    };
+    request.upload.onload = (event) => {
+      const loadedBytes = event.loaded;
+      if (loadedBytes === transferredBytes) return;
+      transferredBytes = loadedBytes;
+      const reportedTotal = event.lengthComputable ? event.total : totalBytes;
+      reportUploadProgress(onUploadProgress, transferredBytes, reportedTotal);
+    };
+    request.onload = () => {
+      cleanup();
+      const hasResponseBody =
+        request.response instanceof ArrayBuffer &&
+        request.response.byteLength > 0;
+      const responseBody = hasResponseBody ? request.response : null;
+      resolve(
+        new Response(responseBody, {
+          status: request.status,
+          statusText: request.statusText,
+          headers: parseXmlHttpRequestHeaders(request.getAllResponseHeaders()),
+        }),
+      );
+    };
+    request.onerror = () => {
+      cleanup();
+      reject(new TypeError("Network request failed"));
+    };
+    request.onabort = () => {
+      cleanup();
+      reject(
+        signal?.reason ??
+          new DOMException("This operation was aborted", "AbortError"),
+      );
     };
 
-    this.authManager = new AuthManager({
-      authUrl: this.urls.auth,
-      authProvider: config.authProvider,
-      logger: this.logger,
-      onAuthStateChanged: (authenticated) => {
-        // Covers every sign-out path (logout() and 401-driven token clearing).
-        // Subscriptions must die with the session, or they would keep
-        // reconnecting — and would pick up the next account's tokens.
-        if (!authenticated) {
-          this._storageCache = {};
-          this.setCurrentUser(null);
-          this.closeRealtimeResources();
-        }
-        this.emit('authStateChanged', authenticated);
-      },
-    });
-
-    this.graphqlClient = new GraphQLClient({
-      graphqlUrl: this.urls.graphql,
-      authManager: this.authManager,
-      clientInfo: this.clientInfo,
-    });
-
-    this.router = new SpaceRouter({
-      apiUrl: this.baseUrl,
-      authManager: this.authManager,
-      clientInfo: this.clientInfo,
-    });
-  }
-
-
-  /**
-   * Initialize the client - should be called on app startup.
-   * Processes any auth callback in the URL, sets up auto-refresh,
-   * and starts real-time event subscription if authenticated.
-   * @returns true if authenticated, false otherwise
-   */
-  async initialize(): Promise<boolean> {
-    this.authManager.initialize();
-    const authenticated = await this.isAuthenticated();
-    if (authenticated) {
-      await this.hydrateAuthenticatedSession();
-    }
-    return authenticated;
-  }
-
-  /**
-   * Start the realtime subscription and load the current user/storage. Shared
-   * by initialize() and verify() — any path that lands the user in an
-   * authenticated state needs this hydration.
-   *
-   * Hydration is best-effort and never throws: a backend outage must not read
-   * as a logout. The subscription owns reconnect/backoff and refetches the user
-   * on (re)connect (see ensureSubscribed), so a session that boots while the
-   * server is down stays authenticated and self-heals when it returns. Only a
-   * hard auth failure ends the session: a refresh rejection (token layer) or
-   * a 401 from the GraphQL transport, which calls authManager.logout().
-   */
-  private async hydrateAuthenticatedSession(): Promise<void> {
-    this.ensureSubscribed().catch((error) => {
-      this.logger.warn('[RoolClient] subscription start deferred:', error);
-    });
-
-    try {
-      await this.fetchUserAndStorage();
-    } catch (error) {
-      this.logger.warn('[RoolClient] user hydration deferred (offline?):', error);
-    }
-  }
-
-  /**
-   * Fetch the current user and populate the storage cache, then emit
-   * currentUserChanged. Cache is set before the emit so listeners reading
-   * getAllUserStorage() in response see fresh storage.
-   */
-  private async fetchUserAndStorage(): Promise<void> {
-    const user = await this.graphqlClient.getCurrentUser();
-    this._storageCache = user.storage ?? {};
-    this.setCurrentUser(user);
-  }
-
-  private setCurrentUser(user: CurrentUser | null): void {
-    this._currentUser = user;
-    this.emit('currentUserChanged', user);
-  }
-
-  /**
-   * Clean up resources - call when destroying the client.
-   */
-  destroy(): void {
-    this.authManager.destroy();
-    this.closeRealtimeResources();
-    this.removeAllListeners();
-  }
-
-
-  /**
-   * Initiate login by redirecting to auth page.
-   * @param appName - The name of the application requesting login (displayed on auth page)
-   */
-  async login(appName: string, params?: Record<string, string>): Promise<void> {
-    return this.authManager.login(appName, params);
-  }
-
-  /**
-   * Initiate signup by redirecting to auth page.
-   * @param appName - The name of the application requesting signup (displayed on auth page)
-   * @param params - Optional additional query parameters to pass to the auth server
-   */
-  async signup(appName: string, params?: Record<string, string>): Promise<void> {
-    return this.authManager.signup(appName, params);
-  }
-
-  /**
-   * Complete an email verification flow using a token from the verification
-   * email link. Exchanges the token for a live session and signs the user in
-   * without a redirect. Intended to be called when the app detects a
-   * `?verify=<token>` query parameter on load.
-   *
-   * Returns true if the user is now signed in as a result.
-   */
-  async verify(token: string): Promise<boolean> {
-    const ok = await this.authManager.verify(token);
-    if (ok) {
-      await this.hydrateAuthenticatedSession();
-    }
-    return ok;
-  }
-
-  /**
-   * Complete a native sign-in (PKCE) from a deep-link callback URL. Call this
-   * from the app's platform deep-link handler (e.g. Capacitor's `appUrlOpen`)
-   * with the full callback URL. Exchanges the code for a live session.
-   *
-   * Returns true if the user is now signed in as a result.
-   */
-  async handleAuthRedirect(url: string): Promise<boolean> {
-    const ok = await this.authManager.handleRedirect(url);
-    if (ok) {
-      await this.hydrateAuthenticatedSession();
-    }
-    return ok;
-  }
-
-  /**
-   * Sign in with email + password. Resolves to `{ status: 'signed_in' }` once
-   * authenticated, or `{ status: 'verify_required' }` when the account's email
-   * isn't verified yet (a magic link has been emailed). Rejects with a
-   * human-readable Error on bad credentials or server failure.
-   */
-  async signInWithPassword(email: string, password: string): Promise<PasswordSignInResult> {
-    const result = await this.authManager.signInWithPassword(email, password);
-    if (result.status === 'signed_in') {
-      await this.hydrateAuthenticatedSession();
-    }
-    return result;
-  }
-
-  /**
-   * Request a magic sign-in link by email. The server emails a link; the user
-   * completes sign-in by following it, which is finished via `verify()` /
-   * `handleAuthRedirect()` when it lands back in the app. Resolves once the
-   * email is accepted; rejects with a human-readable Error on a bad address.
-   */
-  async requestMagicLink(email: string): Promise<void> {
-    return this.authManager.requestMagicLink(email);
-  }
-
-  /**
-   * Set or change the current user's password. Other authenticated sessions are
-   * revoked while this client receives replacement credentials.
-   *
-   * Throws an Error with a human-readable message on validation or server failure.
-   */
-  async setPassword(password: string): Promise<void> {
-    return this.authManager.setPassword(password);
-  }
-
-  /**
-   * Request an email address change for the current user. The server mails a
-   * confirmation link to the new address; the change applies when that link
-   * is clicked. After confirmation this session no longer belongs to the
-   * account — sign out and sign in with the new address.
-   *
-   * Rejects with EmailChangeError (code + user-facing message) on refusal,
-   * e.g. 'email_in_use' or 'invalid_email'.
-   */
-  async requestEmailChange(newEmail: string): Promise<void> {
-    return this.authManager.requestEmailChange(newEmail);
-  }
-
-  /**
-   * Logout - clear all tokens and state.
-   */
-  logout(): void {
-    this.authManager.logout();
-    // Redundant when the provider notified (the auth-state handler already
-    // tore down), but kept for providers without auth-state bridging.
-    this.closeRealtimeResources();
-  }
-
-  /** Stop the client subscription and close all open spaces. Idempotent. */
-  private closeRealtimeResources(): void {
-    this.unsubscribe();
-    for (const space of this.openSpaces.values()) space.close();
-    this.openSpaces.clear();
-  }
-
-  /**
-   * Check if user is currently authenticated (validates token is usable).
-   */
-  async isAuthenticated(): Promise<boolean> {
-    return this.authManager.isAuthenticated();
-  }
-
-  /**
-   * Make an authenticated fetch request to the Rool API.
-   * @internal Not part of the public API — use typed methods instead.
-   *
-   * @param path - Path relative to the base URL (e.g., '/billing/usage')
-   * @param init - Standard fetch RequestInit options. Authorization header is added automatically.
-   */
-  async _api(path: string, init?: RequestInit): Promise<Response> {
-    const tokens = await this.authManager.getTokens();
-    if (!tokens) throw new Error('Not authenticated');
-
-    const headers = new Headers(init?.headers);
-    headers.set('Authorization', `Bearer ${tokens.accessToken}`);
-    headers.set('X-Rool-Token', tokens.roolToken);
-    addClientInfoHeaders(headers, this.clientInfo);
-
-    return fetch(`${this.baseUrl}${path}`, { ...init, headers });
-  }
-
-  /**
-   * Get auth identity decoded from JWT token.
-   * For the Rool user (with server-assigned id), use currentUser.
-   */
-  getAuthUser(): AuthUser {
-    return this.authManager.getAuthUser();
-  }
-
-  /**
-   * Get the current Rool user (cached from initialize).
-   * Available after successful authentication.
-   */
-  get currentUser(): CurrentUser | null {
-    return this._currentUser;
-  }
-
-  get serverInfo(): { version: string; minimumSdkVersion?: string | null; compatibility: 'ok' | 'unsupported' } | null {
-    return this._serverInfo;
-  }
-
-
-  /**
-   * List all spaces accessible to the user.
-   */
-  async listSpaces(): Promise<RoolSpaceInfo[]> {
-    return this.graphqlClient.listSpaces();
-  }
-
-  /**
-   * Open a space with a real-time subscription.
-   * Returns a live RoolSpace handle with conversation and file events.
-   * Reuses an existing handle if the space is already open.
-   *
-   * Call space.close() when done to stop the subscription.
-   */
-  async openSpace(spaceId: string): Promise<RoolSpace> {
-    // Reuse existing open space
-    const existing = this.openSpaces.get(spaceId);
-    if (existing) return existing;
-
-    // Ensure client subscription is active (for lifecycle events)
-    // .catch prevents a rejection here from crashing Node before the caller awaits it.
-    this.ensureSubscribed().catch(() => { });
-
-    const initialRoute = await this.router.resolve(spaceId);
-    const scopedGraphqlUrl = `${initialRoute.server.replace(/\/+$/, '')}/graphql`;
-    const scopedClient = new GraphQLClient({
-      graphqlUrl: scopedGraphqlUrl,
-      authManager: this.authManager,
-      clientInfo: this.clientInfo,
-    });
-    const scopedRestClient = new RestClient({
-      apiUrl: initialRoute.server,
-      authManager: this.authManager,
-      clientInfo: this.clientInfo,
-    });
-
-    const openSpaceResult = await scopedClient.openSpace(spaceId);
-
-    const space = new RoolSpace({
-      id: spaceId,
-      openSpaceResult,
-      graphqlClient: scopedClient,
-      restClient: scopedRestClient,
-      authManager: this.authManager,
-      clientInfo: this.clientInfo,
-      router: this.router,
-      initialRoute,
-      logger: this.logger,
-      onClose: () => this.openSpaces.delete(spaceId),
-    });
-
-    this.openSpaces.set(spaceId, space);
-
-
-    return space;
-  }
-
-  /**
-   * Create a new space.
-   * Returns a RoolSpace handle with a real-time subscription.
-   * Use the returned RoolSpace to work with objects, conversations, and AI.
-   */
-  async createSpace(name: string): Promise<RoolSpace> {
-    // Prevents a rejection here from crashing Node before the caller awaits it.
-    this.ensureSubscribed().catch(() => { });
-
-    const { spaceId } = await this.graphqlClient.createSpace(name);
-    return this.openSpace(spaceId);
-  }
-
-  /**
-   * GraphQL client pinned to a space's owning node, rerouting on refusal.
-   * Space-scoped mutations must not go to an arbitrary shard via the base URL.
-   */
-  private async scopedGraphqlClient(spaceId: string): Promise<GraphQLClient> {
-    const scopedUrl = (server: string) => `${server.replace(/\/+$/, '')}/graphql`;
-    const route = await this.router.resolve(spaceId);
-    return new GraphQLClient({
-      graphqlUrl: scopedUrl(route.server),
-      authManager: this.authManager,
-      clientInfo: this.clientInfo,
-      onRefused: async () => scopedUrl((await this.router.resolve(spaceId)).server),
-    });
-  }
-
-  /**
-   * Delete a space.
-   * Note: This closes any cached open RoolSpace handle.
-   */
-  async deleteSpace(spaceId: string): Promise<void> {
-    const scoped = await this.scopedGraphqlClient(spaceId);
-    await scoped.deleteSpace(spaceId);
-    // Close and remove the cached space if open
-    const space = this.openSpaces.get(spaceId);
-    if (space) {
-      space.close();
-      this.openSpaces.delete(spaceId);
-    }
-    // Client-level event will be emitted via SSE subscription
-  }
-
-  /**
-   * Duplicate an existing space. Returns a handle to the new space.
-   */
-  async duplicateSpace(sourceSpaceId: string, name: string): Promise<RoolSpace> {
-    this.ensureSubscribed().catch(() => { });
-    const scoped = await this.scopedGraphqlClient(sourceSpaceId);
-    const { spaceId } = await scoped.duplicateSpace(sourceSpaceId, name);
-    return this.openSpace(spaceId);
-  }
-
-  /**
-   * Mark the current user for deletion (7-day grace period).
-   * Irrecoverable after the grace period elapses.
-   */
-  async deleteCurrentUser(): Promise<void> {
-    await this.graphqlClient.deleteCurrentUser();
-    this.logout();
-  }
-
-  /**
-   * Import a space from a zip archive.
-   * Creates a new space with the given name and imports objects, relations, and files.
-   * Returns a RoolSpace handle.
-   */
-  async importArchive(name: string, archive: Blob): Promise<RoolSpace> {
-    // .catch prevents a rejection here from crashing Node before the caller awaits it.
-    this.ensureSubscribed().catch(() => { });
-
-    // Import via REST endpoint (creates the space)
-    const spaceId = await this.restClient.importArchive(name, archive);
-
-    // Open the space to get its data
-    return this.openSpace(spaceId);
-  }
-
-  /**
-   * Get the current Rool user from the server.
-   * Returns the user's server-assigned id, email, plan, and credits.
-   */
-  async getCurrentUser(): Promise<CurrentUser> {
-    const user = await this.graphqlClient.getCurrentUser();
-    // On first hydration, populate the storage cache before emitting so
-    // listeners don't see a user with empty storage. Once hydrated, a polled
-    // snapshot must not clobber optimistic setUserStorage writes.
-    if (!this._currentUser) {
-      this._storageCache = user.storage ?? {};
-    }
-    this.setCurrentUser(user);
-    return user;
-  }
-
-  /**
-   * Look up an invite link by its token, without redeeming it.
-   * Does not require authentication.
-   */
-  async previewInvite(token: string): Promise<InvitePreview> {
-    return this.restClient.previewInvite(token);
-  }
-
-  /**
-   * Redeem an invite link, joining the space it belongs to.
-   */
-  async redeemInvite(token: string): Promise<InviteRedeemResult> {
-    return this.restClient.redeemInvite(token);
-  }
-
-  /**
-   * Look up a gift by its code, without claiming it.
-   * Does not require authentication.
-   */
-  async previewGift(code: string): Promise<GiftPreview> {
-    return this.restClient.previewGift(code);
-  }
-
-  /**
-   * Claim a gift, granting what it holds to the current account.
-   * Refetches the user, since any gift kind changes their standing.
-   */
-  async claimGift(code: string): Promise<GiftClaimResult> {
-    const result = await this.restClient.claimGift(code);
-    // The claim is spent and irreversible by now, so a failed refresh must not
-    // surface as a failed claim: the retry would report gift_claimed.
-    try {
-      await this.getCurrentUser();
-    } catch (error) {
-      this.logger.warn('[RoolClient] user refresh after gift claim deferred:', error);
-    }
-    return result;
-  }
-
-  /**
-   * The current user's gifts, spent and unspent.
-   */
-  async listGifts(): Promise<GiftList> {
-    return this.restClient.listGifts();
-  }
-
-  /**
-   * Update one of the current user's gifts: set or clear its note, or change
-   * its archived state. Returns the updated gift.
-   */
-  async updateGift(giftId: string, changes: GiftUpdate): Promise<Gift> {
-    return this.restClient.updateGift(giftId, changes);
-  }
-
-  /**
-   * Mint a new code for one of the current user's gifts. The old code and
-   * link stop working; the gift itself is untouched.
-   */
-  async rotateGiftCode(giftId: string): Promise<Gift> {
-    return this.restClient.rotateGiftCode(giftId);
-  }
-
-  /**
-   * Update the current user's profile.
-   * - name: display name
-   * - slug: used in app publishing URLs (3-32 chars, start with letter, lowercase alphanumeric/hyphens/underscores)
-   */
-  async updateCurrentUser(input: { name?: string; slug?: string; marketingOptIn?: boolean }): Promise<CurrentUser> {
-    const user = await this.graphqlClient.updateCurrentUser(input);
-    this.setCurrentUser(user);
-    return user;
-  }
-
-  /**
-   * Get a value from user storage (sync read from in-memory cache).
-   * Cache is populated from the server on initialize().
-   * Returns undefined if key doesn't exist.
-   */
-  getUserStorage<T = unknown>(key: string): T | undefined {
-    return this._storageCache[key] as T | undefined;
-  }
-
-  /**
-   * Set a value in user storage.
-   * Updates in-memory cache immediately, then syncs to server.
-   * Pass undefined/null to delete the key.
-   * Storage is limited to 10MB total.
-   */
-  setUserStorage(key: string, value: unknown): void {
-    // Update local cache
-    if (value === null || value === undefined) {
-      delete this._storageCache[key];
-    } else {
-      this._storageCache[key] = value;
+    if (signal?.aborted) {
+      reject(
+        signal.reason ??
+          new DOMException("This operation was aborted", "AbortError"),
+      );
+      return;
     }
 
-    // Emit event (local source)
-    this.emit('userStorageChanged', { key, value: value ?? null, source: 'local' });
-
-    // Fire-and-forget server sync
-    this.graphqlClient.setUserStorage(key, value).catch((error) => {
-      this.logger.error('[RoolClient] Failed to sync user storage:', error);
-      this.emit('error', error instanceof Error ? error : new Error(String(error)), 'userStorage');
+    request.open(init.method ?? "GET", url);
+    request.responseType = "arraybuffer";
+    request.withCredentials = init.credentials === "include";
+    new Headers(init.headers).forEach((value, name) => {
+      request.setRequestHeader(name, value);
     });
+    signal?.addEventListener("abort", abort, { once: true });
+    reportUploadProgress(onUploadProgress, transferredBytes, totalBytes);
+    request.send(body);
+  });
+}
+
+function reportUploadProgress(
+  listener: (progress: MachineFileUploadProgress) => void,
+  transferredBytes: number,
+  totalBytes: number | undefined,
+): void {
+  const progress: MachineFileUploadProgress = { transferredBytes };
+  if (totalBytes !== undefined) progress.totalBytes = totalBytes;
+  listener(progress);
+}
+
+function uploadBodySize(body: BodyInit): number | undefined {
+  if (typeof body === "string")
+    return new TextEncoder().encode(body).byteLength;
+  if (typeof Blob !== "undefined" && body instanceof Blob) return body.size;
+  if (body instanceof ArrayBuffer) return body.byteLength;
+  if (ArrayBuffer.isView(body)) return body.byteLength;
+  if (
+    typeof URLSearchParams !== "undefined" &&
+    body instanceof URLSearchParams
+  ) {
+    return new TextEncoder().encode(body.toString()).byteLength;
   }
+  return undefined;
+}
 
-  /**
-   * Get all user storage data (sync read from local cache).
-   */
-  getAllUserStorage(): Record<string, unknown> {
-    return { ...this._storageCache };
+function parseXmlHttpRequestHeaders(rawHeaders: string): Headers {
+  const headers = new Headers();
+  for (const line of rawHeaders.split(/\r?\n/)) {
+    if (!line) continue;
+    const separator = line.indexOf(":");
+    if (separator === -1) throw new Error(`Invalid response header: ${line}`);
+    headers.append(line.slice(0, separator), line.slice(separator + 1).trim());
   }
-
-  /**
-   * Report an event to the server.
-   * Fire-and-forget — errors are logged but not propagated.
-   */
-  reportEvent(event: string, url?: string): void {
-    this.graphqlClient.reportEvent(event, url).catch((error) => {
-      this.logger.error('[RoolClient] Failed to report event:', error);
-    });
-  }
-
-
-  private get restClient(): RestClient {
-    return new RestClient({
-      apiUrl: this.baseUrl,
-      authManager: this.authManager,
-      clientInfo: this.clientInfo,
-    });
-  }
-
-
-  /**
-   * Ensure the client-level event subscription is active.
-   * Called automatically when opening spaces.
-   * @internal
-   */
-  private async ensureSubscribed(): Promise<void> {
-    if (this.subscriptionManager) return;
-
-    this.subscriptionManager = new ClientSubscriptionManager({
-      graphqlUrl: this.urls.graphql,
-      authManager: this.authManager,
-      clientInfo: this.clientInfo,
-      logger: this.logger,
-      onEvent: (event) => this.handleClientEvent(event),
-      onConnectionStateChanged: (state: ConnectionState) => {
-        this.emit('connectionStateChanged', state);
-        // Finish a deferred hydration: if we booted while the server was down,
-        // _currentUser is still null. Now that we're connected, fetch the user
-        // and storage so the app can complete sign-in.
-        if (state === 'connected' && !this._currentUser) {
-          this.fetchUserAndStorage().catch((error) => {
-            this.logger.warn('[RoolClient] deferred user hydration failed:', error);
-          });
-        }
-      },
-      onError: (error) => {
-        this.emit('error', error, 'subscription');
-      },
-    });
-
-    await this.subscriptionManager.subscribe();
-  }
-
-  /**
-   * Disconnect from real-time events.
-   * @internal
-   */
-  private unsubscribe(): void {
-    if (this.subscriptionManager) {
-      this.subscriptionManager.destroy();
-      this.subscriptionManager = null;
-    }
-  }
-
-
-  /**
-   * Generate a unique 6-character alphanumeric ID.
-   */
-  static generateId(): string {
-    return generateEntityId();
-  }
-
-  /**
-   * Execute an arbitrary GraphQL query or mutation.
-   * @internal Not part of the public API — use typed methods instead.
-   */
-  async _graphql<T>(
-    query: string,
-    variables?: Record<string, unknown>
-  ): Promise<T> {
-    return this.graphqlClient.query<T>(query, variables);
-  }
-
-
-  /**
-   * Handle a client-level event from the subscription.
-   * @internal
-   */
-  private handleClientEvent(event: ClientEvent): void {
-    switch (event.type) {
-      case 'connected': {
-        const info = {
-          version: event.serverVersion,
-          minimumSdkVersion: event.minimumSdkVersion,
-          compatibility: event.compatibility ?? 'ok' as const,
-        };
-        this._serverInfo = info;
-        this.emit('serverInfoChanged', info);
-        if (info.compatibility === 'unsupported') this.emit('unsupported', info);
-        break;
-      }
-      case 'space_created':
-        this.emit('spaceAdded', {
-          id: event.spaceId,
-          name: event.name,
-          inboundEmailAddress: event.inboundEmailAddress ?? '',
-          role: (event.role as RoolUserRole) ?? 'owner',
-          ownerId: event.ownerId ?? '',
-          size: event.size ?? 0,
-          createdAt: event.createdAt ?? new Date().toISOString(),
-          updatedAt: event.updatedAt ?? new Date().toISOString(),
-          memberCount: 1, // Creator is the only member
-        });
-        break;
-
-      case 'space_deleted':
-        this.emit('spaceRemoved', event.spaceId);
-        break;
-
-      case 'space_renamed':
-        this.emit('spaceRenamed', event.spaceId, event.name);
-        break;
-
-      case 'space_access_changed':
-        if (event.role === 'none') {
-          this.emit('spaceRemoved', event.spaceId);
-        } else {
-          this.emit('spaceAdded', {
-            id: event.spaceId,
-            name: event.name,
-            inboundEmailAddress: event.inboundEmailAddress,
-            role: event.role as RoolUserRole,
-            ownerId: event.ownerId,
-            size: event.size,
-            createdAt: event.createdAt,
-            updatedAt: event.updatedAt,
-            memberCount: event.memberCount,
-          });
-        }
-        break;
-
-      case 'user_storage_changed':
-        this.handleUserStorageChanged(event.key, event.value);
-        break;
-
-    }
-  }
-
-
-  /**
-   * Handle a user storage change from SSE (remote update).
-   * Updates cache and emits event if value actually changed.
-   * @internal
-   */
-  private handleUserStorageChanged(key: string, value: unknown): void {
-    const currentValue = this._storageCache[key];
-
-    // Only update and emit if value actually changed
-    if (JSON.stringify(currentValue) !== JSON.stringify(value)) {
-      if (value === null || value === undefined) {
-        delete this._storageCache[key];
-      } else {
-        this._storageCache[key] = value;
-      }
-
-      this.emit('userStorageChanged', { key, value: value ?? null, source: 'remote' });
-    }
-  }
+  return headers;
 }

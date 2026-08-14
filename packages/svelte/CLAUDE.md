@@ -1,25 +1,12 @@
-# rool-svelte
+# Rool Svelte
 
-Svelte 5 runes for the Rool platform. Published as `@rool-dev/svelte`.
-
-@README.md — Full API documentation and usage patterns
-
-## Structure
-- `src/index.ts` - Main export: createRool()
-- `src/rool.svelte.ts` - Rool class with $state reactivity
-- `src/space.svelte.ts` - ReactiveSpace class
-- `src/space-session.svelte.ts` - Reactive space operations and related reactive primitives
+Svelte 5 bindings for `@rool-dev/sdk`. Published as `@rool-dev/svelte`.
 
 ## Commands
-- `pnpm build` - Compile with svelte-package
-- `pnpm typecheck` - Type check with svelte-check
 
-## Design Principles
-- Uses Svelte 5 runes ($state) for reactivity
-- No Svelte stores - direct property access is reactive
-- Go through the API — never expose raw space data
-- Auto-refresh where safe — object/children/parents auto-refresh; query is manual
-- Store caching — factory functions return cached instances by arguments
+```bash
+pnpm build
+pnpm typecheck
+```
 
-## Svelte 5 Only
-This package requires Svelte 5. It uses `.svelte.ts` files with runes that are compiled by the consumer's bundler.
+Build reactive bindings only for established core SDK concepts. Use Svelte 5 runes and expose the SDK through the package entry point.
