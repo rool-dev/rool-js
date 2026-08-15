@@ -55,7 +55,7 @@ jobs:
     name: Publish dev releases
     runs-on: ubuntu-latest
     needs: ci
-    if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
+    if: github.ref_type == 'branch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v2api')
     permissions:
       contents: read
       id-token: write
@@ -90,13 +90,19 @@ jobs:
           SHORT_SHA=${GITHUB_SHA::7}
           BASE_VERSION=$(node -p "require('./packages/sdk/package.json').version")
           DEV_VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
-          echo "Setting packages/sdk to ${DEV_VERSION}"
+          if [ "$GITHUB_REF_NAME" = "v2api" ]; then
+            DIST_TAG=v2-dev
+          else
+            DIST_TAG=dev
+          fi
+          echo "Setting packages/sdk to ${DEV_VERSION} with dist-tag ${DIST_TAG}"
+          echo "DIST_TAG=${DIST_TAG}" >> "$GITHUB_ENV"
           cd packages/sdk
           npm version "${DEV_VERSION}" --no-git-tag-version
 
       - name: Publish SDK (dev)
         working-directory: packages/sdk
-        run: npm publish --tag dev --access public
+        run: npm publish --tag "$DIST_TAG" --access public
 
   publish-release:
     name: Publish release
