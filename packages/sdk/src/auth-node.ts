@@ -70,7 +70,7 @@ export class NodeAuth implements RoolAuth {
       config.credentialsPath,
     );
     this.loginTimeoutMs = config.loginTimeoutMs ?? DEFAULT_LOGIN_TIMEOUT_MS;
-    this.fetchRequest = config.fetch ?? globalThis.fetch;
+    this.fetchRequest = config.fetch ?? globalThis.fetch.bind(globalThis);
     this.openUrl = config.openUrl ?? ((url) => open(url).then(() => undefined));
     this.getTokens = () => this.resolveTokens();
     this.getAccessToken = async () => {

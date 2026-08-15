@@ -45,7 +45,7 @@ export abstract class TokenAuth implements RoolAuth {
 
   constructor(config: TokenAuthConfig = {}) {
     this.authUrl = resolveAuthUrl(config);
-    this.fetchRequest = config.fetch ?? globalThis.fetch;
+    this.fetchRequest = config.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
   abstract initialize(): Promise<boolean>;

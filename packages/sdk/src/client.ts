@@ -43,7 +43,7 @@ export class RoolClient {
 
   constructor(config: RoolClientConfig = {}) {
     this.apiUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/+$/, "");
-    this.fetchRequest = config.fetch ?? globalThis.fetch;
+    this.fetchRequest = config.fetch ?? globalThis.fetch.bind(globalThis);
     this.usesDefaultFetch = config.fetch === undefined;
     this.identity = config.client;
     this.onAuthInvalidated = config.onAuthInvalidated;
