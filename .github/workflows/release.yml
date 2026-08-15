@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   ci:
-    name: Build and typecheck
+    name: Build and test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -44,6 +44,12 @@ jobs:
 
       - name: Typecheck SDK
         run: pnpm typecheck
+
+      - name: Test SDK
+        run: pnpm --filter @rool-dev/sdk test
+
+      - name: Build docs
+        run: pnpm docs:build
 
   publish-dev:
     name: Publish dev releases
