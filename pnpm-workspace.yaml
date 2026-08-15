@@ -1,5 +1,5 @@
 packages:
-  - "packages/*"
+  - "packages/sdk"
 
 overrides:
   js-yaml: 4.3.0

@@ -54,13 +54,6 @@ writeFileSync(
   transform(sdkReadme, "Rool SDK", "packages/sdk"),
 );
 
-// Svelte README → svelte.md (will be at /svelte/)
-const svelteReadme = readFileSync(`${root}/packages/svelte/README.md`, "utf-8");
-writeFileSync(
-  `${contentDir}/svelte.md`,
-  transform(svelteReadme, "Rool Svelte", "packages/svelte"),
-);
-
 // Generate llms.txt from index.md (strip frontmatter, fix relative links)
 const indexMd = readFileSync(`${contentDir}/index.md`, "utf-8");
 const llmsTxt = indexMd

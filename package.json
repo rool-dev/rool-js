@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Rool JavaScript SDK and Svelte bindings",
+  "description": "Rool JavaScript SDK",
   "packageManager": "pnpm@10.17.1",
   "scripts": {
     "build": "pnpm -r build",

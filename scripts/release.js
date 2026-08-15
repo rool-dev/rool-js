@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Release all packages with a unified version.
- * Bumps all package.json files, commits, and tags.
+ * Release the SDK package.
+ * Bumps its package.json, commits, and tags.
  *
  * Usage:
  *   pnpm release 0.2.0
@@ -16,7 +16,7 @@ import { execSync } from "child_process";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 
-const packages = ["packages/sdk/package.json", "packages/svelte/package.json"];
+const packagePath = "packages/sdk/package.json";
 
 const version = process.argv[2];
 
@@ -143,19 +143,16 @@ try {
   // Tag doesn't exist, good
 }
 
-// Bump versions in package.json files
-for (const pkgPath of packages) {
-  const fullPath = join(root, pkgPath);
-  const pkg = JSON.parse(readFileSync(fullPath, "utf-8"));
-  const oldVersion = pkg.version;
-  pkg.version = version;
-  writeFileSync(fullPath, JSON.stringify(pkg, null, 2) + "\n");
-  console.log(`${pkg.name}: ${oldVersion} → ${version}`);
-}
+// Bump the package version
+const fullPath = join(root, packagePath);
+const pkg = JSON.parse(readFileSync(fullPath, "utf-8"));
+const oldVersion = pkg.version;
+pkg.version = version;
+writeFileSync(fullPath, JSON.stringify(pkg, null, 2) + "\n");
+console.log(`${pkg.name}: ${oldVersion} → ${version}`);
 
 // Commit and tag
-const filesToAdd = packages.join(" ");
-execSync(`git add ${filesToAdd}`, { cwd: root, stdio: "inherit" });
+execSync(`git add ${packagePath}`, { cwd: root, stdio: "inherit" });
 execSync(`git commit -m "${tag}"`, { cwd: root, stdio: "inherit" });
 execSync(`git tag ${tag}`, { cwd: root, stdio: "inherit" });
 

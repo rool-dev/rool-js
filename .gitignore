@@ -27,14 +27,10 @@ pnpm-debug.log*
 # Test coverage
 coverage/
 
-# SvelteKit
-.svelte-kit/
-
 # Astro
 docs/dist/
 docs/.astro/
 docs/src/content/docs/sdk.md
-docs/src/content/docs/svelte.md
 docs/public/llms.txt
 
 # Lockfile (regenerated)

@@ -1,15 +1,14 @@
 # rool-js
 
-Official TypeScript SDK and Svelte bindings for Rool. This is a pnpm monorepo.
+Official TypeScript SDK for Rool. This is a pnpm workspace.
 
-## Packages
+## Package
 
-| Package         | Path               | npm                |
-| --------------- | ------------------ | ------------------ |
-| SDK             | `packages/sdk/`    | `@rool-dev/sdk`    |
-| Svelte bindings | `packages/svelte/` | `@rool-dev/svelte` |
+| Package | Path            | npm             |
+| ------- | --------------- | --------------- |
+| SDK     | `packages/sdk/` | `@rool-dev/sdk` |
 
-Read the package-specific `CLAUDE.md` before working in a package.
+Read `packages/sdk/CLAUDE.md` before working in the package.
 
 ## Commands
 
@@ -20,6 +19,6 @@ pnpm typecheck
 pnpm docs:build
 ```
 
-Packages share one version and are published together. Use `pnpm release <version>` to prepare a release; pushing the resulting tag publishes it.
+Use `pnpm release <version>` to prepare a release; pushing the resulting tag publishes it.
 
-Package READMEs are the source for `docs/src/content/docs/sdk.md` and `svelte.md`. Do not edit those generated files.
+The package README is the source for `docs/src/content/docs/sdk.md`. Do not edit that generated file.

@@ -1,13 +1,12 @@
 # Rool JavaScript
 
-Official TypeScript SDK and Svelte bindings for [Rool](https://rool.dev).
+Official TypeScript SDK for [Rool](https://rool.dev).
 
-## Packages
+## Package
 
-| Package            | Description                      |
-| ------------------ | -------------------------------- |
-| `@rool-dev/sdk`    | TypeScript SDK for Rool Machines |
-| `@rool-dev/svelte` | Svelte 5 bindings for the SDK    |
+| Package         | Description                      |
+| --------------- | -------------------------------- |
+| `@rool-dev/sdk` | TypeScript SDK for Rool Machines |
 
 ## Development
 

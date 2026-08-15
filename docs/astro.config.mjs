@@ -20,13 +20,7 @@ export default defineConfig({
       ],
       sidebar: [
         { label: "Overview", link: "/" },
-        {
-          label: "Developer Tools",
-          items: [
-            { label: "SDK", link: "/sdk/" },
-            { label: "Svelte", link: "/svelte/" },
-          ],
-        },
+        { label: "SDK", link: "/sdk/" },
       ],
       pagination: false,
     }),
