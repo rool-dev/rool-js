@@ -78,6 +78,13 @@ export interface MachineFileUploadProgress {
   totalBytes?: number;
 }
 
+export type MachineFileWriteBody =
+  BodyInit | (() => ReadableStream<Uint8Array>);
+
+export type MachineFileRequestInit = Omit<RequestInit, "body"> & {
+  body?: MachineFileWriteBody | null;
+};
+
 export interface MachineFileWriteOptions {
   contentType?: string;
   createParents?: boolean | "private";
@@ -183,7 +190,7 @@ export interface MachineFiles {
   ): Promise<MachineFileInfo[]>;
   write(
     path: MachineFilePath,
-    body: BodyInit,
+    body: MachineFileWriteBody,
     options?: MachineFileWriteOptions,
   ): Promise<MachineFileInfo>;
   delete(
@@ -212,7 +219,7 @@ export interface MachineFiles {
 
 type FileRequest = (
   path: string,
-  init?: RequestInit,
+  init?: MachineFileRequestInit,
   onUploadProgress?: (progress: MachineFileUploadProgress) => void,
 ) => Promise<Response>;
 type SyncUpdate = {
@@ -523,7 +530,7 @@ class SyncedMachineFiles implements MachineFiles {
 
   async write(
     path: MachineFilePath,
-    body: BodyInit,
+    body: MachineFileWriteBody,
     options: MachineFileWriteOptions = {},
   ): Promise<MachineFileInfo> {
     const headers = conditionHeaders(options);

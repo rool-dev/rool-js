@@ -62,6 +62,7 @@ export type {
   MachineFileTreeChange,
   MachineFileTreeListOptions,
   MachineFileUploadProgress,
+  MachineFileWriteBody,
   MachineFileWriteOptions,
   MachineStorageUsage,
 } from "./files.js";

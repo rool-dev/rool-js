@@ -3,6 +3,7 @@ import type { RoolClientEvent } from "./events.js";
 import {
   createMachineFiles,
   type MachineFiles,
+  type MachineFileRequestInit,
   type MachineFileUploadProgress,
 } from "./files.js";
 import {
@@ -52,7 +53,7 @@ export interface MachineInvitesApi {
 export interface RoolMachineTransport {
   send(
     path: string,
-    init?: RequestInit,
+    init?: MachineFileRequestInit,
     onUploadProgress?: (progress: MachineFileUploadProgress) => void,
   ): Promise<Response>;
   request(

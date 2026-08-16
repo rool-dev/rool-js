@@ -1,6 +1,10 @@
 import packageJson from "../package.json" with { type: "json" };
 import { createRoolEvents, type RoolEvents } from "./events.js";
-import type { MachineFileUploadProgress } from "./files.js";
+import type {
+  MachineFileRequestInit,
+  MachineFileUploadProgress,
+  MachineFileWriteBody,
+} from "./files.js";
 import { RoolMachine } from "./machine.js";
 import { throwProblemResponse } from "./problem.js";
 import type {
@@ -23,6 +27,10 @@ import type {
 } from "./types.js";
 
 const DEFAULT_API_URL = "https://api.rool.dev";
+const MACHINE_ROUTE_CHANGED_HEADER = "Rool-Machine-Route-Changed";
+const ROUTE_CHANGE_MAX_RETRIES = 6;
+const ROUTE_CHANGE_RETRY_BASE_MS = 150;
+const ROUTE_CHANGE_RETRY_MAX_MS = 5_000;
 
 type SendOptions = {
   accept?: string;
@@ -218,9 +226,11 @@ export class RoolClient {
 
   private async send(
     path: string,
-    init?: RequestInit,
+    init?: MachineFileRequestInit,
     options: SendOptions = {},
   ): Promise<Response> {
+    const signal = init?.signal;
+    signal?.throwIfAborted();
     const headers = new Headers(init?.headers);
     if (options.accept) headers.set("Accept", options.accept);
     headers.set("X-Rool-SDK-Name", packageJson.name);
@@ -236,48 +246,103 @@ export class RoolClient {
     }
 
     const tokens = await this.getTokens();
+    signal?.throwIfAborted();
     if (tokens?.accessToken) {
       headers.set("Authorization", `Bearer ${tokens.accessToken}`);
     }
     if (tokens?.roolToken) headers.set("X-Rool-Token", tokens.roolToken);
 
-    const requestInit: RequestInit & { duplex?: "half" } = {
-      ...init,
-      headers,
-    };
-    if (isReadableStream(init?.body)) requestInit.duplex = "half";
-
     const url = `${this.apiUrl}${path}`;
-    const body = init?.body;
-    if (!options.onUploadProgress || body === undefined || body === null) {
-      return this.fetchRequest(url, requestInit);
-    }
+    const configuredBody = init?.body;
+    const bodyFactory =
+      typeof configuredBody === "function"
+        ? configuredBody
+        : () => configuredBody;
+    const bodyIsReplayable =
+      typeof configuredBody === "function" || !isReadableStream(configuredBody);
 
-    const useXmlHttpRequest =
-      this.usesDefaultFetch &&
-      typeof XMLHttpRequest !== "undefined" &&
-      !isReadableStream(body);
-    if (useXmlHttpRequest) {
-      return sendXmlHttpRequest(
-        url,
-        requestInit,
+    for (let retry = 0; ; retry++) {
+      signal?.throwIfAborted();
+      const body = bodyFactory();
+      const requestInit: RequestInit & { duplex?: "half" } = {
+        ...init,
+        headers,
         body,
-        options.onUploadProgress,
-      );
-    }
+      };
+      if (isReadableStream(body)) requestInit.duplex = "half";
 
-    const progressRequest = requestWithUploadProgress(
-      url,
-      requestInit,
-      body,
-      options.onUploadProgress,
-    );
-    return this.fetchRequest(url, progressRequest);
+      let response: Response;
+      if (!options.onUploadProgress || body === undefined || body === null) {
+        response = await this.fetchRequest(url, requestInit);
+      } else {
+        const useXmlHttpRequest =
+          this.usesDefaultFetch &&
+          typeof XMLHttpRequest !== "undefined" &&
+          !isReadableStream(body);
+        if (useXmlHttpRequest) {
+          response = await sendXmlHttpRequest(
+            url,
+            requestInit,
+            body,
+            options.onUploadProgress,
+          );
+        } else {
+          const progressRequest = requestWithUploadProgress(
+            url,
+            requestInit,
+            body,
+            options.onUploadProgress,
+          );
+          response = await this.fetchRequest(url, progressRequest);
+        }
+      }
+
+      const routeChanged =
+        response.status === 421 &&
+        response.headers.get(MACHINE_ROUTE_CHANGED_HEADER) === "1";
+      if (
+        !routeChanged ||
+        !bodyIsReplayable ||
+        retry >= ROUTE_CHANGE_MAX_RETRIES
+      ) {
+        return response;
+      }
+
+      await response.body?.cancel();
+      await delay(routeChangeBackoffMs(retry), signal);
+    }
   }
 }
 
+function routeChangeBackoffMs(retry: number): number {
+  const ceiling = Math.min(
+    ROUTE_CHANGE_RETRY_BASE_MS * 2 ** retry,
+    ROUTE_CHANGE_RETRY_MAX_MS,
+  );
+  return ceiling / 2 + Math.random() * (ceiling / 2);
+}
+
+function delay(
+  milliseconds: number,
+  signal: AbortSignal | null | undefined,
+): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const finish = () => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const abort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(finish, milliseconds);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
 function isReadableStream(
-  body: BodyInit | null | undefined,
+  body: MachineFileWriteBody | null | undefined,
 ): body is ReadableStream {
   return (
     typeof ReadableStream !== "undefined" && body instanceof ReadableStream

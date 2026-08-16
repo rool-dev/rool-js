@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { RoolFileError, type MachineFilePath } from "../../../src/index.js";
 import { expectFileError } from "./assertions.js";
 import {
+  createRoutedFetch,
   createTestClient,
   MachineCleanup,
   requireLocalRouter,
@@ -40,6 +41,22 @@ async function main(): Promise<void> {
     }),
   );
   const files = client.machine(machine.id).files;
+  const routedFetch = createRoutedFetch();
+  let uploadAttempts = 0;
+  const retryingClient = createTestClient("primary", async (input, init) => {
+    uploadAttempts++;
+    if (uploadAttempts === 1) {
+      if (init?.body instanceof ReadableStream) {
+        await new Response(init.body).arrayBuffer();
+      }
+      return new Response(null, {
+        status: 421,
+        headers: { "Rool-Machine-Route-Changed": "1" },
+      });
+    }
+    return routedFetch(input, init);
+  });
+  const retryingFiles = retryingClient.machine(machine.id).files;
 
   console.log("Checking machine file capabilities...");
   assert.deepEqual(await files.options(), {
@@ -66,7 +83,7 @@ async function main(): Promise<void> {
   const body = new Uint8Array(256 * 1024);
   for (let index = 0; index < body.length; index++) body[index] = index % 239;
   const uploadProgress: number[] = [];
-  const written = await files.write(path, stream(body), {
+  const written = await retryingFiles.write(path, () => stream(body), {
     contentType: "application/octet-stream",
     createParents: true,
     ifNoneMatch: "*",
@@ -75,14 +92,19 @@ async function main(): Promise<void> {
       uploadProgress.push(transferredBytes);
     },
   });
+  assert.equal(uploadAttempts, 2);
   assert.equal(uploadProgress[0], 0);
   assert.equal(uploadProgress.at(-1), body.length);
   assert.equal(
     uploadProgress.every(
-      (transferredBytes, index) =>
-        index === 0 || transferredBytes >= uploadProgress[index - 1]!,
+      (transferredBytes) =>
+        transferredBytes >= 0 && transferredBytes <= body.length,
     ),
     true,
+  );
+  assert.equal(
+    uploadProgress.filter((transferredBytes) => transferredBytes === 0).length,
+    2,
   );
   assert.equal(written.path, path);
   assert.match(written.etag, /^"/);
