@@ -21,6 +21,8 @@ import type {
   RoolClientConfig,
   RoolRequestTokens,
   RoolSession,
+  SpeechmaticsToken,
+  SpeechmaticsTokenOptions,
   UserAccount,
   UserAppData,
   UserProfile,
@@ -129,6 +131,17 @@ export class RoolClient {
     if (!language) return this.requestJson("/v2/greeting");
     const query = new URLSearchParams({ language });
     return this.requestJson(`/v2/greeting?${query}`);
+  }
+
+  /** Mint a short-lived key for Speechmatics real-time transcription. */
+  getSpeechmaticsToken(
+    options: SpeechmaticsTokenOptions = {},
+  ): Promise<SpeechmaticsToken> {
+    return this.requestJson("/v2/speechmatics/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options),
+    });
   }
 
   listMachines(): Promise<MachineSummary[]> {

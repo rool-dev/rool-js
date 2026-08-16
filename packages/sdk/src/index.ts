@@ -127,6 +127,8 @@ export type {
   RoolSession,
   RoolTokenSource,
   ServerInfo,
+  SpeechmaticsToken,
+  SpeechmaticsTokenOptions,
   UserAccount,
   UserAppData,
   UserProfile,

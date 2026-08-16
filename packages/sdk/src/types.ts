@@ -183,6 +183,20 @@ export interface Greeting {
   text: string;
 }
 
+export interface SpeechmaticsToken {
+  /** Short-lived key for the Speechmatics real-time API */
+  token: string;
+  /** Epoch milliseconds at which the token stops being accepted */
+  expiresAt: number;
+  /** Token lifetime in seconds */
+  ttl: number;
+}
+
+export interface SpeechmaticsTokenOptions {
+  /** Token lifetime in seconds, between 60 and 3600 (default 300) */
+  ttl?: number;
+}
+
 export type PasswordSignInResult = {
   status: "signed_in" | "verify_required";
 };

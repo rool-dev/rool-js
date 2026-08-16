@@ -431,6 +431,19 @@ const updated = await client.rotateGiftCode(giftId);
 
 Gift failures are `RoolProblem` errors. `gift_invalid` means the code or gift is unavailable to the caller. `gift_claimed` means it was already claimed.
 
+## Speechmatics
+
+Voice input transcribes the user's speech with Speechmatics' real-time API. Rool mints a short-lived key without exposing its long-lived provider key; hand the temporary key to the Speechmatics real-time SDK and stream the user's mic audio to it.
+
+```typescript
+const { token, expiresAt, ttl } = await client.getSpeechmaticsToken({
+  ttl: 300,
+});
+// speechmaticsRealtimeClient.start(token, { transcription_config: { language: "en" } })
+```
+
+The key expires after `ttl` seconds (60–3600, default 300). `expiresAt` is the epoch-milliseconds moment the key stops being accepted. A token request fails with `insufficient_credits` when the account's balance is too low and with `speechmatics_unavailable` when Speechmatics cannot issue a key.
+
 ## API problems
 
 Each problem `type` links to its entry below.
@@ -614,6 +627,18 @@ The gift has already been claimed. A claimed gift cannot be claimed again or giv
 ### `invalid_input`
 
 The gift update is empty or contains an invalid note or archived value.
+
+<a id="problem-insufficient_credits"></a>
+
+### `insufficient_credits`
+
+The account's credit balance is too low to mint a speech transcription key. Top up the balance and try again.
+
+<a id="problem-speechmatics_unavailable"></a>
+
+### `speechmatics_unavailable`
+
+Speechmatics could not issue a transcription key right now. Try again shortly.
 
 ## Development
 

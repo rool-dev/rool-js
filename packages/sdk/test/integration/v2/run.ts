@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const smokeTests = [
   { name: "user routes", file: "user-routes.test.ts" },
+  { name: "speechmatics token", file: "speechmatics-routes.test.ts" },
   { name: "account events", file: "event-routes.test.ts" },
   { name: "gift routes", file: "gift-routes.test.ts" },
   { name: "machine routes", file: "machine-routes.test.ts" },
