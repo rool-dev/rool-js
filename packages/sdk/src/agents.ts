@@ -1,3 +1,4 @@
+import type { RoolClientEvent } from "./events.js";
 import type { MachineFilePath } from "./files.js";
 import { throwProblemResponse } from "./problem.js";
 
@@ -32,7 +33,10 @@ export type MachineConversationContentPart =
     }
   | { type: "json"; value: unknown };
 
-export interface MachineConversationTurnBody {
+export interface MachineConversationTurn {
+  id: string;
+  userId?: string;
+  createdAt: string;
   role: MachineConversationTurnRole;
   content: MachineConversationContentPart[];
   request?: Record<string, unknown>;
@@ -40,13 +44,6 @@ export interface MachineConversationTurnBody {
   error?: string;
   usage?: { inputTokens: number; outputTokens: number };
   aside?: boolean;
-}
-
-export interface MachineConversationTurn {
-  id: string;
-  userId?: string;
-  createdAt: string;
-  body: MachineConversationTurnBody;
 }
 
 export interface MachineAgentDefinition {
@@ -105,6 +102,18 @@ export interface MachineConversationFollowOptions extends AgentRequestOptions {
 
 export type MachineConversationCancelOptions = AgentRequestOptions;
 
+export interface MachineConversationView {
+  readonly turns: readonly MachineConversationTurn[];
+  readonly output: readonly MachineConversationContentPart[];
+  readonly isRunning: boolean;
+  readonly loading: boolean;
+  readonly error: unknown;
+}
+
+export type MachineConversationListener = (
+  view: MachineConversationView,
+) => void;
+
 export interface MachineConversation {
   readonly id: string;
   readonly agent: MachineAgent;
@@ -112,6 +121,7 @@ export interface MachineConversation {
     options?: AgentRequestOptions,
   ): Promise<MachineConversationState | undefined>;
   listTurns(options?: AgentRequestOptions): Promise<MachineConversationTurn[]>;
+  watch(listener: MachineConversationListener): () => void;
   replace(
     metadata: MachineConversationMetadataInput,
     options?: AgentRequestOptions,
@@ -163,26 +173,28 @@ interface AgentTransport {
     allowHttpErrors?: boolean,
   ): Promise<Response>;
   requestJson<T>(path: string, init?: RequestInit): Promise<T>;
+  subscribeEvents(listener: (event: RoolClientEvent) => void): () => void;
 }
-
-type WireTurn = Omit<MachineConversationTurnBody, "role"> & {
-  id: string;
-  userId?: string;
-  createdAt: string;
-  role: MachineConversationTurnRole;
-};
 
 type ConversationCollection = {
   conversations: Record<string, MachineConversationMetadata>;
 };
 
+type TurnUpdate = {
+  turns: MachineConversationTurn[];
+  reset: boolean;
+  isRunning: boolean;
+};
+
 const VALID_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_EVENT_BYTES = 1024 * 1024;
+const WATCH_RETRY_MAX_MS = 5_000;
 
 class MachineAgentState implements MachineAgents {
   private readonly agents = new Map<string, AgentClient>();
 
   constructor(
+    readonly machineId: string,
     private readonly machinePath: string,
     private readonly transport: AgentTransport,
   ) {}
@@ -306,8 +318,13 @@ class MachineAgentState implements MachineAgents {
     if (response.status === 404) return undefined;
     if (!response.ok) await throwProblemResponse(response);
     const metadata = (await response.json()) as MachineConversationMetadata;
-    const turns = await this.listTurns(agentId, conversationId, options);
-    return { ...metadata, turns };
+    const update = await this.readTurnUpdate(
+      agentId,
+      conversationId,
+      undefined,
+      options.signal,
+    );
+    return { ...metadata, isRunning: update.isRunning, turns: update.turns };
   }
 
   async listTurns(
@@ -315,11 +332,31 @@ class MachineAgentState implements MachineAgents {
     conversationId: string,
     options: AgentRequestOptions = {},
   ): Promise<MachineConversationTurn[]> {
-    const { turns } = await this.transport.requestJson<{ turns: WireTurn[] }>(
-      `${this.conversationPath(agentId, conversationId)}/turns`,
-      { signal: options.signal },
+    return (
+      await this.readTurnUpdate(
+        agentId,
+        conversationId,
+        undefined,
+        options.signal,
+      )
+    ).turns;
+  }
+
+  async readTurnUpdate(
+    agentId: string,
+    conversationId: string,
+    after: string | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<TurnUpdate> {
+    const query = after ? `?${new URLSearchParams({ after }).toString()}` : "";
+    return this.transport.requestJson<TurnUpdate>(
+      `${this.conversationPath(agentId, conversationId)}/turns${query}`,
+      { signal },
     );
-    return turns.map(turnFromWire);
+  }
+
+  subscribeEvents(listener: (event: RoolClientEvent) => void): () => void {
+    return this.transport.subscribeEvents(listener);
   }
 
   replaceConversation(
@@ -531,6 +568,22 @@ class AgentClient implements MachineAgent {
 }
 
 class ConversationClient implements MachineConversation {
+  private readonly listeners = new Set<MachineConversationListener>();
+  private turns: MachineConversationTurn[] = [];
+  private output: MachineConversationContentPart[] = [];
+  private isRunning = false;
+  private loading = true;
+  private error: unknown = null;
+  private watchController: AbortController | null = null;
+  private unsubscribeEvents: (() => void) | null = null;
+  private syncRequested = false;
+  private syncLoop: Promise<void> | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryMs = 250;
+  private followController: AbortController | null = null;
+  private followTask: Promise<void> | null = null;
+  private followRetryMs = 250;
+
   constructor(
     readonly agent: AgentClient,
     readonly id: string,
@@ -549,6 +602,17 @@ class ConversationClient implements MachineConversation {
     return this.state.listTurns(this.agent.id, this.id, options);
   }
 
+  watch(listener: MachineConversationListener): () => void {
+    this.listeners.add(listener);
+    listener(this.view());
+    if (!this.watchController) this.startWatching();
+
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size === 0) this.stopWatching();
+    };
+  }
+
   replace(
     metadata: MachineConversationMetadataInput,
     options?: AgentRequestOptions,
@@ -561,19 +625,27 @@ class ConversationClient implements MachineConversation {
     );
   }
 
-  prompt(
+  async prompt(
     text: string,
     options: MachineConversationPromptOptions = {},
   ): Promise<void> {
-    return this.state.prompt(this.agent.id, this.id, text, options);
+    try {
+      await this.state.prompt(this.agent.id, this.id, text, options);
+    } finally {
+      this.requestSync();
+    }
   }
 
   follow(options?: MachineConversationFollowOptions): Promise<boolean> {
     return this.state.follow(this.agent.id, this.id, options);
   }
 
-  cancel(options?: MachineConversationCancelOptions): Promise<boolean> {
-    return this.state.cancel(this.agent.id, this.id, options);
+  async cancel(options?: MachineConversationCancelOptions): Promise<boolean> {
+    try {
+      return await this.state.cancel(this.agent.id, this.id, options);
+    } finally {
+      this.requestSync();
+    }
   }
 
   async rename(
@@ -594,30 +666,183 @@ class ConversationClient implements MachineConversation {
   delete(options?: AgentRequestOptions): Promise<void> {
     return this.state.deleteConversation(this.agent, this.id, options);
   }
+
+  private startWatching(): void {
+    const controller = new AbortController();
+    this.watchController = controller;
+    this.unsubscribeEvents = this.state.subscribeEvents((event) => {
+      const matchesConversation =
+        event.type === "conversation_changed" &&
+        event.machineId === this.state.machineId &&
+        event.agentId === this.agent.id &&
+        event.conversationId === this.id;
+      if (event.type === "session" || matchesConversation) {
+        if (!this.followTask || event.type === "session") this.requestSync();
+      }
+    });
+    this.requestSync();
+  }
+
+  private stopWatching(): void {
+    this.watchController?.abort();
+    this.watchController = null;
+    this.followController?.abort();
+    this.followController = null;
+    this.unsubscribeEvents?.();
+    this.unsubscribeEvents = null;
+    this.syncRequested = false;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  private requestSync(): void {
+    const controller = this.watchController;
+    if (!controller || controller.signal.aborted) return;
+    this.syncRequested = true;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    if (this.syncLoop) return;
+
+    const loop = this.runSyncLoop(controller);
+    this.syncLoop = loop;
+    const finished = () => {
+      if (this.syncLoop === loop) this.syncLoop = null;
+      const current = this.watchController;
+      if (current && this.syncRequested && !current.signal.aborted) {
+        this.requestSync();
+      }
+    };
+    void loop.then(finished, finished);
+  }
+
+  private async runSyncLoop(controller: AbortController): Promise<void> {
+    while (
+      this.watchController === controller &&
+      !controller.signal.aborted &&
+      this.syncRequested
+    ) {
+      this.syncRequested = false;
+      try {
+        const after = this.turns.at(-1)?.id;
+        const update = await this.state.readTurnUpdate(
+          this.agent.id,
+          this.id,
+          after,
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        this.turns = update.reset
+          ? update.turns
+          : [...this.turns, ...update.turns];
+        this.isRunning = update.isRunning;
+        this.loading = false;
+        this.error = null;
+        this.retryMs = 250;
+        if (!this.isRunning || (update.reset && this.followTask)) {
+          this.followController?.abort();
+          this.output = [];
+        }
+        this.emit();
+        if (this.isRunning) this.ensureFollow(controller);
+      } catch (error) {
+        if (controller.signal.aborted || isAbortError(error)) return;
+        this.loading = false;
+        this.error = error;
+        this.emit();
+        this.scheduleRetry(controller);
+        return;
+      }
+    }
+  }
+
+  private scheduleRetry(controller: AbortController): void {
+    if (this.retryTimer || this.watchController !== controller) return;
+    const delay = this.retryMs;
+    this.retryMs = Math.min(this.retryMs * 2, WATCH_RETRY_MAX_MS);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.requestSync();
+    }, delay);
+  }
+
+  private ensureFollow(watchController: AbortController): void {
+    if (this.followTask || this.watchController !== watchController) return;
+
+    const controller = new AbortController();
+    this.followController = controller;
+    this.output = [];
+    this.emit();
+    const task = this.runFollow(controller);
+    this.followTask = task;
+    const finished = () => {
+      if (this.followTask === task) this.followTask = null;
+      if (this.followController === controller) this.followController = null;
+      const current = this.watchController;
+      if (current && !current.signal.aborted) this.requestSync();
+    };
+    void task.then(finished, finished);
+  }
+
+  private async runFollow(controller: AbortController): Promise<void> {
+    let streamFailed: Error | null = null;
+    try {
+      await this.state.follow(this.agent.id, this.id, {
+        signal: controller.signal,
+        onEvent: (event) => {
+          if (event.type === "output.delta") {
+            this.output = [...this.output, event.content];
+            this.error = null;
+            this.emit();
+          } else if (
+            event.type === "error" &&
+            event.code === "run_stream_failed"
+          ) {
+            streamFailed = new Error(event.detail);
+          }
+        },
+      });
+      if (streamFailed) throw streamFailed;
+      this.followRetryMs = 250;
+    } catch (error) {
+      if (controller.signal.aborted || isAbortError(error)) return;
+      this.error = error;
+      this.emit();
+      const delay = this.followRetryMs;
+      this.followRetryMs = Math.min(this.followRetryMs * 2, WATCH_RETRY_MAX_MS);
+      await abortableDelay(delay, controller.signal);
+    }
+  }
+
+  private view(): MachineConversationView {
+    let end = this.turns.length;
+    if (this.isRunning) {
+      for (let index = this.turns.length - 1; index >= 0; index--) {
+        if (this.turns[index].role !== "user") continue;
+        end = index + 1;
+        break;
+      }
+    }
+    return {
+      turns: this.turns.slice(0, end),
+      output: [...this.output],
+      isRunning: this.isRunning,
+      loading: this.loading,
+      error: this.error,
+    };
+  }
+
+  private emit(): void {
+    const view = this.view();
+    for (const listener of this.listeners) listener(view);
+  }
 }
 
 export function createMachineAgents(
+  machineId: string,
   machinePath: string,
   transport: AgentTransport,
 ): MachineAgents {
-  return new MachineAgentState(machinePath, transport);
-}
-
-function turnFromWire(turn: WireTurn): MachineConversationTurn {
-  return {
-    id: turn.id,
-    ...(turn.userId ? { userId: turn.userId } : {}),
-    createdAt: turn.createdAt,
-    body: {
-      role: turn.role,
-      content: turn.content,
-      ...(turn.request ? { request: turn.request } : {}),
-      ...(turn.finish ? { finish: turn.finish } : {}),
-      ...(turn.error ? { error: turn.error } : {}),
-      ...(turn.usage ? { usage: turn.usage } : {}),
-      ...(turn.aside !== undefined ? { aside: turn.aside } : {}),
-    },
-  };
+  return new MachineAgentState(machineId, machinePath, transport);
 }
 
 function parseRunEvent(line: string): MachineRunEvent | undefined {
@@ -694,4 +919,28 @@ function jsonRequest(
 
 function randomId(): string {
   return globalThis.crypto.randomUUID();
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.message.includes("was aborted"))
+  );
+}
+
+async function abortableDelay(
+  milliseconds: number,
+  signal: AbortSignal,
+): Promise<void> {
+  if (signal.aborted) return;
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(finish, milliseconds);
+    signal.addEventListener("abort", finish, { once: true });
+
+    function finish(): void {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    }
+  });
 }

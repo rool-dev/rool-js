@@ -67,7 +67,7 @@ function contentText(parts: MachineConversationContentPart[]): string {
 }
 
 function turnText(turn: MachineConversationTurn): string {
-  return contentText(turn.body.content);
+  return contentText(turn.content);
 }
 
 function assertIsoDate(value: string): void {
@@ -90,13 +90,10 @@ async function promptAndFollow(
   );
 
   const turns = await conversation.listTurns();
-  const user = [...turns].reverse().find((turn) => turn.body.role === "user");
+  const user = [...turns].reverse().find((turn) => turn.role === "user");
   const assistant = [...turns]
     .reverse()
-    .find(
-      (turn) =>
-        turn.body.role === "assistant" && turn.body.finish !== "tool_calls",
-    );
+    .find((turn) => turn.role === "assistant" && turn.finish !== "tool_calls");
   assert(user);
   assert(assistant);
   return { user, assistant };
@@ -174,9 +171,9 @@ async function main(): Promise<void> {
     events,
   );
   assert.equal(completed.user.userId, account.id);
-  assert.equal(completed.user.body.role, "user");
-  assert.equal(completed.assistant.body.role, "assistant");
-  assert.notEqual(completed.assistant.body.finish, "tool_calls");
+  assert.equal(completed.user.role, "user");
+  assert.equal(completed.assistant.role, "assistant");
+  assert.notEqual(completed.assistant.finish, "tool_calls");
   assert(turnText(completed.assistant).length > 0);
   assert(events.some((event) => event.type === "completed"));
   assert.equal(machine.files.isWatching, false);
@@ -225,13 +222,52 @@ async function main(): Promise<void> {
     "Return an object whose answer is the integer 7.",
     { effort: "quick", responseSchema },
   );
-  assert.equal(structuredResult.assistant.body.content.length, 1);
-  const structuredPart = structuredResult.assistant.body.content[0];
+  assert.equal(structuredResult.assistant.content.length, 1);
+  const structuredPart = structuredResult.assistant.content[0];
   assert.equal(structuredPart?.type, "json");
   if (structuredPart?.type !== "json") {
     throw new Error("Structured assistant turn did not contain JSON");
   }
   assert.deepEqual(structuredPart.value, { answer: 7 });
+
+  console.log("Watching one conversation through catch-up and live output...");
+  const watched = await stock.createConversation({
+    id: `watched-${Date.now()}`,
+    visibility: "private",
+  });
+  let watchedOutput = "";
+  let finishWatch = () => {};
+  const watchSettled = new Promise<void>((resolve) => {
+    finishWatch = resolve;
+  });
+  const stopWatching = watched.watch((view) => {
+    if (view.output.length > 0) {
+      watchedOutput = contentText([...view.output]);
+    }
+    const settledAssistant = view.turns.find(
+      (turn) => turn.role === "assistant" && turn.finish !== "tool_calls",
+    );
+    if (!view.loading && !view.isRunning && settledAssistant) finishWatch();
+  });
+  await watched.prompt("Without using tools, say watched in one sentence.", {
+    effort: "quick",
+  });
+  let watchTimeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      watchSettled,
+      new Promise<never>((_resolve, reject) => {
+        watchTimeout = setTimeout(
+          () => reject(new Error("conversation watch did not settle")),
+          30_000,
+        );
+      }),
+    ]);
+  } finally {
+    if (watchTimeout) clearTimeout(watchTimeout);
+  }
+  stopWatching();
+  assert(watchedOutput.length > 0, "conversation watch omitted live output");
 
   console.log("Editing and rerolling through durable user turn IDs...");
   const original = await promptAndFollow(
@@ -340,8 +376,8 @@ async function main(): Promise<void> {
   const cancelledTurns = await cancelling.listTurns();
   const cancelledAssistant = [...cancelledTurns]
     .reverse()
-    .find((turn) => turn.body.role === "assistant");
-  assert.equal(cancelledAssistant?.body.finish, "cancelled");
+    .find((turn) => turn.role === "assistant");
+  assert.equal(cancelledAssistant?.finish, "cancelled");
   assert(cancelledEvents.some((event) => event.type === "cancelled"));
   assert.equal((await cancelling.get())?.isRunning, false);
   assert.equal(
@@ -354,12 +390,13 @@ async function main(): Promise<void> {
 
   await explicit.delete();
   assert.equal(await explicit.get(), undefined);
+  await watched.delete();
   await structured.delete();
   await replaced.delete();
   assert.equal(await machine.agents.get(customId), undefined);
 
-  assert.equal(runPosts, 11);
-  assert.equal(runStreams, 9);
+  assert.equal(runPosts, 12);
+  assert.equal(runStreams, 10);
   assert.equal(runDeletes, 2);
 
   console.log("\n✅ SDK agent route smoke tests passed.");

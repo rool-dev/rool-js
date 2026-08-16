@@ -1,4 +1,5 @@
 import { createMachineAgents, type MachineAgents } from "./agents.js";
+import type { RoolClientEvent } from "./events.js";
 import {
   createMachineFiles,
   type MachineFiles,
@@ -60,6 +61,7 @@ export interface RoolMachineTransport {
     allowHttpErrors?: boolean,
   ): Promise<Response>;
   requestJson<T>(path: string, init?: RequestInit): Promise<T>;
+  subscribeEvents(listener: (event: RoolClientEvent) => void): () => void;
   deleted(): void;
 }
 
@@ -84,7 +86,7 @@ export class RoolMachine {
 
     this.path = `/v2/machines/${encodeURIComponent(id)}`;
     this.files = createMachineFiles(id, transport.send);
-    this.agents = createMachineAgents(this.path, transport);
+    this.agents = createMachineAgents(id, this.path, transport);
     const structured = createMachineStructuredApis(
       this.files,
       () => this.files.isWatching,

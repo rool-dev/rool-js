@@ -313,30 +313,29 @@ const defaultAgent = await machine.agents.get("rool");
 if (!defaultAgent) throw new Error("Rool agent is unavailable");
 
 const conversation = defaultAgent.conversation("research-chat");
+const stopWatching = conversation.watch((view) => {
+  renderConversation({
+    turns: view.turns,
+    output: view.output,
+    isRunning: view.isRunning,
+    loading: view.loading,
+    error: view.error,
+  });
+});
+
 await conversation.prompt("Explain the result.", { effort: "reasoning" });
 
-renderSettled(await conversation.listTurns());
-clearUnsettled();
-await conversation.follow({
-  onEvent: (event) => {
-    if (event.type !== "output.delta") return;
-    if (event.content.type === "text") {
-      renderUnsettledText(event.content.text);
-    } else if (event.content.type === "tool_call") {
-      showRunningTool(event.content.id, event.content.name);
-    } else if (event.content.type === "tool_result") {
-      showToolResult(event.content.id, event.content.content);
-    }
-  },
-});
-renderSettled(await conversation.listTurns());
+// When this conversation leaves the UI:
+stopWatching();
 ```
 
 `prompt()` starts the conversation's current run and resolves once the server accepts it. The agent runs as a detached job. A conversation can only have one current run; call `cancel()` and wait for `follow()` to finish before prompting again. The `readOnly` option is accepted for compatibility with legacy prompting but currently has no effect.
 
-`follow()` performs one `GET` of the conversation's current run. It receives the complete unsettled part of the conversation and then continues with new events until that response ends. Tool calls and their results arrive as `output.delta` events with matching IDs. A tool result contains nested content parts and an optional `error` flag. `follow()` returns `false` when there is no current run. A client can always render the conversation from its durable turns plus the events from its latest `follow()` call.
+`watch()` is the normal UI API. It fetches only turns after the last turn it has seen, follows the current run, and refreshes the durable turns when that stream ends. `turns` contains saved history through the current user message while a run is active; `output` contains that run's replayed and live output. The first listener starts the work and removing the last listener stops it. Saved turns remain cached on the conversation handle for the next listener.
 
-A `conversation_changed` account event tells clients to fetch the durable turns and follow the current run again. Aborting `follow()` only stops watching. Call `cancel()` to stop the detached job.
+`follow()` is the lower-level streaming API. It performs one `GET` of the conversation's current run. It receives the complete current-run output and then continues with new events until that response ends. Tool calls and their results arrive as `output.delta` events with matching IDs. A tool result contains nested content parts and an optional `error` flag. `follow()` returns `false` when there is no current run. Aborting `follow()` only stops that request; call `cancel()` to stop the detached job.
+
+The SDK uses `conversation_changed` account events to wake active watchers. A watcher also refreshes after prompting, cancellation, stream completion, connection failure, and account event-token replacement.
 
 Prompt attachments are existing `/space` or `/rool-drive` paths. Pass a durable user turn's `id` as `replaceTurnId` to replace that message and everything after it. This supports edits and rerolls, including the first message. A replacement gets a new user turn ID; use that ID to edit it again.
 
@@ -354,7 +353,7 @@ await conversation.prompt("Return the number of records.", {
 await conversation.follow();
 
 const turns = await conversation.listTurns();
-const part = turns.at(-1)?.body.content[0];
+const part = turns.at(-1)?.content[0];
 if (part?.type !== "json") throw new Error("No structured result");
 console.log(part.value); // { count: ... }
 ```

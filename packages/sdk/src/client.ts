@@ -146,6 +146,7 @@ export class RoolClient {
         this.request(path, init, allowHttpErrors),
       requestJson: <T>(path: string, init?: RequestInit) =>
         this.requestJson<T>(path, init),
+      subscribeEvents: (listener) => this.events.subscribe(listener),
       deleted: () => this.machines.delete(machineId),
     });
     this.machines.set(machineId, machine);
