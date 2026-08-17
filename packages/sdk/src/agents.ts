@@ -47,6 +47,7 @@ export interface MachineConversationTurn {
 }
 
 export interface MachineAgentDefinition {
+  /** Instructions added after Rool's built-in machine context. */
   system: string;
 }
 
@@ -126,6 +127,13 @@ export interface MachineConversation {
     metadata: MachineConversationMetadataInput,
     options?: AgentRequestOptions,
   ): Promise<MachineConversationMetadata>;
+  /** Return conversation-specific instructions; an empty string means none. */
+  getInstructions(options?: AgentRequestOptions): Promise<string>;
+  /** Replace conversation-specific instructions; pass an empty string to clear. */
+  replaceInstructions(
+    instructions: string,
+    options?: AgentRequestOptions,
+  ): Promise<string>;
   prompt(
     text: string,
     options?: MachineConversationPromptOptions,
@@ -179,6 +187,8 @@ interface AgentTransport {
 type ConversationCollection = {
   conversations: Record<string, MachineConversationMetadata>;
 };
+
+type ConversationInstructions = { instructions: string };
 
 type TurnUpdate = {
   turns: MachineConversationTurn[];
@@ -370,6 +380,32 @@ class MachineAgentState implements MachineAgents {
       this.conversationPath(agentId, conversationId),
       jsonRequest("PUT", metadata, options.signal),
     );
+  }
+
+  async getConversationInstructions(
+    agentId: string,
+    conversationId: string,
+    options: AgentRequestOptions = {},
+  ): Promise<string> {
+    const result = await this.transport.requestJson<ConversationInstructions>(
+      `${this.conversationPath(agentId, conversationId)}/instructions`,
+      { signal: options.signal },
+    );
+    return result.instructions;
+  }
+
+  async replaceConversationInstructions(
+    agentId: string,
+    conversationId: string,
+    instructions: string,
+    options: AgentRequestOptions = {},
+  ): Promise<string> {
+    validateInstructions(instructions);
+    const result = await this.transport.requestJson<ConversationInstructions>(
+      `${this.conversationPath(agentId, conversationId)}/instructions`,
+      jsonRequest("PUT", { instructions }, options.signal),
+    );
+    return result.instructions;
   }
 
   async deleteConversation(
@@ -625,6 +661,26 @@ class ConversationClient implements MachineConversation {
     );
   }
 
+  getInstructions(options?: AgentRequestOptions): Promise<string> {
+    return this.state.getConversationInstructions(
+      this.agent.id,
+      this.id,
+      options,
+    );
+  }
+
+  replaceInstructions(
+    instructions: string,
+    options?: AgentRequestOptions,
+  ): Promise<string> {
+    return this.state.replaceConversationInstructions(
+      this.agent.id,
+      this.id,
+      instructions,
+      options,
+    );
+  }
+
   async prompt(
     text: string,
     options: MachineConversationPromptOptions = {},
@@ -874,7 +930,7 @@ function parseRunEvent(line: string): MachineRunEvent | undefined {
 
 function validateDefinition(definition: MachineAgentDefinition): void {
   if (!definition || typeof definition.system !== "string") {
-    throw new Error("Agent system prompt must be a string");
+    throw new Error("Agent system instructions must be a string");
   }
 }
 
@@ -884,6 +940,12 @@ function validateMetadata(metadata: MachineConversationMetadataInput): void {
   }
   if (metadata.name !== undefined && typeof metadata.name !== "string") {
     throw new Error("Conversation name must be a string");
+  }
+}
+
+function validateInstructions(instructions: string): void {
+  if (typeof instructions !== "string") {
+    throw new Error("Conversation instructions must be a string");
   }
 }
 

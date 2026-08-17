@@ -363,7 +363,7 @@ if (part?.type !== "json") throw new Error("No structured result");
 console.log(part.value); // { count: ... }
 ```
 
-Custom agent definitions currently contain one plain system prompt. The server owns the executable agent implementation.
+A custom agent's `system` field contains instructions added after Rool's built-in machine context. Each conversation can add another instruction layer without changing the agent or its metadata.
 
 ```typescript
 const researcher = await machine.agents.create("researcher", {
@@ -373,10 +373,15 @@ const customConversation = await researcher.createConversation({
   name: "Climate report",
   visibility: "private",
 });
+await customConversation.replaceInstructions(
+  "For this conversation, compare at least two sources.",
+);
 await customConversation.prompt("Investigate this claim.");
 ```
 
-Agents expose `replace()` and `delete()`. Conversations expose metadata replacement, listing, durable turn reads, rename, and deletion. Listed and fetched conversation metadata includes server-managed ISO 8601 `createdAt` and `updatedAt` timestamps plus `isRunning`, which can drive a running indicator without opening every run stream. Visibility defaults to private. The built-in `rool` agent cannot be replaced or deleted.
+`getInstructions()` returns the conversation instructions. `replaceInstructions("")` clears them. Metadata changes do not affect them. New instructions apply to the next run; a run already in progress keeps the instructions it started with.
+
+Agents expose `replace()` and `delete()`. Conversations expose instruction and metadata replacement, listing, durable turn reads, rename, and deletion. Listed and fetched conversation metadata includes server-managed ISO 8601 `createdAt` and `updatedAt` timestamps plus `isRunning`, which can drive a running indicator without opening every run stream. Visibility defaults to private. The built-in `rool` agent cannot be replaced or deleted.
 
 ## Members and invites
 

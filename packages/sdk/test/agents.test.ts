@@ -234,6 +234,47 @@ test("watch catches up, follows the current run, and settles saved turns", async
   );
 });
 
+test("conversation instructions round-trip through their own resource", async () => {
+  let savedInstructions = "";
+  const instructionsPath =
+    "/v2/machines/machine/agents/rool/conversations/chat/instructions";
+  const client = new RoolClient({
+    apiUrl: "https://api.example.test",
+    fetch: async (input, init) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/agents/rool")) {
+        return Response.json({ system: "" });
+      }
+
+      assert.equal(url.pathname, instructionsPath);
+      const method = init?.method ?? "GET";
+      if (method === "PUT") {
+        const body = JSON.parse(String(init?.body)) as {
+          instructions: string;
+        };
+        savedInstructions = body.instructions.trim();
+      } else {
+        assert.equal(method, "GET");
+      }
+      return Response.json({ instructions: savedInstructions });
+    },
+  });
+
+  const agent = await client.machine("machine").agents.get("rool");
+  assert(agent);
+  const conversation = agent.conversation("chat");
+
+  assert.equal(await conversation.getInstructions(), "");
+  assert.equal(
+    await conversation.replaceInstructions("  Answer in French.\n"),
+    "Answer in French.",
+  );
+  assert.equal(await conversation.getInstructions(), "Answer in French.");
+  assert.equal(await conversation.replaceInstructions(""), "");
+});
+
 test("prompt sends run options", async () => {
   let runInput: unknown;
   const client = new RoolClient({

@@ -147,10 +147,18 @@ async function main(): Promise<void> {
   assert.deepEqual(initialConversation.turns, []);
   assertIsoDate(initialConversation.createdAt);
   assertIsoDate(initialConversation.updatedAt);
+  assert.equal(await explicit.getInstructions(), "");
+  const customInstructions = "Compare at least two sources.";
+  assert.equal(
+    await explicit.replaceInstructions(customInstructions),
+    customInstructions,
+  );
   await explicit.rename("Renamed conversation");
   assert.equal((await explicit.get())?.name, "Renamed conversation");
   await explicit.replace({ name: "Shared conversation", visibility: "shared" });
   assert.equal((await explicit.get())?.visibility, "shared");
+  assert.equal(await explicit.getInstructions(), customInstructions);
+  assert.equal(await explicit.replaceInstructions(""), "");
   const listedConversation = (await replaced.listConversations()).find(
     (conversation) => conversation.id === explicit.id,
   );
