@@ -201,6 +201,8 @@ const path = "/rool-drive/documents/report.pdf";
 
 const storage = await files.getStorageUsage();
 console.log(storage.usedBytes, storage.availableBytes);
+const { maxUploadBytes } = await files.options(path);
+console.log(maxUploadBytes);
 await files.createDirectory("/rool-drive/documents");
 const written = await files.write(path, reportBlob, {
   contentType: "application/pdf",
@@ -239,7 +241,7 @@ for (const result of deleted) {
 }
 ```
 
-Paths are absolute machine paths under `/space` or `/rool-drive`. `list()` without a path enumerates those storage roots; pass `{ recursive: true }` to enumerate a complete subtree. File and directory metadata has a discriminating `kind` field. Reads return the native `Response` so callers can stream the body. `readMultiple()` hydrates ordered small files in one request and returns an `ok` result with binary-safe bytes and validators, or a per-file HTTP failure. A batch accepts at most 128 paths, 2 MiB per successful file, and 16 MiB across successful files. Writes accept any `BodyInit`, including `Blob` and `ReadableStream`, and return the same complete file metadata as `stat()` and `list()`. Pass a function that creates a fresh `ReadableStream` when an upload must be replayable after a machine route change; a directly passed stream remains one-shot. `onUploadProgress` reports transferred bytes and includes the total size when it is known; successful completion is confirmed by the `write()` promise. Copy and move operations overwrite by default; pass `{ overwrite: false }` for create-only behavior.
+Paths are absolute machine paths under `/space` or `/rool-drive`. `list()` without a path enumerates those storage roots; pass `{ recursive: true }` to enumerate a complete subtree. File and directory metadata has a discriminating `kind` field. Reads return the native `Response` so callers can stream the body. `readMultiple()` hydrates ordered small files in one request and returns an `ok` result with binary-safe bytes and validators, or a per-file HTTP failure. A batch accepts at most 128 paths, 2 MiB per successful file, and 16 MiB across successful files. Writes accept any `BodyInit`, including `Blob` and `ReadableStream`, and return the same complete file metadata as `stat()` and `list()`. Pass a function that creates a fresh `ReadableStream` when an upload must be replayable after a machine route change; a directly passed stream remains one-shot. `onUploadProgress` reports transferred bytes and includes the total size when it is known; successful completion is confirmed by the `write()` promise. `options(path)` reports `maxUploadBytes` for that path's storage root. Calling `options()` without a path reports whole-DAV capabilities and returns `null` for `maxUploadBytes` because `/space` and `/rool-drive` have different limits. Copy and move operations overwrite by default; pass `{ overwrite: false }` for create-only behavior.
 
 `deleteMultiple()` sends independent DAV requests with at most eight in flight. It accepts plain paths and targets carrying their own HTTP preconditions, and returns one ordered success or failure result per target. The requests are not atomic. A directory target recursively deletes its contents, so callers should omit redundant descendants; duplicate and overlapping targets otherwise remain independent and can race.
 

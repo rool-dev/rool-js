@@ -36,6 +36,8 @@ export interface MachineFileCapabilities {
   createsParents: boolean;
   readsMultiple: boolean;
   synchronizes: boolean;
+  /** Maximum PUT body size for the path's storage root, or null when no single root applies. */
+  maxUploadBytes: number | null;
 }
 
 export interface MachineStorageUsage {
@@ -173,7 +175,7 @@ export interface MachineFiles {
   watch(): Promise<void>;
   unwatch(): void;
   href(path?: MachineFilePath): string;
-  options(): Promise<MachineFileCapabilities>;
+  options(path?: MachineFilePath): Promise<MachineFileCapabilities>;
   getStorageUsage(signal?: AbortSignal): Promise<MachineStorageUsage>;
   read(
     path: MachineFilePath,
@@ -433,8 +435,8 @@ class SyncedMachineFiles implements MachineFiles {
     return `${prefix}/${encodeFilePath(path)}`;
   }
 
-  async options(): Promise<MachineFileCapabilities> {
-    const response = await this.request(this.href(), { method: "OPTIONS" });
+  async options(path?: MachineFilePath): Promise<MachineFileCapabilities> {
+    const response = await this.request(this.href(path), { method: "OPTIONS" });
     await assertStatus(response, 204);
     return {
       methods: (response.headers.get("Allow") ?? "")
@@ -454,6 +456,10 @@ class SyncedMachineFiles implements MachineFiles {
         .split(",")
         .map((token) => token.trim())
         .includes("sync-collection"),
+      maxUploadBytes: nonnegativeHeaderInteger(
+        response,
+        "Rool-Max-Upload-Bytes",
+      ),
     };
   }
 
@@ -1003,6 +1009,20 @@ function parsePropfind(xml: string, machineId: string): MachineFileInfo[] {
     const info = fileInfoFromResponse(responseXml, machineId);
     return info ? [info] : [];
   });
+}
+
+function nonnegativeHeaderInteger(
+  response: Response,
+  name: string,
+): number | null {
+  const raw = response.headers.get(name);
+  if (raw === null) return null;
+
+  const value = /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`OPTIONS returned invalid ${name}: ${raw}`);
+  }
+  return value;
 }
 
 function parseStorageUsage(xml: string): MachineStorageUsage {

@@ -20,6 +20,8 @@ import {
 
 const client = createTestClient();
 const machineCleanup = new MachineCleanup(client);
+const MAX_ROOL_DRIVE_UPLOAD_BYTES = 100 * 1024 * 1024;
+const MAX_SPACE_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 function stream(body: Uint8Array): ReadableStream<Uint8Array> {
   return new ReadableStream({
@@ -76,7 +78,16 @@ async function main(): Promise<void> {
     createsParents: true,
     readsMultiple: true,
     synchronizes: true,
+    maxUploadBytes: null,
   });
+  assert.equal(
+    (await files.options("/rool-drive")).maxUploadBytes,
+    MAX_ROOL_DRIVE_UPLOAD_BYTES,
+  );
+  assert.equal(
+    (await files.options("/space/.meta.json")).maxUploadBytes,
+    MAX_SPACE_UPLOAD_BYTES,
+  );
 
   console.log("Streaming, statting, and reading a machine file...");
   const path: MachineFilePath = "/rool-drive/sdk-known-path/nested/file.bin";
