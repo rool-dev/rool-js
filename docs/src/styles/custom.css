@@ -12,3 +12,39 @@
   --sl-color-accent-low: #dbeafe;
   --sl-color-accent-high: #1e40af;
 }
+
+.sl-markdown-content .sdk-brand {
+  margin: 1.5rem 0 0.75rem;
+}
+
+.sl-markdown-content .sdk-brand a {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.875rem;
+  line-height: 0;
+}
+
+.sl-markdown-content .sdk-brand picture {
+  display: block;
+}
+
+.sl-markdown-content .sdk-brand img {
+  display: block;
+  max-width: none;
+  margin: 0;
+}
+
+.sl-markdown-content .sdk-brand-logo {
+  width: 44px;
+  height: 44px;
+}
+
+.sl-markdown-content .sdk-brand-wordmark {
+  width: 128px;
+  height: auto;
+}
+
+.sl-markdown-content .sdk-title {
+  margin-top: 1rem;
+  font-size: 2rem;
+}

@@ -6,16 +6,19 @@
  * Static pages (index.md) are checked into git directly.
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = dirname(__dirname);
 const contentDir = `${__dirname}/src/content/docs`;
+const sdkAssetsDir = `${__dirname}/public/sdk-assets`;
 
-// Ensure content directory exists.
+// Ensure generated docs and their SDK assets are current.
 mkdirSync(contentDir, { recursive: true });
+rmSync(sdkAssetsDir, { recursive: true, force: true });
+cpSync(`${root}/packages/sdk/assets`, sdkAssetsDir, { recursive: true });
 
 function getVersion(pkgPath) {
   const pkg = JSON.parse(
@@ -25,11 +28,13 @@ function getVersion(pkgPath) {
 }
 
 function transform(content, title, pkgPath) {
-  // Fix LICENSE links (make them external GitHub links)
-  content = content.replace(
-    /\[LICENSE\]\(\.\.\/\.\.\/LICENSE\)/g,
-    "[LICENSE](https://github.com/rool-dev/rool-js/blob/main/LICENSE)",
-  );
+  // Fix repository-relative links for the published docs.
+  content = content
+    .replace(
+      /\[LICENSE\]\(\.\.\/\.\.\/LICENSE\)/g,
+      "[LICENSE](https://github.com/rool-dev/rool-js/blob/main/LICENSE)",
+    )
+    .replace(/\.\/assets\//g, "/sdk-assets/");
 
   // Remove the first H1 (Starlight adds title from frontmatter)
   content = content.replace(/^# .+\n+/, "");

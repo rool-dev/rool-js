@@ -18,6 +18,7 @@
     }
   },
   "files": [
+    "assets",
     "dist"
   ],
   "scripts": {
