@@ -126,6 +126,8 @@ export interface Gift {
   /** Claimer's display name, when claimed and they have one */
   claimedByName: string | null;
   createdAt: string;
+  /** When the gift expires, if it expires */
+  expiresAt: string | null;
   /** The holder's own reminder of what they did with the code */
   note: string | null;
   /** Set when the holder has hidden this gift; the code still claims */

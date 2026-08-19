@@ -66,6 +66,15 @@ function eventQueue(
   };
 }
 
+async function nextNonAccountEvent(
+  events: ReturnType<typeof eventQueue>,
+): Promise<RoolClientEvent> {
+  for (;;) {
+    const event = await events.next();
+    if (event.type !== "account_changed") return event;
+  }
+}
+
 function assertMachineEvent(
   event: RoolClientEvent,
   type: "machines_changed" | "machine_members_changed",
@@ -96,7 +105,7 @@ async function main(): Promise<void> {
 
   originalUserAppData = await ownerClient.getUserAppData();
   await ownerClient.setUserAppData(USER_APP_DATA_KEY, Date.now());
-  const appDataEvent = await ownerEvents.next();
+  const appDataEvent = await nextNonAccountEvent(ownerEvents);
   assert.equal(appDataEvent.type, "user_app_data_changed");
 
   originalProfile = await ownerClient.getProfile();
@@ -104,13 +113,17 @@ async function main(): Promise<void> {
     ...originalProfile,
     name: `SDK event smoke ${Date.now()}`,
   });
-  const profileEvent = await ownerEvents.next();
+  const profileEvent = await nextNonAccountEvent(ownerEvents);
   assert.equal(profileEvent.type, "profile_changed");
 
   const machine = machineCleanup.track(
     await ownerClient.createMachine({ name: `SDK events ${Date.now()}` }),
   );
-  assertMachineEvent(await ownerEvents.next(), "machines_changed", machine.id);
+  assertMachineEvent(
+    await nextNonAccountEvent(ownerEvents),
+    "machines_changed",
+    machine.id,
+  );
 
   const memberEvents = eventQueue((listener) =>
     memberClient.events.subscribe(listener),
@@ -129,9 +142,10 @@ async function main(): Promise<void> {
   await memberClient.redeemInvite(token);
 
   for (const events of [ownerEvents, memberEvents]) {
-    const membershipEvents = [await events.next(), await events.next()].sort(
-      (left, right) => left.type.localeCompare(right.type),
-    );
+    const membershipEvents = [
+      await nextNonAccountEvent(events),
+      await nextNonAccountEvent(events),
+    ].sort((left, right) => left.type.localeCompare(right.type));
     assertMachineEvent(
       membershipEvents[0],
       "machine_members_changed",
@@ -143,8 +157,8 @@ async function main(): Promise<void> {
   const member = await memberClient.getAccount();
   await memberMachine.members.remove(member.id);
   const ownerMembershipEvents = [
-    await ownerEvents.next(),
-    await ownerEvents.next(),
+    await nextNonAccountEvent(ownerEvents),
+    await nextNonAccountEvent(ownerEvents),
   ].sort((left, right) => left.type.localeCompare(right.type));
   assertMachineEvent(
     ownerMembershipEvents[0],
@@ -152,11 +166,19 @@ async function main(): Promise<void> {
     machine.id,
   );
   assertMachineEvent(ownerMembershipEvents[1], "machines_changed", machine.id);
-  assertMachineEvent(await memberEvents.next(), "machines_changed", machine.id);
+  assertMachineEvent(
+    await nextNonAccountEvent(memberEvents),
+    "machines_changed",
+    machine.id,
+  );
 
   await ownerMachine.delete();
   machineCleanup.forget(machine.id);
-  assertMachineEvent(await ownerEvents.next(), "machines_changed", machine.id);
+  assertMachineEvent(
+    await nextNonAccountEvent(ownerEvents),
+    "machines_changed",
+    machine.id,
+  );
 
   unsubscribeOwner();
   unsubscribeOwner = () => {};

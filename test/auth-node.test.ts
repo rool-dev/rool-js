@@ -64,6 +64,32 @@ test("logs in through a loopback callback and stores credentials", async (t) => 
   assert.equal(await auth.getTokens(), undefined);
 });
 
+test("repeated logout reports sign-out once", async (t) => {
+  const credentials = await temporaryCredentialsPath();
+  t.after(() => rm(credentials.directory, { recursive: true, force: true }));
+  await writeFile(
+    credentials.path,
+    JSON.stringify({
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      rool_token: "rool-token",
+      expires_at: Date.now() + 3_600_000,
+    }),
+  );
+
+  const auth = new NodeAuth({
+    apiUrl: "https://api.example.com",
+    credentialsPath: credentials.path,
+  });
+  const states: boolean[] = [];
+  auth.onAuthStateChanged((authenticated) => states.push(authenticated));
+
+  await auth.logout();
+  await auth.logout();
+
+  assert.deepEqual(states, [false]);
+});
+
 test("refreshes once for concurrent token requests", async (t) => {
   const credentials = await temporaryCredentialsPath();
   t.after(() => rm(credentials.directory, { recursive: true, force: true }));

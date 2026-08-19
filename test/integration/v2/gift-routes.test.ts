@@ -43,6 +43,7 @@ function assertGift(gift: Gift): void {
     "code",
     "createdAt",
     "description",
+    "expiresAt",
     "gift",
     "id",
     "note",
@@ -50,6 +51,7 @@ function assertGift(gift: Gift): void {
   ]);
   assert.match(gift.code, /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
   assertIsoDate(gift.createdAt);
+  if (gift.expiresAt !== null) assertIsoDate(gift.expiresAt);
 }
 
 async function main(): Promise<void> {
@@ -86,8 +88,8 @@ async function main(): Promise<void> {
   );
   assert(gift);
   assertGift(gift);
-  assert.deepEqual(gift.gift, { kind: "credits", credits: 10_000 });
-  assert.equal(gift.description, "10,000 AI credits");
+  assert.deepEqual(gift.gift, { kind: "credits", credits: 2_500 });
+  assert.equal(gift.description, "2,500 AI credits");
   assert.equal(gift.claimedAt, null);
 
   const preview = await publicClient.previewGift(gift.code);

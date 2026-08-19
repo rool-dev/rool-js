@@ -50,6 +50,34 @@ test("reports invalidated authentication after a 401", async () => {
   assert.equal(invalidations, 1);
 });
 
+test("does not report invalidated authentication after a 5xx", async () => {
+  let invalidations = 0;
+  const client = new RoolClient({
+    apiUrl: "https://api.example.test",
+    getTokens: () => ({
+      accessToken: "access-token",
+      roolToken: "rool-token",
+    }),
+    onAuthInvalidated: () => {
+      invalidations += 1;
+    },
+    fetch: async () =>
+      Response.json(
+        {
+          type: "about:blank",
+          title: "Bad Gateway",
+          status: 502,
+          code: "bad_gateway",
+          detail: "Try again later",
+        },
+        { status: 502 },
+      ),
+  });
+
+  await assert.rejects(() => client.getAccount());
+  assert.equal(invalidations, 0);
+});
+
 test("keeps bearer-only external token providers working", async () => {
   let headers: Headers | undefined;
   const client = new RoolClient({
