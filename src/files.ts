@@ -1,3 +1,5 @@
+import { RoolAuthUnavailableError } from "./auth-base.js";
+
 export type MachineFilePath =
   "/space" | `/space/${string}` | "/rool-drive" | `/rool-drive/${string}`;
 export type MachineFileRange =
@@ -234,6 +236,9 @@ type SyncReport =
 
 const SYNC_WAIT_SECONDS = 30;
 const SYNC_RETRY_MAX_MS = 5_000;
+// See events.ts: auth failures need a sign-in or auth-server recovery, so the
+// sync loop backs off much further for them than for transient errors.
+const SYNC_AUTH_RETRY_MS = 60_000;
 const DELETE_MULTIPLE_CONCURRENCY = 8;
 
 const FILE_PROPERTIES = `
@@ -686,7 +691,13 @@ class SyncedMachineFiles implements MachineFiles {
       } catch (error) {
         if (controller.signal.aborted) return;
         this.currentSyncError = error;
-        await abortableDelay(retryMs, controller.signal);
+        const authShaped =
+          error instanceof RoolAuthUnavailableError ||
+          (error instanceof RoolFileError && error.status === 401);
+        await abortableDelay(
+          authShaped ? SYNC_AUTH_RETRY_MS : retryMs,
+          controller.signal,
+        );
         retryMs = Math.min(retryMs * 2, SYNC_RETRY_MAX_MS);
       }
     }

@@ -37,6 +37,19 @@ export class EmailChangeError extends Error {
   }
 }
 
+/**
+ * The stored credentials could not be refreshed for outage-shaped reasons
+ * (network failure, auth server 5xx). The session is still intact — requests
+ * fail locally instead of going out unauthenticated, and callers should retry
+ * later rather than treat this as a sign-out.
+ */
+export class RoolAuthUnavailableError extends Error {
+  constructor(message = "Token refresh unavailable") {
+    super(message);
+    this.name = "RoolAuthUnavailableError";
+  }
+}
+
 export abstract class TokenAuth implements RoolAuth {
   private readonly authUrl: string;
   private readonly fetchRequest: typeof globalThis.fetch;
@@ -67,10 +80,17 @@ export abstract class TokenAuth implements RoolAuth {
     if (!accessToken) return undefined;
 
     const expiresAt = this.readExpiresAt();
-    const needsRefresh =
-      expiresAt !== null && Date.now() >= expiresAt - REFRESH_BUFFER_MS;
-    if (needsRefresh) {
-      if (!(await this.refresh())) return undefined;
+    if (expiresAt !== null && Date.now() >= expiresAt - REFRESH_BUFFER_MS) {
+      const refreshed = await this.refresh();
+      if (!refreshed) {
+        // A rejected refresh (400/401) has already cleared credentials via
+        // logout(); report signed-out. An outage-shaped failure must not: keep
+        // serving the current token while it is still valid, and once it has
+        // truly expired fail locally so no request ever goes out with dead or
+        // missing credentials.
+        if (!this.readAccessToken()) return undefined;
+        if (Date.now() >= expiresAt) throw new RoolAuthUnavailableError();
+      }
       accessToken = this.readAccessToken();
       if (!accessToken) return undefined;
     }

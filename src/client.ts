@@ -39,7 +39,6 @@ type SendOptions = {
   onUploadProgress?: (progress: MachineFileUploadProgress) => void;
 };
 
-
 export const roolSdkVersion = packageJson.version;
 
 export class RoolClient {
@@ -205,18 +204,24 @@ export class RoolClient {
 
   /** Set or clear a voucher's note, or change its archived state. */
   updateVoucher(voucherId: string, changes: VoucherUpdate): Promise<Voucher> {
-    return this.requestJson(`/v2/me/vouchers/${encodeURIComponent(voucherId)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(changes),
-    });
+    return this.requestJson(
+      `/v2/me/vouchers/${encodeURIComponent(voucherId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes),
+      },
+    );
   }
 
   /** Mint a new code for an unclaimed voucher. */
   rotateVoucherCode(voucherId: string): Promise<Voucher> {
-    return this.requestJson(`/v2/me/vouchers/${encodeURIComponent(voucherId)}/code`, {
-      method: "POST",
-    });
+    return this.requestJson(
+      `/v2/me/vouchers/${encodeURIComponent(voucherId)}/code`,
+      {
+        method: "POST",
+      },
+    );
   }
 
   private async requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -232,7 +237,6 @@ export class RoolClient {
     const accept =
       new Headers(init?.headers).get("Accept") ?? "application/json";
     const response = await this.send(path, init, { accept });
-    if (response.status === 401) void this.onAuthInvalidated?.();
     if (response.ok || allowHttpErrors) return response;
 
     return throwProblemResponse(response);
@@ -319,6 +323,11 @@ export class RoolClient {
         !bodyIsReplayable ||
         retry >= ROUTE_CHANGE_MAX_RETRIES
       ) {
+        // A 401 only signals invalidated credentials when we actually sent
+        // some; an unauthenticated request says nothing about the session.
+        if (response.status === 401 && tokens?.accessToken) {
+          void this.onAuthInvalidated?.();
+        }
         return response;
       }
 

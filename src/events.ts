@@ -1,3 +1,5 @@
+import { RoolAuthUnavailableError } from "./auth-base.js";
+import { RoolProblem } from "./problem.js";
 import type { RoolSession } from "./types.js";
 
 export type RoolAccountEvent =
@@ -34,6 +36,28 @@ interface AccountSyncReport {
 
 const POLL_TIMEOUT_MS = 55_000;
 const RETRY_MAX_MS = 5_000;
+// Auth failures don't heal on their own — a fresh sign-in or a recovered auth
+// server is needed — so back off much further than for transient errors.
+const AUTH_RETRY_MS = 60_000;
+
+class AccountEventRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AccountEventRequestError";
+  }
+}
+
+function isAuthShaped(error: unknown): boolean {
+  if (error instanceof RoolAuthUnavailableError) return true;
+  const status =
+    error instanceof AccountEventRequestError || error instanceof RoolProblem
+      ? error.status
+      : null;
+  return status === 401;
+}
 
 export function createRoolEvents(transport: RoolEventsTransport): RoolEvents {
   return new RoolEventPoller(transport);
@@ -93,7 +117,8 @@ class RoolEventPoller implements RoolEvents {
         }
         if (!response.ok) {
           const body = await response.text();
-          throw new Error(
+          throw new AccountEventRequestError(
+            response.status,
             `Account event request failed: ${response.status} ${response.statusText}: ${body}`,
           );
         }
@@ -107,7 +132,10 @@ class RoolEventPoller implements RoolEvents {
       } catch (error) {
         if (signal.aborted) return;
         this.currentError = error;
-        await abortableDelay(retryMs, signal);
+        await abortableDelay(
+          isAuthShaped(error) ? AUTH_RETRY_MS : retryMs,
+          signal,
+        );
         retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
       }
     }
@@ -125,7 +153,10 @@ class RoolEventPoller implements RoolEvents {
       } catch (error) {
         if (signal.aborted) return null;
         this.currentError = error;
-        await abortableDelay(retryMs, signal);
+        await abortableDelay(
+          isAuthShaped(error) ? AUTH_RETRY_MS : retryMs,
+          signal,
+        );
         retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
       }
     }
