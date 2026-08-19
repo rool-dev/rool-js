@@ -112,7 +112,7 @@ Collections can power task lists, catalogues, contact records, or a memory view 
 
 Long-running work belongs to the machine rather than the client connection. File changes made by the app, a user, or an agent enter the same synchronized file tree, while account events tell the app when to fetch fresh account or machine data.
 
-The package exports its public TypeScript types, so editor autocomplete shows the detailed options and results. See [docs.rool.dev](https://docs.rool.dev/sdk/) for the published documentation.
+The package exports its public TypeScript types, so editor autocomplete shows the detailed options and results. See [docs.rool.dev](https://docs.rool.dev/) for the published documentation.
 
 ## License
 

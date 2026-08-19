@@ -23,7 +23,7 @@ pnpm docs:build
 
 Use `pnpm release <version>` to prepare a release; pushing the resulting tag publishes it.
 
-The README is the source for `docs/src/content/docs/sdk.md`. Do not edit that generated file.
+The README is duplicated into `docs/src/content/docs/index.md`. Do not edit that generated file.
 
 ## Design
 

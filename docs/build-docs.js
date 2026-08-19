@@ -3,7 +3,7 @@
  * Copies the package README to the docs folder with necessary transformations.
  * Run before astro build/dev.
  *
- * Static pages (index.md) are checked into git directly.
+ * The other documentation pages are checked into git directly.
  */
 
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
@@ -17,6 +17,8 @@ const sdkAssetsDir = `${__dirname}/public/sdk-assets`;
 
 // Ensure generated docs and their SDK assets are current.
 mkdirSync(contentDir, { recursive: true });
+rmSync(`${contentDir}/sdk.md`, { force: true });
+rmSync(`${contentDir}/sdk/index.md`, { force: true });
 rmSync(sdkAssetsDir, { recursive: true, force: true });
 cpSync(`${root}/assets`, sdkAssetsDir, { recursive: true });
 
@@ -50,9 +52,9 @@ title: ${title}
   return frontmatter + content;
 }
 
-// SDK README → sdk.md (will be at /sdk/)
+// SDK README → index.md (will be at /)
 const sdkReadme = readFileSync(`${root}/README.md`, "utf-8");
-writeFileSync(`${contentDir}/sdk.md`, transform(sdkReadme, "Rool SDK"));
+writeFileSync(`${contentDir}/index.md`, transform(sdkReadme, "Rool SDK"));
 
 // Generate llms.txt from index.md (strip frontmatter, fix relative links)
 const indexMd = readFileSync(`${contentDir}/index.md`, "utf-8");

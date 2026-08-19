@@ -30,7 +30,7 @@ coverage/
 # Astro
 docs/dist/
 docs/.astro/
-docs/src/content/docs/sdk.md
+docs/src/content/docs/index.md
 docs/public/llms.txt
 docs/public/sdk-assets/
 

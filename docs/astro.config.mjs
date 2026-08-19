@@ -3,6 +3,7 @@ import starlight from "@astrojs/starlight";
 
 export default defineConfig({
   site: "https://docs.rool.dev",
+  redirects: { "/sdk": "/" },
   integrations: [
     starlight({
       title: "Rool",
@@ -19,8 +20,35 @@ export default defineConfig({
         },
       ],
       sidebar: [
-        { label: "Overview", link: "/" },
-        { label: "SDK", link: "/sdk/" },
+        { label: "Get started", link: "/" },
+        {
+          label: "Use the SDK",
+          items: [
+            {
+              label: "Client and account",
+              link: "/client-and-account/",
+            },
+            {
+              label: "Machines and sharing",
+              link: "/machines-and-sharing/",
+            },
+            { label: "Files", link: "/files/" },
+            {
+              label: "Agents and conversations",
+              link: "/agents-and-conversations/",
+            },
+            { label: "Structured data", link: "/structured-data/" },
+            { label: "Live updates", link: "/live-updates/" },
+          ],
+        },
+        {
+          label: "Reference",
+          items: [
+            { label: "API index", link: "/api/" },
+            { label: "Errors", link: "/errors/" },
+            { label: "Problem codes", link: "/problems/" },
+          ],
+        },
       ],
       pagination: false,
     }),
