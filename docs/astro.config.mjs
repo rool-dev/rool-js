@@ -41,14 +41,6 @@ export default defineConfig({
             { label: "Live updates", link: "/live-updates/" },
           ],
         },
-        {
-          label: "Reference",
-          items: [
-            { label: "API index", link: "/api/" },
-            { label: "Errors", link: "/errors/" },
-            { label: "Problem codes", link: "/problems/" },
-          ],
-        },
       ],
       pagination: false,
     }),
