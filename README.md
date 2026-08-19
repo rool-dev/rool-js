@@ -1,12 +1,4 @@
-<p align="center" class="sdk-brand">
-  <a href="https://rool.dev">
-    <img class="sdk-brand-logo" src="./assets/rool-logo.svg" alt="Rool logo" width="44" height="44">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="./assets/rool-wordmark-dark.svg">
-      <img class="sdk-brand-wordmark" src="./assets/rool-wordmark.svg" alt="Rool" width="128">
-    </picture>
-  </a>
-</p>
+<p align="center" class="sdk-brand"><a href="https://rool.dev"><img class="sdk-brand-logo" src="./assets/rool-logo.svg" alt="Rool logo" width="44" height="44"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/rool-wordmark-dark.svg"><img class="sdk-brand-wordmark" src="./assets/rool-wordmark.svg" alt="Rool" width="128"></picture></a></p>
 
 <h1 align="center" class="sdk-title">TypeScript SDK</h1>
 
@@ -121,14 +113,6 @@ Collections can power task lists, catalogues, contact records, or a memory view 
 Long-running work belongs to the machine rather than the client connection. File changes made by the app, a user, or an agent enter the same synchronized file tree, while account events tell the app when to fetch fresh account or machine data.
 
 The package exports its public TypeScript types, so editor autocomplete shows the detailed options and results. See [docs.rool.dev](https://docs.rool.dev/sdk/) for the published documentation.
-
-## Development
-
-```bash
-pnpm install
-pnpm build
-pnpm typecheck
-```
 
 ## License
 
