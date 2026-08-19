@@ -108,17 +108,17 @@ export interface InviteRedemption {
   status: InviteRedemptionStatus;
 }
 
-/** What a gift grants. Kinds are added over time, so clients should prefer the
- * server-rendered description unless they need a kind's structured value. */
-export type GiftPayload = { kind: "credits"; credits: number };
+/** What a voucher grants. Kinds are added over time, so clients should prefer
+ * the server-rendered description unless they need a kind's structured value. */
+export type VoucherPayload = { kind: "credits"; credits: number };
 
-export interface Gift {
+export interface Voucher {
   id: string;
   /** Display form of the code, e.g. "K7M2-9QRT" */
   code: string;
   /** Claim URL carrying the code */
   url: string;
-  gift: GiftPayload;
+  voucher: VoucherPayload;
   /** The promise as a noun phrase, e.g. "10,000 AI credits" */
   description: string;
   /** Null while unclaimed */
@@ -126,35 +126,35 @@ export interface Gift {
   /** Claimer's display name, when claimed and they have one */
   claimedByName: string | null;
   createdAt: string;
-  /** When the gift expires, if it expires */
+  /** When the voucher expires, if it expires */
   expiresAt: string | null;
   /** The holder's own reminder of what they did with the code */
   note: string | null;
-  /** Set when the holder has hidden this gift; the code still claims */
+  /** Set when the holder has hidden this voucher; the code still claims */
   archivedAt: string | null;
 }
 
-export interface GiftList {
-  gifts: Gift[];
+export interface VoucherList {
+  vouchers: Voucher[];
 }
 
-/** Changes to a gift's bookkeeping. Undefined leaves a field as it is;
+/** Changes to a voucher's bookkeeping. Undefined leaves a field as it is;
  * note: null clears it. */
-export interface GiftUpdate {
+export interface VoucherUpdate {
   note?: string | null;
   archived?: boolean;
 }
 
-export interface GiftPreview {
-  /** Display name of the person whose gift this is */
+export interface VoucherPreview {
+  /** Display name of the person whose voucher this is */
   holderName: string | null;
-  gift: GiftPayload;
+  voucher: VoucherPayload;
   description: string;
 }
 
-export interface GiftClaimResult {
+export interface VoucherClaimResult {
   /** What the claiming account was granted */
-  gift: GiftPayload;
+  voucher: VoucherPayload;
   description: string;
 }
 

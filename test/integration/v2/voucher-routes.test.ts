@@ -1,14 +1,14 @@
 /**
- * Local integration test for the SDK gift API.
+ * Local integration test for the SDK voucher API.
  */
 
 import assert from "node:assert/strict";
-import { RoolClient, roolSdkVersion, type Gift } from "../../../src/index.js";
+import { RoolClient, roolSdkVersion, type Voucher } from "../../../src/index.js";
 import { assertIsoDate, expectProblem } from "./assertions.js";
 import { createTestClient, runSmokeTest } from "./harness.js";
 
-const holderEmail = requiredEnvironment("ROOL_TEST_GIFT_HOLDER_EMAIL");
-const claimantEmail = requiredEnvironment("ROOL_TEST_GIFT_CLAIMANT_EMAIL");
+const holderEmail = requiredEnvironment("ROOL_TEST_VOUCHER_HOLDER_EMAIL");
+const claimantEmail = requiredEnvironment("ROOL_TEST_VOUCHER_CLAIMANT_EMAIL");
 const internalSecret = requiredEnvironment("ROOL_TEST_INTERNAL_SECRET");
 const holderClient = createLocalClient(holderEmail);
 const claimantClient = createLocalClient(claimantEmail);
@@ -35,8 +35,8 @@ function createLocalClient(email: string): RoolClient {
   });
 }
 
-function assertGift(gift: Gift): void {
-  assert.deepEqual(Object.keys(gift).sort(), [
+function assertVoucher(voucher: Voucher): void {
+  assert.deepEqual(Object.keys(voucher).sort(), [
     "archivedAt",
     "claimedAt",
     "claimedByName",
@@ -44,20 +44,20 @@ function assertGift(gift: Gift): void {
     "createdAt",
     "description",
     "expiresAt",
-    "gift",
     "id",
     "note",
     "url",
+    "voucher",
   ]);
-  assert.match(gift.code, /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
-  assertIsoDate(gift.createdAt);
-  if (gift.expiresAt !== null) assertIsoDate(gift.expiresAt);
+  assert.match(voucher.code, /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
+  assertIsoDate(voucher.createdAt);
+  if (voucher.expiresAt !== null) assertIsoDate(voucher.expiresAt);
 }
 
 async function main(): Promise<void> {
   const apiUrl = requiredEnvironment("ROOL_TEST_API_URL");
   if (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(apiUrl).hostname)) {
-    throw new Error("SDK gift smoke tests only run against a local backend");
+    throw new Error("SDK voucher smoke tests only run against a local backend");
   }
 
   const holder = await holderClient.getAccount();
@@ -65,8 +65,8 @@ async function main(): Promise<void> {
   userIdsToDelete.add(holder.id);
   userIdsToDelete.add(claimantBefore.id);
 
-  console.log("Issuing a gift fixture...");
-  const response = await fetch(`${apiUrl}/internal/issue-gifts`, {
+  console.log("Issuing a voucher fixture...");
+  const response = await fetch(`${apiUrl}/internal/issue-vouchers`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -79,68 +79,69 @@ async function main(): Promise<void> {
   });
   const body = await response.text();
   assert.equal(response.status, 200, body);
-  const issued = (JSON.parse(body) as { gifts: Array<{ giftId: string }> })
-    .gifts[0];
+  const issued = (
+    JSON.parse(body) as { vouchers: Array<{ voucherId: string }> }
+  ).vouchers[0];
 
-  console.log("Listing and previewing the gift through the SDK...");
-  const gift = (await holderClient.listGifts()).gifts.find(
-    (item) => item.id === issued.giftId,
+  console.log("Listing and previewing the voucher through the SDK...");
+  const voucher = (await holderClient.listVouchers()).vouchers.find(
+    (item) => item.id === issued.voucherId,
   );
-  assert(gift);
-  assertGift(gift);
-  assert.deepEqual(gift.gift, { kind: "credits", credits: 2_500 });
-  assert.equal(gift.description, "2,500 AI credits");
-  assert.equal(gift.claimedAt, null);
+  assert(voucher);
+  assertVoucher(voucher);
+  assert.deepEqual(voucher.voucher, { kind: "credits", credits: 2_500 });
+  assert.equal(voucher.description, "2,500 AI credits");
+  assert.equal(voucher.claimedAt, null);
 
-  const preview = await publicClient.previewGift(gift.code);
-  assert.deepEqual(preview.gift, gift.gift);
-  assert.equal(preview.description, gift.description);
+  const preview = await publicClient.previewVoucher(voucher.code);
+  assert.deepEqual(preview.voucher, voucher.voucher);
+  assert.equal(preview.description, voucher.description);
 
-  console.log("Updating and rotating the gift through the SDK...");
-  const updated = await holderClient.updateGift(gift.id, {
+  console.log("Updating and rotating the voucher through the SDK...");
+  const updated = await holderClient.updateVoucher(voucher.id, {
     note: "sent by the SDK smoke test",
     archived: true,
   });
-  assertGift(updated);
+  assertVoucher(updated);
   assert.equal(updated.note, "sent by the SDK smoke test");
   assert(updated.archivedAt);
 
-  const rotated = await holderClient.rotateGiftCode(gift.id);
-  assertGift(rotated);
-  assert.notEqual(rotated.code, gift.code);
+  const rotated = await holderClient.rotateVoucherCode(voucher.id);
+  assertVoucher(rotated);
+  assert.notEqual(rotated.code, voucher.code);
   await expectProblem(
-    () => publicClient.previewGift(gift.code),
+    () => publicClient.previewVoucher(voucher.code),
     404,
-    "gift_invalid",
+    "voucher_invalid",
   );
 
-  console.log("Claiming the gift through the SDK...");
-  const claim = await claimantClient.claimGift(rotated.code);
-  assert.deepEqual(claim.gift, gift.gift);
-  assert.equal(claim.description, gift.description);
+  console.log("Claiming the voucher through the SDK...");
+  const claim = await claimantClient.claimVoucher(rotated.code);
+  assert.deepEqual(claim.voucher, voucher.voucher);
+  assert.equal(claim.description, voucher.description);
 
   const claimantAfter = await claimantClient.getAccount();
   assert.equal(
     claimantAfter.creditsBalance,
-    claimantBefore.creditsBalance + gift.gift.credits,
+    claimantBefore.creditsBalance + voucher.voucher.credits,
   );
 
-  const claimed = (await holderClient.listGifts()).gifts.find(
-    (item) => item.id === gift.id,
+  const claimed = (await holderClient.listVouchers()).vouchers.find(
+    (item) => item.id === voucher.id,
   );
   assert(claimed?.claimedAt);
   await expectProblem(
-    () => claimantClient.claimGift(rotated.code),
+    () => claimantClient.claimVoucher(rotated.code),
     410,
-    "gift_claimed",
+    "voucher_claimed",
   );
   await expectProblem(
-    () => holderClient.rotateGiftCode(gift.id),
+    () => holderClient.rotateVoucherCode(voucher.id),
     410,
-    "gift_claimed",
+    "voucher_claimed",
   );
 
-  console.log("\n✅ SDK gift route smoke tests passed.");
+  console.log("\n✅ SDK voucher route smoke tests passed.");
 }
 
 async function cleanup(): Promise<void> {

@@ -27,4 +27,4 @@ Use `getSession()` for an initial load. It returns the account, profile, app dat
 
 These methods return snapshots. Use [live updates](/live-updates/) to learn when a snapshot is stale, then fetch the latest value.
 
-The client also contains top-level helpers for greetings, Speechmatics tokens, invites, and gifts. Machine-specific work starts with `client.machine(machineId)`.
+The client also contains top-level helpers for greetings, Speechmatics tokens, invites, and vouchers. Machine-specific work starts with `client.machine(machineId)`.

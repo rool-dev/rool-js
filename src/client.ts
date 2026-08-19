@@ -8,11 +8,6 @@ import type {
 import { RoolMachine } from "./machine.js";
 import { throwProblemResponse } from "./problem.js";
 import type {
-  Gift,
-  GiftClaimResult,
-  GiftList,
-  GiftPreview,
-  GiftUpdate,
   Greeting,
   InviteRedemption,
   MachineInvitePreview,
@@ -26,6 +21,11 @@ import type {
   UserAccount,
   UserAppData,
   UserProfile,
+  Voucher,
+  VoucherClaimResult,
+  VoucherList,
+  VoucherPreview,
+  VoucherUpdate,
 } from "./types.js";
 
 const DEFAULT_API_URL = "https://api.rool.dev";
@@ -38,6 +38,7 @@ type SendOptions = {
   accept?: string;
   onUploadProgress?: (progress: MachineFileUploadProgress) => void;
 };
+
 
 export const roolSdkVersion = packageJson.version;
 
@@ -185,35 +186,35 @@ export class RoolClient {
     );
   }
 
-  /** Look up a gift by its code without claiming it. */
-  previewGift(code: string): Promise<GiftPreview> {
-    return this.requestJson(`/v2/gifts/${encodeURIComponent(code)}`);
+  /** Look up a voucher by its code without claiming it. */
+  previewVoucher(code: string): Promise<VoucherPreview> {
+    return this.requestJson(`/v2/vouchers/${encodeURIComponent(code)}`);
   }
 
-  /** Claim a gift for the current account. */
-  claimGift(code: string): Promise<GiftClaimResult> {
-    return this.requestJson(`/v2/gifts/${encodeURIComponent(code)}/claim`, {
+  /** Claim a voucher for the current account. */
+  claimVoucher(code: string): Promise<VoucherClaimResult> {
+    return this.requestJson(`/v2/vouchers/${encodeURIComponent(code)}/claim`, {
       method: "POST",
     });
   }
 
-  /** List the current user's claimed and unclaimed gifts. */
-  listGifts(): Promise<GiftList> {
-    return this.requestJson("/v2/me/gifts");
+  /** List the current user's claimed and unclaimed vouchers. */
+  listVouchers(): Promise<VoucherList> {
+    return this.requestJson("/v2/me/vouchers");
   }
 
-  /** Set or clear a gift's note, or change its archived state. */
-  updateGift(giftId: string, changes: GiftUpdate): Promise<Gift> {
-    return this.requestJson(`/v2/me/gifts/${encodeURIComponent(giftId)}`, {
+  /** Set or clear a voucher's note, or change its archived state. */
+  updateVoucher(voucherId: string, changes: VoucherUpdate): Promise<Voucher> {
+    return this.requestJson(`/v2/me/vouchers/${encodeURIComponent(voucherId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(changes),
     });
   }
 
-  /** Mint a new code for an unclaimed gift. */
-  rotateGiftCode(giftId: string): Promise<Gift> {
-    return this.requestJson(`/v2/me/gifts/${encodeURIComponent(giftId)}/code`, {
+  /** Mint a new code for an unclaimed voucher. */
+  rotateVoucherCode(voucherId: string): Promise<Voucher> {
+    return this.requestJson(`/v2/me/vouchers/${encodeURIComponent(voucherId)}/code`, {
       method: "POST",
     });
   }
