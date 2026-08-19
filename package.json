@@ -27,7 +27,6 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "node --import tsx --test test/*.test.ts",
     "test:v2": "node --env-file=.env --import tsx test/integration/v2/run.ts",
-    "notebook": "pnpm build && ./scripts/notebook.sh",
     "clean": "rm -rf dist",
     "format": "prettier --write .",
     "docs:prebuild": "node docs/build-docs.js",
@@ -64,7 +63,6 @@
     "astro": "^7.1.6",
     "prettier": "^3.9.6",
     "sharp": "^0.35.3",
-    "tslab": "^1.0.22",
     "tsx": "^4.23.1",
     "typescript": "^5.9.3"
   }

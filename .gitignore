@@ -36,7 +36,3 @@ docs/public/sdk-assets/
 
 # Lockfile (regenerated)
 # Keep pnpm-lock.yaml in repo for reproducible builds
-
-# Notebooks
-*.ipynb
-.ipynb_checkpoints/
