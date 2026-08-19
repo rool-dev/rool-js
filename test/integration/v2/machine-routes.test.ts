@@ -1,10 +1,5 @@
 /**
- * Smoke test for the SDK machine API against the local backend and router.
- *
- * Environment:
- *   ROOL_TEST_API_URL (default http://localhost:1357)
- *   ROOL_TEST_AUTH_URL when the API targets loopback
- *   ROOL_TEST_ROUTER_URL (default http://localhost:8080)
+ * Local integration test for the SDK machine API.
  */
 
 import assert from "node:assert/strict";
@@ -16,10 +11,10 @@ import type {
 import { assertMachineSummary, expectProblem } from "./assertions.js";
 import {
   API_URL,
-  ROUTER_URL,
+  PROXY_URL,
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
 } from "./harness.js";
 
@@ -27,8 +22,8 @@ const client = createTestClient();
 const machineCleanup = new MachineCleanup(client);
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
-  console.log(`[test API] ${API_URL}\n[test router] ${ROUTER_URL}\n`);
+  await requireLocalProxy();
+  console.log(`[test API] ${API_URL}\n[test proxy] ${PROXY_URL}\n`);
 
   console.log("Creating and listing a machine...");
   const name = `SDK machine routes ${Date.now()}`;

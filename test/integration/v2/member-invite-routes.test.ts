@@ -1,11 +1,5 @@
 /**
- * Smoke test for the SDK member and invite API against the local backend and
- * machine router.
- *
- * Environment:
- *   ROOL_TEST_API_URL (default http://localhost:1357)
- *   ROOL_TEST_AUTH_URL when the API targets loopback
- *   ROOL_TEST_ROUTER_URL (default http://localhost:8080)
+ * Local integration test for the SDK member and invite API.
  */
 
 import assert from "node:assert/strict";
@@ -14,7 +8,7 @@ import { assertIsoDate, expectProblem } from "./assertions.js";
 import {
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
 } from "./harness.js";
 
@@ -57,7 +51,7 @@ function assertListedInvite(invite: MachineInvite): void {
 }
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const owner = await ownerClient.getAccount();
   const member = await memberClient.getAccount();

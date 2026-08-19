@@ -1,20 +1,15 @@
 /**
- * Smoke test for the SDK's known-path machine file API through the local router.
- *
- * Environment:
- *   ROOL_TEST_API_URL (default http://localhost:1357)
- *   ROOL_TEST_AUTH_URL when the API targets loopback
- *   ROOL_TEST_ROUTER_URL (default http://localhost:8080)
+ * Local integration test for the SDK's known-path machine file API.
  */
 
 import assert from "node:assert/strict";
 import { RoolFileError, type MachineFilePath } from "../../../src/index.js";
 import { expectFileError } from "./assertions.js";
 import {
-  createRoutedFetch,
+  createProxiedFetch,
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
 } from "./harness.js";
 
@@ -35,7 +30,7 @@ function stream(body: Uint8Array): ReadableStream<Uint8Array> {
 }
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const machine = machineCleanup.track(
     await client.createMachine({
@@ -43,7 +38,7 @@ async function main(): Promise<void> {
     }),
   );
   const files = client.machine(machine.id).files;
-  const routedFetch = createRoutedFetch();
+  const proxiedFetch = createProxiedFetch();
   let uploadAttempts = 0;
   const retryingClient = createTestClient("primary", async (input, init) => {
     uploadAttempts++;
@@ -56,7 +51,7 @@ async function main(): Promise<void> {
         headers: { "Rool-Machine-Route-Changed": "1" },
       });
     }
-    return routedFetch(input, init);
+    return proxiedFetch(input, init);
   });
   const retryingFiles = retryingClient.machine(machine.id).files;
 

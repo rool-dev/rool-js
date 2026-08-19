@@ -1,6 +1,6 @@
 /**
- * Smoke test for SDK filesystem enumeration and namespace operations through
- * the local machine router.
+ * Local integration test for SDK filesystem enumeration and namespace
+ * operations.
  */
 
 import assert from "node:assert/strict";
@@ -9,7 +9,7 @@ import { expectFileError } from "./assertions.js";
 import {
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
 } from "./harness.js";
 
@@ -17,7 +17,7 @@ const client = createTestClient();
 const machineCleanup = new MachineCleanup(client);
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const machine = machineCleanup.track(
     await client.createMachine({

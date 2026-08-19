@@ -1,12 +1,5 @@
 /**
- * Smoke test for the SDK speechmatics token API.
- *
- * Mints a short-lived real transcription key (ttl 60 = ~0.75 credits), so the
- * account must have credits and the backend must be able to reach
- * Speechmatics.
- *
- * Required environment:
- *   ROOL_TEST_API_URL (loopback)
+ * Local integration test for the SDK Speechmatics token API.
  */
 
 import assert from "node:assert/strict";

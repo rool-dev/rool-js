@@ -1,5 +1,5 @@
 /**
- * Smoke test for SDK account event long polling.
+ * Local integration test for SDK account event long polling.
  */
 
 import assert from "node:assert/strict";
@@ -11,7 +11,7 @@ import type {
 import {
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
 } from "./harness.js";
 
@@ -82,7 +82,7 @@ function assertMachineEvent(
 }
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const ownerEvents = eventQueue((listener) =>
     ownerClient.events.subscribe(listener),

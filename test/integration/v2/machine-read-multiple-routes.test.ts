@@ -1,5 +1,5 @@
 /**
- * Smoke test for SDK read-multiple hydration through the local machine router.
+ * Local integration test for SDK read-multiple hydration.
  */
 
 import assert from "node:assert/strict";
@@ -8,7 +8,7 @@ import { expectFileError } from "./assertions.js";
 import {
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
 } from "./harness.js";
 
@@ -16,7 +16,7 @@ const client = createTestClient();
 const machineCleanup = new MachineCleanup(client);
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const created = machineCleanup.track(
     await client.createMachine({

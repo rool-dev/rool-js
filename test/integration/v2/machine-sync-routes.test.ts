@@ -1,6 +1,5 @@
 /**
- * Smoke test for the SDK-owned machine file tree and reactive sync loop through
- * the local machine router.
+ * Local integration test for the SDK-owned file tree and reactive sync loop.
  */
 
 import assert from "node:assert/strict";
@@ -11,16 +10,16 @@ import type {
 import { createTestAuth } from "./auth.js";
 import {
   API_URL,
-  createRoutedFetch,
+  createProxiedFetch,
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
   waitForFileTree,
 } from "./harness.js";
 
 const auth = createTestAuth(API_URL, "primary");
-const routedFetch = createRoutedFetch();
+const proxiedFetch = createProxiedFetch();
 let beforeInvalidIncrementalSync: (() => Promise<void>) | null = null;
 let initialSyncRequests = 0;
 
@@ -45,7 +44,7 @@ const syncFetch: typeof fetch = async (input, init) => {
     );
   }
 
-  return routedFetch(input, { ...init, body });
+  return proxiedFetch(input, { ...init, body });
 };
 
 const client = createTestClient("primary", syncFetch);
@@ -85,7 +84,7 @@ async function runGuest(machineId: string, command: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const created = machineCleanup.track(
     await client.createMachine({

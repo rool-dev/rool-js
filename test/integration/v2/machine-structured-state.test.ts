@@ -1,5 +1,5 @@
 /**
- * Smoke test for SDK structured machine state through the local machine router.
+ * Local integration test for SDK structured machine state.
  */
 
 import assert from "node:assert/strict";
@@ -13,16 +13,16 @@ import { createTestAuth } from "./auth.js";
 import { expectFileError } from "./assertions.js";
 import {
   API_URL,
-  createRoutedFetch,
+  createProxiedFetch,
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
   waitForFileTree,
 } from "./harness.js";
 
 const auth = createTestAuth(API_URL, "primary");
-const routedFetch = createRoutedFetch();
+const proxiedFetch = createProxiedFetch();
 let concurrentWritePath: string | null = null;
 let concurrentDeletePath: string | null = null;
 
@@ -37,7 +37,7 @@ const conflictFetch: typeof fetch = async (input, init) => {
   ) {
     concurrentWritePath = null;
     const headers = new Headers(init.headers);
-    const response = await routedFetch(input, {
+    const response = await proxiedFetch(input, {
       ...init,
       headers,
       body: JSON.stringify({ title: "Concurrent version", done: false }),
@@ -52,7 +52,7 @@ const conflictFetch: typeof fetch = async (input, init) => {
     concurrentDeletePath = null;
     const headers = new Headers(init.headers);
     headers.set("Content-Type", "application/json");
-    const response = await routedFetch(input, {
+    const response = await proxiedFetch(input, {
       ...init,
       method: "PUT",
       headers,
@@ -63,7 +63,7 @@ const conflictFetch: typeof fetch = async (input, init) => {
     });
     assert.equal(response.status, 204);
   }
-  return routedFetch(input, init);
+  return proxiedFetch(input, init);
 };
 
 const client = createTestClient("primary", conflictFetch);
@@ -103,7 +103,7 @@ async function runGuest(machineId: string, command: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const created = machineCleanup.track(
     await client.createMachine({

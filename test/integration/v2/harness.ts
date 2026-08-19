@@ -10,8 +10,8 @@ import { createTestAuth, type TestAuthProfile } from "./auth.js";
 export const API_URL = (
   process.env.ROOL_TEST_API_URL ?? "http://localhost:1357"
 ).replace(/\/+$/, "");
-export const ROUTER_URL = (
-  process.env.ROOL_TEST_ROUTER_URL ?? "http://localhost:8080"
+export const PROXY_URL = (
+  process.env.ROOL_TEST_PROXY_URL ?? "http://localhost:8080"
 ).replace(/\/+$/, "");
 
 function requestUrl(input: RequestInfo | URL): URL {
@@ -20,7 +20,7 @@ function requestUrl(input: RequestInfo | URL): URL {
   );
 }
 
-export function createRoutedFetch(authenticated = true): typeof fetch {
+export function createProxiedFetch(authenticated = true): typeof fetch {
   return (input, init) => {
     const url = requestUrl(input);
     const segments = url.pathname.split("/").filter(Boolean);
@@ -29,9 +29,9 @@ export function createRoutedFetch(authenticated = true): typeof fetch {
       segments[1] === "machines" &&
       segments.length >= 3;
     if (isMachineRoute) {
-      const routerUrl = new URL(ROUTER_URL);
-      url.protocol = routerUrl.protocol;
-      url.host = routerUrl.host;
+      const proxyUrl = new URL(PROXY_URL);
+      url.protocol = proxyUrl.protocol;
+      url.host = proxyUrl.host;
     }
 
     const headers = new Headers(init?.headers);
@@ -48,7 +48,7 @@ export function createRoutedFetch(authenticated = true): typeof fetch {
 
 export function createTestClient(
   profile: TestAuthProfile | null = "primary",
-  fetchRequest = createRoutedFetch(profile !== null),
+  fetchRequest = createProxiedFetch(profile !== null),
 ): RoolClient {
   const auth = profile ? createTestAuth(API_URL, profile) : null;
   return new RoolClient({
@@ -59,12 +59,10 @@ export function createTestClient(
   });
 }
 
-export async function requireLocalRouter(): Promise<void> {
-  const health = await fetch(`${ROUTER_URL}/health`).catch(() => null);
+export async function requireLocalProxy(): Promise<void> {
+  const health = await fetch(`${PROXY_URL}/health`).catch(() => null);
   if (health?.status !== 200) {
-    throw new Error(
-      `The local machine router is not available at ${ROUTER_URL}`,
-    );
+    throw new Error(`The local rool-proxy is not available at ${PROXY_URL}`);
   }
 }
 

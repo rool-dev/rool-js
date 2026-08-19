@@ -1,5 +1,5 @@
 /**
- * Smoke test for the SDK gift API against the local backend.
+ * Local integration test for the SDK gift API.
  */
 
 import assert from "node:assert/strict";

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Copies package READMEs to docs folder with necessary transformations.
+ * Copies the package README to the docs folder with necessary transformations.
  * Run before astro build/dev.
  *
  * Static pages (index.md) are checked into git directly.
@@ -18,20 +18,18 @@ const sdkAssetsDir = `${__dirname}/public/sdk-assets`;
 // Ensure generated docs and their SDK assets are current.
 mkdirSync(contentDir, { recursive: true });
 rmSync(sdkAssetsDir, { recursive: true, force: true });
-cpSync(`${root}/packages/sdk/assets`, sdkAssetsDir, { recursive: true });
+cpSync(`${root}/assets`, sdkAssetsDir, { recursive: true });
 
-function getVersion(pkgPath) {
-  const pkg = JSON.parse(
-    readFileSync(`${root}/${pkgPath}/package.json`, "utf-8"),
-  );
+function getVersion() {
+  const pkg = JSON.parse(readFileSync(`${root}/package.json`, "utf-8"));
   return pkg.version;
 }
 
-function transform(content, title, pkgPath) {
+function transform(content, title) {
   // Fix repository-relative links for the published docs.
   content = content
     .replace(
-      /\[LICENSE\]\(\.\.\/\.\.\/LICENSE\)/g,
+      /\[LICENSE\]\(\.\/LICENSE\)/g,
       "[LICENSE](https://github.com/rool-dev/rool-js/blob/main/LICENSE)",
     )
     .replace(/\.\/assets\//g, "/sdk-assets/");
@@ -40,7 +38,7 @@ function transform(content, title, pkgPath) {
   content = content.replace(/^# .+\n+/, "");
 
   // Add frontmatter for Starlight
-  const version = getVersion(pkgPath);
+  const version = getVersion();
   const frontmatter = `---
 title: ${title}
 ---
@@ -53,11 +51,8 @@ title: ${title}
 }
 
 // SDK README → sdk.md (will be at /sdk/)
-const sdkReadme = readFileSync(`${root}/packages/sdk/README.md`, "utf-8");
-writeFileSync(
-  `${contentDir}/sdk.md`,
-  transform(sdkReadme, "Rool SDK", "packages/sdk"),
-);
+const sdkReadme = readFileSync(`${root}/README.md`, "utf-8");
+writeFileSync(`${contentDir}/sdk.md`, transform(sdkReadme, "Rool SDK"));
 
 // Generate llms.txt from index.md (strip frontmatter, fix relative links)
 const indexMd = readFileSync(`${contentDir}/index.md`, "utf-8");
@@ -66,4 +61,4 @@ const llmsTxt = indexMd
   .replace(/\]\(\//g, "](https://docs.rool.dev/"); // Make relative links absolute
 writeFileSync(`${__dirname}/public/llms.txt`, llmsTxt);
 
-console.log("Docs built from READMEs");
+console.log("Docs built from README");

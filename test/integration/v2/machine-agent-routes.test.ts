@@ -1,6 +1,5 @@
 /**
- * Smoke test for agent JSON and run-stream routes through the SDK and local
- * machine router.
+ * Local integration test for SDK agents, conversations, and run streaming.
  */
 
 import assert from "node:assert/strict";
@@ -13,14 +12,14 @@ import {
   type MachineRunEvent,
 } from "../../../src/index.js";
 import {
-  createRoutedFetch,
+  createProxiedFetch,
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
 } from "./harness.js";
 
-const routedFetch = createRoutedFetch();
+const proxiedFetch = createProxiedFetch();
 const normalConversationId = `sdk-agent-${Date.now()}`;
 const cancelledConversationId = `sdk-cancel-${Date.now()}`;
 let runPosts = 0;
@@ -38,7 +37,7 @@ const observingFetch: typeof fetch = async (input, init) => {
   const isRun = /\/agents\/[^/]+\/conversations\/[^/]+\/run$/.test(
     url.pathname,
   );
-  const response = await routedFetch(input, init);
+  const response = await proxiedFetch(input, init);
   if (!isRun) return response;
 
   if (init?.method === "POST") {
@@ -100,7 +99,7 @@ async function promptAndFollow(
 }
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const account = await client.getAccount();
   const created = machineCleanup.track(

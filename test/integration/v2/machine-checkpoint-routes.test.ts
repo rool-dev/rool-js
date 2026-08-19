@@ -1,6 +1,6 @@
 /**
- * Smoke test for checkpoint navigation and file-tree reconciliation through the
- * SDK and local machine router.
+ * Local integration test for SDK checkpoint navigation and file-tree
+ * reconciliation.
  */
 
 import assert from "node:assert/strict";
@@ -16,7 +16,7 @@ import { expectProblem } from "./assertions.js";
 import {
   createTestClient,
   MachineCleanup,
-  requireLocalRouter,
+  requireLocalProxy,
   runSmokeTest,
   waitForFileTree,
 } from "./harness.js";
@@ -46,7 +46,7 @@ async function readText(
 }
 
 async function main(): Promise<void> {
-  await requireLocalRouter();
+  await requireLocalProxy();
 
   const created = machineCleanup.track(
     await client.createMachine({

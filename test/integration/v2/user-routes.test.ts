@@ -1,13 +1,5 @@
 /**
- * Smoke test for the SDK session and user API.
- *
- * Runs against an explicitly configured non-production account because it
- * replaces profile and user app data and exercises account deletion.
- *
- * Required environment:
- *   ROOL_TEST_API_URL
- *   ROOL_TEST_AUTH_URL when the API targets loopback
- *   ROOL_TEST_USER_ID
+ * Local integration test for the SDK session and user API.
  */
 
 import assert from "node:assert/strict";

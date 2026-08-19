@@ -16,7 +16,7 @@ import { execSync } from "child_process";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 
-const packagePath = "packages/sdk/package.json";
+const packagePath = "package.json";
 
 const version = process.argv[2];
 

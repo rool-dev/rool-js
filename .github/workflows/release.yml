@@ -46,7 +46,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Test SDK
-        run: pnpm --filter @rool-dev/sdk test
+        run: pnpm test
 
       - name: Build docs
         run: pnpm docs:build
@@ -88,20 +88,18 @@ jobs:
       - name: Set dev version
         run: |
           SHORT_SHA=${GITHUB_SHA::7}
-          BASE_VERSION=$(node -p "require('./packages/sdk/package.json').version")
+          BASE_VERSION=$(node -p "require('./package.json').version")
           DEV_VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
           if [ "$GITHUB_REF_NAME" = "v2api" ]; then
             DIST_TAG=v2-dev
           else
             DIST_TAG=dev
           fi
-          echo "Setting packages/sdk to ${DEV_VERSION} with dist-tag ${DIST_TAG}"
+          echo "Setting @rool-dev/sdk to ${DEV_VERSION} with dist-tag ${DIST_TAG}"
           echo "DIST_TAG=${DIST_TAG}" >> "$GITHUB_ENV"
-          cd packages/sdk
           npm version "${DEV_VERSION}" --no-git-tag-version
 
       - name: Publish SDK (dev)
-        working-directory: packages/sdk
         run: npm publish --tag "$DIST_TAG" --access public
 
   publish-release:
@@ -141,8 +139,8 @@ jobs:
       - name: Verify version matches tag
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_NAME=$(node -p "require('./packages/sdk/package.json').name")
-          PKG_VERSION=$(node -p "require('./packages/sdk/package.json').version")
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "Error: Tag version ($TAG_VERSION) doesn't match $PKG_NAME version ($PKG_VERSION)"
             exit 1
@@ -166,5 +164,4 @@ jobs:
           echo "DIST_TAG=${DIST_TAG}" >> "$GITHUB_ENV"
 
       - name: Publish SDK
-        working-directory: packages/sdk
         run: npm publish --access public --tag "$DIST_TAG"
