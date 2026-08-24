@@ -28,6 +28,7 @@ export type MachineMeta = Record<string, unknown>;
 export interface MachineSummary {
   id: string;
   name: string;
+  hostname: string;
   inboundEmailAddress: string;
   /** Prefer this address over inboundEmailAddress when present. */
   nextInboundEmailAddress?: string;

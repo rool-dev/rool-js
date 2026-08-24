@@ -119,6 +119,14 @@ export class RoolMachine {
     });
   }
 
+  setHostname(hostname: string): Promise<MachineSummary> {
+    return this.transport.requestJson(`${this.path}/hostname`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hostname }),
+    });
+  }
+
   fetchUrl(url: string, init: MachineFetchInit = {}): Promise<Response> {
     const { signal, ...upstreamInit } = init;
     return this.transport.request(

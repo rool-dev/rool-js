@@ -16,14 +16,11 @@ export function assertIsoDate(value: string, field?: string): void {
 export function assertMachineSummary(machine: MachineSummary): void {
   assert.equal(typeof machine.id, "string");
   assert.equal(typeof machine.name, "string");
+  assert.equal(typeof machine.hostname, "string");
   assert.equal(typeof machine.inboundEmailAddress, "string");
-  assert(
-    machine.inboundEmailAddress.startsWith(`${machine.id.toLowerCase()}@`),
-  );
+  assert(machine.inboundEmailAddress.startsWith(`${machine.hostname}@`));
   assert.equal(typeof machine.nextInboundEmailAddress, "string");
-  assert(
-    machine.nextInboundEmailAddress?.startsWith(`${machine.id.toLowerCase()}@`),
-  );
+  assert(machine.nextInboundEmailAddress?.startsWith(`${machine.hostname}@`));
   assert.deepEqual(machine.meta, {});
   assert(["owner", "admin", "editor", "viewer"].includes(machine.role));
   assert.equal(typeof machine.ownerId, "string");

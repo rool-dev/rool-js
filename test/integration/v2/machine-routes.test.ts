@@ -55,6 +55,19 @@ async function main(): Promise<void> {
   assert.deepEqual(await machine.settings.replace(renamed), renamed);
   assert.deepEqual(await machine.settings.get(), renamed);
 
+  console.log("Setting the machine hostname...");
+  const hostname = `sdk-${Date.now()}`;
+  const withHostname = await machine.setHostname(hostname);
+  assertMachineSummary(withHostname);
+  assert.equal(withHostname.hostname, hostname);
+  assert(withHostname.inboundEmailAddress.startsWith(`${hostname}@`));
+  assert.equal((await machine.get()).hostname, hostname);
+  await expectProblem(
+    () => machine.setHostname("Invalid Hostname"),
+    400,
+    "hostname_unavailable",
+  );
+
   console.log("Fetching an external URL...");
   const fetched = await machine.fetchUrl("https://example.com/");
   assert.equal(fetched.status, 200);
@@ -72,6 +85,11 @@ async function main(): Promise<void> {
   assertMachineSummary(duplicate);
   assert.notEqual(duplicate.id, created.id);
   assert.equal(duplicate.role, "owner");
+  await expectProblem(
+    () => client.machine(duplicate.id).setHostname(hostname),
+    400,
+    "hostname_unavailable",
+  );
 
   await client.machine(duplicate.id).delete();
   machineCleanup.forget(duplicate.id);
