@@ -3,7 +3,11 @@
  */
 
 import assert from "node:assert/strict";
-import { RoolClient, roolSdkVersion, type Voucher } from "../../../src/index.js";
+import {
+  RoolClient,
+  roolSdkVersion,
+  type Voucher,
+} from "../../../src/index.js";
 import { assertIsoDate, expectProblem } from "./assertions.js";
 import { createTestClient, runSmokeTest } from "./harness.js";
 

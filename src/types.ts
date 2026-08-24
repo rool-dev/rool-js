@@ -29,6 +29,8 @@ export interface MachineSummary {
   id: string;
   name: string;
   inboundEmailAddress: string;
+  /** Prefer this address over inboundEmailAddress when present. */
+  nextInboundEmailAddress?: string;
   meta: MachineMeta;
   role: MachineRole;
   ownerId: string;

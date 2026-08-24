@@ -20,6 +20,10 @@ export function assertMachineSummary(machine: MachineSummary): void {
   assert(
     machine.inboundEmailAddress.startsWith(`${machine.id.toLowerCase()}@`),
   );
+  assert.equal(typeof machine.nextInboundEmailAddress, "string");
+  assert(
+    machine.nextInboundEmailAddress?.startsWith(`${machine.id.toLowerCase()}@`),
+  );
   assert.deepEqual(machine.meta, {});
   assert(["owner", "admin", "editor", "viewer"].includes(machine.role));
   assert.equal(typeof machine.ownerId, "string");

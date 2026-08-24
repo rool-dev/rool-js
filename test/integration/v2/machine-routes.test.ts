@@ -44,6 +44,10 @@ async function main(): Promise<void> {
   assertMachineSummary(details);
   assert.equal(details.id, created.id);
   assert.equal(details.inboundEmailAddress, created.inboundEmailAddress);
+  assert.equal(
+    details.nextInboundEmailAddress,
+    created.nextInboundEmailAddress,
+  );
   assert.equal(details.state, "active");
 
   assert.deepEqual(await machine.settings.get(), { name });
