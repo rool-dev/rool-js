@@ -16,7 +16,7 @@ import {
 const client = createTestClient();
 const machineCleanup = new MachineCleanup(client);
 const MAX_ROOL_DRIVE_UPLOAD_BYTES = 100 * 1024 * 1024;
-const MAX_SPACE_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_SPACE_UPLOAD_BYTES = 1024 * 1024;
 
 function stream(body: Uint8Array): ReadableStream<Uint8Array> {
   return new ReadableStream({
