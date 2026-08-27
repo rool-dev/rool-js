@@ -43,6 +43,7 @@ async function main(): Promise<void> {
   const details: MachineSummary = await machine.get();
   assertMachineSummary(details);
   assert.equal(details.id, created.id);
+  assert.equal(details.webDavUrl, created.webDavUrl);
   assert.equal(details.inboundEmailAddress, created.inboundEmailAddress);
   assert.equal(
     details.nextInboundEmailAddress,
@@ -60,6 +61,7 @@ async function main(): Promise<void> {
   const withHostname = await machine.setHostname(hostname);
   assertMachineSummary(withHostname);
   assert.equal(withHostname.hostname, hostname);
+  assert(withHostname.webDavUrl.startsWith(`https://${hostname}.`));
   assert(withHostname.inboundEmailAddress.startsWith(`${hostname}@`));
   assert.equal((await machine.get()).hostname, hostname);
   await expectProblem(

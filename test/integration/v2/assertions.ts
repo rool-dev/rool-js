@@ -17,6 +17,9 @@ export function assertMachineSummary(machine: MachineSummary): void {
   assert.equal(typeof machine.id, "string");
   assert.equal(typeof machine.name, "string");
   assert.equal(typeof machine.hostname, "string");
+  assert.equal(typeof machine.webDavUrl, "string");
+  assert(machine.webDavUrl.startsWith(`https://${machine.hostname}.`));
+  assert(machine.webDavUrl.endsWith("/"));
   assert.equal(typeof machine.inboundEmailAddress, "string");
   assert(machine.inboundEmailAddress.startsWith(`${machine.hostname}@`));
   assert.equal(typeof machine.nextInboundEmailAddress, "string");
