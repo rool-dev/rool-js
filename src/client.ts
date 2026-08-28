@@ -262,6 +262,8 @@ export class RoolClient {
     if (this.identity?.osVersion) {
       headers.set("X-Rool-OS-Version", this.identity.osVersion);
     }
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timeZone) headers.set("X-Timezone", timeZone);
 
     const tokens = await this.getTokens();
     signal?.throwIfAborted();
