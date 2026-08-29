@@ -99,6 +99,8 @@ export interface MachineConversationPromptOptions extends AgentRequestOptions {
 
 export interface MachineConversationFollowOptions extends AgentRequestOptions {
   onEvent?: (event: MachineRunEvent) => void;
+  /** Fail the stream when no data arrives for this long. Default 30s. */
+  stallTimeoutMs?: number;
 }
 
 export type MachineConversationCancelOptions = AgentRequestOptions;
@@ -199,6 +201,9 @@ type TurnUpdate = {
 const VALID_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_EVENT_BYTES = 1024 * 1024;
 const WATCH_RETRY_MAX_MS = 5_000;
+// 3× the server's keepalive cadence; a longer gap means the connection
+// is dead even when the socket never errors (sleep, network switch).
+const RUN_STALL_MS = 30_000;
 
 class MachineAgentState implements MachineAgents {
   private readonly agents = new Map<string, AgentClient>();
@@ -492,12 +497,13 @@ class MachineAgentState implements MachineAgents {
     body: ReadableStream<Uint8Array>,
     options: MachineConversationFollowOptions,
   ): Promise<void> {
+    const stallMs = options.stallTimeoutMs ?? RUN_STALL_MS;
     const reader = body.getReader();
     const decoder = new TextDecoder("utf-8", { fatal: true });
     let buffered = "";
     try {
       while (true) {
-        const result = await reader.read();
+        const result = await readWithStallTimeout(reader, stallMs);
         buffered += decoder.decode(result.value, { stream: !result.done });
         if (new TextEncoder().encode(buffered).byteLength > MAX_EVENT_BYTES) {
           throw new Error("Current run event is too large");
@@ -516,6 +522,9 @@ class MachineAgentState implements MachineAgents {
       }
     } finally {
       reader.releaseLock();
+      // Tears down the connection after a stall or parse failure; a no-op
+      // once the stream has completed.
+      void body.cancel().catch(() => undefined);
     }
   }
 
@@ -988,6 +997,24 @@ function isAbortError(error: unknown): boolean {
     error instanceof Error &&
     (error.name === "AbortError" || error.message.includes("was aborted"))
   );
+}
+
+async function readWithStallTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  stallMs: number,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Run stream stalled for ${stallMs}ms`)),
+      stallMs,
+    );
+  });
+  try {
+    return await Promise.race([reader.read(), stalled]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function abortableDelay(

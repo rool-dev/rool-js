@@ -322,3 +322,47 @@ test("prompt sends run options", async () => {
     },
   });
 });
+
+test("follow fails when the run stream stalls", async () => {
+  const client = new RoolClient({
+    apiUrl: "https://api.example.test",
+    fetch: async (input) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/agents/rool")) {
+        return Response.json({ system: "" });
+      }
+      if (!url.pathname.endsWith("/conversations/chat/run")) {
+        throw new Error(`Unexpected request: GET ${url.pathname}`);
+      }
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const delta = JSON.stringify({
+            type: "output.delta",
+            content: { type: "text", text: "Hello" },
+          });
+          controller.enqueue(new TextEncoder().encode(`${delta}\n`));
+          // Never close: the connection has gone half-open.
+        },
+      });
+      return new Response(body, {
+        headers: { "Content-Type": "application/x-ndjson" },
+      });
+    },
+  });
+
+  const agent = await client.machine("machine").agents.get("rool");
+  assert(agent);
+  const events: MachineRunEvent[] = [];
+  await assert.rejects(
+    agent.conversation("chat").follow({
+      onEvent: (event) => events.push(event),
+      stallTimeoutMs: 50,
+    }),
+    /stalled/,
+  );
+  assert.deepEqual(events, [
+    { type: "output.delta", content: { type: "text", text: "Hello" } },
+  ]);
+});
