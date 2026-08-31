@@ -196,11 +196,15 @@ function parseAccountSyncReport(value: unknown): AccountSyncReport {
   }
   return {
     syncToken: value.syncToken,
-    events: value.events.map(parseAccountEvent),
+    events: value.events
+      .map(parseAccountEvent)
+      .filter((event): event is RoolAccountEvent => event !== null),
   };
 }
 
-function parseAccountEvent(value: unknown): RoolAccountEvent {
+// Unknown types are dropped, not thrown: a newer server may emit events this
+// build has no use for, and a throw here would stall the poll loop.
+function parseAccountEvent(value: unknown): RoolAccountEvent | null {
   if (!isObject(value) || typeof value.timestamp !== "number") {
     throw new Error("Invalid account event");
   }
@@ -237,7 +241,7 @@ function parseAccountEvent(value: unknown): RoolAccountEvent {
       timestamp: value.timestamp,
     };
   }
-  throw new Error("Unknown account event");
+  return null;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
