@@ -21,6 +21,25 @@ export interface UserProfile {
 
 export type UserAppData = Record<string, unknown>;
 
+export interface ProviderDisclosure {
+  id: string;
+  name: string;
+  vendor: string;
+  whatIsSent: string;
+  usedFor: string[];
+}
+
+export interface OptionalProvider extends ProviderDisclosure {
+  whenOff: string;
+  enabled: boolean;
+}
+
+/** All copy is server-written disclosure text; render it as-is. */
+export interface Providers {
+  always: ProviderDisclosure[];
+  optional: OptionalProvider[];
+}
+
 export type MachineRole = "owner" | "admin" | "editor" | "viewer";
 export type MachineLifecycleState = "active" | "locked";
 export type MachineMeta = Record<string, unknown>;

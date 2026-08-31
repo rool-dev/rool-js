@@ -6,6 +6,7 @@ export type RoolAccountEvent =
   | { type: "account_changed"; timestamp: number }
   | { type: "profile_changed"; timestamp: number }
   | { type: "user_app_data_changed"; timestamp: number }
+  | { type: "providers_changed"; timestamp: number }
   | { type: "machines_changed"; machineId: string; timestamp: number }
   | { type: "machine_members_changed"; machineId: string; timestamp: number }
   | {
@@ -206,7 +207,8 @@ function parseAccountEvent(value: unknown): RoolAccountEvent {
   if (
     value.type === "account_changed" ||
     value.type === "profile_changed" ||
-    value.type === "user_app_data_changed"
+    value.type === "user_app_data_changed" ||
+    value.type === "providers_changed"
   ) {
     return { type: value.type, timestamp: value.timestamp };
   }

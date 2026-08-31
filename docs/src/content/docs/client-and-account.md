@@ -23,6 +23,7 @@ Use `getSession()` for an initial load. It returns the account, profile, app dat
 - `getAccount()` returns identity, plan, credit, and usage information.
 - `getProfile()` and `replaceProfile()` read or replace the editable name and marketing preference.
 - `getUserAppData()` returns per-account JSON values for app state. `setUserAppData()` and `deleteUserAppData()` change one top-level key.
+- `getProviders()` returns the third parties that receive user content, with server-written disclosure copy: `always` for the processors of record and `optional` for the ones the user can turn off, each with `enabled`. Providers are not part of the session, so call this separately. `setProviderEnabled(id, enabled)` records the choice (`provider_not_found` for an id that is not switchable). The server enforces it inside conversations: a tool call that needs a disabled provider fails with a message naming it, and a generation only that provider could serve settles as an error turn.
 - `deleteAccount()` starts account deletion.
 
 These methods return snapshots. Use [live updates](/live-updates/) to learn when a snapshot is stale, then fetch the latest value.

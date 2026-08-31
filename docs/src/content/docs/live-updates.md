@@ -13,6 +13,7 @@ Live updates tell a client that something changed. They are not a second copy of
 | `account_changed`         | `client.getAccount()`                        |
 | `profile_changed`         | `client.getProfile()`                        |
 | `user_app_data_changed`   | `client.getUserAppData()`                    |
+| `providers_changed`       | `client.getProviders()`                      |
 | `machines_changed`        | `client.listMachines()` or the named machine |
 | `machine_members_changed` | `machine.members.list()`                     |
 | `conversation_changed`    | the named conversation                       |

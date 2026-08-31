@@ -51,6 +51,7 @@ test("empty polls and network retries do not refresh the session", async () => {
           { type: "account_changed", timestamp: 1 },
           { type: "profile_changed", timestamp: 2 },
           { type: "user_app_data_changed", timestamp: 3 },
+          { type: "providers_changed", timestamp: 3 },
           {
             type: "machines_changed",
             machineId: "machine-1",
@@ -81,7 +82,7 @@ test("empty polls and network retries do not refresh the session", async () => {
   const complete = new Promise<void>((resolve) => {
     const unsubscribe = events.subscribe((event) => {
       received.push(event);
-      if (received.length === 7) {
+      if (received.length === 8) {
         unsubscribe();
         resolve();
       }
@@ -101,6 +102,7 @@ test("empty polls and network retries do not refresh the session", async () => {
     { type: "account_changed", timestamp: 1 },
     { type: "profile_changed", timestamp: 2 },
     { type: "user_app_data_changed", timestamp: 3 },
+    { type: "providers_changed", timestamp: 3 },
     { type: "machines_changed", machineId: "machine-1", timestamp: 4 },
     {
       type: "machine_members_changed",

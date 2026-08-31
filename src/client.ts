@@ -18,6 +18,7 @@ import type {
   RoolSession,
   SpeechmaticsToken,
   SpeechmaticsTokenOptions,
+  Providers,
   UserAccount,
   UserAppData,
   UserProfile,
@@ -124,6 +125,18 @@ export class RoolClient {
   async deleteUserAppData(key: string): Promise<void> {
     await this.request(`/v2/me/app-data/${encodeURIComponent(key)}`, {
       method: "DELETE",
+    });
+  }
+
+  getProviders(): Promise<Providers> {
+    return this.requestJson("/v2/providers");
+  }
+
+  async setProviderEnabled(id: string, enabled: boolean): Promise<void> {
+    await this.request(`/v2/providers/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
     });
   }
 
