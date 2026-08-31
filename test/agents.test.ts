@@ -302,7 +302,7 @@ test("prompt sends run options", async () => {
   const agent = await client.machine("machine").agents.get("rool");
   assert(agent);
   await agent.conversation("chat").prompt("Count the records", {
-    effort: "quick",
+    effort: "standard",
     readOnly: true,
     responseSchema: {
       type: "object",
@@ -313,7 +313,7 @@ test("prompt sends run options", async () => {
 
   assert.deepEqual(runInput, {
     content: [{ type: "text", text: "Count the records" }],
-    effort: "quick",
+    effort: "standard",
     readOnly: true,
     responseSchema: {
       type: "object",

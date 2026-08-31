@@ -3,7 +3,7 @@ import type { MachineFilePath } from "./files.js";
 import { throwProblemResponse } from "./problem.js";
 
 export type MachinePromptEffort =
-  "quick" | "standard" | "reasoning" | "research";
+  "standard" | "reasoning" | "research";
 export type MachineAssistantFinish =
   | "stop"
   | "tool_calls"
