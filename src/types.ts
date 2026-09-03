@@ -122,6 +122,42 @@ export interface MachineInvitePreview {
   inviterName: string | null;
 }
 
+export type McpConnectionAuthentication =
+  | { type: "none" }
+  | { type: "headers"; headers: Record<string, string> }
+  | { type: "oauth"; clientId?: never; clientSecret?: never }
+  | { type: "oauth"; clientId: string; clientSecret: string };
+
+export type McpConnectionAuthenticationSummary =
+  | { type: "none" }
+  | { type: "headers"; headerNames: string[] }
+  | {
+      type: "oauth";
+      authorized: boolean;
+      clientId?: boolean;
+      clientSecret?: boolean;
+    };
+
+export interface McpConnection {
+  id: string;
+  name: string;
+  url: string;
+  authentication: McpConnectionAuthenticationSummary;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMcpConnection {
+  name: string;
+  url: string;
+  authentication: McpConnectionAuthentication;
+}
+
+export interface McpAuthorization {
+  authorizationUrl: string;
+  expiresAt: string;
+}
+
 export type InviteRedemptionStatus = "joined" | "upgraded" | "already_member";
 
 export interface InviteRedemption {

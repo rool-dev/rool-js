@@ -69,6 +69,9 @@ export type {
 export type {
   MachineCheckpointsApi,
   MachineInvitesApi,
+  MachineMcpConnectionsApi,
+  MachineMcpConnectionsListener,
+  MachineMcpConnectionsView,
   MachineMembersApi,
   MachineSettingsApi,
   RoolMachine,
@@ -93,6 +96,7 @@ export type {
 export type {
   ClientCompatibility,
   CreateMachineInvite,
+  CreateMcpConnection,
   CreatedMachineInvite,
   Voucher,
   VoucherClaimResult,
@@ -114,6 +118,10 @@ export type {
   MachineMember,
   MachineMemberRoleConfiguration,
   MachineMeta,
+  McpAuthorization,
+  McpConnection,
+  McpConnectionAuthentication,
+  McpConnectionAuthenticationSummary,
   MachineRole,
   MachineSettings,
   MachineSummary,

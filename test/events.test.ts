@@ -63,11 +63,16 @@ test("empty polls and network retries do not refresh the session", async () => {
             timestamp: 5,
           },
           {
+            type: "mcp_connections_changed",
+            machineId: "machine-1",
+            timestamp: 6,
+          },
+          {
             type: "conversation_changed",
             machineId: "machine-1",
             agentId: "rool",
             conversationId: "conversation-1",
-            timestamp: 6,
+            timestamp: 7,
           },
         ],
       });
@@ -82,7 +87,7 @@ test("empty polls and network retries do not refresh the session", async () => {
   const complete = new Promise<void>((resolve) => {
     const unsubscribe = events.subscribe((event) => {
       received.push(event);
-      if (received.length === 8) {
+      if (received.length === 9) {
         unsubscribe();
         resolve();
       }
@@ -110,11 +115,16 @@ test("empty polls and network retries do not refresh the session", async () => {
       timestamp: 5,
     },
     {
+      type: "mcp_connections_changed",
+      machineId: "machine-1",
+      timestamp: 6,
+    },
+    {
       type: "conversation_changed",
       machineId: "machine-1",
       agentId: "rool",
       conversationId: "conversation-1",
-      timestamp: 6,
+      timestamp: 7,
     },
   ]);
   assert.equal(events.error, null);

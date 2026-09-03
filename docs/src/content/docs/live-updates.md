@@ -16,6 +16,7 @@ Live updates tell a client that something changed. They are not a second copy of
 | `providers_changed`       | `client.getProviders()`                      |
 | `machines_changed`        | `client.listMachines()` or the named machine |
 | `machine_members_changed` | `machine.members.list()`                     |
+| `mcp_connections_changed` | `machine.mcpConnections.list()`              |
 | `conversation_changed`    | the named conversation                       |
 
 Treat a new `session` event as a full reset of account state. It can also arrive later if Rool can no longer continue from the previous event.
@@ -31,8 +32,8 @@ const unsubscribe = client.events.subscribe((event) => {
 unsubscribe();
 ```
 
-## Files and conversations
+## Higher-level watchers
 
 Account events do not carry file changes. `machine.files.watch()` maintains a file metadata tree from changes made by any client, agent, or program in the VM.
 
-For conversations, `conversation.watch()` is the higher-level option. It uses account events to refresh saved turns and follows the current run for live output. Use the lower-level account subscription only when maintaining your own state model.
+`machine.mcpConnections.watch()` maintains the connection collection, including OAuth authorization state. `conversation.watch()` refreshes saved turns and follows the current run for live output. Use the lower-level account subscription only when maintaining your own state model.

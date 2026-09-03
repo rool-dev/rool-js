@@ -8,6 +8,10 @@ const smokeTests = [
   { name: "voucher routes", file: "voucher-routes.test.ts" },
   { name: "machine routes", file: "machine-routes.test.ts" },
   {
+    name: "machine MCP connection routes",
+    file: "mcp-connection-routes.test.ts",
+  },
+  {
     name: "member and invite routes",
     file: "member-invite-routes.test.ts",
   },

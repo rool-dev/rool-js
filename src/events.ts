@@ -9,6 +9,7 @@ export type RoolAccountEvent =
   | { type: "providers_changed"; timestamp: number }
   | { type: "machines_changed"; machineId: string; timestamp: number }
   | { type: "machine_members_changed"; machineId: string; timestamp: number }
+  | { type: "mcp_connections_changed"; machineId: string; timestamp: number }
   | {
       type: "conversation_changed";
       machineId: string;
@@ -218,7 +219,8 @@ function parseAccountEvent(value: unknown): RoolAccountEvent | null {
   }
   if (
     (value.type === "machines_changed" ||
-      value.type === "machine_members_changed") &&
+      value.type === "machine_members_changed" ||
+      value.type === "mcp_connections_changed") &&
     typeof value.machineId === "string"
   ) {
     return {

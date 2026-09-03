@@ -14,6 +14,7 @@ import {
 } from "./structured.js";
 import type {
   CreateMachineInvite,
+  CreateMcpConnection,
   CreatedMachineInvite,
   MachineCheckpointCollection,
   MachineFetchInit,
@@ -22,6 +23,9 @@ import type {
   MachineMemberRoleConfiguration,
   MachineSettings,
   MachineSummary,
+  McpAuthorization,
+  McpConnection,
+  McpConnectionAuthentication,
 } from "./types.js";
 
 export interface MachineSettingsApi {
@@ -50,6 +54,30 @@ export interface MachineInvitesApi {
   revoke(inviteId: string): Promise<void>;
 }
 
+export interface MachineMcpConnectionsView {
+  readonly connections: readonly McpConnection[];
+  readonly loading: boolean;
+  readonly error: unknown;
+}
+
+export type MachineMcpConnectionsListener = (
+  view: MachineMcpConnectionsView,
+) => void;
+
+export interface MachineMcpConnectionsApi {
+  list(): Promise<McpConnection[]>;
+  watch(listener: MachineMcpConnectionsListener): () => void;
+  get(connectionId: string): Promise<McpConnection>;
+  create(connection: CreateMcpConnection): Promise<McpConnection>;
+  remove(connectionId: string): Promise<void>;
+  replaceAuthentication(
+    connectionId: string,
+    authentication: McpConnectionAuthentication,
+  ): Promise<McpConnection>;
+  startAuthorization(connectionId: string): Promise<McpAuthorization>;
+  clearAuthorization(connectionId: string): Promise<McpConnection>;
+}
+
 export interface RoolMachineTransport {
   send(
     path: string,
@@ -76,6 +104,7 @@ export class RoolMachine {
   readonly checkpoints: MachineCheckpointsApi;
   readonly members: MachineMembersApi;
   readonly invites: MachineInvitesApi;
+  readonly mcpConnections: MachineMcpConnectionsApi;
 
   private readonly path: string;
 
@@ -99,6 +128,11 @@ export class RoolMachine {
     this.checkpoints = new MachineCheckpointsClient(this.path, transport);
     this.members = new MachineMembersClient(this.path, transport);
     this.invites = new MachineInvitesClient(this.path, transport);
+    this.mcpConnections = new MachineMcpConnectionsClient(
+      this.id,
+      this.path,
+      transport,
+    );
   }
 
   get(): Promise<MachineSummary> {
@@ -214,6 +248,207 @@ class MachineMembersClient implements MachineMembersApi {
 
   private rolePath(userId: string): string {
     return `${this.memberPath(userId)}/role`;
+  }
+}
+
+const MCP_CONNECTION_WATCH_RETRY_MAX_MS = 5_000;
+
+class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
+  private readonly path: string;
+  private readonly listeners = new Set<MachineMcpConnectionsListener>();
+  private connections: McpConnection[] = [];
+  private loading = true;
+  private error: unknown = null;
+  private watchController: AbortController | null = null;
+  private unsubscribeEvents: (() => void) | null = null;
+  private syncRequested = false;
+  private syncLoop: Promise<void> | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryMs = 250;
+
+  constructor(
+    private readonly machineId: string,
+    machinePath: string,
+    private readonly transport: RoolMachineTransport,
+  ) {
+    this.path = `${machinePath}/mcp-connections`;
+  }
+
+  list(): Promise<McpConnection[]> {
+    return this.load();
+  }
+
+  watch(listener: MachineMcpConnectionsListener): () => void {
+    this.listeners.add(listener);
+    if (!this.watchController) this.startWatching();
+    listener(this.view());
+
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size === 0) this.stopWatching();
+    };
+  }
+
+  get(connectionId: string): Promise<McpConnection> {
+    return this.transport.requestJson(this.connectionPath(connectionId));
+  }
+
+  create(connection: CreateMcpConnection): Promise<McpConnection> {
+    return this.transport.requestJson(this.path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(connection),
+    });
+  }
+
+  async remove(connectionId: string): Promise<void> {
+    await this.transport.request(this.connectionPath(connectionId), {
+      method: "DELETE",
+    });
+  }
+
+  replaceAuthentication(
+    connectionId: string,
+    authentication: McpConnectionAuthentication,
+  ): Promise<McpConnection> {
+    return this.transport.requestJson(
+      `${this.connectionPath(connectionId)}/authentication`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(authentication),
+      },
+    );
+  }
+
+  startAuthorization(connectionId: string): Promise<McpAuthorization> {
+    return this.transport.requestJson(
+      `${this.connectionPath(connectionId)}/authorization`,
+      { method: "POST" },
+    );
+  }
+
+  clearAuthorization(connectionId: string): Promise<McpConnection> {
+    return this.transport.requestJson(
+      `${this.connectionPath(connectionId)}/authorization`,
+      { method: "DELETE" },
+    );
+  }
+
+  private async load(signal?: AbortSignal): Promise<McpConnection[]> {
+    const result = await this.transport.requestJson<{
+      connections: McpConnection[];
+    }>(this.path, { signal });
+    return result.connections;
+  }
+
+  private startWatching(): void {
+    const controller = new AbortController();
+    this.watchController = controller;
+    this.loading = true;
+    this.error = null;
+    this.retryMs = 250;
+    this.unsubscribeEvents = this.transport.subscribeEvents((event) => {
+      const matchesMachine =
+        event.type === "mcp_connections_changed" &&
+        event.machineId === this.machineId;
+      if (event.type === "session" || matchesMachine) this.requestSync();
+    });
+    this.requestSync();
+  }
+
+  private stopWatching(): void {
+    this.watchController?.abort();
+    this.watchController = null;
+    this.unsubscribeEvents?.();
+    this.unsubscribeEvents = null;
+    this.syncRequested = false;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  private requestSync(): void {
+    const controller = this.watchController;
+    if (!controller || controller.signal.aborted) return;
+    this.syncRequested = true;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    if (this.syncLoop) return;
+
+    // Events from one account report arrive together. Start on the next
+    // microtask so they result in one fetch.
+    const loop = Promise.resolve().then(() => this.runSyncLoop(controller));
+    this.syncLoop = loop;
+    const finished = () => {
+      if (this.syncLoop === loop) this.syncLoop = null;
+      const current = this.watchController;
+      if (current && this.syncRequested && !current.signal.aborted) {
+        this.requestSync();
+      }
+    };
+    void loop.then(finished, finished);
+  }
+
+  private async runSyncLoop(controller: AbortController): Promise<void> {
+    while (
+      this.watchController === controller &&
+      !controller.signal.aborted &&
+      this.syncRequested
+    ) {
+      this.syncRequested = false;
+      let connections: McpConnection[];
+      try {
+        connections = await this.load(controller.signal);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (this.syncRequested) continue;
+        this.loading = false;
+        this.error = error;
+        this.scheduleRetry(controller);
+        this.emit();
+        return;
+      }
+
+      if (controller.signal.aborted) return;
+      // An event arrived while the request was open, so its response may
+      // already be stale. Fetch once more without publishing it.
+      if (this.syncRequested) continue;
+      this.connections = connections;
+      this.loading = false;
+      this.error = null;
+      this.retryMs = 250;
+      this.emit();
+    }
+  }
+
+  private scheduleRetry(controller: AbortController): void {
+    if (this.retryTimer || this.watchController !== controller) return;
+    const delay = this.retryMs;
+    this.retryMs = Math.min(
+      this.retryMs * 2,
+      MCP_CONNECTION_WATCH_RETRY_MAX_MS,
+    );
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.requestSync();
+    }, delay);
+  }
+
+  private view(): MachineMcpConnectionsView {
+    return {
+      connections: [...this.connections],
+      loading: this.loading,
+      error: this.error,
+    };
+  }
+
+  private emit(): void {
+    const view = this.view();
+    for (const listener of this.listeners) listener(view);
+  }
+
+  private connectionPath(connectionId: string): string {
+    return `${this.path}/${encodeURIComponent(connectionId)}`;
   }
 }
 

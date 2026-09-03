@@ -21,6 +21,36 @@ Rool creates filesystem checkpoints automatically. `machine.checkpoints.list()` 
 
 `machine.fetchUrl()` fetches a public HTTP or HTTPS URL through Rool and returns a normal `Response`. Non-success HTTP responses are returned rather than thrown, while private network destinations are blocked.
 
+## Remote MCP connections
+
+Owners and admins can connect a machine to a remote HTTPS MCP server. Authentication is explicit: choose no authentication, supply HTTP headers, or choose OAuth.
+
+```typescript
+const connection = await machine.mcpConnections.create({
+  name: "notion",
+  url: "https://mcp.notion.com/mcp",
+  authentication: { type: "oauth" },
+});
+
+const authorization = await machine.mcpConnections.startAuthorization(
+  connection.id,
+);
+window.open(authorization.authorizationUrl, "_blank");
+```
+
+Watch the collection while showing connection state. The watcher loads it immediately, refreshes it after OAuth completion and other changes, and handles account-session resets. It coalesces changes that arrive together, so do not poll `get()` while authorization is open.
+
+```typescript
+const stopWatching = machine.mcpConnections.watch((view) => {
+  renderConnections(view.connections, view.loading, view.error);
+});
+
+// When the view no longer needs live updates
+stopWatching();
+```
+
+Stored header values, OAuth client secrets, and tokens are never returned; summaries contain only header names and authorization state. Use `replaceAuthentication()`, `clearAuthorization()`, or `remove()` to manage an existing connection.
+
 ## Members and invites
 
 The four machine roles are deliberately simple:
