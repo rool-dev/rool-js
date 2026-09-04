@@ -8,6 +8,23 @@ import {
 } from "../src/index.js";
 import { RoolMachine, type RoolMachineTransport } from "../src/machine.js";
 
+const template = {
+  id: "google-drive",
+  name: "Google Drive",
+  description: "Search, read, and create files in Google Drive.",
+  url: "https://drivemcp.googleapis.com/mcp/v1",
+  authentication: "oauth" as const,
+  defaultConnectionName: "google-drive",
+  defaultAccess: "read-only",
+  accessOptions: [
+    {
+      id: "read-only",
+      name: "Read files",
+      description: "Search, inspect, and download files.",
+    },
+  ],
+};
+
 const connection: McpConnection = {
   id: "connection/id",
   name: "notion",
@@ -33,6 +50,12 @@ test("machine MCP connections use the connection routes", async () => {
       if (method === "DELETE" && url.pathname.endsWith("connection%2Fid")) {
         return new Response(null, { status: 204 });
       }
+      if (
+        method === "GET" &&
+        url.pathname.endsWith("mcp-connection-templates")
+      ) {
+        return Response.json({ templates: [template] });
+      }
       if (method === "GET" && url.pathname.endsWith("mcp-connections")) {
         return Response.json({ connections: [connection] });
       }
@@ -47,6 +70,7 @@ test("machine MCP connections use the connection routes", async () => {
   });
   const connections = client.machine("machine/id").mcpConnections;
 
+  assert.deepEqual(await client.listMcpConnectionTemplates(), [template]);
   assert.deepEqual(await connections.list(), [connection]);
   assert.deepEqual(await connections.get("connection/id"), connection);
   assert.deepEqual(
@@ -54,6 +78,14 @@ test("machine MCP connections use the connection routes", async () => {
       name: "notion",
       url: "https://mcp.notion.com/mcp",
       authentication: { type: "oauth" },
+    }),
+    connection,
+  );
+  assert.deepEqual(
+    await connections.create({
+      templateId: "google-drive",
+      name: "work-drive",
+      access: "read-only",
     }),
     connection,
   );
@@ -77,6 +109,7 @@ test("machine MCP connections use the connection routes", async () => {
   const base = "/v2/machines/machine%2Fid/mcp-connections";
   const item = `${base}/connection%2Fid`;
   assert.deepEqual(requests, [
+    { method: "GET", path: "/v2/mcp-connection-templates" },
     { method: "GET", path: base },
     { method: "GET", path: item },
     {
@@ -86,6 +119,15 @@ test("machine MCP connections use the connection routes", async () => {
         name: "notion",
         url: "https://mcp.notion.com/mcp",
         authentication: { type: "oauth" },
+      },
+    },
+    {
+      method: "POST",
+      path: base,
+      body: {
+        templateId: "google-drive",
+        name: "work-drive",
+        access: "read-only",
       },
     },
     {

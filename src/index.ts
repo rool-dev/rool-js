@@ -95,8 +95,10 @@ export type {
 } from "./structured.js";
 export type {
   ClientCompatibility,
+  CreateCustomMcpConnection,
   CreateMachineInvite,
   CreateMcpConnection,
+  CreateMcpConnectionFromTemplate,
   CreatedMachineInvite,
   Voucher,
   VoucherClaimResult,
@@ -122,6 +124,8 @@ export type {
   McpConnection,
   McpConnectionAuthentication,
   McpConnectionAuthenticationSummary,
+  McpConnectionTemplate,
+  McpConnectionTemplateAccessOption,
   MachineRole,
   MachineSettings,
   MachineSummary,

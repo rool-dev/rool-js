@@ -122,6 +122,23 @@ export interface MachineInvitePreview {
   inviterName: string | null;
 }
 
+export interface McpConnectionTemplateAccessOption {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface McpConnectionTemplate {
+  id: string;
+  name: string;
+  description: string;
+  url: string;
+  authentication: "oauth";
+  defaultConnectionName: string;
+  defaultAccess: string;
+  accessOptions: McpConnectionTemplateAccessOption[];
+}
+
 export type McpConnectionAuthentication =
   | { type: "none" }
   | { type: "headers"; headers: Record<string, string> }
@@ -136,6 +153,7 @@ export type McpConnectionAuthenticationSummary =
       authorized: boolean;
       clientId?: boolean;
       clientSecret?: boolean;
+      access?: string;
     };
 
 export interface McpConnection {
@@ -147,11 +165,20 @@ export interface McpConnection {
   updatedAt: string;
 }
 
-export interface CreateMcpConnection {
+export interface CreateCustomMcpConnection {
   name: string;
   url: string;
   authentication: McpConnectionAuthentication;
 }
+
+export interface CreateMcpConnectionFromTemplate {
+  templateId: string;
+  name?: string;
+  access?: string;
+}
+
+export type CreateMcpConnection =
+  CreateCustomMcpConnection | CreateMcpConnectionFromTemplate;
 
 export interface McpAuthorization {
   authorizationUrl: string;

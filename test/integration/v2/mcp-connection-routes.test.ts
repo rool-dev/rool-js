@@ -27,6 +27,14 @@ function assertConnection(connection: McpConnection): void {
 async function main(): Promise<void> {
   await requireLocalProxy();
 
+  console.log("Listing MCP connection templates...");
+  const templates = await client.listMcpConnectionTemplates();
+  for (const template of templates) {
+    assert.equal(typeof template.id, "string");
+    assert.equal(typeof template.defaultAccess, "string");
+    assert.ok(template.accessOptions.length > 0);
+  }
+
   const createdMachine = machineCleanup.track(
     await client.createMachine({
       name: `SDK MCP connections ${Date.now()}`,

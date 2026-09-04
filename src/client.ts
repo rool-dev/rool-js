@@ -13,6 +13,7 @@ import type {
   MachineInvitePreview,
   MachineSettings,
   MachineSummary,
+  McpConnectionTemplate,
   RoolClientConfig,
   RoolRequestTokens,
   RoolSession,
@@ -155,6 +156,13 @@ export class RoolClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(options),
     });
+  }
+
+  async listMcpConnectionTemplates(): Promise<McpConnectionTemplate[]> {
+    const result = await this.requestJson<{
+      templates: McpConnectionTemplate[];
+    }>("/v2/mcp-connection-templates");
+    return result.templates;
   }
 
   listMachines(): Promise<MachineSummary[]> {
