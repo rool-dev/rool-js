@@ -73,6 +73,8 @@ export type {
   MachineMcpConnectionsListener,
   MachineMcpConnectionsView,
   MachineMembersApi,
+  MachineMetadata,
+  MachineMetadataApi,
   MachineSettingsApi,
   RoolMachine,
 } from "./machine.js";
@@ -83,8 +85,6 @@ export type {
   MachineCollection,
   MachineCollectionPath,
   MachineCollectionsApi,
-  MachineMetadata,
-  MachineMetadataApi,
   MachineObjectsApi,
   MachineStructuredRequestOptions,
   RoolObject,

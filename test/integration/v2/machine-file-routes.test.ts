@@ -80,7 +80,7 @@ async function main(): Promise<void> {
     MAX_ROOL_DRIVE_UPLOAD_BYTES,
   );
   assert.equal(
-    (await files.options("/space/.meta.json")).maxUploadBytes,
+    (await files.options("/space/sdk-known-path/settings.json")).maxUploadBytes,
     MAX_SPACE_UPLOAD_BYTES,
   );
 
@@ -164,12 +164,13 @@ async function main(): Promise<void> {
   assert.notEqual(replacement.etag, info.etag);
   assert.deepEqual(await files.stat(path), replacement);
 
-  const metaPath: MachineFilePath = "/space/.meta.json";
-  await files.write(metaPath, JSON.stringify({ sdk: "known-path" }), {
+  const spacePath: MachineFilePath = "/space/sdk-known-path/settings.json";
+  await files.write(spacePath, JSON.stringify({ sdk: "known-path" }), {
     contentType: "application/json",
+    createParents: true,
   });
-  const metaResponse = await files.read(metaPath);
-  assert.deepEqual(await metaResponse.json(), { sdk: "known-path" });
+  const spaceResponse = await files.read(spacePath);
+  assert.deepEqual(await spaceResponse.json(), { sdk: "known-path" });
 
   console.log("Deleting with an ETag precondition...");
   await expectFileError(() => files.delete(path, { ifMatch: info.etag }), 412);

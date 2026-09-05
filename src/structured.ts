@@ -7,8 +7,6 @@ import {
   type MachineFiles,
 } from "./files.js";
 
-export type MachineMetadata = Record<string, unknown>;
-
 export type FieldType =
   | { kind: "string" }
   | { kind: "number" }
@@ -53,19 +51,6 @@ export interface MachineStructuredRequestOptions {
 
 export interface RoolObjectMoveOptions extends MachineStructuredRequestOptions {
   overwrite?: boolean;
-}
-
-export interface MachineMetadataApi {
-  get(options?: MachineStructuredRequestOptions): Promise<MachineMetadata>;
-  set(
-    key: string,
-    value: unknown,
-    options?: MachineStructuredRequestOptions,
-  ): Promise<MachineMetadata>;
-  delete(
-    key: string,
-    options?: MachineStructuredRequestOptions,
-  ): Promise<MachineMetadata>;
 }
 
 export interface MachineCollectionsApi {
@@ -131,7 +116,6 @@ export interface MachineObjectsApi {
 }
 
 export interface MachineStructuredApis {
-  readonly metadata: MachineMetadataApi;
   readonly collections: MachineCollectionsApi;
   readonly objects: MachineObjectsApi;
 }
@@ -142,8 +126,6 @@ type ReadFile = {
   body: Uint8Array;
 };
 
-const META_PATH = "/space/.meta.json";
-const METADATA_WRITE_ATTEMPTS = 5;
 const COLLECTION_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 const OBJECT_RE =
   /^\/space\/([a-zA-Z][a-zA-Z0-9_-]*)\/([a-zA-Z0-9][a-zA-Z0-9_-]*)\.json$/;
@@ -153,7 +135,6 @@ const UNKNOWN_FILE_BYTES = 2 * 1024 * 1024;
 const MULTIPLE_REMOVE_CONCURRENCY = 8;
 
 class StructuredMachineState implements MachineStructuredApis {
-  readonly metadata: MachineMetadataApi;
   readonly collections: MachineCollectionsApi;
   readonly objects: MachineObjectsApi;
 
@@ -161,11 +142,6 @@ class StructuredMachineState implements MachineStructuredApis {
     private readonly files: MachineFiles,
     private readonly isWatching: () => boolean,
   ) {
-    this.metadata = {
-      get: (options) => this.getMetadata(options),
-      set: (key, value, options) => this.setMetadata(key, value, options),
-      delete: (key, options) => this.deleteMetadata(key, options),
-    };
     this.collections = {
       list: (options) => this.listCollections(options),
       get: (name, options) => this.getCollection(name, options),
@@ -188,73 +164,6 @@ class StructuredMachineState implements MachineStructuredApis {
       removeMultiple: (paths, options) =>
         this.removeMultipleObjects(paths, options),
     };
-  }
-
-  private async getMetadata(
-    options: MachineStructuredRequestOptions = {},
-  ): Promise<MachineMetadata> {
-    const file = await this.readOptionalFile(META_PATH, options.signal);
-    if (!file) return {};
-    return parseJsonObject(file, "Machine metadata");
-  }
-
-  private setMetadata(
-    key: string,
-    value: unknown,
-    options: MachineStructuredRequestOptions = {},
-  ): Promise<MachineMetadata> {
-    return this.writeMetadata(key, value, false, options.signal);
-  }
-
-  private deleteMetadata(
-    key: string,
-    options: MachineStructuredRequestOptions = {},
-  ): Promise<MachineMetadata> {
-    return this.writeMetadata(key, null, true, options.signal);
-  }
-
-  private async writeMetadata(
-    key: string,
-    value: unknown,
-    remove: boolean,
-    signal?: AbortSignal,
-  ): Promise<MachineMetadata> {
-    if (!key) throw new Error("Machine metadata key is required");
-
-    for (let attempt = 1; attempt <= METADATA_WRITE_ATTEMPTS; attempt += 1) {
-      const file = await this.readOptionalFile(META_PATH, signal);
-      const current = file ? parseJsonObject(file, "Machine metadata") : {};
-      const hasKey = Object.hasOwn(current, key);
-      if (remove && !hasKey) return current;
-      if (
-        !remove &&
-        hasKey &&
-        JSON.stringify(current[key]) === JSON.stringify(value)
-      ) {
-        return current;
-      }
-
-      const next = remove ? { ...current } : { ...current, [key]: value };
-      if (remove) delete next[key];
-
-      try {
-        await this.files.write(
-          META_PATH,
-          serializeJsonObject(next, "Machine metadata"),
-          {
-            contentType: "application/json",
-            ...(file ? { ifMatch: file.etag } : { ifNoneMatch: "*" }),
-            signal,
-          },
-        );
-        return next;
-      } catch (error) {
-        const conflict = error instanceof RoolFileError && error.status === 412;
-        if (!conflict || attempt === METADATA_WRITE_ATTEMPTS) throw error;
-      }
-    }
-
-    throw new Error("Machine metadata update exhausted its attempts");
   }
 
   private async listCollections(

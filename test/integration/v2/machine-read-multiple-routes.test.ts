@@ -25,23 +25,23 @@ async function main(): Promise<void> {
   );
   const files = client.machine(created.id).files;
   const binaryPath: MachineFilePath = "/rool-drive/read-multiple/binary.bin";
-  const metaPath: MachineFilePath = "/space/.meta.json";
+  const spacePath: MachineFilePath = "/space/read-multiple/settings.json";
   const missingPath: MachineFilePath = "/rool-drive/read-multiple/missing.txt";
   const binary = new Uint8Array([0, 10, 13, 45, 45, 255, 1, 2, 3]);
   const binaryWrite = await files.write(binaryPath, binary, {
     contentType: "application/octet-stream",
     createParents: true,
   });
-  const metaWrite = await files.write(
-    metaPath,
+  const spaceWrite = await files.write(
+    spacePath,
     JSON.stringify({ hydration: "batch" }),
-    { contentType: "application/json" },
+    { contentType: "application/json", createParents: true },
   );
 
   console.log(
     "Hydrating binary, structured, and missing files in one REPORT...",
   );
-  const results = await files.readMultiple([binaryPath, metaPath, missingPath]);
+  const results = await files.readMultiple([binaryPath, spacePath, missingPath]);
   assert.equal(results.length, 3);
   const binaryResult = results[0];
   assert(binaryResult?.ok);
@@ -50,11 +50,11 @@ async function main(): Promise<void> {
   assert.equal(binaryResult.contentType, "application/octet-stream");
   assert.deepEqual(binaryResult.body, binary);
 
-  const metaResult = results[1];
-  assert(metaResult?.ok);
-  assert.equal(metaResult.path, metaPath);
-  assert.equal(metaResult.etag, metaWrite.etag);
-  assert.deepEqual(JSON.parse(new TextDecoder().decode(metaResult.body)), {
+  const spaceResult = results[1];
+  assert(spaceResult?.ok);
+  assert.equal(spaceResult.path, spacePath);
+  assert.equal(spaceResult.etag, spaceWrite.etag);
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(spaceResult.body)), {
     hydration: "batch",
   });
 

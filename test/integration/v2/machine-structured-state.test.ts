@@ -116,16 +116,20 @@ async function main(): Promise<void> {
 
   console.log("Setting structured machine metadata keys...");
   const viewport = { x: 10, y: 20, zoom: 1.5 };
-  await Promise.all([
-    machine.metadata.set("viewport", viewport),
-    machine.metadata.set("theme", "dark"),
-  ]);
+  await machine.metadata.set("viewport", viewport);
+  await machine.metadata.set("theme", "dark");
   assert.deepEqual(await machine.metadata.get(), {
     viewport,
     theme: "dark",
   });
   await machine.metadata.delete("theme");
   assert.deepEqual(await machine.metadata.get(), { viewport });
+  assert.deepEqual(await machine.metadata.replace({ layout: "grid" }), {
+    layout: "grid",
+  });
+  assert.deepEqual(await machine.metadata.get(), { layout: "grid" });
+  await machine.metadata.replace({});
+  assert.deepEqual(await machine.metadata.get(), {});
 
   const initialDefinition: CollectionDef = {
     schemaOrgType: "Action",

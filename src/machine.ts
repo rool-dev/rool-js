@@ -9,8 +9,8 @@ import {
 import {
   createMachineStructuredApis,
   type MachineCollectionsApi,
-  type MachineMetadataApi,
   type MachineObjectsApi,
+  type MachineStructuredRequestOptions,
 } from "./structured.js";
 import type {
   CreateMachineInvite,
@@ -21,6 +21,7 @@ import type {
   MachineInvite,
   MachineMember,
   MachineMemberRoleConfiguration,
+  MachineMeta,
   MachineSettings,
   MachineSummary,
   McpAuthorization,
@@ -31,6 +32,27 @@ import type {
 export interface MachineSettingsApi {
   get(): Promise<MachineSettings>;
   replace(settings: MachineSettings): Promise<MachineSettings>;
+}
+
+export type MachineMetadata = MachineMeta;
+
+/** The machine's metadata document. `set` and `delete` are read-merge-replace
+ *  conveniences; the last writer wins. */
+export interface MachineMetadataApi {
+  get(options?: MachineStructuredRequestOptions): Promise<MachineMetadata>;
+  replace(
+    metadata: MachineMetadata,
+    options?: MachineStructuredRequestOptions,
+  ): Promise<MachineMetadata>;
+  set(
+    key: string,
+    value: unknown,
+    options?: MachineStructuredRequestOptions,
+  ): Promise<MachineMetadata>;
+  delete(
+    key: string,
+    options?: MachineStructuredRequestOptions,
+  ): Promise<MachineMetadata>;
 }
 
 export interface MachineCheckpointsApi {
@@ -121,7 +143,7 @@ export class RoolMachine {
       this.files,
       () => this.files.isWatching,
     );
-    this.metadata = structured.metadata;
+    this.metadata = new MachineMetadataClient(this.path, transport);
     this.collections = structured.collections;
     this.objects = structured.objects;
     this.settings = new MachineSettingsClient(this.path, transport);
@@ -192,6 +214,60 @@ class MachineSettingsClient implements MachineSettingsApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
     });
+  }
+}
+
+class MachineMetadataClient implements MachineMetadataApi {
+  private readonly path: string;
+
+  constructor(
+    machinePath: string,
+    private readonly transport: RoolMachineTransport,
+  ) {
+    this.path = `${machinePath}/meta`;
+  }
+
+  get(options: MachineStructuredRequestOptions = {}): Promise<MachineMetadata> {
+    return this.transport.requestJson(this.path, { signal: options.signal });
+  }
+
+  replace(
+    metadata: MachineMetadata,
+    options: MachineStructuredRequestOptions = {},
+  ): Promise<MachineMetadata> {
+    return this.transport.requestJson(this.path, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(metadata),
+      signal: options.signal,
+    });
+  }
+
+  async set(
+    key: string,
+    value: unknown,
+    options: MachineStructuredRequestOptions = {},
+  ): Promise<MachineMetadata> {
+    if (!key) throw new Error("Machine metadata key is required");
+    const current = await this.get(options);
+    if (
+      Object.hasOwn(current, key) &&
+      JSON.stringify(current[key]) === JSON.stringify(value)
+    ) {
+      return current;
+    }
+    return this.replace({ ...current, [key]: value }, options);
+  }
+
+  async delete(
+    key: string,
+    options: MachineStructuredRequestOptions = {},
+  ): Promise<MachineMetadata> {
+    if (!key) throw new Error("Machine metadata key is required");
+    const current = await this.get(options);
+    if (!Object.hasOwn(current, key)) return current;
+    const { [key]: _removed, ...rest } = current;
+    return this.replace(rest, options);
   }
 }
 

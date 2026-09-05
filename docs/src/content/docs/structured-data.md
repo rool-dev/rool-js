@@ -7,7 +7,6 @@ Structured data gives an app predictable records without hiding them from the ma
 The layout is fixed:
 
 ```text
-/space/.meta.json
 /space/tasks/.schema.json
 /space/tasks/launch.json
 ```
@@ -47,4 +46,14 @@ Use `get()` or `getMultiple()` to load the record bodies.
 
 ## Machine metadata
 
-`machine.metadata` stores small machine-wide JSON values in `/space/.meta.json`. It is useful for shared app settings such as a selected layout or project configuration. This differs from client user app data, which belongs to one account rather than one machine.
+`machine.metadata` is one JSON document per machine, useful for shared app settings such as a selected layout or project configuration. This differs from client user app data, which belongs to one account rather than one machine.
+
+`get()` returns the document and `replace()` writes a whole new one. `set(key, value)` and `delete(key)` read, change one key, and replace; when two clients write at the same time the last write wins.
+
+```typescript
+const settings = await machine.metadata.get();
+await machine.metadata.set("theme", "dark");
+await machine.metadata.replace({ ...settings, layout: "grid" });
+```
+
+A write publishes a `machines_changed` account event for every member.
