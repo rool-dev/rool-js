@@ -133,6 +133,7 @@ export interface McpConnectionTemplate {
   name: string;
   description: string;
   url: string;
+  logoUrl: string;
   authentication: "oauth";
   defaultConnectionName: string;
   defaultAccess: string;
@@ -160,6 +161,7 @@ export interface McpConnection {
   id: string;
   name: string;
   url: string;
+  logoUrl?: string;
   authentication: McpConnectionAuthenticationSummary;
   createdAt: string;
   updatedAt: string;
