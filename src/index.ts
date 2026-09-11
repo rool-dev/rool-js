@@ -144,6 +144,7 @@ export type {
   OptionalProvider,
   ProviderDisclosure,
   Providers,
+  AccountSubscription,
   UserAccount,
   UserAppData,
   UserProfile,

@@ -1,6 +1,12 @@
 export type RoolPlan = "standard" | "plus" | "pro" | "max" | "admin";
 export type ClientCompatibility = "ok" | "unsupported";
 
+/** Current or last subscription. The account's plan, not this status, decides access. */
+export interface AccountSubscription {
+  provider: "stripe" | "apple";
+  status: "active" | "cancelling" | "past_due" | "ended" | "unknown";
+}
+
 export interface UserAccount {
   id: string;
   email: string;
@@ -11,7 +17,9 @@ export interface UserAccount {
   createdAt: string;
   lastActivity: string | null;
   processedAt: string;
+  /** @deprecated Use subscription for billing provider and status. */
   stripeStatus: string | null;
+  subscription: AccountSubscription | null;
 }
 
 export interface UserProfile {

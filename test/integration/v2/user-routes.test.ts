@@ -59,7 +59,7 @@ function assertAccount(account: UserAccount): void {
   assert.equal(typeof account.id, "string");
   assert.equal(typeof account.email, "string");
   assert(account.photoUrl === null || typeof account.photoUrl === "string");
-  assert(["standard", "pro", "max", "admin"].includes(account.plan));
+  assert(["standard", "plus", "pro", "max", "admin"].includes(account.plan));
   assert.equal(typeof account.creditsBalance, "number");
   assert.equal(typeof account.totalCreditsUsed, "number");
   assertIsoDate(account.createdAt, "account.createdAt");
@@ -70,6 +70,14 @@ function assertAccount(account: UserAccount): void {
   assert(
     account.stripeStatus === null || typeof account.stripeStatus === "string",
   );
+  if (account.subscription !== null) {
+    assert(["stripe", "apple"].includes(account.subscription.provider));
+    assert(
+      ["active", "cancelling", "past_due", "ended", "unknown"].includes(
+        account.subscription.status,
+      ),
+    );
+  }
 }
 
 async function main(): Promise<void> {
