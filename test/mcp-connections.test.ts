@@ -15,14 +15,6 @@ const template = {
   url: "https://drivemcp.googleapis.com/mcp/v1",
   authentication: "oauth" as const,
   defaultConnectionName: "google-drive",
-  defaultAccess: "read-only",
-  accessOptions: [
-    {
-      id: "read-only",
-      name: "Read files",
-      description: "Search, inspect, and download files.",
-    },
-  ],
 };
 
 const connection: McpConnection = {
@@ -85,7 +77,6 @@ test("machine MCP connections use the connection routes", async () => {
     await connections.create({
       templateId: "google-drive",
       name: "work-drive",
-      access: "read-only",
     }),
     connection,
   );
@@ -127,7 +118,6 @@ test("machine MCP connections use the connection routes", async () => {
       body: {
         templateId: "google-drive",
         name: "work-drive",
-        access: "read-only",
       },
     },
     {

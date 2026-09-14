@@ -130,12 +130,6 @@ export interface MachineInvitePreview {
   inviterName: string | null;
 }
 
-export interface McpConnectionTemplateAccessOption {
-  id: string;
-  name: string;
-  description: string;
-}
-
 export interface McpConnectionTemplate {
   id: string;
   name: string;
@@ -144,8 +138,6 @@ export interface McpConnectionTemplate {
   logoUrl: string;
   authentication: "oauth";
   defaultConnectionName: string;
-  defaultAccess: string;
-  accessOptions: McpConnectionTemplateAccessOption[];
 }
 
 export type McpConnectionAuthentication =
@@ -162,7 +154,6 @@ export type McpConnectionAuthenticationSummary =
       authorized: boolean;
       clientId?: boolean;
       clientSecret?: boolean;
-      access?: string;
     };
 
 export interface McpConnection {
@@ -184,7 +175,6 @@ export interface CreateCustomMcpConnection {
 export interface CreateMcpConnectionFromTemplate {
   templateId: string;
   name?: string;
-  access?: string;
 }
 
 export type CreateMcpConnection =

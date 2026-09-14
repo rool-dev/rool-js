@@ -125,7 +125,6 @@ export type {
   McpConnectionAuthentication,
   McpConnectionAuthenticationSummary,
   McpConnectionTemplate,
-  McpConnectionTemplateAccessOption,
   MachineRole,
   MachineSettings,
   MachineSummary,
