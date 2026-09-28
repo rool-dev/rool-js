@@ -1,3 +1,8 @@
+import {
+  machineSearch,
+  type MachineSearchOptions,
+  type MachineSearchPage,
+} from "./search.js";
 import { createMachineAgents, type MachineAgents } from "./agents.js";
 import type { RoolClientEvent } from "./events.js";
 import {
@@ -154,6 +159,14 @@ export class RoolMachine {
       this.id,
       this.path,
       transport,
+    );
+  }
+
+  search(options: MachineSearchOptions): Promise<MachineSearchPage> {
+    return machineSearch(
+      this.transport.requestJson.bind(this.transport),
+      this.path,
+      options,
     );
   }
 
