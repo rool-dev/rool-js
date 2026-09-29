@@ -21,6 +21,33 @@ Rool creates filesystem checkpoints automatically. `machine.checkpoints.list()` 
 
 `machine.fetchUrl()` fetches a public HTTP or HTTPS URL through Rool and returns a normal `Response`. Non-success HTTP responses are returned rather than thrown, while private network destinations are blocked.
 
+## Run Linux commands
+
+`machine.exec()` runs a Bash command as the authenticated member's Linux user. The caller must be an owner or admin. It does not grant root privileges.
+
+```typescript
+import type { MachineExecResult } from "@rool-dev/sdk";
+
+const result: MachineExecResult = await machine.exec({
+  command:
+    "cd /rool-drive && python3 -c 'import sys; print(sys.stdin.read().upper())'",
+  stdin: "Hello from the SDK!\n",
+  timeoutMs: 30_000,
+});
+
+console.log(result.stdout);
+console.log(result.stderr);
+console.log(result.exitCode, result.durationMs);
+```
+
+Each request starts a new shell in the member's home directory. Use `cd` in the command when you want a different directory. Shell variables and directory changes do not carry over to subsequent calls. This API returns buffered output when execution finishes; it does not provide a PTY, interactive input, or live output streaming.
+
+The server defaults to a 30-second execution timeout and clamps an explicit `timeoutMs` to 1,000–350,000 milliseconds. `stdin` is optional UTF-8 text. Nonzero command exit codes resolve normally as `MachineExecResult`; HTTP failures such as permission or request-validation errors reject with `RoolProblem`. Network errors also reject, and the SDK does not automatically repeat a command after a network failure.
+
+An optional `signal: AbortSignal` cancels the client's HTTP request. Cancellation does **not** guarantee that the remote command stops; use `timeoutMs` to bound its execution. The optional `asUserId` field is reserved for superadmins executing as another existing machine member; regular callers should omit it.
+
+The command is Bash source. Pass untrusted text through `stdin` rather than interpolating it into the command.
+
 ## Remote MCP connections
 
 Owners and admins can connect a machine to a remote HTTPS MCP server. Authentication is explicit: choose no authentication, supply HTTP headers, or choose OAuth.

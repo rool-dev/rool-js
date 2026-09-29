@@ -68,6 +68,8 @@ export type {
 } from "./files.js";
 export type {
   MachineCheckpointsApi,
+  MachineExecOptions,
+  MachineExecResult,
   MachineInvitesApi,
   MachineMcpConnectionsApi,
   MachineMcpConnectionsListener,
