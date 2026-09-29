@@ -39,6 +39,27 @@ export interface MachineSettingsApi {
   replace(settings: MachineSettings): Promise<MachineSettings>;
 }
 
+export interface MachineExecOptions {
+  /** Bash command, run in a fresh shell with the member's home as its initial directory. */
+  command: string;
+  /** UTF-8 text passed to standard input. */
+  stdin?: string;
+  /** Server execution timeout; defaults to 30,000 ms, clamped to 1,000–350,000 ms. */
+  timeoutMs?: number;
+  /** Superadmins only: execute as another member of this machine. */
+  asUserId?: string;
+  /** Abort the HTTP request; does not guarantee termination of the remote command. */
+  signal?: AbortSignal;
+}
+
+export interface MachineExecResult {
+  /** Nonzero command exit codes are returned, not thrown. */
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+}
+
 export type MachineMetadata = MachineMeta;
 
 /** The machine's metadata document. `set` and `delete` are read-merge-replace
@@ -168,6 +189,17 @@ export class RoolMachine {
       this.path,
       options,
     );
+  }
+
+  /** Run a command as the authenticated member (owner/admin), returning buffered output. */
+  exec(options: MachineExecOptions): Promise<MachineExecResult> {
+    const { command, stdin, timeoutMs, asUserId, signal } = options;
+    return this.transport.requestJson(`${this.path}/exec`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command, stdin, timeoutMs, asUserId }),
+      signal,
+    });
   }
 
   get(): Promise<MachineSummary> {
