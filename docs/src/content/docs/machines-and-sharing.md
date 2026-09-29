@@ -63,3 +63,51 @@ The four machine roles are deliberately simple:
 Owners and admins create either a shareable link or an email invite with `machine.invites.create()`. An invite chooses the new member's role and can limit its lifetime or number of uses. Keep the returned `url`; listed invites intentionally do not reveal it again.
 
 An app can preview an invite before sign-in with `client.getInvitePreview(token)`. After sign-in, `client.redeemInvite(token)` adds or updates the member. Admins can list and revoke invites, change member roles, and remove members. Any non-owner member can also remove themselves; ownership cannot be assigned through the role API.
+
+## Search a machine
+
+Search chats, ordinary files, and structured objects through one API:
+
+```ts
+const machine = client.machine(machineId);
+const abortController = new AbortController();
+const page = await machine.search({
+  query: "annual budget",
+  types: ["conversations", "files", "objects"], // omit for all three
+  limit: 30,
+  signal: abortController.signal,
+});
+
+for (const result of page.results) {
+  console.log(result.type, result.title, result.snippet);
+  if (result.type === "conversations") {
+    console.log(result.agentId, result.conversationId, result.turnId);
+  } else {
+    console.log(result.path);
+  }
+}
+
+if (page.nextCursor) {
+  const next = await machine.search({
+    query: "annual budget",
+    types: ["conversations", "files", "objects"],
+    cursor: page.nextCursor,
+  });
+}
+```
+
+Search runs under the member's existing access rights. Conversation results
+contain decoded user/assistant text and group matching messages into one result.
+Files match names, paths, and UTF-8 contents; objects match JSON fields and values.
+All query words must occur in the title/path or a single message/document.
+Matching is case-insensitive, with title/name matches ranked ahead of body matches.
+
+`limit` defaults to 30 and accepts values from 1 to 100. A busy server returns a
+`RoolProblem` with status `429` and code `search_busy`; callers can retry later.
+
+`incomplete: true` means a scan limit or malformed structured document
+prevented a complete scan. This version does not extract PDF, Office, or image
+content, and excludes hidden paths, symlinks, dependency folders, system messages,
+tool activity, and reasoning fields. Search does not call an AI model. A cursor
+continues the same query and types against current files; it does not freeze
+results while files change.

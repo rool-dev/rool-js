@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const smokeTests = [
+  { name: "machine search", file: "machine-search.test.ts" },
   { name: "user routes", file: "user-routes.test.ts" },
   { name: "speechmatics token", file: "speechmatics-routes.test.ts" },
   { name: "account events", file: "event-routes.test.ts" },

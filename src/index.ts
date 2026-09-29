@@ -148,3 +148,10 @@ export type {
   UserAppData,
   UserProfile,
 } from "./types.js";
+
+export type {
+  MachineSearchType,
+  MachineSearchOptions,
+  MachineSearchResult,
+  MachineSearchPage,
+} from "./search.js";
