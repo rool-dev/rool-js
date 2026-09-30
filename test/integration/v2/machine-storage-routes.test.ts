@@ -3,7 +3,7 @@
  */
 
 import assert from "node:assert/strict";
-import type { MachineFilePath } from "../../../src/index.js";
+import type { MachineFilePath, MachineStorage } from "../../../src/index.js";
 import {
   createTestClient,
   MachineCleanup,
@@ -14,6 +14,18 @@ import {
 const client = createTestClient();
 const machineCleanup = new MachineCleanup(client);
 
+function assertConsistent(storage: MachineStorage): void {
+  const { files, conversations, objects, home, other } = storage.areas;
+  assert.equal(
+    files + conversations + objects + home + other,
+    storage.usedBytes,
+  );
+  assert.equal(
+    storage.availableBytes,
+    Math.max(storage.planBytes - storage.usedBytes, 0),
+  );
+}
+
 async function main(): Promise<void> {
   await requireLocalProxy();
 
@@ -22,19 +34,28 @@ async function main(): Promise<void> {
       name: `SDK machine storage ${Date.now()}`,
     }),
   );
-  const files = client.machine(created.id).files;
+  const machine = client.machine(created.id);
 
-  console.log("Reading whole-machine live storage...");
-  const before = await files.getStorageUsage();
+  console.log("Reading machine storage...");
+  const before = await machine.getStorage();
+  assertConsistent(before);
   assert(before.usedBytes > 0);
   assert(before.availableBytes > 0);
+  assert.equal(before.graceEndsAt, null);
 
-  console.log("Charging an upload to the shared machine filesystem...");
+  console.log("Charging an upload to the files area...");
   const path: MachineFilePath = `/rool-drive/storage-${Date.now()}.bin`;
   const body = new Uint8Array(2 * 1024 * 1024).fill(0x5a);
-  await files.write(path, body, { contentType: "application/octet-stream" });
+  await machine.files.write(path, body, {
+    contentType: "application/octet-stream",
+  });
 
-  const after = await files.getStorageUsage();
+  const after = await machine.getStorage();
+  assertConsistent(after);
+  assert(
+    after.areas.files >= before.areas.files + body.byteLength,
+    `files area grew by only ${after.areas.files - before.areas.files} bytes`,
+  );
   assert(
     after.usedBytes >= before.usedBytes + body.byteLength,
     `machine usage grew by only ${after.usedBytes - before.usedBytes} bytes`,

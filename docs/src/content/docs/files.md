@@ -11,7 +11,7 @@ Every machine exposes the same files to the SDK, agents, and programs running in
 
 `machine.files` supports reading, writing, listing, inspecting, moving, copying, and deleting files and directories. `read()` returns a standard `Response`, so the body can be consumed as text, JSON, bytes, or a stream. `write()` accepts fetch-compatible bodies and returns the new file metadata. Set `createParents: true` when writing into new `/rool-drive` folders.
 
-File metadata includes its kind, ETag, dates, content type and size where applicable, and the current access rules. `getStorageUsage()` returns the used and available bytes.
+File metadata includes its kind, ETag, dates, content type and size where applicable, and the current access rules. For disk usage against the plan, use [`machine.getStorage()`](/machines-and-sharing/).
 
 ETags prevent accidental overwrites when more than one user or agent can edit a file:
 

@@ -42,6 +42,7 @@ export interface MachineFileCapabilities {
   maxUploadBytes: number | null;
 }
 
+/** @deprecated Use `MachineStorage` from `machine.getStorage()`. */
 export interface MachineStorageUsage {
   usedBytes: number;
   availableBytes: number;
@@ -178,6 +179,7 @@ export interface MachineFiles {
   unwatch(): void;
   href(path?: MachineFilePath): string;
   options(path?: MachineFilePath): Promise<MachineFileCapabilities>;
+  /** @deprecated Use `machine.getStorage()`, which also reports the plan and a per-area breakdown. */
   getStorageUsage(signal?: AbortSignal): Promise<MachineStorageUsage>;
   read(
     path: MachineFilePath,

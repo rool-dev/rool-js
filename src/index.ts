@@ -129,6 +129,8 @@ export type {
   McpConnectionTemplate,
   MachineRole,
   MachineSettings,
+  MachineStorage,
+  MachineStorageAreas,
   MachineSummary,
   PasswordSignInResult,
   RoolAuth,

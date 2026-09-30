@@ -2,7 +2,7 @@
 title: Rool SDK
 ---
 
-<p><code>v2.0.0</code></p>
+<p><code>v2.0.6</code></p>
 
 <p align="center" class="sdk-brand"><a href="https://rool.dev"><img class="sdk-brand-logo" src="/sdk-assets/rool-logo.svg" alt="Rool logo" width="44" height="44"><picture><source media="(prefers-color-scheme: dark)" srcset="/sdk-assets/rool-wordmark-dark.svg"><img class="sdk-brand-wordmark" src="/sdk-assets/rool-wordmark.svg" alt="Rool" width="128"></picture></a></p>
 
@@ -81,6 +81,22 @@ await conversation.follow({
 ```
 
 Prompting is asynchronous: `prompt()` returns when Rool accepts the work, while the agent keeps running on the machine. An app can follow the current run, leave, and reconnect later. UI clients can instead watch a conversation and receive a current view as its saved turns and live output change.
+
+## Run a Linux command
+
+Owners and admins can execute Bash commands directly, without an agent:
+
+```typescript
+const result = await machine.exec({
+  command: "cd /rool-drive && ls -la",
+  timeoutMs: 30_000,
+});
+
+console.log(result.stdout);
+if (result.exitCode !== 0) console.error(result.stderr);
+```
+
+Each call starts a fresh shell as your machine user, with its home as the initial directory. Output is returned when execution finishes. A nonzero exit code is returned in the result; API failures throw `RoolProblem`. See [command execution](https://docs.rool.dev/machines-and-sharing/#run-linux-commands) for standard input, timeouts, and cancellation.
 
 ## Give agents data your app understands
 

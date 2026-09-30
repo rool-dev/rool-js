@@ -28,6 +28,7 @@ import type {
   MachineMemberRoleConfiguration,
   MachineMeta,
   MachineSettings,
+  MachineStorage,
   MachineSummary,
   McpAuthorization,
   McpConnection,
@@ -189,6 +190,13 @@ export class RoolMachine {
       this.path,
       options,
     );
+  }
+
+  /** Disk usage against the plan, split by what uses it. A first call on a large machine can take a while. */
+  getStorage(options: { signal?: AbortSignal } = {}): Promise<MachineStorage> {
+    return this.transport.requestJson(`${this.path}/storage`, {
+      signal: options.signal,
+    });
   }
 
   /** Run a command as the authenticated member (owner/admin), returning buffered output. */

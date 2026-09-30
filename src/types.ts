@@ -83,6 +83,27 @@ export interface MachineCheckpointCollection {
   baseCheckpointId: string | null;
 }
 
+/** Allocated bytes per part of the machine disk; they add up to `usedBytes`. */
+export interface MachineStorageAreas {
+  files: number;
+  conversations: number;
+  objects: number;
+  /** Members' home folders, when they are kept on the machine disk. */
+  home: number;
+  /** Filesystem metadata and the machine's own state. */
+  other: number;
+}
+
+export interface MachineStorage {
+  usedBytes: number;
+  planBytes: number;
+  /** Room left under the plan; 0 while over it, never negative. */
+  availableBytes: number;
+  /** Set while usage is over the plan; writes stop at this time until usage is back under it. */
+  graceEndsAt: string | null;
+  areas: MachineStorageAreas;
+}
+
 export interface MachineMember {
   userId: string;
   email: string;

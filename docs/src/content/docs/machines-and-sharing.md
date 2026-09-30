@@ -19,6 +19,8 @@ Machine settings currently contain the name and are replaced as a whole. A machi
 
 Rool creates filesystem checkpoints automatically. `machine.checkpoints.list()` returns the restorable points and `restore()` moves the whole machine back to one of them. A watched file tree resets itself after a restore. Deleting a machine requires its owner and stops any file watch held by that handle.
 
+`machine.getStorage()` reports disk usage against the owner's plan, split into files, conversations, objects, home folders and other. While usage is over the plan, `graceEndsAt` gives the time writes stop; they resume once usage is back under. It replaces the deprecated `machine.files.getStorageUsage()`.
+
 `machine.fetchUrl()` fetches a public HTTP or HTTPS URL through Rool and returns a normal `Response`. Non-success HTTP responses are returned rather than thrown, while private network destinations are blocked.
 
 ## Run Linux commands
