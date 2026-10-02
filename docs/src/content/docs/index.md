@@ -2,7 +2,7 @@
 title: Rool SDK
 ---
 
-<p><code>v2.0.6</code></p>
+<p><code>v2.0.8</code></p>
 
 <p align="center" class="sdk-brand"><a href="https://rool.dev"><img class="sdk-brand-logo" src="/sdk-assets/rool-logo.svg" alt="Rool logo" width="44" height="44"><picture><source media="(prefers-color-scheme: dark)" srcset="/sdk-assets/rool-wordmark-dark.svg"><img class="sdk-brand-wordmark" src="/sdk-assets/rool-wordmark.svg" alt="Rool" width="128"></picture></a></p>
 
