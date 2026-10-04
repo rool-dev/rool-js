@@ -34,6 +34,7 @@ import type {
   McpConnection,
   McpConnectionAuthentication,
 } from "./types.js";
+import { readExecStream, type MachineExecEvent } from "./exec.js";
 
 export interface MachineSettingsApi {
   get(): Promise<MachineSettings>;
@@ -49,7 +50,7 @@ export interface MachineExecOptions {
   timeoutMs?: number;
   /** Superadmins only: execute as another member of this machine. */
   asUserId?: string;
-  /** Abort the HTTP request; does not guarantee termination of the remote command. */
+  /** Abort the request. A command given no `stdin` is then ended in the machine; one with `stdin` runs to its timeout. */
   signal?: AbortSignal;
 }
 
@@ -199,15 +200,41 @@ export class RoolMachine {
     });
   }
 
-  /** Run a command as the authenticated member (owner/admin), returning buffered output. */
-  exec(options: MachineExecOptions): Promise<MachineExecResult> {
+  /** Run a command as the authenticated member (owner/admin) and collect its output as text. */
+  async exec(options: MachineExecOptions): Promise<MachineExecResult> {
+    const decoders = { stdout: new TextDecoder(), stderr: new TextDecoder() };
+    const output = { stdout: "", stderr: "" };
+    for await (const event of this.execStream(options)) {
+      if (event.type === "exit") {
+        return {
+          exitCode: event.exitCode,
+          stdout: output.stdout + decoders.stdout.decode(),
+          stderr: output.stderr + decoders.stderr.decode(),
+          durationMs: event.durationMs,
+        };
+      }
+      output[event.type] += decoders[event.type].decode(event.data, {
+        stream: true,
+      });
+    }
+    throw new Error("The command's output ended before its exit");
+  }
+
+  /** Run a command and receive its output as it is produced, as bytes; the last event is its exit. */
+  async *execStream(
+    options: MachineExecOptions,
+  ): AsyncGenerator<MachineExecEvent> {
     const { command, stdin, timeoutMs, asUserId, signal } = options;
-    return this.transport.requestJson(`${this.path}/exec`, {
+    const response = await this.transport.request(`${this.path}/exec`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/vnd.rool.exec-stream",
+      },
       body: JSON.stringify({ command, stdin, timeoutMs, asUserId }),
       signal,
     });
+    yield* readExecStream(response);
   }
 
   get(): Promise<MachineSummary> {

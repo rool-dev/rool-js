@@ -42,11 +42,25 @@ console.log(result.stderr);
 console.log(result.exitCode, result.durationMs);
 ```
 
-Each request starts a new shell in the member's home directory. Use `cd` in the command when you want a different directory. Shell variables and directory changes do not carry over to subsequent calls. This API returns buffered output when execution finishes; it does not provide a PTY, interactive input, or live output streaming.
+Each request starts a new shell in the member's home directory. Use `cd` in the command when you want a different directory. Shell variables and directory changes do not carry over to subsequent calls. There is no PTY and no interactive input.
 
-The server defaults to a 30-second execution timeout and clamps an explicit `timeoutMs` to 1,000–350,000 milliseconds. `stdin` is optional UTF-8 text. Nonzero command exit codes resolve normally as `MachineExecResult`; HTTP failures such as permission or request-validation errors reject with `RoolProblem`. Network errors also reject, and the SDK does not automatically repeat a command after a network failure.
+`exec()` collects the output as text and returns it when the command finishes. To receive output while the command runs, or to receive bytes that are not text, use `execStream()` with the same options:
 
-An optional `signal: AbortSignal` cancels the client's HTTP request. Cancellation does **not** guarantee that the remote command stops; use `timeoutMs` to bound its execution. The optional `asUserId` field is reserved for superadmins executing as another existing machine member; regular callers should omit it.
+```typescript
+for await (const event of machine.execStream({ command: "make test" })) {
+  if (event.type === "stdout") process.stdout.write(event.data);
+  if (event.type === "stderr") process.stderr.write(event.data);
+  if (event.type === "exit") console.log(event.exitCode, event.durationMs);
+}
+```
+
+`stdout` and `stderr` events carry a `Uint8Array` and arrive in the order the command wrote them. The `exit` event is always the last one.
+
+The server defaults to a 30-second execution timeout and clamps an explicit `timeoutMs` to 1,000–350,000 milliseconds. A command that reaches its timeout is ended: the reason is added to stderr, the exit code is `-1`, and the output it produced until then is kept. `stdin` is optional UTF-8 text. Nonzero command exit codes resolve normally as `MachineExecResult`; HTTP failures such as permission or request-validation errors reject with `RoolProblem`. A command that could not be started, a reply that ends before the exit, and network errors also reject, and the SDK does not automatically repeat a command after a failure.
+
+An optional `signal: AbortSignal` cancels the request. A command given no `stdin` is then ended in the machine; a command with `stdin` runs until it finishes or reaches its timeout. The optional `asUserId` field is reserved for superadmins executing as another existing machine member; regular callers should omit it.
+
+This requires SDK 2.0.9 or later. `exec()` in earlier versions no longer works.
 
 The command is Bash source. Pass untrusted text through `stdin` rather than interpolating it into the command.
 

@@ -96,7 +96,7 @@ console.log(result.stdout);
 if (result.exitCode !== 0) console.error(result.stderr);
 ```
 
-Each call starts a fresh shell as your machine user, with its home as the initial directory. Output is returned when execution finishes. A nonzero exit code is returned in the result; API failures throw `RoolProblem`. See [command execution](https://docs.rool.dev/machines-and-sharing/#run-linux-commands) for standard input, timeouts, and cancellation.
+Each call starts a fresh shell as your machine user, with its home as the initial directory. `exec()` collects the output and returns it when the command finishes; `execStream()` gives it as it is produced. A nonzero exit code is returned in the result; API failures throw `RoolProblem`. See [command execution](https://docs.rool.dev/machines-and-sharing/#run-linux-commands) for live output, standard input, timeouts, and cancellation.
 
 ## Give agents data your app understands
 

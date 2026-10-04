@@ -66,6 +66,7 @@ export type {
   MachineFileWriteOptions,
   MachineStorageUsage,
 } from "./files.js";
+export type { MachineExecEvent } from "./exec.js";
 export type {
   MachineCheckpointsApi,
   MachineExecOptions,
