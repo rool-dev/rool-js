@@ -3,3 +3,7 @@ overrides:
   postcss: 8.5.26
   svgo: 4.1.0
   "@ungap/structured-clone": 1.3.3
+auditConfig:
+  ignoreGhsas:
+    # Disputed by the maintainer, no patch exists; only reached through astro's docs build.
+    - GHSA-ch52-4w7c-c8xp
