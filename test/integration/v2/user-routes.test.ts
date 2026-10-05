@@ -170,6 +170,14 @@ async function main(): Promise<void> {
   assert(greeting.title);
   assert(greeting.text.startsWith("## "));
 
+  console.log("Reading the model catalog...");
+  const catalog = await client.getModels();
+  const defaultModel = catalog.models.find((m) => m.id === catalog.default);
+  assert(defaultModel);
+  for (const model of catalog.models) {
+    assert(model.efforts.some((e) => e.id === model.defaultEffort));
+  }
+
   console.log("Scheduling and cancelling account deletion...");
   await client.deleteAccount();
   deletionRequested = true;

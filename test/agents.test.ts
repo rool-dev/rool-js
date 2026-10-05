@@ -302,6 +302,7 @@ test("prompt sends run options", async () => {
   const agent = await client.machine("machine").agents.get("rool");
   assert(agent);
   await agent.conversation("chat").prompt("Count the records", {
+    model: "rool-1",
     effort: "standard",
     readOnly: true,
     responseSchema: {
@@ -313,6 +314,7 @@ test("prompt sends run options", async () => {
 
   assert.deepEqual(runInput, {
     content: [{ type: "text", text: "Count the records" }],
+    model: "rool-1",
     effort: "standard",
     readOnly: true,
     responseSchema: {
@@ -321,6 +323,30 @@ test("prompt sends run options", async () => {
       required: ["count"],
     },
   });
+});
+
+test("prompt rejects an effort without its model", async () => {
+  const client = new RoolClient({
+    apiUrl: "https://api.example.test",
+    fetch: async (input) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/agents/rool")) {
+        return Response.json({ system: "" });
+      }
+      throw new Error(`Unexpected request: ${url.pathname}`);
+    },
+  });
+
+  const agent = await client.machine("machine").agents.get("rool");
+  assert(agent);
+  await assert.rejects(
+    agent.conversation("chat").prompt("Count the records", {
+      effort: "standard",
+    }),
+    /effort requires a model/,
+  );
 });
 
 test("follow fails when the run stream stalls", async () => {

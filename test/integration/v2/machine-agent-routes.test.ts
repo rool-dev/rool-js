@@ -102,6 +102,10 @@ async function main(): Promise<void> {
   await requireLocalProxy();
 
   const account = await client.getAccount();
+  const catalog = await client.getModels();
+  const defaultModel = catalog.models.find((m) => m.id === catalog.default);
+  assert(defaultModel);
+  const lightest = { model: defaultModel.id, effort: defaultModel.efforts[0].id };
   const created = machineCleanup.track(
     await client.createMachine({ name: `SDK agent routes ${Date.now()}` }),
   );
@@ -174,7 +178,7 @@ async function main(): Promise<void> {
   const completed = await promptAndFollow(
     normal,
     "Without using tools, say hello in one sentence.",
-    { effort: "standard" },
+    lightest,
     events,
   );
   assert.equal(completed.user.userId, account.id);
@@ -191,7 +195,7 @@ async function main(): Promise<void> {
   await promptAndFollow(
     normal,
     `Use exec_shell exactly once to run printf ${toolMarker}. Then briefly report that it worked.`,
-    { effort: "standard" },
+    lightest,
     toolEvents,
   );
   const toolCall = toolEvents.find(
@@ -227,7 +231,7 @@ async function main(): Promise<void> {
   const structuredResult = await promptAndFollow(
     structured,
     "Return an object whose answer is the integer 7.",
-    { effort: "standard", responseSchema },
+    { ...lightest, responseSchema },
   );
   assert.equal(structuredResult.assistant.content.length, 1);
   const structuredPart = structuredResult.assistant.content[0];
@@ -257,7 +261,7 @@ async function main(): Promise<void> {
     if (!view.loading && !view.isRunning && settledAssistant) finishWatch();
   });
   await watched.prompt("Without using tools, say watched in one sentence.", {
-    effort: "standard",
+    ...lightest,
   });
   let watchTimeout: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -280,19 +284,19 @@ async function main(): Promise<void> {
   const original = await promptAndFollow(
     normal,
     "Without using tools, reply with the single word original.",
-    { effort: "standard" },
+    lightest,
   );
   const firstEdit = await promptAndFollow(
     normal,
     "Without using tools, reply with the single word first.",
     {
-      effort: "standard",
+      ...lightest,
       replaceTurnId: original.user.id,
     },
   );
   await assert.rejects(
     normal.prompt("This must not be appended.", {
-      effort: "standard",
+      ...lightest,
       replaceTurnId: original.user.id,
     }),
     (error) =>
@@ -304,7 +308,7 @@ async function main(): Promise<void> {
     normal,
     "Without using tools, reply with the single word second.",
     {
-      effort: "standard",
+      ...lightest,
       replaceTurnId: firstEdit.user.id,
     },
   );
@@ -312,7 +316,7 @@ async function main(): Promise<void> {
     normal,
     "Without using tools, reply with the single word rerolled.",
     {
-      effort: "standard",
+      ...lightest,
       replaceTurnId: secondEdit.user.id,
     },
   );
@@ -340,7 +344,7 @@ async function main(): Promise<void> {
     normal,
     "Without using tools, reply with the single word root.",
     {
-      effort: "standard",
+      ...lightest,
       replaceTurnId: completed.user.id,
     },
   );
@@ -356,7 +360,7 @@ async function main(): Promise<void> {
   const cancelledEvents: MachineRunEvent[] = [];
   await cancelling.prompt(
     "Without using tools, write a detailed 2,000 word essay about ocean currents.",
-    { effort: "standard" },
+    lightest,
   );
   assert.equal((await cancelling.get())?.isRunning, true);
   assert.equal(
@@ -367,7 +371,7 @@ async function main(): Promise<void> {
   );
   await assert.rejects(
     cancelling.prompt("This concurrent prompt must be rejected.", {
-      effort: "standard",
+      ...lightest,
     }),
     (error) =>
       error instanceof RoolProblem &&

@@ -48,6 +48,33 @@ export interface Providers {
   optional: OptionalProvider[];
 }
 
+/** New tiers may appear without an SDK release; treat an unknown one as "medium". */
+export type ModelEffortCost = "low" | "medium" | "high" | (string & {});
+
+export interface ModelEffort {
+  id: string;
+  name: string;
+  description: string;
+  /** A short icon name; fall back to a generic icon for one you don't know. */
+  icon: string;
+  cost: ModelEffortCost;
+}
+
+export interface Model {
+  id: string;
+  name: string;
+  description: string;
+  defaultEffort: string;
+  /** Lightest first. */
+  efforts: ModelEffort[];
+}
+
+/** All copy is server-written; render it as-is. */
+export interface ModelCatalog {
+  default: string;
+  models: Model[];
+}
+
 export type MachineRole = "owner" | "admin" | "editor" | "viewer";
 export type MachineLifecycleState = "active" | "locked";
 export type MachineMeta = Record<string, unknown>;

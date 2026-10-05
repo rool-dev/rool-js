@@ -12,7 +12,7 @@ A conversation is **private** to its creator by default. A **shared** conversati
 
 `prompt()` returns once Rool accepts the run. The run belongs to the machine, so it continues if the client disconnects. Attachments are paths to existing files under `/space` or `/rool-drive`; upload the file first rather than passing its bytes to `prompt()`.
 
-Prompt options can select an effort, request output matching a JSON Schema, or replace a previous user turn. Structured responses appear as a `json` content part. Conversation content may also contain text, attachments, tool calls, and tool results, so consumers should switch on each part's `type`.
+Prompt options can select a `model` and one of its `effort` ids from `getModels()` (the defaults apply when omitted; an `effort` needs its `model`), request output matching a JSON Schema, or replace a previous user turn. Structured responses appear as a `json` content part. Conversation content may also contain text, attachments, tool calls, and tool results, so consumers should switch on each part's `type`.
 
 ## Follow a run or watch a conversation
 

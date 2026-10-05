@@ -20,6 +20,7 @@ import type {
   SpeechmaticsToken,
   SpeechmaticsTokenOptions,
   Providers,
+  ModelCatalog,
   UserAccount,
   UserAppData,
   UserProfile,
@@ -131,6 +132,10 @@ export class RoolClient {
 
   getProviders(): Promise<Providers> {
     return this.requestJson("/v2/providers");
+  }
+
+  getModels(): Promise<ModelCatalog> {
+    return this.requestJson("/v2/models");
   }
 
   async setProviderEnabled(id: string, enabled: boolean): Promise<void> {
