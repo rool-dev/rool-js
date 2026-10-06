@@ -1,12 +1,12 @@
 /**
- * Local integration test for SDK checkpoint navigation and file-tree
+ * Local integration test for SDK checkpoint restore and file-tree
  * reconciliation.
  */
 
 import assert from "node:assert/strict";
 import { setTimeout as sleep } from "node:timers/promises";
 import type {
-  MachineCheckpointCollection,
+  MachineCheckpoint,
   MachineFilePath,
   MachineFiles,
   MachineFileTreeChange,
@@ -25,13 +25,13 @@ const CHECKPOINT_WAIT_MS = 90_000;
 const client = createTestClient();
 const machineCleanup = new MachineCleanup(client);
 
-async function waitForBaseCheckpoint(
+async function waitForFirstCheckpoint(
   machine: RoolMachine,
-): Promise<MachineCheckpointCollection> {
+): Promise<MachineCheckpoint> {
   const deadline = Date.now() + CHECKPOINT_WAIT_MS;
   while (Date.now() < deadline) {
-    const collection = await machine.checkpoints.list();
-    if (collection.baseCheckpointId) return collection;
+    const [first] = await machine.checkpoints.list();
+    if (first) return first;
     await sleep(1_000);
   }
   throw new Error("timed out waiting for the first automatic checkpoint");
@@ -50,13 +50,14 @@ async function main(): Promise<void> {
 
   const created = machineCleanup.track(
     await client.createMachine({
-      name: `SDK checkpoint navigation ${Date.now()}`,
+      name: `SDK checkpoint restore ${Date.now()}`,
     }),
   );
   const machine = client.machine(created.id);
   const files = machine.files;
   const path: MachineFilePath = "/rool-drive/checkpoints/navigation.txt";
   const changes: MachineFileTreeChange[] = [];
+  const resets = () => changes.filter((change) => change.reset).length;
   files.tree.subscribe((change) => changes.push(change));
   await files.watch();
 
@@ -67,16 +68,9 @@ async function main(): Promise<void> {
     createParents: true,
     contentType: "text/plain",
   });
-  const firstCollection = await waitForBaseCheckpoint(machine);
-  const firstCheckpointId = firstCollection.baseCheckpointId;
-  assert(firstCheckpointId);
-  assert(
-    firstCollection.checkpoints.some(
-      (checkpoint) => checkpoint.id === firstCheckpointId,
-    ),
-  );
+  const first = await waitForFirstCheckpoint(machine);
 
-  console.log("Restoring the first state while preserving the second...");
+  console.log("Restoring the first state over an unsaved second state...");
   const secondWrite = await files.write(path, "second version", {
     contentType: "text/plain",
   });
@@ -84,81 +78,66 @@ async function main(): Promise<void> {
     files,
     () => files.tree.etag(path) === secondWrite.etag,
   );
-  let resetCount = changes.filter((change) => change.reset).length;
-
-  await machine.checkpoints.restore(firstCheckpointId);
+  let resetCount = resets();
+  const restored = await machine.checkpoints.restore(first.id);
   await waitForFileTree(files, () => files.tree.etag(path) === firstWrite.etag);
   assert.equal(await readText(files, path), "first version");
-  assert(
-    changes.filter((change) => change.reset).length > resetCount,
-    "checkpoint restore did not reconcile after sync-token invalidation",
+  assert(resets() > resetCount, "restore did not reset the watched file tree");
+  assert.equal(restored.checkpoint.restoredFrom, first.createdAt);
+  const secondId = restored.replacedCheckpointId;
+  assert(secondId, "restore did not report the state it replaced");
+
+  const afterRestore = await machine.checkpoints.list();
+  assert.equal(afterRestore.at(-1)?.id, restored.checkpoint.id);
+  assert.equal(
+    afterRestore.find((checkpoint) => checkpoint.id === secondId)?.preRestore,
+    true,
   );
 
-  const afterFirstRestore = await machine.checkpoints.list();
-  const secondCheckpoint = afterFirstRestore.checkpoints.find(
-    (checkpoint) => checkpoint.id !== firstCheckpointId,
-  );
-  assert(secondCheckpoint, "the uncheckpointed second state was not preserved");
-  assert.equal(afterFirstRestore.baseCheckpointId, firstCheckpointId);
+  console.log("Restoring the current state changes nothing...");
+  const unchanged = await machine.checkpoints.restore(restored.checkpoint.id);
+  assert.equal(unchanged.replacedCheckpointId, null);
 
-  console.log("Navigating forward and backward through SDK checkpoints...");
-  resetCount = changes.filter((change) => change.reset).length;
-  await machine.checkpoints.restore(secondCheckpoint.id);
+  console.log("Undoing the restore...");
+  resetCount = resets();
+  await machine.checkpoints.restore(secondId);
   await waitForFileTree(
     files,
     () => files.tree.etag(path) === secondWrite.etag,
   );
   assert.equal(await readText(files, path), "second version");
-  assert(changes.filter((change) => change.reset).length > resetCount);
+  assert(resets() > resetCount);
 
-  resetCount = changes.filter((change) => change.reset).length;
-  await machine.checkpoints.restore(firstCheckpointId);
-  await waitForFileTree(files, () => files.tree.etag(path) === firstWrite.etag);
-  assert.equal(await readText(files, path), "first version");
-  assert(changes.filter((change) => change.reset).length > resetCount);
-  assert(
-    (await machine.checkpoints.list()).checkpoints.some(
-      (checkpoint) => checkpoint.id === secondCheckpoint.id,
-    ),
-    "backward navigation discarded the later checkpoint",
-  );
-
-  console.log("Replacing the later timeline after editing an earlier state...");
-  const branchWrite = await files.write(path, "branched version", {
+  console.log("Editing after a restore keeps every later checkpoint...");
+  const thirdWrite = await files.write(path, "third version", {
     contentType: "text/plain",
   });
   await waitForFileTree(
     files,
-    () => files.tree.etag(path) === branchWrite.etag,
+    () => files.tree.etag(path) === thirdWrite.etag,
   );
-  assert(
-    !(await machine.checkpoints.list()).checkpoints.some(
-      (checkpoint) => checkpoint.id === secondCheckpoint.id,
-    ),
-    "a later checkpoint remained restorable after the earlier state changed",
+  const backToFirst = await machine.checkpoints.restore(first.id);
+  await waitForFileTree(files, () => files.tree.etag(path) === firstWrite.etag);
+  const listed = new Set(
+    (await machine.checkpoints.list()).map((checkpoint) => checkpoint.id),
   );
+  for (const id of [first.id, secondId, restored.checkpoint.id]) {
+    assert(listed.has(id), `checkpoint ${id} was discarded`);
+  }
+  const thirdId = backToFirst.replacedCheckpointId;
+  assert(thirdId);
+  await machine.checkpoints.restore(thirdId);
+  await waitForFileTree(
+    files,
+    () => files.tree.etag(path) === thirdWrite.etag,
+  );
+  assert.equal(await readText(files, path), "third version");
+
   await expectProblem(
-    () => machine.checkpoints.restore(secondCheckpoint.id),
+    () => machine.checkpoints.restore("s0_00000000"),
     404,
     "checkpoint_not_found",
   );
-
-  await machine.checkpoints.restore(firstCheckpointId);
-  await waitForFileTree(files, () => files.tree.etag(path) === firstWrite.etag);
-  assert.equal(await readText(files, path), "first version");
-  const afterBranch = await machine.checkpoints.list();
-  const branchCheckpoint = afterBranch.checkpoints.find(
-    (checkpoint) => checkpoint.id !== firstCheckpointId,
-  );
-  assert(branchCheckpoint, "the branched file state was not checkpointed");
-  assert.notEqual(branchCheckpoint.id, secondCheckpoint.id);
-
-  await machine.checkpoints.restore(branchCheckpoint.id);
-  await waitForFileTree(
-    files,
-    () => files.tree.etag(path) === branchWrite.etag,
-  );
-  assert.equal(await readText(files, path), "branched version");
 
   files.unwatch();
   console.log("\n✅ SDK checkpoint smoke tests passed.");

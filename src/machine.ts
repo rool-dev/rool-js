@@ -21,13 +21,15 @@ import type {
   CreateMachineInvite,
   CreateMcpConnection,
   CreatedMachineInvite,
-  MachineCheckpointCollection,
+  MachineCheckpoint,
+  MachineCheckpointRestore,
   MachineFetchInit,
   MachineInvite,
   MachineMember,
   MachineMemberRoleConfiguration,
   MachineMeta,
   MachineSettings,
+  MachineResources,
   MachineStorage,
   MachineSummary,
   McpAuthorization,
@@ -84,8 +86,10 @@ export interface MachineMetadataApi {
 }
 
 export interface MachineCheckpointsApi {
-  list(): Promise<MachineCheckpointCollection>;
-  restore(checkpointId: string): Promise<void>;
+  /** Every restorable checkpoint, oldest first. */
+  list(): Promise<MachineCheckpoint[]>;
+  /** Restore the whole machine to a checkpoint. Nothing is discarded: the restored state is added as the newest checkpoint. */
+  restore(checkpointId: string): Promise<MachineCheckpointRestore>;
 }
 
 export interface MachineMembersApi {
@@ -198,6 +202,18 @@ export class RoolMachine {
     return this.transport.requestJson(`${this.path}/storage`, {
       signal: options.signal,
     });
+  }
+
+  /** CPU and memory as the machine sees them. Reading never starts a stopped machine. */
+  getResources(options: { signal?: AbortSignal } = {}): Promise<MachineResources> {
+    return this.transport.requestJson(`${this.path}/resources`, {
+      signal: options.signal,
+    });
+  }
+
+  /** Shut the machine down after saving its state. The next request that needs it starts it again. */
+  async stop(): Promise<void> {
+    await this.transport.request(`${this.path}/stop`, { method: "POST" });
   }
 
   /** Run a command as the authenticated member (owner/admin) and collect its output as text. */
@@ -357,12 +373,15 @@ class MachineCheckpointsClient implements MachineCheckpointsApi {
     private readonly transport: RoolMachineTransport,
   ) {}
 
-  list(): Promise<MachineCheckpointCollection> {
-    return this.transport.requestJson(`${this.machinePath}/checkpoints`);
+  async list(): Promise<MachineCheckpoint[]> {
+    const { checkpoints } = await this.transport.requestJson<{
+      checkpoints: MachineCheckpoint[];
+    }>(`${this.machinePath}/checkpoints`);
+    return checkpoints;
   }
 
-  async restore(checkpointId: string): Promise<void> {
-    await this.transport.request(
+  restore(checkpointId: string): Promise<MachineCheckpointRestore> {
+    return this.transport.requestJson(
       `${this.machinePath}/checkpoints/${encodeURIComponent(checkpointId)}/restore`,
       { method: "POST" },
     );

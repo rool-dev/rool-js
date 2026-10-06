@@ -103,12 +103,34 @@ export interface MachineSettings {
 export interface MachineCheckpoint {
   id: string;
   createdAt: string;
+  /** Set on the checkpoint a restore created: when the restored checkpoint was taken. Kept after that checkpoint is thinned out. */
+  restoredFrom: string | null;
+  /** The state a restore replaced. Restore it to undo that restore. */
+  preRestore: boolean;
 }
 
-export interface MachineCheckpointCollection {
-  checkpoints: MachineCheckpoint[];
-  baseCheckpointId: string | null;
+export interface MachineCheckpointRestore {
+  /** The newest checkpoint: the one the restore created, or the target itself when nothing changed. */
+  checkpoint: MachineCheckpoint;
+  /** The checkpoint holding the replaced state, or null when the machine was already at the target. */
+  replacedCheckpointId: string | null;
 }
+
+/**
+ * The machine's own view of its CPU and memory. CPU time is cumulative: load over an
+ * interval is Δ`cpuBusySeconds` / (Δ`uptimeSeconds` × `vcpus`) between two readings.
+ * `uptimeSeconds` is a counter for that formula, not how long the machine has been up.
+ */
+export type MachineResources =
+  | { running: false }
+  | {
+      running: true;
+      vcpus: number;
+      cpuBusySeconds: number;
+      uptimeSeconds: number;
+      memTotalBytes: number;
+      memAvailableBytes: number;
+    };
 
 /** Allocated bytes per part of the machine disk; they add up to `usedBytes`. */
 export interface MachineStorageAreas {

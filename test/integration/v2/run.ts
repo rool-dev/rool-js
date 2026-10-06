@@ -42,8 +42,12 @@ const smokeTests = [
     file: "machine-sync-routes.test.ts",
   },
   {
-    name: "machine checkpoint navigation",
+    name: "machine checkpoint restore",
     file: "machine-checkpoint-routes.test.ts",
+  },
+  {
+    name: "machine stop and resources",
+    file: "machine-power-routes.test.ts",
   },
 ];
 

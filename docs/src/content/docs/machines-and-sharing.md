@@ -17,7 +17,37 @@ Machine settings currently contain the name and are replaced as a whole. A machi
 
 `duplicate()` copies the machine's current files and conversations into an independent machine owned only by the person making the copy. Sharing does not carry over.
 
-Rool creates filesystem checkpoints automatically. `machine.checkpoints.list()` returns the restorable points and `restore()` moves the whole machine back to one of them. A watched file tree resets itself after a restore. Deleting a machine requires its owner and stops any file watch held by that handle.
+Rool creates filesystem checkpoints automatically, about every 30 seconds while the machine is writing. Older ones are thinned out to one per hour, then one per day, then one per month. `machine.checkpoints.list()` returns every restorable checkpoint, oldest first.
+
+`machine.checkpoints.restore(id)` returns the whole machine (files, conversations and objects, for every member) to that checkpoint. A restore never discards history. Unsaved changes are saved as a checkpoint first, and the restored state is added as the newest checkpoint, with `restoredFrom` set to the time of the checkpoint it came from. The result's `replacedCheckpointId` is the state the restore replaced, marked `preRestore` in the list. Restore it to undo the restore. A watched file tree resets itself after a restore.
+
+```typescript
+const checkpoints = await machine.checkpoints.list();
+const { replacedCheckpointId } = await machine.checkpoints.restore(checkpoints[0].id);
+
+// Changed your mind:
+if (replacedCheckpointId) await machine.checkpoints.restore(replacedCheckpointId);
+```
+
+Deleting a machine requires its owner and stops any file watch held by that handle.
+
+## Power and resources
+
+A machine starts when something needs it and stops on its own when idle. `machine.stop()` shuts it down now, after saving its state. Owners, admins and editors can stop a machine. The next request that needs the machine starts it again. A request that is running in the machine when it stops, whether through `stop()`, a restore or going idle, fails with the problem code `machine_stopped` and can be retried.
+
+`machine.getResources()` reports the machine's CPU and memory as the machine itself sees them. Reading it never starts a stopped machine, which then reports `{ running: false }`, and it does not keep a running one awake. CPU time is cumulative, so compute load from two readings:
+
+```typescript
+const a = await machine.getResources();
+await new Promise((resolve) => setTimeout(resolve, 2_000));
+const b = await machine.getResources();
+if (a.running && b.running) {
+  const load = (b.cpuBusySeconds - a.cpuBusySeconds) / ((b.uptimeSeconds - a.uptimeSeconds) * b.vcpus);
+  const memoryUsed = 1 - b.memAvailableBytes / b.memTotalBytes;
+}
+```
+
+`uptimeSeconds` exists for that formula and does not say how long the machine has been up. A machine that does not answer in time fails with `machine_unavailable`; try again shortly.
 
 `machine.getStorage()` reports disk usage against the owner's plan, split into files, conversations, objects, home folders and other. While usage is over the plan, `graceEndsAt` gives the time writes stop; they resume once usage is back under. It replaces the deprecated `machine.files.getStorageUsage()`.
 
