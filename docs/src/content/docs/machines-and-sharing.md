@@ -9,13 +9,15 @@ const created = await client.createMachine({ name: "Research" });
 const machine = client.machine(created.id);
 ```
 
-`client.machine()` only creates or reuses a local handle; it does not check the server. Call `machine.get()` when you need the latest summary. Use `listMachines()` to refresh the machines visible to the current account.
+`createMachine()` puts the machine on the user's home account unless `accountId` names another account they are on the roster of. `client.machine()` only creates or reuses a local handle; it does not check the server. Call `machine.get()` when you need the latest summary. Use `listMachines()` to refresh the machines visible to the user.
 
 ## Lifecycle
 
 Machine settings currently contain the name and are replaced as a whole. A machine also has a globally unique hostname used for a variety of public facing features. Set it with `machine.setHostname("research-notes")`. Hostnames contain 1 to 30 lowercase letters, numbers, or hyphens, cannot start or end with a hyphen, and cannot use a reserved name. Machine summaries include the resulting external WebDAV endpoint as `webDavUrl`.
 
-`duplicate()` copies the machine's current files and conversations into an independent machine owned only by the person making the copy. Sharing does not carry over.
+`duplicate()` copies the machine's current files and conversations into an independent machine owned only by the person making the copy. Sharing does not carry over. The copy goes to the account that pays for the person's work on the original, unless `accountId` says otherwise.
+
+`machine.move(accountId)` moves a machine to another account. It takes an admin of both accounts. When the two accounts are on different plans, the move stops the machine, so requests running in it fail with `machine_stopped`, and the new plan sets its hardware when it next starts.
 
 Rool creates filesystem checkpoints automatically, about every 30 seconds while the machine is writing. Older ones are thinned out to one per hour, then one per day, then one per month. `machine.checkpoints.list()` returns every restorable checkpoint, oldest first.
 
@@ -23,13 +25,16 @@ Rool creates filesystem checkpoints automatically, about every 30 seconds while 
 
 ```typescript
 const checkpoints = await machine.checkpoints.list();
-const { replacedCheckpointId } = await machine.checkpoints.restore(checkpoints[0].id);
+const { replacedCheckpointId } = await machine.checkpoints.restore(
+  checkpoints[0].id,
+);
 
 // Changed your mind:
-if (replacedCheckpointId) await machine.checkpoints.restore(replacedCheckpointId);
+if (replacedCheckpointId)
+  await machine.checkpoints.restore(replacedCheckpointId);
 ```
 
-Deleting a machine requires its owner and stops any file watch held by that handle.
+Deleting a machine requires its owner, or an admin of the account that pays for it, and stops any file watch held by that handle. An account's admins can also make any member the owner, with `members.replaceRole(userId, { role: "owner" })`, and put themselves on any of its machines.
 
 ## Power and resources
 
@@ -42,7 +47,9 @@ const a = await machine.getResources();
 await new Promise((resolve) => setTimeout(resolve, 2_000));
 const b = await machine.getResources();
 if (a.running && b.running) {
-  const load = (b.cpuBusySeconds - a.cpuBusySeconds) / ((b.uptimeSeconds - a.uptimeSeconds) * b.vcpus);
+  const load =
+    (b.cpuBusySeconds - a.cpuBusySeconds) /
+    ((b.uptimeSeconds - a.uptimeSeconds) * b.vcpus);
   const memoryUsed = 1 - b.memAvailableBytes / b.memTotalBytes;
 }
 ```

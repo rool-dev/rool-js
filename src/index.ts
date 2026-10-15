@@ -6,6 +6,8 @@ export type { BrowserAuthConfig } from "./auth-browser.js";
 export { NativeAuth } from "./auth-native.js";
 export type { NativeAuthConfig, NativeAuthProvider } from "./auth-native.js";
 export { RoolProblem } from "./problem.js";
+export { RoolAccountApi } from "./account.js";
+export type { AccountInvitesApi, AccountMembersApi } from "./account.js";
 export { RoolFileError } from "./files.js";
 export type {
   AgentRequestOptions,
@@ -98,8 +100,16 @@ export type {
   SpaceSchema,
 } from "./structured.js";
 export type {
+  AccountInvite,
+  AccountInvitePreview,
+  AccountInviteRedemption,
+  AccountMachine,
+  AccountMember,
+  AccountRole,
   ClientCompatibility,
+  CreateAccountInvite,
   CreateCustomMcpConnection,
+  CreatedAccountInvite,
   CreateMachineInvite,
   CreateMcpConnection,
   CreateMcpConnectionFromTemplate,
@@ -115,6 +125,7 @@ export type {
   InviteRedemptionStatus,
   MachineCheckpoint,
   MachineCheckpointRestore,
+  MachineCreation,
   MachineFetchInit,
   MachineInvite,
   MachineInviteEmailStatus,

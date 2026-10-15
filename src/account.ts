@@ -1,0 +1,132 @@
+import type {
+  AccountInvite,
+  AccountMachine,
+  AccountMember,
+  AccountRole,
+  CreateAccountInvite,
+  CreatedAccountInvite,
+  RoolAccount,
+} from "./types.js";
+
+export interface AccountTransport {
+  request(path: string, init?: RequestInit): Promise<Response>;
+  requestJson<T>(path: string, init?: RequestInit): Promise<T>;
+}
+
+export interface AccountMembersApi {
+  list(): Promise<AccountMember[]>;
+  /** Admins only. An account always keeps one admin. */
+  setRole(userId: string, role: AccountRole): Promise<AccountRole>;
+  /** An admin removing someone, or a member leaving with their own user id.
+   *  The member leaves every machine of the account; machines they own there
+   *  need another owner first. No one leaves their home account. */
+  remove(userId: string): Promise<void>;
+}
+
+export interface AccountInvitesApi {
+  list(): Promise<AccountInvite[]>;
+  /** Only teams take invites. */
+  create(invite: CreateAccountInvite): Promise<CreatedAccountInvite>;
+  revoke(inviteId: string): Promise<void>;
+}
+
+/** An account the user is on the roster of. Members see the roster; its
+ *  admins also rename it, see all its machines, and invite. */
+export class RoolAccountApi {
+  readonly members: AccountMembersApi;
+  readonly invites: AccountInvitesApi;
+  private readonly path: string;
+
+  constructor(
+    readonly id: string,
+    private readonly transport: AccountTransport,
+  ) {
+    if (!id) throw new Error("accountId is required");
+    this.path = `/v2/accounts/${encodeURIComponent(id)}`;
+    this.members = new AccountMembersClient(this.path, transport);
+    this.invites = new AccountInvitesClient(this.path, transport);
+  }
+
+  get(): Promise<RoolAccount> {
+    return this.transport.requestJson(this.path);
+  }
+
+  rename(name: string): Promise<RoolAccount> {
+    return this.transport.requestJson(this.path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  /** Every machine the account pays for, members or not. Admins only. */
+  async listMachines(): Promise<AccountMachine[]> {
+    const { machines } = await this.transport.requestJson<{
+      machines: AccountMachine[];
+    }>(`${this.path}/machines`);
+    return machines;
+  }
+}
+
+class AccountMembersClient implements AccountMembersApi {
+  constructor(
+    private readonly accountPath: string,
+    private readonly transport: AccountTransport,
+  ) {}
+
+  async list(): Promise<AccountMember[]> {
+    const { members } = await this.transport.requestJson<{
+      members: AccountMember[];
+    }>(`${this.accountPath}/members`);
+    return members;
+  }
+
+  async setRole(userId: string, role: AccountRole): Promise<AccountRole> {
+    const result = await this.transport.requestJson<{ role: AccountRole }>(
+      `${this.memberPath(userId)}/role`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      },
+    );
+    return result.role;
+  }
+
+  async remove(userId: string): Promise<void> {
+    await this.transport.request(this.memberPath(userId), { method: "DELETE" });
+  }
+
+  private memberPath(userId: string): string {
+    return `${this.accountPath}/members/${encodeURIComponent(userId)}`;
+  }
+}
+
+class AccountInvitesClient implements AccountInvitesApi {
+  constructor(
+    private readonly accountPath: string,
+    private readonly transport: AccountTransport,
+  ) {}
+
+  async list(): Promise<AccountInvite[]> {
+    const { invites } = await this.transport.requestJson<{
+      invites: AccountInvite[];
+    }>(`${this.accountPath}/invites`);
+    return invites;
+  }
+
+  create(invite: CreateAccountInvite): Promise<CreatedAccountInvite> {
+    return this.transport.requestJson(`${this.accountPath}/invites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invite),
+    });
+  }
+
+  async revoke(inviteId: string): Promise<void> {
+    await this.transport.request(
+      `${this.accountPath}/invites/${encodeURIComponent(inviteId)}`,
+      { method: "DELETE" },
+    );
+  }
+}

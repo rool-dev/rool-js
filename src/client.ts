@@ -5,13 +5,16 @@ import type {
   MachineFileUploadProgress,
   MachineFileWriteBody,
 } from "./files.js";
+import { RoolAccountApi } from "./account.js";
 import { RoolMachine } from "./machine.js";
 import { throwProblemResponse } from "./problem.js";
 import type {
+  AccountInvitePreview,
+  AccountInviteRedemption,
   Greeting,
   InviteRedemption,
+  MachineCreation,
   MachineInvitePreview,
-  MachineSettings,
   MachineSummary,
   McpConnectionTemplate,
   RoolAccount,
@@ -112,6 +115,24 @@ export class RoolClient {
     return this.requestJson(`/v2/accounts/${encodeURIComponent(accountId)}`);
   }
 
+  /** Start a team: a new account on the Team plan, with the user as its admin. */
+  createTeam(name: string): Promise<RoolAccount> {
+    return this.requestJson("/v2/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  /** An account the user is on the roster of: its members, invites and machines. */
+  account(accountId: string): RoolAccountApi {
+    return new RoolAccountApi(accountId, {
+      request: (path, init) => this.request(path, init),
+      requestJson: <T>(path: string, init?: RequestInit) =>
+        this.requestJson<T>(path, init),
+    });
+  }
+
   /** Starts deletion of the signed-in user and the accounts only they belong to. */
   async deleteUser(): Promise<void> {
     await this.request("/v2/me", { method: "DELETE" });
@@ -196,7 +217,7 @@ export class RoolClient {
     return this.requestJson("/v2/machines");
   }
 
-  createMachine(settings: MachineSettings): Promise<MachineSummary> {
+  createMachine(settings: MachineCreation): Promise<MachineSummary> {
     return this.requestJson("/v2/machines", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -229,6 +250,17 @@ export class RoolClient {
   redeemInvite(token: string): Promise<InviteRedemption> {
     return this.requestJson(
       `/v2/invites/${encodeURIComponent(token)}/redemption`,
+      { method: "POST" },
+    );
+  }
+
+  getTeamInvitePreview(token: string): Promise<AccountInvitePreview> {
+    return this.requestJson(`/v2/account-invites/${encodeURIComponent(token)}`);
+  }
+
+  redeemTeamInvite(token: string): Promise<AccountInviteRedemption> {
+    return this.requestJson(
+      `/v2/account-invites/${encodeURIComponent(token)}/redemption`,
       { method: "POST" },
     );
   }

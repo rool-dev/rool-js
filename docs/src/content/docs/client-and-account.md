@@ -35,3 +35,17 @@ Use `getSession()` for an initial load. It returns the user, their accounts (hom
 These methods return snapshots. Use [live updates](/live-updates/) to learn when a snapshot is stale, then fetch the latest value.
 
 The client also contains top-level helpers for greetings, Speechmatics tokens, invites, and vouchers. Machine-specific work starts with `client.machine(machineId)`.
+
+## Teams
+
+A team is an account people share. `createTeam(name)` starts one on the Team plan, with the user as its only admin. A team has no balance of its own to start with and pays for what its members do on its machines.
+
+`client.account(accountId)` is a handle on an account the user is on the roster of:
+
+- `members.list()` returns the roster. `members.setRole(userId, role)` makes someone an `admin` or a `member` and returns the role the server recorded; an account always keeps one admin (`last_account_admin`). `members.remove(userId)` takes someone off the roster, and off every machine of the account. A member leaves by removing themselves. Machines they own there need another owner first (`member_owns_machines`), and no one leaves their home account (`home_account`).
+- `invites.create({ role, email })` mints an invite link, emailed when `email` is set. Only teams take invites. `getTeamInvitePreview(token)` and `redeemTeamInvite(token)` show and accept one.
+- `rename(name)` renames the team, and `listMachines()` returns every machine it pays for, including those the admin is not a member of. Both are for admins.
+
+Members only see the team's machines they are on. Every roster change sends `account_changed` to the members.
+
+Who pays depends on the person as well as the machine. A machine summary's `payingAccountId` is the account that pays for the user's work on it: the machine's account (`accountId`) when they are on its roster, their home account otherwise. Show the balance of that account, and its name when it is a team.

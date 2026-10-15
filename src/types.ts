@@ -1,4 +1,4 @@
-export type RoolPlan = "standard" | "plus" | "pro";
+export type RoolPlan = "standard" | "plus" | "pro" | "team";
 export type ClientCompatibility = "ok" | "unsupported";
 
 /** Current or last subscription. The account's plan, not this status, decides access. */
@@ -20,6 +20,8 @@ export interface RoolUser {
 /** An account the user is a member of: what pays, and on which plan. */
 export interface RoolAccount {
   id: string;
+  /** A team's name; null for a home account without one. */
+  name: string | null;
   /** The user's own account, created when they signed up. */
   home: boolean;
   role: "admin" | "member";
@@ -121,6 +123,11 @@ export interface MachineSummary {
   meta: MachineMeta;
   role: MachineRole;
   ownerId: string;
+  /** The account that pays for the machine. */
+  accountId: string;
+  /** The account that pays for the user's work on it: the machine's account
+   *  when they are on its roster, their home account otherwise. */
+  payingAccountId: string;
   size: number;
   createdAt: string;
   updatedAt: string;
@@ -130,6 +137,12 @@ export interface MachineSummary {
 
 export interface MachineSettings {
   name: string;
+}
+
+export interface MachineCreation extends MachineSettings {
+  /** An account the user is on the roster of; by default their home account
+   *  (a duplicate goes where its original's work is paid from). */
+  accountId?: string | null;
 }
 
 export interface MachineCheckpoint {
@@ -288,6 +301,68 @@ export interface McpAuthorization {
 }
 
 export type InviteRedemptionStatus = "joined" | "upgraded" | "already_member";
+
+export type AccountRole = "admin" | "member";
+
+export interface AccountMember {
+  userId: string;
+  email: string;
+  name: string | null;
+  photoUrl: string | null;
+  role: AccountRole;
+  joinedAt: string;
+}
+
+/** A machine an account pays for, as its admins see it. */
+export interface AccountMachine {
+  id: string;
+  name: string;
+  hostname: string;
+  ownerId: string;
+  /** The admin's own role on it; null when they are not a member. */
+  role: MachineRole | null;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+  state: MachineLifecycleState;
+}
+
+export interface AccountInvite {
+  id: string;
+  role: AccountRole;
+  email: string | null;
+  createdById: string;
+  createdAt: string;
+  expiresAt: string;
+  maxUses: number | null;
+  useCount: number;
+}
+
+export interface CreateAccountInvite {
+  role: AccountRole;
+  email?: string | null;
+  expiresInDays?: number | null;
+  maxUses?: number | null;
+}
+
+export interface CreatedAccountInvite extends AccountInvite {
+  url: string;
+  emailStatus: MachineInviteEmailStatus | null;
+}
+
+export interface AccountInvitePreview {
+  accountId: string;
+  accountName: string;
+  role: AccountRole;
+  email: string | null;
+  inviterName: string | null;
+}
+
+export interface AccountInviteRedemption {
+  accountId: string;
+  role: AccountRole;
+  status: InviteRedemptionStatus;
+}
 
 export interface InviteRedemption {
   machineId: string;

@@ -22,6 +22,7 @@ import type {
   CreateMcpConnection,
   CreatedMachineInvite,
   MachineCheckpoint,
+  MachineCreation,
   MachineCheckpointRestore,
   MachineFetchInit,
   MachineInvite,
@@ -263,11 +264,20 @@ export class RoolMachine {
     this.transport.deleted();
   }
 
-  duplicate(settings: MachineSettings): Promise<MachineSummary> {
+  duplicate(settings: MachineCreation): Promise<MachineSummary> {
     return this.transport.requestJson(`${this.path}/duplicate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
+    });
+  }
+
+  /** Move the machine to another account, as an admin of both. */
+  async move(accountId: string): Promise<void> {
+    await this.transport.request(`${this.path}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId }),
     });
   }
 
