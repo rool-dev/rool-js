@@ -4,14 +4,14 @@ title: Live updates
 
 Live updates tell a client that something changed. They are not a second copy of the data: fetch the latest value after receiving an event.
 
-## Account events
+## User events
 
-`client.events.subscribe()` starts the account event loop. Its first event is a `session` containing current account, profile, app data, machines, and server information. Later events identify the part that may now be stale:
+`client.events.subscribe()` starts the event loop. Its first event is a `session` containing the current user, accounts, profile, app data, machines, and server information. Later events identify the part that may now be stale:
 
 | Event                     | What to refresh                              |
 | ------------------------- | -------------------------------------------- |
-| `account_changed`         | `client.getAccount()`                        |
-| `profile_changed`         | `client.getProfile()`                        |
+| `account_changed`         | `client.getAccount(event.accountId)`         |
+| `profile_changed`         | `client.getProfile()` and `client.getUser()` |
 | `user_app_data_changed`   | `client.getUserAppData()`                    |
 | `providers_changed`       | `client.getProviders()`                      |
 | `machines_changed`        | `client.listMachines()` or the named machine |
@@ -19,7 +19,7 @@ Live updates tell a client that something changed. They are not a second copy of
 | `mcp_connections_changed` | `machine.mcpConnections.list()`              |
 | `conversation_changed`    | the named conversation                       |
 
-Treat a new `session` event as a full reset of account state. It can also arrive later if Rool can no longer continue from the previous event.
+Treat a new `session` event as a full reset of user and account state. It can also arrive later if Rool can no longer continue from the previous event.
 
 Events may combine several quick changes, so do not use them as an audit log or count on one event per write. The loop retries temporary failures automatically. `client.events.error` exposes its current error, and polling stops after the last subscriber unsubscribes.
 
@@ -34,6 +34,6 @@ unsubscribe();
 
 ## Higher-level watchers
 
-Account events do not carry file changes. `machine.files.watch()` maintains a file metadata tree from changes made by any client, agent, or program in the VM.
+User events do not carry file changes. `machine.files.watch()` maintains a file metadata tree from changes made by any client, agent, or program in the VM.
 
-`machine.mcpConnections.watch()` maintains the connection collection, including OAuth authorization state. `conversation.watch()` refreshes saved turns and follows the current run for live output. Use the lower-level account subscription only when maintaining your own state model.
+`machine.mcpConnections.watch()` maintains the connection collection, including OAuth authorization state. `conversation.watch()` refreshes saved turns and follows the current run for live output. Use the lower-level event subscription only when maintaining your own state model.

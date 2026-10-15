@@ -5,7 +5,8 @@
 import assert from "node:assert/strict";
 import type {
   RoolSession,
-  UserAccount,
+  RoolAccount,
+  RoolUser,
   UserAppData,
   UserProfile,
 } from "../../../src/index.js";
@@ -55,21 +56,27 @@ let originalProfile: UserProfile | null = null;
 let originalUserAppData: UserAppData | null = null;
 let deletionRequested = false;
 
-function assertAccount(account: UserAccount): void {
-  assert.equal(typeof account.id, "string");
-  assert.equal(typeof account.email, "string");
-  assert(account.photoUrl === null || typeof account.photoUrl === "string");
-  assert(["standard", "plus", "pro", "max", "admin"].includes(account.plan));
-  assert.equal(typeof account.creditsBalance, "number");
-  assert.equal(typeof account.totalCreditsUsed, "number");
-  assertIsoDate(account.createdAt, "account.createdAt");
-  if (account.lastActivity !== null) {
-    assertIsoDate(account.lastActivity, "account.lastActivity");
+function assertUser(user: RoolUser): void {
+  assert.equal(typeof user.id, "string");
+  assert.equal(typeof user.email, "string");
+  assert(user.photoUrl === null || typeof user.photoUrl === "string");
+  assert.equal(typeof user.totalCreditsUsed, "number");
+  assertIsoDate(user.createdAt, "user.createdAt");
+  if (user.lastActivity !== null) {
+    assertIsoDate(user.lastActivity, "user.lastActivity");
   }
-  assertIsoDate(account.processedAt, "account.processedAt");
-  assert(
-    account.stripeStatus === null || typeof account.stripeStatus === "string",
-  );
+}
+
+function assertAccount(account: RoolAccount): void {
+  assert.equal(typeof account.id, "string");
+  assert.equal(typeof account.home, "boolean");
+  assert(["admin", "member"].includes(account.role));
+  assert(["standard", "plus", "pro"].includes(account.plan));
+  assert.equal(typeof account.balanceUsd, "number");
+  assert.equal(typeof account.balanceCredits, "number");
+  if (account.compedUntil !== null)
+    assertIsoDate(account.compedUntil, "account.compedUntil");
+  assertIsoDate(account.refilledAt, "account.refilledAt");
   if (account.subscription !== null) {
     assert(["stripe", "apple"].includes(account.subscription.provider));
     assert(
@@ -85,17 +92,29 @@ async function main(): Promise<void> {
 
   console.log("Checking authentication...");
   await expectProblem(
-    () => unauthenticatedClient.getAccount(),
+    () => unauthenticatedClient.getUser(),
     401,
     "authentication_required",
   );
 
-  console.log("Reading the account, profile, user app data, and session...");
-  const account = await client.getAccount();
-  assertAccount(account);
-  if (account.id !== EXPECTED_USER_ID) {
-    throw new Error("Authenticated account does not match ROOL_TEST_USER_ID");
+  console.log(
+    "Reading the user, accounts, profile, user app data, and session...",
+  );
+  const user = await client.getUser();
+  assertUser(user);
+  if (user.id !== EXPECTED_USER_ID) {
+    throw new Error("Authenticated user does not match ROOL_TEST_USER_ID");
   }
+  const accounts = await client.getAccounts();
+  accounts.forEach(assertAccount);
+  const home = accounts.find((account) => account.home);
+  assert(home, "The user has a home account");
+  assert.deepEqual(await client.getAccount(home.id), home);
+  await expectProblem(
+    () => client.getAccount("no-such-account"),
+    404,
+    "account_not_found",
+  );
 
   const profile = await client.getProfile();
   assert.deepEqual(Object.keys(profile).sort(), ["marketingOptIn", "name"]);
@@ -110,12 +129,13 @@ async function main(): Promise<void> {
   originalUserAppData = userAppData;
 
   const session: RoolSession = await client.getSession();
-  assert.deepEqual(session.account, account);
+  assert.deepEqual(session.user, user);
+  assert.deepEqual(session.accounts, accounts);
   assert.deepEqual(session.profile, profile);
   assert.deepEqual(session.userAppData, userAppData);
   assert(Array.isArray(session.machines));
   session.machines.forEach(assertMachineSummary);
-  assert(session.accountSyncToken);
+  assert(session.syncToken);
   assert(session.server.version);
   assert(session.server.minimumSdkVersion);
   assert.equal(session.server.compatibility, "ok");
@@ -178,13 +198,13 @@ async function main(): Promise<void> {
     assert(model.efforts.some((e) => e.id === model.defaultEffort));
   }
 
-  console.log("Scheduling and cancelling account deletion...");
-  await client.deleteAccount();
+  console.log("Scheduling and cancelling user deletion...");
+  await client.deleteUser();
   deletionRequested = true;
-  const restoredAccount = await client.getAccount();
+  const restoredUser = await client.getUser();
   deletionRequested = false;
-  assertAccount(restoredAccount);
-  assert.equal(restoredAccount.id, account.id);
+  assertUser(restoredUser);
+  assert.equal(restoredUser.id, user.id);
 
   console.log("\n✅ SDK user route smoke tests passed.");
 }
@@ -194,7 +214,7 @@ async function cleanup(): Promise<void> {
   console.log("\nRestoring the local test user...");
 
   if (deletionRequested) {
-    await client.getAccount();
+    await client.getUser();
     deletionRequested = false;
   }
   if (originalProfile) await client.replaceProfile(originalProfile);

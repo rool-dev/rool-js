@@ -18,7 +18,7 @@ async function main(): Promise<void> {
       getTokens: auth.getTokens,
       onAuthInvalidated: auth.logout,
     });
-    const authenticatedAccount = await client.getAccount();
+    const authenticatedAccount = await client.getUser();
     console.log(
       `${account.profile}: ${authenticatedAccount.email} (${authenticatedAccount.id})`,
     );

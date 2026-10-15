@@ -101,7 +101,7 @@ async function main(): Promise<void> {
   const initial = await ownerEvents.next();
   assert.equal(initial.type, "session");
   if (initial.type !== "session") throw new Error("unreachable");
-  assert.equal(initial.session.account.id, (await ownerClient.getAccount()).id);
+  assert.equal(initial.session.user.id, (await ownerClient.getUser()).id);
 
   originalUserAppData = await ownerClient.getUserAppData();
   await ownerClient.setUserAppData(USER_APP_DATA_KEY, Date.now());
@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     assertMachineEvent(membershipEvents[1], "machines_changed", machine.id);
   }
 
-  const member = await memberClient.getAccount();
+  const member = await memberClient.getUser();
   await memberMachine.members.remove(member.id);
   const ownerMembershipEvents = [
     await nextNonAccountEvent(ownerEvents),

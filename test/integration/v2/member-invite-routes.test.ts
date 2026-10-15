@@ -53,8 +53,8 @@ function assertListedInvite(invite: MachineInvite): void {
 async function main(): Promise<void> {
   await requireLocalProxy();
 
-  const owner = await ownerClient.getAccount();
-  const member = await memberClient.getAccount();
+  const owner = await ownerClient.getUser();
+  const member = await memberClient.getUser();
   const ownerProfile = await ownerClient.getProfile();
   const memberProfile = await memberClient.getProfile();
   assert.notEqual(

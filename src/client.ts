@@ -14,9 +14,11 @@ import type {
   MachineSettings,
   MachineSummary,
   McpConnectionTemplate,
+  RoolAccount,
   RoolClientConfig,
   RoolRequestTokens,
   RoolSession,
+  RoolUser,
   SpeechmaticsToken,
   SpeechmaticsTokenOptions,
   Providers,
@@ -92,12 +94,32 @@ export class RoolClient {
     return this.requestJson("/v2/session");
   }
 
-  getAccount(): Promise<UserAccount> {
-    return this.requestJson("/v2/me");
+  async getUser(): Promise<RoolUser> {
+    const { id, email, photoUrl, totalCreditsUsed, createdAt, lastActivity } =
+      await this.requestJson<UserAccount>("/v2/me");
+    return { id, email, photoUrl, totalCreditsUsed, createdAt, lastActivity };
   }
 
-  async deleteAccount(): Promise<void> {
+  async getAccounts(): Promise<RoolAccount[]> {
+    const { accounts } = await this.requestJson<{ accounts: RoolAccount[] }>(
+      "/v2/accounts",
+    );
+    return accounts;
+  }
+
+  /** One account the user is a member of; `account_not_found` otherwise. */
+  getAccount(accountId: string): Promise<RoolAccount> {
+    return this.requestJson(`/v2/accounts/${encodeURIComponent(accountId)}`);
+  }
+
+  /** Starts deletion of the signed-in user and the accounts only they belong to. */
+  async deleteUser(): Promise<void> {
     await this.request("/v2/me", { method: "DELETE" });
+  }
+
+  /** @deprecated Use `deleteUser()`. */
+  deleteAccount(): Promise<void> {
+    return this.deleteUser();
   }
 
   getProfile(): Promise<UserProfile> {

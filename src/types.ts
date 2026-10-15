@@ -1,4 +1,4 @@
-export type RoolPlan = "standard" | "plus" | "pro" | "max" | "admin";
+export type RoolPlan = "standard" | "plus" | "pro";
 export type ClientCompatibility = "ok" | "unsupported";
 
 /** Current or last subscription. The account's plan, not this status, decides access. */
@@ -7,18 +7,50 @@ export interface AccountSubscription {
   status: "active" | "cancelling" | "past_due" | "ended" | "unknown";
 }
 
+/** The signed-in person. Plans and balances belong to accounts. */
+export interface RoolUser {
+  id: string;
+  email: string;
+  photoUrl: string | null;
+  totalCreditsUsed: number;
+  createdAt: string;
+  lastActivity: string | null;
+}
+
+/** An account the user is a member of: what pays, and on which plan. */
+export interface RoolAccount {
+  id: string;
+  /** The user's own account, created when they signed up. */
+  home: boolean;
+  role: "admin" | "member";
+  plan: RoolPlan;
+  balanceUsd: number;
+  /** The balance in credits, the unit Rool.app shows. */
+  balanceCredits: number;
+  subscription: AccountSubscription | null;
+  /** End of a granted (not bought) plan, past or present; null if never granted. */
+  compedUntil: string | null;
+  /** The last hourly refill. */
+  refilledAt: string;
+}
+
+/** @deprecated The user mixed with their home account. Use `RoolUser` and `RoolAccount`. */
 export interface UserAccount {
   id: string;
   email: string;
   photoUrl: string | null;
+  /** @deprecated Use `RoolAccount.plan`. */
   plan: RoolPlan;
+  /** @deprecated Use `RoolAccount.balanceCredits`. */
   creditsBalance: number;
   totalCreditsUsed: number;
   createdAt: string;
   lastActivity: string | null;
+  /** @deprecated Use `RoolAccount.refilledAt`. */
   processedAt: string;
-  /** @deprecated Use subscription for billing provider and status. */
+  /** @deprecated Use `RoolAccount.subscription`. */
   stripeStatus: string | null;
+  /** @deprecated Use `RoolAccount.subscription`. */
   subscription: AccountSubscription | null;
 }
 
@@ -327,11 +359,13 @@ export interface ServerInfo {
 }
 
 export interface RoolSession {
-  account: UserAccount;
+  user: RoolUser;
+  /** The accounts the user is a member of, home account first. */
+  accounts: RoolAccount[];
   profile: UserProfile;
   userAppData: UserAppData;
   machines: MachineSummary[];
-  accountSyncToken: string;
+  syncToken: string;
   server: ServerInfo;
 }
 

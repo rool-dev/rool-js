@@ -131,7 +131,7 @@ test("watch catches up, follows the current run, and settles saved turns", async
         return Response.json({ system: "" });
       }
       if (url.pathname === "/v2/session") {
-        return Response.json({ accountSyncToken: "account-token" });
+        return Response.json({ syncToken: "token" });
       }
       if (url.pathname === "/v2/events") {
         return new Promise<Response>((_resolve, reject) => {

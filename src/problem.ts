@@ -1,5 +1,12 @@
 import type { RoolProblemDetails } from "./types.js";
 
+// Codes the server will rename once every client is on 2.2.0; callers see the
+// new name from both the current and the future server.
+const RENAMED_CODES: Record<string, string> = {
+  account_suspended: "user_suspended",
+  account_access_required: "plan_required",
+};
+
 export class RoolProblem extends Error {
   readonly type: string;
   readonly title: string;
@@ -13,7 +20,7 @@ export class RoolProblem extends Error {
     this.type = problem.type;
     this.title = problem.title;
     this.status = problem.status;
-    this.code = problem.code;
+    this.code = RENAMED_CODES[problem.code] ?? problem.code;
     this.detail = problem.detail;
   }
 }

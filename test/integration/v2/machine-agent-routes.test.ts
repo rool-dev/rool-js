@@ -101,7 +101,7 @@ async function promptAndFollow(
 async function main(): Promise<void> {
   await requireLocalProxy();
 
-  const account = await client.getAccount();
+  const account = await client.getUser();
   const catalog = await client.getModels();
   const defaultModel = catalog.models.find((m) => m.id === catalog.default);
   assert(defaultModel);

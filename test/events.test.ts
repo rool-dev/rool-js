@@ -3,25 +3,21 @@ import { test } from "node:test";
 import { createRoolEvents, type RoolClientEvent } from "../src/events.js";
 import type { RoolSession } from "../src/types.js";
 
-function session(accountSyncToken: string): RoolSession {
+function session(syncToken: string): RoolSession {
   return {
-    account: {
+    user: {
       id: "user-1",
       email: "user@example.com",
       photoUrl: null,
-      plan: "standard",
-      creditsBalance: 0,
       totalCreditsUsed: 0,
       createdAt: "2026-01-01T00:00:00.000Z",
       lastActivity: null,
-      processedAt: "2026-01-01T00:00:00.000Z",
-      stripeStatus: null,
-      subscription: null,
     },
+    accounts: [],
+    syncToken,
     profile: { name: null, marketingOptIn: false },
     userAppData: {},
     machines: [],
-    accountSyncToken,
     server: {
       version: "test",
       minimumSdkVersion: "0.0.0",
@@ -49,7 +45,7 @@ test("empty polls and network retries do not refresh the session", async () => {
       return Response.json({
         syncToken: "token-2",
         events: [
-          { type: "account_changed", timestamp: 1 },
+          { type: "account_changed", accountId: "account-1", timestamp: 1 },
           { type: "profile_changed", timestamp: 2 },
           { type: "user_app_data_changed", timestamp: 3 },
           { type: "providers_changed", timestamp: 3 },
@@ -105,7 +101,7 @@ test("empty polls and network retries do not refresh the session", async () => {
   ]);
   assert.deepEqual(received, [
     { type: "session", session: initialSession },
-    { type: "account_changed", timestamp: 1 },
+    { type: "account_changed", accountId: "account-1", timestamp: 1 },
     { type: "profile_changed", timestamp: 2 },
     { type: "user_app_data_changed", timestamp: 3 },
     { type: "providers_changed", timestamp: 3 },

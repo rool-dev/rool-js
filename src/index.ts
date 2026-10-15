@@ -37,6 +37,7 @@ export type {
   RoolAccountEvent,
   RoolClientEvent,
   RoolEvents,
+  RoolUserEvent,
 } from "./events.js";
 export type {
   MachineDirectoryCreateOptions,
@@ -154,6 +155,8 @@ export type {
   ModelEffort,
   ModelEffortCost,
   AccountSubscription,
+  RoolAccount,
+  RoolUser,
   UserAccount,
   UserAppData,
   UserProfile,

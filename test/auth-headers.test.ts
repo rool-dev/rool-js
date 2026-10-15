@@ -46,7 +46,7 @@ test("reports invalidated authentication after a 401", async () => {
       ),
   });
 
-  await assert.rejects(() => client.getAccount());
+  await assert.rejects(() => client.getUser());
   assert.equal(invalidations, 1);
 });
 
@@ -74,7 +74,7 @@ test("does not report invalidated authentication after a 5xx", async () => {
       ),
   });
 
-  await assert.rejects(() => client.getAccount());
+  await assert.rejects(() => client.getUser());
   assert.equal(invalidations, 0);
 });
 

@@ -2,8 +2,8 @@ import { RoolAuthUnavailableError } from "./auth-base.js";
 import { RoolProblem } from "./problem.js";
 import type { RoolSession } from "./types.js";
 
-export type RoolAccountEvent =
-  | { type: "account_changed"; timestamp: number }
+export type RoolUserEvent =
+  | { type: "account_changed"; accountId: string; timestamp: number }
   | { type: "profile_changed"; timestamp: number }
   | { type: "user_app_data_changed"; timestamp: number }
   | { type: "providers_changed"; timestamp: number }
@@ -18,8 +18,11 @@ export type RoolAccountEvent =
       timestamp: number;
     };
 
+/** @deprecated Use `RoolUserEvent`. */
+export type RoolAccountEvent = RoolUserEvent;
+
 export type RoolClientEvent =
-  { type: "session"; session: RoolSession } | RoolAccountEvent;
+  { type: "session"; session: RoolSession } | RoolUserEvent;
 
 export interface RoolEvents {
   readonly error: unknown;
@@ -31,9 +34,9 @@ interface RoolEventsTransport {
   getSession(): Promise<RoolSession>;
 }
 
-interface AccountSyncReport {
+interface SyncReport {
   syncToken: string;
-  events: RoolAccountEvent[];
+  events: RoolUserEvent[];
 }
 
 const POLL_TIMEOUT_MS = 55_000;
@@ -42,20 +45,20 @@ const RETRY_MAX_MS = 5_000;
 // server is needed — so back off much further than for transient errors.
 const AUTH_RETRY_MS = 60_000;
 
-class AccountEventRequestError extends Error {
+class SyncRequestError extends Error {
   constructor(
     readonly status: number,
     message: string,
   ) {
     super(message);
-    this.name = "AccountEventRequestError";
+    this.name = "SyncRequestError";
   }
 }
 
 function isAuthShaped(error: unknown): boolean {
   if (error instanceof RoolAuthUnavailableError) return true;
   const status =
-    error instanceof AccountEventRequestError || error instanceof RoolProblem
+    error instanceof SyncRequestError || error instanceof RoolProblem
       ? error.status
       : null;
   return status === 401;
@@ -101,7 +104,7 @@ class RoolEventPoller implements RoolEvents {
   private async run(signal: AbortSignal): Promise<void> {
     let session = await this.loadSession(signal);
     if (!session) return;
-    let syncToken = session.accountSyncToken;
+    let syncToken = session.syncToken;
     let retryMs = 250;
 
     while (!signal.aborted) {
@@ -111,7 +114,7 @@ class RoolEventPoller implements RoolEvents {
           await response.arrayBuffer();
           session = await this.transport.getSession();
           if (signal.aborted) return;
-          syncToken = session.accountSyncToken;
+          syncToken = session.syncToken;
           this.emit({ type: "session", session });
           this.currentError = null;
           retryMs = 250;
@@ -119,13 +122,13 @@ class RoolEventPoller implements RoolEvents {
         }
         if (!response.ok) {
           const body = await response.text();
-          throw new AccountEventRequestError(
+          throw new SyncRequestError(
             response.status,
-            `Account event request failed: ${response.status} ${response.statusText}: ${body}`,
+            `Event request failed: ${response.status} ${response.statusText}: ${body}`,
           );
         }
 
-        const report = parseAccountSyncReport(await response.json());
+        const report = parseSyncReport(await response.json());
         if (signal.aborted) return;
         for (const event of report.events) this.emit(event);
         syncToken = report.syncToken;
@@ -187,30 +190,36 @@ class RoolEventPoller implements RoolEvents {
   }
 }
 
-function parseAccountSyncReport(value: unknown): AccountSyncReport {
+function parseSyncReport(value: unknown): SyncReport {
   if (
     !isObject(value) ||
     typeof value.syncToken !== "string" ||
     !Array.isArray(value.events)
   ) {
-    throw new Error("Invalid account event response");
+    throw new Error("Invalid event response");
   }
   return {
     syncToken: value.syncToken,
     events: value.events
-      .map(parseAccountEvent)
-      .filter((event): event is RoolAccountEvent => event !== null),
+      .map(parseSyncEvent)
+      .filter((event): event is RoolUserEvent => event !== null),
   };
 }
 
 // Unknown types are dropped, not thrown: a newer server may emit events this
 // build has no use for, and a throw here would stall the poll loop.
-function parseAccountEvent(value: unknown): RoolAccountEvent | null {
+function parseSyncEvent(value: unknown): RoolUserEvent | null {
   if (!isObject(value) || typeof value.timestamp !== "number") {
-    throw new Error("Invalid account event");
+    throw new Error("Invalid event");
+  }
+  if (value.type === "account_changed" && typeof value.accountId === "string") {
+    return {
+      type: value.type,
+      accountId: value.accountId,
+      timestamp: value.timestamp,
+    };
   }
   if (
-    value.type === "account_changed" ||
     value.type === "profile_changed" ||
     value.type === "user_app_data_changed" ||
     value.type === "providers_changed"

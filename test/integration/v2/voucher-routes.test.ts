@@ -64,8 +64,10 @@ async function main(): Promise<void> {
     throw new Error("SDK voucher smoke tests only run against a local backend");
   }
 
-  const holder = await holderClient.getAccount();
-  const claimantBefore = await claimantClient.getAccount();
+  const holder = await holderClient.getUser();
+  const claimantBefore = (await claimantClient.getAccounts()).find(
+    (account) => account.home,
+  )!;
   userIdsToDelete.add(holder.id);
   userIdsToDelete.add(claimantBefore.id);
 
@@ -124,10 +126,12 @@ async function main(): Promise<void> {
   assert.deepEqual(claim.voucher, voucher.voucher);
   assert.equal(claim.description, voucher.description);
 
-  const claimantAfter = await claimantClient.getAccount();
+  const claimantAfter = (await claimantClient.getAccounts()).find(
+    (account) => account.home,
+  )!;
   assert.equal(
-    claimantAfter.creditsBalance,
-    claimantBefore.creditsBalance + voucher.voucher.credits,
+    claimantAfter.balanceCredits,
+    claimantBefore.balanceCredits + voucher.voucher.credits,
   );
 
   const claimed = (await holderClient.listVouchers()).vouchers.find(
