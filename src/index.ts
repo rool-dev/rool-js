@@ -163,6 +163,8 @@ export type {
   Providers,
   Model,
   ModelCatalog,
+  Market,
+  Offer,
   PlanCatalog,
   PlanDefinition,
   Price,

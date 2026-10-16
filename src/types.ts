@@ -110,14 +110,32 @@ export interface Price {
   currency: string;
 }
 
+/** How the caller buys, decided by the server from their platform, country
+ *  and any Stripe subscription they have: on the web in a currency, or
+ *  through the App Store.
+ *  Prices show either way; `forSale` says whether the caller may buy here, so
+ *  a buy button becomes "not available in your country" where it is false.
+ *  Treat a kind you don't know as not for sale. */
+export type Market =
+  | { kind: "stripe"; currency: string; forSale: boolean }
+  | { kind: "apple"; forSale: boolean };
+
+/** How something is bought in the caller's market: a price on the web, or a
+ *  product in the App Store, whose price comes from StoreKit. */
+export interface Offer {
+  price: Price | null;
+  appleProductId: string | null;
+}
+
 /** A plan as the server sells and enforces it. `id` matches `RoolAccount.plan`;
  *  plans are added without an SDK release, so it is an open string. */
 export interface PlanDefinition {
   id: string;
   /** Server-written; render it as-is. */
   name: string;
-  /** Monthly price and App Store product; null when the plan is not for sale. */
-  subscription: { price: Price; appleProductId: string } | null;
+  /** The monthly subscription in the caller's market; null for a plan not
+   *  sold there, such as a free one. */
+  subscription: Offer | null;
   /** Plan ids to offer this plan's subscribers, cheapest first. Stepping down
    *  goes through the store's subscription management. */
   upgrades: string[];
@@ -137,14 +155,14 @@ export interface PlanDefinition {
   mcp: boolean;
 }
 
-export interface TopUpDefinition {
+/** A top-up in the caller's market. */
+export interface TopUpDefinition extends Offer {
   id: string;
   credits: number;
-  price: Price;
-  appleProductId: string | null;
 }
 
 export interface PlanCatalog {
+  market: Market;
   plans: PlanDefinition[];
   topUps: TopUpDefinition[];
 }

@@ -182,9 +182,13 @@ export class RoolClient {
     return this.requestJson("/v2/models");
   }
 
-  /** The plans and top-ups, as the server sells and enforces them. */
-  getPlans(): Promise<PlanCatalog> {
-    return this.requestJson("/v2/plans");
+  /** The plans, and what of them and the top-ups is for sale to the caller.
+   *  Staff may pass `country` to see another country's market. */
+  getPlans(options: { country?: string } = {}): Promise<PlanCatalog> {
+    if (!options.country) return this.requestJson("/v2/plans");
+    return this.requestJson(
+      `/v2/plans?${new URLSearchParams({ country: options.country })}`,
+    );
   }
 
   async setProviderEnabled(id: string, enabled: boolean): Promise<void> {
