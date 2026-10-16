@@ -26,6 +26,7 @@ import type {
   SpeechmaticsTokenOptions,
   Providers,
   ModelCatalog,
+  PlanCatalog,
   UserAccount,
   UserAppData,
   UserProfile,
@@ -179,6 +180,11 @@ export class RoolClient {
 
   getModels(): Promise<ModelCatalog> {
     return this.requestJson("/v2/models");
+  }
+
+  /** The plans and top-ups, as the server sells and enforces them. */
+  getPlans(): Promise<PlanCatalog> {
+    return this.requestJson("/v2/plans");
   }
 
   async setProviderEnabled(id: string, enabled: boolean): Promise<void> {

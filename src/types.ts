@@ -1,4 +1,5 @@
-export type RoolPlan = "standard" | "plus" | "pro" | "team";
+/** The known plans, and any the server adds later: `PlanDefinition.id`. */
+export type RoolPlan = "standard" | "plus" | "pro" | "team" | (string & {});
 export type ClientCompatibility = "ok" | "unsupported";
 
 /** Current or last subscription. The account's plan, not this status, decides access. */
@@ -101,6 +102,51 @@ export interface Model {
   defaultEffort: string;
   /** Lightest first. */
   efforts: ModelEffort[];
+}
+
+export interface Price {
+  amount: number;
+  /** ISO 4217. */
+  currency: string;
+}
+
+/** A plan as the server sells and enforces it. `id` matches `RoolAccount.plan`;
+ *  plans are added without an SDK release, so it is an open string. */
+export interface PlanDefinition {
+  id: string;
+  /** Server-written; render it as-is. */
+  name: string;
+  /** Monthly price and App Store product; null when the plan is not for sale. */
+  subscription: { price: Price; appleProductId: string } | null;
+  /** Plan ids to offer this plan's subscribers, cheapest first. Stepping down
+   *  goes through the store's subscription management. */
+  upgrades: string[];
+  startCredits: number;
+  hourlyCredits: number;
+  /** The refill stops here; top-ups may go above it. */
+  maxCredits: number;
+  /** Machines the account may pay for; null for no limit. */
+  maxMachines: number | null;
+  machine: {
+    type: string;
+    memoryMib: number;
+    vcpus: number;
+    storageBytes: number;
+  };
+  customHostname: boolean;
+  mcp: boolean;
+}
+
+export interface TopUpDefinition {
+  id: string;
+  credits: number;
+  price: Price;
+  appleProductId: string | null;
+}
+
+export interface PlanCatalog {
+  plans: PlanDefinition[];
+  topUps: TopUpDefinition[];
 }
 
 /** All copy is server-written; render it as-is. */

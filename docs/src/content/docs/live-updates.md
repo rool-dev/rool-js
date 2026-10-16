@@ -19,6 +19,8 @@ Live updates tell a client that something changed. They are not a second copy of
 | `mcp_connections_changed` | `machine.mcpConnections.list()`              |
 | `conversation_changed`    | the named conversation                       |
 
+An `account_changed` for an account the user has left, or that was deleted, makes `getAccount()` fail with `account_not_found`: drop that account.
+
 Treat a new `session` event as a full reset of user and account state. It can also arrive later if Rool can no longer continue from the previous event.
 
 Events may combine several quick changes, so do not use them as an audit log or count on one event per write. The loop retries temporary failures automatically. `client.events.error` exposes its current error, and polling stops after the last subscriber unsubscribes.

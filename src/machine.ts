@@ -206,7 +206,9 @@ export class RoolMachine {
   }
 
   /** CPU and memory as the machine sees them. Reading never starts a stopped machine. */
-  getResources(options: { signal?: AbortSignal } = {}): Promise<MachineResources> {
+  getResources(
+    options: { signal?: AbortSignal } = {},
+  ): Promise<MachineResources> {
     return this.transport.requestJson(`${this.path}/resources`, {
       signal: options.signal,
     });

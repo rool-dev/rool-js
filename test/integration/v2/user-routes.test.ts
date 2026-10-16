@@ -71,7 +71,7 @@ function assertAccount(account: RoolAccount): void {
   assert.equal(typeof account.id, "string");
   assert.equal(typeof account.home, "boolean");
   assert(["admin", "member"].includes(account.role));
-  assert(["standard", "plus", "pro"].includes(account.plan));
+  assert(["standard", "plus", "pro", "team"].includes(account.plan));
   assert.equal(typeof account.balanceUsd, "number");
   assert.equal(typeof account.balanceCredits, "number");
   if (account.compedUntil !== null)

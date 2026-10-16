@@ -59,6 +59,13 @@ export class RoolAccountApi {
     });
   }
 
+  /** Delete a team, as one of its admins. Refused while it pays for any
+   *  machines; its roster, invites and history go with it, and its balance is
+   *  forfeit. A home account goes only with its user. */
+  async delete(): Promise<void> {
+    await this.transport.request(this.path, { method: "DELETE" });
+  }
+
   /** Every machine the account pays for, members or not. Admins only. */
   async listMachines(): Promise<AccountMachine[]> {
     const { machines } = await this.transport.requestJson<{
