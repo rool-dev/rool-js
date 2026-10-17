@@ -3,6 +3,7 @@ import type {
   AccountMachine,
   AccountMember,
   AccountRole,
+  AutoRecharge,
   CreateAccountInvite,
   CreatedAccountInvite,
   RoolAccount,
@@ -64,6 +65,41 @@ export class RoolAccountApi {
    *  forfeit. A home account goes only with its user. */
   async delete(): Promise<void> {
     await this.transport.request(this.path, { method: "DELETE" });
+  }
+
+  /** A Stripe Checkout URL where an admin adds whole dollars to a team's
+   *  balance, from 10 to 1000, tax on top. Paying saves the card for
+   *  auto-recharge. The amount is dollars, not the id of a consumer credit
+   *  pack from `PlanCatalog.topUps`. */
+  async topUp(amountUsd: number): Promise<string> {
+    const { url } = await this.transport.requestJson<{ url: string }>(
+      `${this.path}/top-ups`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountUsd }),
+      },
+    );
+    return url;
+  }
+
+  /** Turn a team's auto-recharge on, or change it, as an admin. It charges
+   *  the card of the last top-up (`no_saved_card` before there is one). */
+  setAutoRecharge({
+    thresholdUsd,
+    amountUsd,
+  }: AutoRecharge): Promise<RoolAccount> {
+    return this.transport.requestJson(`${this.path}/auto-recharge`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thresholdUsd, amountUsd }),
+    });
+  }
+
+  async stopAutoRecharge(): Promise<void> {
+    await this.transport.request(`${this.path}/auto-recharge`, {
+      method: "DELETE",
+    });
   }
 
   /** Every machine the account pays for, members or not. Admins only. */

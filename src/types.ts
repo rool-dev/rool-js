@@ -31,10 +31,23 @@ export interface RoolAccount {
   /** The balance in credits, the unit Rool.app shows. */
   balanceCredits: number;
   subscription: AccountSubscription | null;
+  /** A team's automatic top-up: below the threshold, the saved card buys the
+   *  amount, in dollars. Null when off. */
+  autoRecharge: AutoRecharge | null;
+  /** Whether a team has a card saved by a top-up, which auto-recharge needs. */
+  savedCard: boolean;
+  /** When a team's debt shut its machines; null while they may run. A top-up
+   *  that pays the debt opens it again. */
+  shutAt: string | null;
   /** End of a granted (not bought) plan, past or present; null if never granted. */
   compedUntil: string | null;
   /** The last hourly refill. */
   refilledAt: string;
+}
+
+export interface AutoRecharge {
+  thresholdUsd: number;
+  amountUsd: number;
 }
 
 /** @deprecated The user mixed with their home account. Use `RoolUser` and `RoolAccount`. */
@@ -161,11 +174,44 @@ export interface TopUpDefinition extends Offer {
   credits: number;
 }
 
+/** A type a team machine may have, with its rent in dollars, the currency of
+ *  a team's balance. */
+export interface MachineTypeDefinition {
+  type: string;
+  memoryMib: number;
+  vcpus: number;
+  storageBytes: number;
+  monthlyRent: Price;
+  /** False for a type that cannot be chosen yet. */
+  available: boolean;
+}
+
 export interface PlanCatalog {
   market: Market;
   plans: PlanDefinition[];
   topUps: TopUpDefinition[];
+  machineTypes: MachineTypeDefinition[];
+  usage: UsagePricing;
 }
+
+/** What calls cost, in dollars, whoever pays and in whatever market. */
+export interface UsagePricing {
+  currency: "USD";
+  /** A credit's worth, for showing a price in Rool.app's unit. */
+  usdPerCredit: number;
+  /** Every model first, then the other items, in display order. */
+  prices: UsagePrice[];
+}
+
+export type UsagePrice = { id: string; name: string } & (
+  | {
+      kind: "tokens";
+      inputPer1M: number;
+      cachedPer1M: number;
+      outputPer1M: number;
+    }
+  | { kind: "unit"; unit: string; perUnit: number }
+);
 
 /** All copy is server-written; render it as-is. */
 export interface ModelCatalog {
@@ -192,6 +238,8 @@ export interface MachineSummary {
   /** The account that pays for the user's work on it: the machine's account
    *  when they are on its roster, their home account otherwise. */
   payingAccountId: string;
+  /** The hardware it boots with: its own type on a team, its plan's elsewhere. */
+  machineType: string;
   size: number;
   createdAt: string;
   updatedAt: string;
@@ -204,6 +252,9 @@ export interface MachineSettings {
 }
 
 export interface MachineCreation extends MachineSettings {
+  /** A team machine's type, from `PlanCatalog.machineTypes`; required on a
+   *  team, refused elsewhere. A copy on a team defaults to the original's. */
+  type?: string | null;
   /** An account the user is on the roster of; by default their home account
    *  (a duplicate goes where its original's work is paid from). */
   accountId?: string | null;
@@ -386,6 +437,8 @@ export interface AccountMachine {
   /** The admin's own role on it; null when they are not a member. */
   role: MachineRole | null;
   memberCount: number;
+  /** The hardware it boots with; its rent is in `getPlans().machineTypes`. */
+  machineType: string;
   createdAt: string;
   updatedAt: string;
   state: MachineLifecycleState;

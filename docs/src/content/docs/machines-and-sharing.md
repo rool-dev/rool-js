@@ -15,9 +15,9 @@ const machine = client.machine(created.id);
 
 Machine settings currently contain the name and are replaced as a whole. A machine also has a globally unique hostname used for a variety of public facing features. Set it with `machine.setHostname("research-notes")`. Hostnames contain 1 to 30 lowercase letters, numbers, or hyphens, cannot start or end with a hyphen, and cannot use a reserved name. Machine summaries include the resulting external WebDAV endpoint as `webDavUrl`.
 
-`duplicate()` copies the machine's current files and conversations into an independent machine owned only by the person making the copy. Sharing does not carry over. The copy goes to the account that pays for the person's work on the original, unless `accountId` says otherwise.
+`duplicate()` copies the machine's current files and conversations into an independent machine owned only by the person making the copy. Sharing does not carry over. The copy goes to the account that pays for the person's work on the original, unless `accountId` says otherwise. On a team the copy takes the original's `type` unless one is given.
 
-`machine.move(accountId)` moves a machine to another account. It takes an admin of both accounts. When the two accounts are on different plans, the move stops the machine, so requests running in it fail with `machine_stopped`, and the new plan sets its hardware when it next starts.
+`machine.move(accountId)` moves a machine to another account. It takes an admin of both accounts. When the two accounts are on different plans, the move stops the machine, so requests running in it fail with `machine_stopped`. The new plan sets its hardware when it next starts, except that a machine moving into a team keeps the type it has, so the team's balance must cover its rent (`insufficient_balance`).
 
 Rool creates filesystem checkpoints automatically, about every 30 seconds while the machine is writing. Older ones are thinned out to one per hour, then one per day, then one per month. `machine.checkpoints.list()` returns every restorable checkpoint, oldest first.
 
