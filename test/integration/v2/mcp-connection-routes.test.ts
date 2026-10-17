@@ -32,6 +32,13 @@ async function main(): Promise<void> {
   console.log("Reading connections and checking provider authorization errors...");
   const connections = await machine.mcpConnections.list();
   for (const connection of connections) {
+    assert.equal(typeof connection.hostname, "string");
+    assert(connection.hostname.length > 0);
+    assert.equal(connection.url, connection.hostname);
+    if (connection.description !== undefined) {
+      assert.equal(typeof connection.description, "string");
+      assert(connection.description.length > 0 && connection.description.length <= 160);
+    }
     assert.deepEqual(await machine.mcpConnections.get(connection.id), connection);
   }
   await expectProblem(

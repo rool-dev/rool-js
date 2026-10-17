@@ -128,6 +128,7 @@ For a custom remote HTTPS MCP server, authentication is explicit: choose no auth
 ```typescript
 const connection = await machine.mcpConnections.create({
   name: "notion",
+  description: "Company documents and notes",
   url: "https://mcp.notion.com/mcp",
   authentication: { type: "oauth" },
 });
@@ -137,6 +138,10 @@ const authorization = await machine.mcpConnections.startAuthorization(
 );
 window.open(authorization.authorizationUrl, "_blank");
 ```
+
+The optional `description` is limited to 160 characters after whitespace is collapsed and trimmed. Nonempty descriptions are returned on connections.
+
+Supply the full HTTPS endpoint as `url` when creating a connection. Returned connections expose only `hostname` (for example, `mcp.notion.com`), never the full endpoint. The deprecated response field `url` also contains only that hostname.
 
 Watch the collection while showing connection state. The watcher loads it immediately, refreshes it after OAuth completion and other changes, and handles account-session resets. It coalesces changes that arrive together, so do not poll `get()` while authorization is open.
 

@@ -11,7 +11,9 @@ import { RoolMachine, type RoolMachineTransport } from "../src/machine.js";
 const connection: McpConnection = {
   id: "connection/id",
   name: "notion",
-  url: "https://mcp.notion.com/mcp",
+  description: "Company documents and notes",
+  hostname: "mcp.notion.com",
+  url: "mcp.notion.com",
   authentication: { type: "oauth", authorized: false },
   createdAt: "2026-09-02T13:32:44.165Z",
   updatedAt: "2026-09-02T13:32:44.165Z",
@@ -52,6 +54,7 @@ test("machine MCP connections use the connection routes", async () => {
   assert.deepEqual(
     await connections.create({
       name: "notion",
+      description: "Company documents and notes",
       url: "https://mcp.notion.com/mcp",
       authentication: { type: "oauth" },
     }),
@@ -84,6 +87,7 @@ test("machine MCP connections use the connection routes", async () => {
       path: base,
       body: {
         name: "notion",
+        description: "Company documents and notes",
         url: "https://mcp.notion.com/mcp",
         authentication: { type: "oauth" },
       },

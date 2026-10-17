@@ -386,6 +386,9 @@ export type McpConnectionAuthenticationSummary =
 export interface McpConnection {
   id: string;
   name: string;
+  description?: string;
+  hostname: string;
+  /** @deprecated Use hostname. This contains only the hostname, not the full endpoint URL. */
   url: string;
   logoUrl?: string;
   authentication: McpConnectionAuthenticationSummary;
@@ -395,6 +398,9 @@ export interface McpConnection {
 
 export interface CreateCustomMcpConnection {
   name: string;
+  /** Optional description, at most 160 characters after whitespace normalization. */
+  description?: string;
+  /** Full HTTPS endpoint URL. Responses expose only its hostname. */
   url: string;
   authentication: McpConnectionAuthentication;
 }
