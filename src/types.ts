@@ -360,14 +360,11 @@ export interface MachineInvitePreview {
   inviterName: string | null;
 }
 
-export interface McpConnectionTemplate {
+export interface McpProvider {
   id: string;
   name: string;
   description: string;
-  url: string;
   logoUrl: string;
-  authentication: "oauth";
-  defaultConnectionName: string;
 }
 
 export type McpConnectionAuthentication =
@@ -402,13 +399,7 @@ export interface CreateCustomMcpConnection {
   authentication: McpConnectionAuthentication;
 }
 
-export interface CreateMcpConnectionFromTemplate {
-  templateId: string;
-  name?: string;
-}
-
-export type CreateMcpConnection =
-  CreateCustomMcpConnection | CreateMcpConnectionFromTemplate;
+export type CreateMcpConnection = CreateCustomMcpConnection;
 
 export interface McpAuthorization {
   authorizationUrl: string;

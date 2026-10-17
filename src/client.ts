@@ -16,7 +16,7 @@ import type {
   MachineCreation,
   MachineInvitePreview,
   MachineSummary,
-  McpConnectionTemplate,
+  McpProvider,
   RoolAccount,
   RoolClientConfig,
   RoolRequestTokens,
@@ -216,11 +216,12 @@ export class RoolClient {
     });
   }
 
-  async listMcpConnectionTemplates(): Promise<McpConnectionTemplate[]> {
+  /** Providers available to the signed-in user. Currently staff-only during preview. */
+  async listMcpProviders(): Promise<McpProvider[]> {
     const result = await this.requestJson<{
-      templates: McpConnectionTemplate[];
-    }>("/v2/mcp-connection-templates");
-    return result.templates;
+      providers: McpProvider[];
+    }>("/v2/mcp-providers");
+    return result.providers;
   }
 
   listMachines(): Promise<MachineSummary[]> {

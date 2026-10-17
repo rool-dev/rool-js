@@ -103,7 +103,27 @@ The command is Bash source. Pass untrusted text through `stdin` rather than inte
 
 ## Remote MCP connections
 
-Owners and admins can connect a machine to a remote HTTPS MCP server. Authentication is explicit: choose no authentication, supply HTTP headers, or choose OAuth.
+### Connect a provider
+
+Owners and admins can connect a machine to a provider. List the providers available to the signed-in user and let them choose one:
+
+```typescript
+const providers = await client.listMcpProviders();
+renderProviders(providers);
+
+async function connectProvider(providerId: string) {
+  const authorization = await machine.mcpProviders.startAuthorization(providerId);
+  window.open(authorization.authorizationUrl, "_blank");
+}
+```
+
+Each provider has `id`, `name`, `description`, and `logoUrl`. The description explains which services it connects. Providers are currently staff-only during preview, so other users receive an empty list.
+
+Authorization returns a consent URL and `expiresAt`. No connection exists yet: after consent, the backend creates the connections allowed by the granted permissions. Use `machine.mcpConnections.watch()` to receive the updated list. Do not call `mcpConnections.create()` first or wait for a particular connection ID.
+
+### Connect a custom server
+
+For a custom remote HTTPS MCP server, authentication is explicit: choose no authentication, supply HTTP headers, or choose OAuth.
 
 ```typescript
 const connection = await machine.mcpConnections.create({

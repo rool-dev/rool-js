@@ -109,6 +109,11 @@ export interface MachineInvitesApi {
   revoke(inviteId: string): Promise<void>;
 }
 
+export interface MachineMcpProvidersApi {
+  /** Starts consent. Connections are created only after authorization completes. */
+  startAuthorization(providerId: string): Promise<McpAuthorization>;
+}
+
 export interface MachineMcpConnectionsView {
   readonly connections: readonly McpConnection[];
   readonly loading: boolean;
@@ -159,6 +164,7 @@ export class RoolMachine {
   readonly checkpoints: MachineCheckpointsApi;
   readonly members: MachineMembersApi;
   readonly invites: MachineInvitesApi;
+  readonly mcpProviders: MachineMcpProvidersApi;
   readonly mcpConnections: MachineMcpConnectionsApi;
 
   private readonly path: string;
@@ -183,6 +189,7 @@ export class RoolMachine {
     this.checkpoints = new MachineCheckpointsClient(this.path, transport);
     this.members = new MachineMembersClient(this.path, transport);
     this.invites = new MachineInvitesClient(this.path, transport);
+    this.mcpProviders = new MachineMcpProvidersClient(this.path, transport);
     this.mcpConnections = new MachineMcpConnectionsClient(
       this.id,
       this.path,
@@ -445,6 +452,20 @@ class MachineMembersClient implements MachineMembersApi {
 
   private rolePath(userId: string): string {
     return `${this.memberPath(userId)}/role`;
+  }
+}
+
+class MachineMcpProvidersClient implements MachineMcpProvidersApi {
+  constructor(
+    private readonly machinePath: string,
+    private readonly transport: RoolMachineTransport,
+  ) {}
+
+  startAuthorization(providerId: string): Promise<McpAuthorization> {
+    return this.transport.requestJson(
+      `${this.machinePath}/mcp-providers/${encodeURIComponent(providerId)}/authorization`,
+      { method: "POST" },
+    );
   }
 }
 
