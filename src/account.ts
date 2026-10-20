@@ -52,6 +52,16 @@ export class RoolAccountApi {
     return this.transport.requestJson(this.path);
   }
 
+  /** Standard, with its start credits, on a home account whose plan is
+   *  `none`: someone who signed up to join a team starting the Rool.app side.
+   *  Fails with `personal_plan_exists` on an account that has a plan, and
+   *  `not_home_account` on an account that is not the user's home. */
+  startPersonalPlan(): Promise<RoolAccount> {
+    return this.transport.requestJson(`${this.path}/personal-plan`, {
+      method: "POST",
+    });
+  }
+
   rename(name: string): Promise<RoolAccount> {
     return this.transport.requestJson(this.path, {
       method: "PATCH",

@@ -1,5 +1,7 @@
-/** The known plans, and any the server adds later: `PlanDefinition.id`. */
-export type RoolPlan = "standard" | "plus" | "pro" | "team" | (string & {});
+/** The known plans, and any the server adds later: `PlanDefinition.id`.
+ *  `none` is a home account without a personal plan, see `startPersonalPlan`. */
+export type RoolPlan =
+  "none" | "standard" | "plus" | "pro" | "team" | (string & {});
 export type ClientCompatibility = "ok" | "unsupported";
 
 /** Current or last subscription. The account's plan, not this status, decides access. */
@@ -41,7 +43,8 @@ export interface RoolAccount {
   shutAt: string | null;
   /** End of a granted (not bought) plan, past or present; null if never granted. */
   compedUntil: string | null;
-  /** The last hourly refill. */
+  /** The last hourly refill, or the account's creation where its plan has
+   *  none (`none`, `team`). Always set. */
   refilledAt: string;
 }
 
