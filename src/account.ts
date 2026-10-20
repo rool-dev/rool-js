@@ -18,6 +18,8 @@ export interface AccountMembersApi {
   list(): Promise<AccountMember[]>;
   /** Admins only. An account always keeps one admin. */
   setRole(userId: string, role: AccountRole): Promise<AccountRole>;
+  /** Admins only, on any member including themselves; null lifts the cap. */
+  setDailyLimit(userId: string, usd: number | null): Promise<number | null>;
   /** An admin removing someone, or a member leaving with their own user id.
    *  The member leaves every machine of the account; machines they own there
    *  need another owner first. No one leaves their home account. */
@@ -144,6 +146,22 @@ class AccountMembersClient implements AccountMembersApi {
       },
     );
     return result.role;
+  }
+
+  async setDailyLimit(
+    userId: string,
+    usd: number | null,
+  ): Promise<number | null> {
+    if (usd !== null && !(Number.isFinite(usd) && usd >= 0))
+      throw new Error("usd must be a dollar amount from 0 up, or null");
+    const result = await this.transport.requestJson<{
+      dailyLimitUsd: number | null;
+    }>(`${this.memberPath(userId)}/limit`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dailyLimitUsd: usd }),
+    });
+    return result.dailyLimitUsd;
   }
 
   async remove(userId: string): Promise<void> {

@@ -28,6 +28,10 @@ export interface RoolAccount {
   /** The user's own account, created when they signed up. */
   home: boolean;
   role: "admin" | "member";
+  /** The most the user may spend on the account in any 24 hours; null for no cap. */
+  dailyLimitUsd: number | null;
+  /** The user's charges on the account in the last 24 hours; 0 on a home account. */
+  spentUsd: number;
   plan: RoolPlan;
   balanceUsd: number;
   /** The balance in credits, the unit Rool.app shows. */
@@ -426,6 +430,10 @@ export interface AccountMember {
   photoUrl: string | null;
   role: AccountRole;
   joinedAt: string;
+  /** The most they may spend on the account in any 24 hours; null for no cap. */
+  dailyLimitUsd: number | null;
+  /** Their charges on the account in the last 24 hours. */
+  spentUsd: number;
 }
 
 /** A machine an account pays for, as its admins see it. */
