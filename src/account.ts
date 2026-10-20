@@ -6,6 +6,7 @@ import type {
   AutoRecharge,
   CreateAccountInvite,
   CreatedAccountInvite,
+  Providers,
   RoolAccount,
 } from "./types.js";
 
@@ -62,6 +63,26 @@ export class RoolAccountApi {
     return this.transport.requestJson(`${this.path}/personal-plan`, {
       method: "POST",
     });
+  }
+
+  /** The third parties the account's machines may send content to, with the
+   *  account's choice on each optional one. The machine's account decides for
+   *  everyone working on it, whoever pays. Members read. */
+  getProviders(): Promise<Providers> {
+    return this.transport.requestJson(`${this.path}/providers`);
+  }
+
+  /** Admins only: turn an optional provider on or off for the account's
+   *  machines (`provider_not_found` for an id that is not switchable). */
+  async setProviderEnabled(id: string, enabled: boolean): Promise<void> {
+    await this.transport.request(
+      `${this.path}/providers/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      },
+    );
   }
 
   rename(name: string): Promise<RoolAccount> {

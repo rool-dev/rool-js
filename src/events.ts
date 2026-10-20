@@ -6,7 +6,7 @@ export type RoolUserEvent =
   | { type: "account_changed"; accountId: string; timestamp: number }
   | { type: "profile_changed"; timestamp: number }
   | { type: "user_app_data_changed"; timestamp: number }
-  | { type: "providers_changed"; timestamp: number }
+  | { type: "providers_changed"; accountId: string; timestamp: number }
   | { type: "machines_changed"; machineId: string; timestamp: number }
   | { type: "machine_members_changed"; machineId: string; timestamp: number }
   | { type: "mcp_connections_changed"; machineId: string; timestamp: number }
@@ -212,7 +212,10 @@ function parseSyncEvent(value: unknown): RoolUserEvent | null {
   if (!isObject(value) || typeof value.timestamp !== "number") {
     throw new Error("Invalid event");
   }
-  if (value.type === "account_changed" && typeof value.accountId === "string") {
+  if (
+    (value.type === "account_changed" || value.type === "providers_changed") &&
+    typeof value.accountId === "string"
+  ) {
     return {
       type: value.type,
       accountId: value.accountId,
@@ -221,8 +224,7 @@ function parseSyncEvent(value: unknown): RoolUserEvent | null {
   }
   if (
     value.type === "profile_changed" ||
-    value.type === "user_app_data_changed" ||
-    value.type === "providers_changed"
+    value.type === "user_app_data_changed"
   ) {
     return { type: value.type, timestamp: value.timestamp };
   }

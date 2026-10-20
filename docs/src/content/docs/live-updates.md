@@ -8,16 +8,16 @@ Live updates tell a client that something changed. They are not a second copy of
 
 `client.events.subscribe()` starts the event loop. Its first event is a `session` containing the current user, accounts, profile, app data, machines, and server information. Later events identify the part that may now be stale:
 
-| Event                     | What to refresh                              |
-| ------------------------- | -------------------------------------------- |
-| `account_changed`         | `client.getAccount(event.accountId)`         |
-| `profile_changed`         | `client.getProfile()` and `client.getUser()` |
-| `user_app_data_changed`   | `client.getUserAppData()`                    |
-| `providers_changed`       | `client.getProviders()`                      |
-| `machines_changed`        | `client.listMachines()` or the named machine |
-| `machine_members_changed` | `machine.members.list()`                     |
-| `mcp_connections_changed` | `machine.mcpConnections.list()`              |
-| `conversation_changed`    | the named conversation                       |
+| Event                     | What to refresh                                                                                            |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `account_changed`         | `client.getAccount(event.accountId)`                                                                       |
+| `profile_changed`         | `client.getProfile()` and `client.getUser()`                                                               |
+| `user_app_data_changed`   | `client.getUserAppData()`                                                                                  |
+| `providers_changed`       | `account(event.accountId).getProviders()`, and `machine.getModels()` for each open machine of that account |
+| `machines_changed`        | `client.listMachines()` or the named machine                                                               |
+| `machine_members_changed` | `machine.members.list()`                                                                                   |
+| `mcp_connections_changed` | `machine.mcpConnections.list()`                                                                            |
+| `conversation_changed`    | the named conversation                                                                                     |
 
 An `account_changed` for an account the user has left, or that was deleted, makes `getAccount()` fail with `account_not_found`: drop that account.
 

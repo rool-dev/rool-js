@@ -36,6 +36,7 @@ import type {
   McpAuthorization,
   McpConnection,
   McpConnectionAuthentication,
+  ModelCatalog,
 } from "./types.js";
 import { readExecStream, type MachineExecEvent } from "./exec.js";
 
@@ -203,6 +204,15 @@ export class RoolMachine {
       this.path,
       options,
     );
+  }
+
+  /** The models a prompt on this machine may use: the caller's plan through
+   *  the machine's account's provider policy. Fetch it when the machine opens
+   *  and on `providers_changed`. */
+  getModels(options: { signal?: AbortSignal } = {}): Promise<ModelCatalog> {
+    return this.transport.requestJson(`${this.path}/models`, {
+      signal: options.signal,
+    });
   }
 
   /** Disk usage against the plan, split by what uses it. A first call on a large machine can take a while. */

@@ -2,7 +2,7 @@ import type { RoolClientEvent } from "./events.js";
 import type { MachineFilePath } from "./files.js";
 import { throwProblemResponse } from "./problem.js";
 
-/** @deprecated Effort ids come from `getModels()`. */
+/** @deprecated Effort ids come from `machine.getModels()`. */
 export type MachinePromptEffort = string;
 export type MachineAssistantFinish =
   | "stop"
@@ -90,7 +90,7 @@ export interface MachineConversationCreateOptions extends AgentRequestOptions {
 }
 
 export interface MachineConversationPromptOptions extends AgentRequestOptions {
-  /** A model id from `getModels()`; the catalog's default when omitted. */
+  /** A model id from `machine.getModels()`; the catalog's default when omitted. */
   model?: string;
   /** One of `model`'s effort ids, so it needs `model`; its default effort when omitted. */
   effort?: string;

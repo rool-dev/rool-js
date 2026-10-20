@@ -174,10 +174,12 @@ export class RoolClient {
     });
   }
 
+  /** @deprecated The policy is an account's; use `account(id).getProviders()`, for the home account the one with `home: true` in `getAccounts()`. This reads the home account's. */
   getProviders(): Promise<Providers> {
     return this.requestJson("/v2/providers");
   }
 
+  /** @deprecated Models follow the machine's provider policy; use `machine(id).getModels()`. This applies the home account's. */
   getModels(): Promise<ModelCatalog> {
     return this.requestJson("/v2/models");
   }
@@ -191,6 +193,7 @@ export class RoolClient {
     );
   }
 
+  /** @deprecated The policy is an account's; use `account(id).setProviderEnabled()`, for the home account the one with `home: true` in `getAccounts()`. This sets the home account's. */
   async setProviderEnabled(id: string, enabled: boolean): Promise<void> {
     await this.request(`/v2/providers/${encodeURIComponent(id)}`, {
       method: "PUT",
