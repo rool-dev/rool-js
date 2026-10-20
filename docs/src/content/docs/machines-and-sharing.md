@@ -9,13 +9,13 @@ const created = await client.createMachine({ name: "Research" });
 const machine = client.machine(created.id);
 ```
 
-`createMachine()` puts the machine on the user's home account unless `accountId` names another account they are on the roster of. `client.machine()` only creates or reuses a local handle; it does not check the server. Call `machine.get()` when you need the latest summary. Use `listMachines()` to refresh the machines visible to the user.
+`createMachine()` puts the machine on the user's home account unless `accountId` names a team they are an admin of; a member of the team gets `account_admin_required`. `client.machine()` only creates or reuses a local handle; it does not check the server. Call `machine.get()` when you need the latest summary. Use `listMachines()` to refresh the machines visible to the user.
 
 ## Lifecycle
 
 Machine settings currently contain the name and are replaced as a whole. A machine also has a globally unique hostname used for a variety of public facing features. Set it with `machine.setHostname("research-notes")`. Hostnames contain 1 to 30 lowercase letters, numbers, or hyphens, cannot start or end with a hyphen, and cannot use a reserved name. Machine summaries include the resulting external WebDAV endpoint as `webDavUrl`.
 
-`duplicate()` copies the machine's current files and conversations into an independent machine owned only by the person making the copy. Sharing does not carry over. The copy goes to the account that pays for the person's work on the original, unless `accountId` says otherwise. On a team the copy takes the original's `type` unless one is given.
+`duplicate()` copies the machine's current files and conversations into an independent machine owned only by the person making the copy. Sharing does not carry over. The copy goes to the account that pays for the person's work on the original, unless `accountId` says otherwise, and the person must be an admin of that account (`account_admin_required`): a team's member copying its machine names their home account. On a team the copy takes the original's `type` unless one is given.
 
 `machine.move(accountId)` moves a machine to another account. It takes an admin of both accounts. When the two accounts are on different plans, the move stops the machine, so requests running in it fail with `machine_stopped`. The new plan sets its hardware when it next starts, except that a machine moving into a team keeps the type it has, so the team's balance must cover its rent (`insufficient_balance`).
 
