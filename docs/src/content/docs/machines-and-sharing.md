@@ -167,7 +167,7 @@ The four machine roles are deliberately simple:
 
 Owners and admins create either a shareable link or an email invite with `machine.invites.create()`. An invite chooses the new member's role and can limit its lifetime or number of uses. Keep the returned `url`; listed invites intentionally do not reveal it again.
 
-An app can preview an invite before sign-in with `client.getInvitePreview(token)`. After sign-in, `client.redeemInvite(token)` adds or updates the member. Admins can list and revoke invites, change member roles, and remove members. Any non-owner member can also remove themselves; ownership cannot be assigned through the role API.
+An app can preview an invite before sign-in with `client.getInvitePreview(token)`. After sign-in, `client.redeemInvite(token)` adds or updates the member. Admins can list and revoke invites, change member roles, and remove members. Any non-owner member can also remove themselves; ownership cannot be assigned through the role API. On a team machine, `members.replaceRole(userId, { role })` on a member of the team who is not yet on the machine adds them outright, with no invite to accept: joining the team was the acceptance. For anyone else it fails with `invite_required`.
 
 ## Search a machine
 
