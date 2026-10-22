@@ -1,5 +1,4 @@
-/** The known plans, and any the server adds later: `PlanDefinition.id`.
- *  `none` is a home account without a personal plan, see `startPersonalPlan`. */
+/** The known plans, and any the server adds later; `none` is a home account before `startPersonalPlan`. */
 export type RoolPlan =
   "none" | "standard" | "plus" | "pro" | "team" | (string & {});
 export type ClientCompatibility = "ok" | "unsupported";
@@ -47,8 +46,7 @@ export interface RoolAccount {
   shutAt: string | null;
   /** End of a granted (not bought) plan, past or present; null if never granted. */
   compedUntil: string | null;
-  /** The last hourly refill, or the account's creation where its plan has
-   *  none (`none`, `team`). Always set. */
+  /** The last hourly refill, or the account's creation on plans without one. */
   refilledAt: string;
 }
 
@@ -452,10 +450,17 @@ export interface AccountMachine {
   state: MachineLifecycleState;
 }
 
+/** A machine a team invite puts its taker on when they accept. */
+export interface AccountInviteMachine {
+  machineId: string;
+  role: MachineInviteRole;
+}
+
 export interface AccountInvite {
   id: string;
   role: AccountRole;
   email: string | null;
+  machines: AccountInviteMachine[];
   createdById: string;
   createdAt: string;
   expiresAt: string;
@@ -468,6 +473,16 @@ export interface CreateAccountInvite {
   email?: string | null;
   expiresInDays?: number | null;
   maxUses?: number | null;
+  /** Machines of the team its taker lands on; `machine_not_on_account` for any other, `account_invite_not_found` on a closed invite. */
+  machines?: AccountInviteMachine[];
+}
+
+/** Someone a team invite will put on the machine when they accept it. */
+export interface PendingMachineMember {
+  inviteId: string;
+  email: string | null;
+  role: MachineInviteRole;
+  expiresAt: string;
 }
 
 export interface CreatedAccountInvite extends AccountInvite {

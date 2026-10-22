@@ -6,6 +6,7 @@ import type {
   AutoRecharge,
   CreateAccountInvite,
   CreatedAccountInvite,
+  MachineInviteRole,
   Providers,
   RoolAccount,
 } from "./types.js";
@@ -32,6 +33,13 @@ export interface AccountInvitesApi {
   /** Only teams take invites. */
   create(invite: CreateAccountInvite): Promise<CreatedAccountInvite>;
   revoke(inviteId: string): Promise<void>;
+  /** Put an open invite's taker on a machine of the team, or change the role. */
+  setMachine(
+    inviteId: string,
+    machineId: string,
+    role: MachineInviteRole,
+  ): Promise<void>;
+  removeMachine(inviteId: string, machineId: string): Promise<void>;
 }
 
 /** An account the user is on the roster of. Members see the roster; its
@@ -55,25 +63,20 @@ export class RoolAccountApi {
     return this.transport.requestJson(this.path);
   }
 
-  /** Standard, with its start credits, on a home account whose plan is
-   *  `none`: someone who signed up to join a team starting the Rool.app side.
-   *  Fails with `personal_plan_exists` on an account that has a plan, and
-   *  `not_home_account` on an account that is not the user's home. */
+  /** Standard with its start credits on a home account whose plan is `none`;
+   *  `personal_plan_exists` otherwise, `not_home_account` off the home account. */
   startPersonalPlan(): Promise<RoolAccount> {
     return this.transport.requestJson(`${this.path}/personal-plan`, {
       method: "POST",
     });
   }
 
-  /** The third parties the account's machines may send content to, with the
-   *  account's choice on each optional one. The machine's account decides for
-   *  everyone working on it, whoever pays. Members read. */
+  /** The account's provider policy, which applies to everyone on its machines, whoever pays. */
   getProviders(): Promise<Providers> {
     return this.transport.requestJson(`${this.path}/providers`);
   }
 
-  /** Admins only: turn an optional provider on or off for the account's
-   *  machines (`provider_not_found` for an id that is not switchable). */
+  /** Admins only; `provider_not_found` for an id that is not switchable. */
   async setProviderEnabled(id: string, enabled: boolean): Promise<void> {
     await this.transport.request(
       `${this.path}/providers/${encodeURIComponent(id)}`,
@@ -216,9 +219,34 @@ class AccountInvitesClient implements AccountInvitesApi {
   }
 
   async revoke(inviteId: string): Promise<void> {
-    await this.transport.request(
-      `${this.accountPath}/invites/${encodeURIComponent(inviteId)}`,
-      { method: "DELETE" },
-    );
+    await this.transport.request(this.invitePath(inviteId), {
+      method: "DELETE",
+    });
+  }
+
+  async setMachine(
+    inviteId: string,
+    machineId: string,
+    role: MachineInviteRole,
+  ): Promise<void> {
+    await this.transport.request(this.machinePath(inviteId, machineId), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async removeMachine(inviteId: string, machineId: string): Promise<void> {
+    await this.transport.request(this.machinePath(inviteId, machineId), {
+      method: "DELETE",
+    });
+  }
+
+  private invitePath(inviteId: string): string {
+    return `${this.accountPath}/invites/${encodeURIComponent(inviteId)}`;
+  }
+
+  private machinePath(inviteId: string, machineId: string): string {
+    return `${this.invitePath(inviteId)}/machines/${encodeURIComponent(machineId)}`;
   }
 }

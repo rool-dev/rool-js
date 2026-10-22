@@ -37,6 +37,7 @@ import type {
   McpConnection,
   McpConnectionAuthentication,
   ModelCatalog,
+  PendingMachineMember,
 } from "./types.js";
 import { readExecStream, type MachineExecEvent } from "./exec.js";
 
@@ -96,6 +97,8 @@ export interface MachineCheckpointsApi {
 
 export interface MachineMembersApi {
   list(): Promise<MachineMember[]>;
+  /** Takers of the paying team's open invites that put them here; admins only. */
+  pending(): Promise<PendingMachineMember[]>;
   getRole(userId: string): Promise<MachineMemberRoleConfiguration>;
   replaceRole(
     userId: string,
@@ -206,9 +209,7 @@ export class RoolMachine {
     );
   }
 
-  /** The models a prompt on this machine may use: the caller's plan through
-   *  the machine's account's provider policy. Fetch it when the machine opens
-   *  and on `providers_changed`. */
+  /** The models a prompt here may use; refetch on `providers_changed`. */
   getModels(options: { signal?: AbortSignal } = {}): Promise<ModelCatalog> {
     return this.transport.requestJson(`${this.path}/models`, {
       signal: options.signal,
@@ -435,6 +436,13 @@ class MachineMembersClient implements MachineMembersApi {
 
   list(): Promise<MachineMember[]> {
     return this.transport.requestJson(`${this.machinePath}/members`);
+  }
+
+  async pending(): Promise<PendingMachineMember[]> {
+    const { pending } = await this.transport.requestJson<{
+      pending: PendingMachineMember[];
+    }>(`${this.machinePath}/pending-members`);
+    return pending;
   }
 
   getRole(userId: string): Promise<MachineMemberRoleConfiguration> {

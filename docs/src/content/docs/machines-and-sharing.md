@@ -112,7 +112,8 @@ const providers = await client.listMcpProviders();
 renderProviders(providers);
 
 async function connectProvider(providerId: string) {
-  const authorization = await machine.mcpProviders.startAuthorization(providerId);
+  const authorization =
+    await machine.mcpProviders.startAuthorization(providerId);
   window.open(authorization.authorizationUrl, "_blank");
 }
 ```
@@ -167,7 +168,7 @@ The four machine roles are deliberately simple:
 
 Owners and admins create either a shareable link or an email invite with `machine.invites.create()`. An invite chooses the new member's role and can limit its lifetime or number of uses. Keep the returned `url`; listed invites intentionally do not reveal it again.
 
-An app can preview an invite before sign-in with `client.getInvitePreview(token)`. After sign-in, `client.redeemInvite(token)` adds or updates the member. Admins can list and revoke invites, change member roles, and remove members. Any non-owner member can also remove themselves; ownership cannot be assigned through the role API. On a team machine, `members.replaceRole(userId, { role })` on a member of the team who is not yet on the machine adds them outright, with no invite to accept: joining the team was the acceptance. For anyone else it fails with `invite_required`.
+An app can preview an invite before sign-in with `client.getInvitePreview(token)`. After sign-in, `client.redeemInvite(token)` adds or updates the member. Admins can list and revoke invites, change member roles, and remove members. Any non-owner member can also remove themselves; ownership cannot be assigned through the role API. On a team machine, `members.replaceRole(userId, { role })` on a member of the team who is not yet on the machine adds them outright, with no invite to accept: joining the team was the acceptance. For anyone else it fails with `invite_required`. The reverse holds for machine invites: creating one for an email that is on the paying team's roster, or on one of its open team invites, fails with `account_member`; add them, or put the machine on their team invite. `members.pending()` lists, for machine admins and the paying team's admins, the takers of open team invites that put them on the machine.
 
 ## Search a machine
 

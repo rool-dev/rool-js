@@ -102,6 +102,7 @@ export type {
 } from "./structured.js";
 export type {
   AccountInvite,
+  AccountInviteMachine,
   AccountInvitePreview,
   AccountInviteRedemption,
   AccountMachine,
@@ -136,6 +137,7 @@ export type {
   MachineInviteRole,
   MachineLifecycleState,
   MachineMember,
+  PendingMachineMember,
   MachineMemberRoleConfiguration,
   MachineMeta,
   McpAuthorization,
