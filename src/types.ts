@@ -132,11 +132,12 @@ export interface Price {
  *  and any Stripe subscription they have: on the web in a currency, or
  *  through the App Store.
  *  Prices show either way; `forSale` says whether the caller may buy here, so
- *  a buy button becomes "not available in your country" where it is false.
+ *  a buy button becomes "not available in your country" where it is false,
+ *  and `teams` whether they may start and fund a team (`team_not_available`).
  *  Treat a kind you don't know as not for sale. */
 export type Market =
-  | { kind: "stripe"; currency: string; forSale: boolean }
-  | { kind: "apple"; forSale: boolean };
+  | { kind: "stripe"; currency: string; forSale: boolean; teams: boolean }
+  | { kind: "apple"; forSale: boolean; teams: boolean };
 
 /** How something is bought in the caller's market: a price on the web, or a
  *  product in the App Store, whose price comes from StoreKit. */

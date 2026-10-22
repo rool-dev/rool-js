@@ -39,7 +39,7 @@ The client also contains top-level helpers for greetings, Speechmatics tokens, i
 
 ## Teams
 
-A team is an account people share. `createTeam(name)` starts one on the Team plan, with the user as its only admin. A team has no balance of its own to start with and pays for what its members do on its machines.
+A team is an account people share. `createTeam(name)` starts one on the Team plan, with the user as its only admin. Teams follow the same country rule as web sales: `getPlans().market.teams` says whether one can be started and funded from where the user is, and `createTeam()` and `topUp()` fail with `team_not_available` otherwise, so hide "Start a team" when it is false. A team has no balance of its own to start with and pays for what its members do on its machines.
 
 `client.account(accountId)` is a handle on an account the user is on the roster of:
 
