@@ -3,25 +3,19 @@ import {
   type AuthTokenResponse,
   type TokenAuthConfig,
 } from "./auth-base.js";
-import type { PasswordSignInResult } from "./types.js";
-
-export type NativeAuthProvider = "google" | "apple";
 
 export interface NativeAuthConfig extends TokenAuthConfig {
   redirectUri: string;
-  defaultProvider?: NativeAuthProvider;
   openExternal: (url: string) => void | Promise<void>;
 }
 
 export class NativeAuth extends TokenAuth {
   private readonly redirectUri: string;
-  private readonly defaultProvider: NativeAuthProvider;
   private readonly openExternal: (url: string) => void | Promise<void>;
 
   constructor(config: NativeAuthConfig) {
     super(config);
     this.redirectUri = config.redirectUri;
-    this.defaultProvider = config.defaultProvider ?? "google";
     this.openExternal = config.openExternal;
   }
 
@@ -33,19 +27,28 @@ export class NativeAuth extends TokenAuth {
     _appName: string,
     params?: Record<string, string>,
   ): Promise<void> {
-    await this.startPkce(params);
+    await this.startPkce("login", params);
   }
 
   async signup(
     _appName: string,
     params?: Record<string, string>,
   ): Promise<void> {
-    await this.startPkce(params);
+    await this.startPkce("signup", params);
+  }
+
+  cancelLogin(): void {
+    this.clearTransientState();
+  }
+
+  async verify(token: string): Promise<boolean> {
+    // Email links start an independent sign-in, even after the browser was
+    // closed. Invalidate its pending exchange before either response arrives.
+    this.clearTransientState();
+    return super.verify(token);
   }
 
   async handleRedirect(url: string): Promise<boolean> {
-    if (!url.startsWith(this.redirectUri)) return false;
-
     let parsed: URL;
     try {
       parsed = new URL(url);
@@ -53,22 +56,21 @@ export class NativeAuth extends TokenAuth {
       return false;
     }
 
-    const error = parsed.searchParams.get("error");
-    if (error) {
-      console.warn(`[RoolAuth] Native auth error: ${error}`);
-      this.clearTransientState();
-      return false;
-    }
+    const callback = new URL(this.redirectUri);
+    if (parsed.protocol !== callback.protocol || parsed.host !== callback.host
+      || parsed.pathname !== callback.pathname || parsed.username || parsed.password || parsed.hash) return false;
 
     const code = parsed.searchParams.get("code");
     const incomingState = parsed.searchParams.get("state");
     const verifier = this.readString(this.verifierKey);
     const storedState = this.readString(this.stateKey);
-    if (!code || !verifier) return false;
-    if (storedState && incomingState !== storedState) {
+    if (!verifier || !storedState || incomingState !== storedState) return false;
+    const error = parsed.searchParams.get("error");
+    if (error) {
       this.clearTransientState();
       return false;
     }
+    if (!code) return false;
 
     let response: Response;
     try {
@@ -82,72 +84,14 @@ export class NativeAuth extends TokenAuth {
       return false;
     }
 
-    this.clearTransientState();
-    if (!response.ok) return false;
-
     const data = await readJson<AuthTokenResponse>(response);
-    if (!data || !this.acceptTokenResponse(data)) return false;
+    // Email sign-in, cancellation or a newer attempt may have won while the
+    // exchange was in flight. Never replace that session with a late callback.
+    if (this.readString(this.stateKey) !== storedState) return false;
+    this.clearTransientState();
+    if (!response.ok || !data || !this.acceptTokenResponse(data)) return false;
     this.emitAuthState(true);
     return true;
-  }
-
-  async signInWithPassword(
-    email: string,
-    password: string,
-  ): Promise<PasswordSignInResult> {
-    let response: Response;
-    try {
-      response = await this.fetchAuth("/login-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-    } catch (error) {
-      console.error("[RoolAuth] Password sign-in failed:", error);
-      throw new Error("Network error. Please try again.");
-    }
-
-    const data = await readJson<
-      AuthTokenResponse & {
-        ok?: boolean;
-        status?: "signed_in" | "verify_required";
-        error?: string;
-      }
-    >(response);
-    if (!data) throw new Error("Unexpected response. Please try again.");
-    if (!response.ok || data.ok === false) {
-      throw new Error(data.error || "Invalid email or password.");
-    }
-    if (data.status === "verify_required") {
-      return { status: "verify_required" };
-    }
-    if (!this.acceptTokenResponse(data)) {
-      throw new Error("Sign-in failed. Please try again.");
-    }
-
-    this.emitAuthState(true);
-    return { status: "signed_in" };
-  }
-
-  async requestMagicLink(email: string): Promise<void> {
-    let response: Response;
-    try {
-      response = await this.fetchAuth("/magic-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-    } catch (error) {
-      console.error("[RoolAuth] Magic-link request failed:", error);
-      throw new Error("Network error. Please try again.");
-    }
-
-    const data = await readJson<{ ok?: boolean; error?: string }>(response);
-    if (!response.ok || data?.ok === false) {
-      throw new Error(
-        data?.error || "Could not send the sign-in link. Please try again.",
-      );
-    }
   }
 
   protected clearTransientState(): void {
@@ -163,11 +107,7 @@ export class NativeAuth extends TokenAuth {
     return this.keyFor("pkce_state");
   }
 
-  private async startPkce(params?: Record<string, string>): Promise<void> {
-    const requestedProvider = params?.provider;
-    const provider = isProvider(requestedProvider)
-      ? requestedProvider
-      : this.defaultProvider;
+  private async startPkce(flow: "login" | "signup", params?: Record<string, string>): Promise<void> {
     const verifier = base64Url(randomBytes(32));
     const challenge = base64Url(
       await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
@@ -180,18 +120,20 @@ export class NativeAuth extends TokenAuth {
     this.writeString(this.stateKey, state);
 
     const url = new URL(`${this.authBaseUrl}/authorize`);
-    url.searchParams.set("provider", provider);
+    url.searchParams.set("flow", flow);
     url.searchParams.set("redirect_uri", this.redirectUri);
     url.searchParams.set("state", state);
     url.searchParams.set("code_challenge", challenge);
     url.searchParams.set("code_challenge_method", "S256");
     if (params?.rvid) url.searchParams.set("rvid", params.rvid);
-    await this.openExternal(url.toString());
+    if (params?.invite) url.searchParams.set("invite", params.invite);
+    try {
+      await this.openExternal(url.toString());
+    } catch (error) {
+      if (this.readString(this.stateKey) === state) this.clearTransientState();
+      throw error;
+    }
   }
-}
-
-function isProvider(value: string | undefined): value is NativeAuthProvider {
-  return value === "google" || value === "apple";
 }
 
 function randomBytes(length: number): Uint8Array<ArrayBuffer> {

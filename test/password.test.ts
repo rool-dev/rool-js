@@ -64,7 +64,7 @@ test("setPassword installs the replacement session", async () => {
     }),
   ]);
 
-  await auth.signInWithPassword("person@example.com", "password-1");
+  assert.equal(await auth.verify("email-link"), true);
   await auth.setPassword("new-password-1");
 
   assert.deepEqual(await auth.getTokens(), {
@@ -81,7 +81,7 @@ test("setPassword logs out when replacement credentials are invalid", async () =
   const states: boolean[] = [];
   auth.onAuthStateChanged((authenticated) => states.push(authenticated));
 
-  await auth.signInWithPassword("person@example.com", "password-1");
+  assert.equal(await auth.verify("email-link"), true);
   await auth.setPassword("new-password-1");
 
   assert.equal(await auth.isAuthenticated(), false);
@@ -94,7 +94,7 @@ test("setPassword retains the session when the update fails", async () => {
     jsonResponse({ error: "Could not update password" }, 500),
   ]);
 
-  await auth.signInWithPassword("person@example.com", "password-1");
+  assert.equal(await auth.verify("email-link"), true);
   await assert.rejects(
     () => auth.setPassword("new-password-1"),
     /Could not update password/,
@@ -112,7 +112,7 @@ test("requestEmailChange sends the authenticated new address", async () => {
     (url, init) => requests.push({ url, init }),
   );
 
-  await auth.signInWithPassword("person@example.com", "password-1");
+  assert.equal(await auth.verify("email-link"), true);
   await auth.requestEmailChange("new@example.com");
 
   const request = requests[1];
@@ -140,7 +140,7 @@ test("requestEmailChange exposes a typed refusal", async () => {
     ),
   ]);
 
-  await auth.signInWithPassword("person@example.com", "password-1");
+  assert.equal(await auth.verify("email-link"), true);
   await assert.rejects(
     () => auth.requestEmailChange("used@example.com"),
     (error) =>

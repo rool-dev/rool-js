@@ -4,7 +4,7 @@ export type { EmailChangeErrorCode } from "./auth-base.js";
 export { BrowserAuth } from "./auth-browser.js";
 export type { BrowserAuthConfig } from "./auth-browser.js";
 export { NativeAuth } from "./auth-native.js";
-export type { NativeAuthConfig, NativeAuthProvider } from "./auth-native.js";
+export type { NativeAuthConfig } from "./auth-native.js";
 export { RoolProblem } from "./problem.js";
 export { RoolAccountApi } from "./account.js";
 export type { AccountInvitesApi, AccountMembersApi } from "./account.js";
@@ -151,7 +151,6 @@ export type {
   MachineStorage,
   MachineStorageAreas,
   MachineSummary,
-  PasswordSignInResult,
   RoolAuth,
   RoolClientConfig,
   RoolClientIdentity,

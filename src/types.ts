@@ -604,10 +604,6 @@ export interface SpeechmaticsTokenOptions {
   ttl?: number;
 }
 
-export type PasswordSignInResult = {
-  status: "signed_in" | "verify_required";
-};
-
 export interface RoolRequestTokens {
   accessToken: string;
   roolToken: string;
