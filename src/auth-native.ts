@@ -94,6 +94,18 @@ export class NativeAuth extends TokenAuth {
     return true;
   }
 
+  protected async verificationParams(): Promise<Record<string, string>> {
+    const verifier = base64Url(randomBytes(32));
+    const state = base64Url(randomBytes(24));
+    const challenge = base64Url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+    this.writeString(this.verifierKey, verifier);
+    this.writeString(this.stateKey, state);
+    return { redirect_uri: this.redirectUri, state, code_challenge: challenge, code_challenge_method: "S256" };
+  }
+
+  protected async continueVerification(url: string): Promise<void> { await this.openExternal(url); }
+  protected async finishVerificationRedirect(url: string): Promise<boolean> { return this.handleRedirect(url); }
+
   protected clearTransientState(): void {
     this.removeString(this.verifierKey);
     this.removeString(this.stateKey);

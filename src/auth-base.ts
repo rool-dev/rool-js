@@ -13,6 +13,9 @@ export interface AuthTokenResponse {
   refresh_token?: unknown;
   rool_token?: unknown;
   expires_in?: unknown;
+  status?: unknown;
+  continuation_url?: unknown;
+  redirect_uri?: unknown;
 }
 
 export type EmailChangeErrorCode =
@@ -116,7 +119,7 @@ export abstract class TokenAuth implements RoolAuth {
       response = await this.fetchAuth("/verify-and-signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, ...await this.verificationParams() }),
       });
     } catch (error) {
       console.error("[RoolAuth] verify network error:", error);
@@ -125,10 +128,23 @@ export abstract class TokenAuth implements RoolAuth {
     if (!response.ok) return false;
 
     const data = await readTokenResponse(response);
-    if (!data || !this.acceptTokenResponse(data)) return false;
+    if (!data) return false;
+    if (data.status === "second_factor_required" && typeof data.continuation_url === "string") {
+      const target = new URL(data.continuation_url);
+      if (target.origin !== new URL(this.authBaseUrl).origin || target.pathname !== "/login/2fa") return false;
+      await this.continueVerification(target.toString());
+      return true; // The link was accepted; auth state changes only after the second step.
+    }
+    if (typeof data.redirect_uri === "string") return this.finishVerificationRedirect(data.redirect_uri);
+    if (!this.acceptTokenResponse(data)) return false;
+    this.clearTransientState();
     this.emitAuthState(true);
     return true;
   }
+
+  protected async verificationParams(): Promise<Record<string, string>> { return {}; }
+  protected async continueVerification(url: string): Promise<void> { window.location.assign(url); }
+  protected async finishVerificationRedirect(_url: string): Promise<boolean> { return false; }
 
   async setPassword(password: string): Promise<void> {
     const tokens = await this.getTokens();
@@ -139,6 +155,7 @@ export abstract class TokenAuth implements RoolAuth {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${tokens.accessToken}`,
+        "X-Rool-Token": tokens.roolToken || "",
       },
       body: JSON.stringify({ password }),
     });
@@ -165,6 +182,7 @@ export abstract class TokenAuth implements RoolAuth {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${tokens.accessToken}`,
+        "X-Rool-Token": tokens.roolToken || "",
       },
       body: JSON.stringify({ new_email: newEmail }),
     });

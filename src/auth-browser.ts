@@ -19,6 +19,15 @@ export class BrowserAuth extends TokenAuth {
     this.redirectToAuth("signup", appName, params);
   }
 
+  protected async verificationParams(): Promise<Record<string, string>> {
+    const target = new URL(window.location.href);
+    target.searchParams.delete("verify");
+    target.hash = "";
+    const state = randomState();
+    this.storeState(state);
+    return { redirect_uri: target.toString(), state };
+  }
+
   private processCallback(): boolean {
     const hash = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
