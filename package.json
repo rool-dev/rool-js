@@ -1,6 +1,6 @@
 {
   "name": "@rool-dev/sdk",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "TypeScript SDK for Rool Machines",
   "packageManager": "pnpm@10.34.5",
   "type": "module",
