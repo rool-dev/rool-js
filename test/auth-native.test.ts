@@ -195,33 +195,36 @@ test("email sign-in wins over an in-flight browser exchange", async () => {
     if (browser) await paused;
     return {
       ok: true, status: 200,
-      json: async () => ({ id_token: browser ? "browser-user" : "email-user", refresh_token: "refresh", expires_in: 3600 }),
+      json: async () => browser
+        ? { id_token: "browser-user", refresh_token: "refresh", expires_in: 3600 }
+        : { continuation_url: `https://rool.dev/login/email#${"a".repeat(43)}` },
     };
   });
   await provider.login("Rool");
   const state = new URL(opened[0]).searchParams.get("state");
   const returning = provider.handleRedirect(`${REDIRECT_URI}?code=x&state=${state}`);
-  assert.equal(await provider.verify("email-link"), true);
+  await provider.loginWithEmailLink("email-link");
   release();
   assert.equal(await returning, false);
-  assert.equal((await provider.getTokens())?.accessToken, "email-user");
-  assert.deepEqual(authStates, [true]);
+  assert.equal(await provider.isAuthenticated(), false);
+  assert.deepEqual(authStates, []);
 });
 
 test("starting email verification invalidates the browser before email responds", async () => {
   let release!: () => void;
   const paused = new Promise<void>((resolve) => { release = resolve; });
   const { provider, opened } = makeProvider(async (url) => {
-    assert.equal(url, `${AUTH_URL}/verify-and-signin`);
+    assert.equal(url, `${AUTH_URL}/email/start`);
     await paused;
-    return { ok: true, status: 200, json: async () => ({ id_token: "email", expires_in: 3600 }) };
+    return { ok: true, status: 200, json: async () => ({ continuation_url: `https://rool.dev/login/email#${"a".repeat(43)}` }) };
   });
   await provider.login("Rool");
   const state = new URL(opened[0]).searchParams.get("state");
-  const verifying = provider.verify("email-link");
+  const verifying = provider.loginWithEmailLink("email-link");
   assert.equal(await provider.handleRedirect(`${REDIRECT_URI}?code=late&state=${state}`), false);
   release();
-  assert.equal(await verifying, true);
+  await verifying;
+  assert.equal(await provider.isAuthenticated(), false);
 });
 
 test("cancelling an in-flight exchange prevents it from signing in", async () => {

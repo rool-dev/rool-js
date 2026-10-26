@@ -23,29 +23,8 @@ export class NativeAuth extends TokenAuth {
     return this.isAuthenticated();
   }
 
-  async login(
-    _appName: string,
-    params?: Record<string, string>,
-  ): Promise<void> {
-    await this.startPkce("login", params);
-  }
-
-  async signup(
-    _appName: string,
-    params?: Record<string, string>,
-  ): Promise<void> {
-    await this.startPkce("signup", params);
-  }
-
   cancelLogin(): void {
     this.clearTransientState();
-  }
-
-  async verify(token: string): Promise<boolean> {
-    // Email links start an independent sign-in, even after the browser was
-    // closed. Invalidate its pending exchange before either response arrives.
-    this.clearTransientState();
-    return super.verify(token);
   }
 
   async handleRedirect(url: string): Promise<boolean> {
@@ -94,18 +73,6 @@ export class NativeAuth extends TokenAuth {
     return true;
   }
 
-  protected async verificationParams(): Promise<Record<string, string>> {
-    const verifier = base64Url(randomBytes(32));
-    const state = base64Url(randomBytes(24));
-    const challenge = base64Url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
-    this.writeString(this.verifierKey, verifier);
-    this.writeString(this.stateKey, state);
-    return { redirect_uri: this.redirectUri, state, code_challenge: challenge, code_challenge_method: "S256" };
-  }
-
-  protected async continueVerification(url: string): Promise<void> { await this.openExternal(url); }
-  protected async finishVerificationRedirect(url: string): Promise<boolean> { return this.handleRedirect(url); }
-
   protected clearTransientState(): void {
     this.removeString(this.verifierKey);
     this.removeString(this.stateKey);
@@ -119,28 +86,28 @@ export class NativeAuth extends TokenAuth {
     return this.keyFor("pkce_state");
   }
 
-  private async startPkce(flow: "login" | "signup", params?: Record<string, string>): Promise<void> {
+  protected async startLogin(
+    flow: "login" | "signup", _appName: string, params?: Record<string, string>, emailToken?: string,
+  ): Promise<void> {
     const verifier = base64Url(randomBytes(32));
-    const challenge = base64Url(
-      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
-    );
-    const state = Array.from(randomBytes(16), (byte) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
-
+    const state = base64Url(randomBytes(24));
+    // Invalidate the previous attempt before hashing or making any request.
     this.writeString(this.verifierKey, verifier);
     this.writeString(this.stateKey, state);
-
-    const url = new URL(`${this.authBaseUrl}/authorize`);
-    url.searchParams.set("flow", flow);
-    url.searchParams.set("redirect_uri", this.redirectUri);
-    url.searchParams.set("state", state);
-    url.searchParams.set("code_challenge", challenge);
-    url.searchParams.set("code_challenge_method", "S256");
-    if (params?.rvid) url.searchParams.set("rvid", params.rvid);
-    if (params?.invite) url.searchParams.set("invite", params.invite);
     try {
-      await this.openExternal(url.toString());
+      if (this.readString(this.stateKey) !== state || this.readString(this.verifierKey) !== verifier) {
+        throw new Error("Browser storage is required to complete sign-in.");
+      }
+      const challenge = base64Url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+      const target = {
+        flow, redirect_uri: this.redirectUri, state, code_challenge: challenge, code_challenge_method: "S256",
+        ...(params?.rvid && { rvid: params.rvid }), ...(params?.invite && { invite: params.invite }),
+      };
+      const url = emailToken !== undefined
+        ? await this.emailLoginUrl(emailToken, target)
+        : `${this.authBaseUrl}/authorize?${new URLSearchParams(target)}`;
+      if (this.readString(this.stateKey) !== state) return;
+      await this.openExternal(url);
     } catch (error) {
       if (this.readString(this.stateKey) === state) this.clearTransientState();
       throw error;

@@ -8,26 +8,6 @@ export class BrowserAuth extends TokenAuth {
     return this.isAuthenticated();
   }
 
-  async login(appName: string, params?: Record<string, string>): Promise<void> {
-    this.redirectToAuth("login", appName, params);
-  }
-
-  async signup(
-    appName: string,
-    params?: Record<string, string>,
-  ): Promise<void> {
-    this.redirectToAuth("signup", appName, params);
-  }
-
-  protected async verificationParams(): Promise<Record<string, string>> {
-    const target = new URL(window.location.href);
-    target.searchParams.delete("verify");
-    target.hash = "";
-    const state = randomState();
-    this.storeState(state);
-    return { redirect_uri: target.toString(), state };
-  }
-
   private processCallback(): boolean {
     const hash = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
@@ -40,7 +20,9 @@ export class BrowserAuth extends TokenAuth {
 
     const incomingState = params.get("state");
     const storedState = this.readState();
-    if (storedState && incomingState && incomingState !== storedState) {
+    // Website-first login has no SDK state: the user need not visit the app
+    // before authenticating. A callback carrying state must match its attempt.
+    if (incomingState !== null && incomingState !== storedState) {
       console.error("[RoolAuth] Browser auth state mismatch");
       return false;
     }
@@ -63,27 +45,25 @@ export class BrowserAuth extends TokenAuth {
     return true;
   }
 
-  private redirectToAuth(
-    flow: "login" | "signup",
-    appName: string,
-    params?: Record<string, string>,
-  ): void {
-    const url = new URL(`/${flow}`, new URL(this.authBaseUrl).origin);
-    url.searchParams.set(
-      "redirect_uri",
-      window.location.origin +
-        window.location.pathname +
-        window.location.search,
-    );
-    url.searchParams.set("app_name", appName);
-    for (const [name, value] of Object.entries(params ?? {})) {
-      url.searchParams.set(name, value);
-    }
-
+  protected async startLogin(
+    flow: "login" | "signup", appName: string, params?: Record<string, string>, emailToken?: string,
+  ): Promise<void> {
+    const callback = new URL(window.location.origin + window.location.pathname + window.location.search);
+    callback.searchParams.delete("verify");
     const state = randomState();
     this.storeState(state);
-    url.searchParams.set("state", state);
-    window.location.href = url.toString();
+    const target = { ...params, redirect_uri: callback.toString(), state, app_name: appName };
+    try {
+      const url = emailToken !== undefined
+        ? await this.emailLoginUrl(emailToken, target)
+        : `${new URL(`/${flow}`, new URL(this.authBaseUrl).origin)}?${new URLSearchParams(target)}`;
+      // A newer attempt or logout can win while the handoff POST is in flight.
+      if (this.readState() !== state) return;
+      window.location.href = url;
+    } catch (error) {
+      if (this.readState() === state) this.clearState();
+      throw error;
+    }
   }
 
   protected clearTransientState(): void {
@@ -95,11 +75,8 @@ export class BrowserAuth extends TokenAuth {
   }
 
   private storeState(value: string): void {
-    try {
-      sessionStorage.setItem(this.stateKey, value);
-    } catch {
-      // Storage can be unavailable in restricted browser contexts.
-    }
+    // A callback cannot be verified without this state. Fail before leaving.
+    sessionStorage.setItem(this.stateKey, value);
   }
 
   private readState(): string | null {

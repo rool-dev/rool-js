@@ -90,6 +90,62 @@ test("browser auth redirects, accepts paired tokens, and reports state", async (
   assert.deepEqual(states, [true, false]);
 });
 
+for (const abandonedAttempt of [false, true]) {
+  test(`website-first callback works without SDK state, abandoned attempt: ${abandonedAttempt}`, async () => {
+    const config = { authUrl: "https://rool.dev/auth" };
+    let abandonedState: string | undefined;
+    if (abandonedAttempt) {
+      await new BrowserAuth(config).login("Rool");
+      abandonedState = new URL(location.href).searchParams.get("state")!;
+    }
+    // Password, providers and passkeys all return this completed-session shape.
+    const tokens = { id_token: "website-access", refresh_token: "refresh", rool_token: "proof", expires_in: "3600" };
+    location.hash = new URLSearchParams(tokens).toString();
+    const returned = new BrowserAuth(config);
+    const events: boolean[] = [];
+    returned.onAuthStateChanged(value => events.push(value));
+    assert.equal(await returned.initialize(), true);
+    assert.deepEqual(await returned.getTokens(), { accessToken: "website-access", roolToken: "proof" });
+    assert.deepEqual(events, [true]);
+    assert.equal(replacedUrl, "https://app.example/start?source=test");
+
+    if (abandonedState) {
+      // Accepting the website login also retires the abandoned SDK attempt.
+      local.clear();
+      location.hash = new URLSearchParams({ ...tokens, state: abandonedState }).toString();
+      assert.equal(await returned.initialize(), false);
+    }
+  });
+}
+
+test("callbacks carrying state reject unknown, empty, wrong and replayed state", async () => {
+  const auth = new BrowserAuth({ authUrl: "https://rool.dev/auth" });
+  const callback = (state?: string) => new URLSearchParams({
+    id_token: "access", refresh_token: "refresh", rool_token: "proof", expires_in: "3600", ...(state !== undefined && { state }),
+  }).toString();
+  location.hash = callback("unsolicited");
+  assert.equal(await auth.initialize(), false);
+  await auth.login("Rool");
+  const state = new URL(location.href).searchParams.get("state")!;
+  for (const invalid of ["", "wrong"]) {
+    location.hash = callback(invalid);
+    assert.equal(await auth.initialize(), false);
+  }
+  location.hash = callback(state);
+  assert.equal(await auth.initialize(), true);
+  await auth.logout();
+  location.hash = callback(state);
+  assert.equal(await auth.initialize(), false);
+});
+
+test("caller parameters cannot overwrite the SDK callback or state", async () => {
+  const auth = new BrowserAuth({ authUrl: "https://rool.dev/auth" });
+  await auth.login("Rool", { redirect_uri: "https://evil.test", state: "foreign" });
+  const url = new URL(location.href);
+  assert.equal(url.searchParams.get("redirect_uri"), "https://app.example/start?source=test");
+  assert.notEqual(url.searchParams.get("state"), "foreign");
+});
+
 test("browser signup uses the hosted signup page", async () => {
   const auth = new BrowserAuth({ authUrl: "https://rool.dev/auth" });
   await auth.signup("Test App");

@@ -10,9 +10,25 @@ Authentication is separate from the client, so choose the helper that fits the a
 
 - `NodeAuth` opens a browser and keeps credentials it can refresh in a local file. Import it from `@rool-dev/sdk/node`.
 - `BrowserAuth` redirects to Rool and processes the return URL in `initialize()`. It keeps credentials in browser storage.
-- `NativeAuth` opens sign-in with a supplied `openExternal` function. Pass deep-link returns to `handleRedirect()`; password and magic-link flows are also available.
+- `NativeAuth` opens the same hosted sign-in with a supplied `openExternal` function. Pass deep-link returns to `handleRedirect()`; the app redeems a one-time code using its saved PKCE verifier.
 
 Call `initialize()` before making protected requests. Pass the auth helper's `getTokens` to `RoolClient`, and normally pass `logout` as `onAuthInvalidated`. The client asks for tokens before every request, which lets the helper refresh them when needed. Apps with their own authentication can instead provide `getTokens` or `getAccessToken` directly.
+
+### Starting and completing sign-in
+
+Rool's hosted sign-in handles authentication. Your application starts sign-in and handles the return; it does not implement the individual authentication steps.
+
+`BrowserAuth` and `NativeAuth` provide:
+
+- `login(appName, params?)` and `signup(appName, params?)` to open hosted sign-in or signup.
+- `loginWithEmailLink(token)` if your application receives an email sign-in token. This opens hosted authentication rather than signing in directly.
+- `onAuthStateChanged(listener)` to observe sign-in and sign-out, and `logout()` to clear the local session.
+
+The sign-in methods return `Promise<void>`. Resolving means the handoff has started, **not** that the user is authenticated. Handle errors in your UI. On web, stop the current startup path after handing off; do not start another login while navigation is pending.
+
+On web, call `BrowserAuth.initialize()` when the application loads to process a completed sign-in return. It also supports sign-in started directly on Rool's website. On native, pass incoming auth deep links to `NativeAuth.handleRedirect(url)`, which returns `true` after completing sign-in. Use `cancelLogin()` when a native sign-in attempt is cancelled.
+
+`setPassword()` changes the password and signs this client out on success. `requestEmailChange(newEmail)` sends a confirmation email. Both require an authenticated session.
 
 The optional `client` configuration identifies your app and version in requests. `apiUrl` and `fetch` are mainly useful for custom environments and tests.
 

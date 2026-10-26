@@ -13,14 +13,12 @@ export interface AuthTokenResponse {
   refresh_token?: unknown;
   rool_token?: unknown;
   expires_in?: unknown;
-  status?: unknown;
-  continuation_url?: unknown;
-  redirect_uri?: unknown;
 }
 
 export type EmailChangeErrorCode =
   | "missing_token"
   | "invalid_token"
+  | "second_factor_required"
   | "missing_email"
   | "invalid_email"
   | "account_not_found"
@@ -65,13 +63,25 @@ export abstract class TokenAuth implements RoolAuth {
   }
 
   abstract initialize(): Promise<boolean>;
-  abstract login(
-    appName: string,
-    params?: Record<string, string>,
-  ): Promise<void>;
-  abstract signup(
-    appName: string,
-    params?: Record<string, string>,
+  /** Opens hosted sign-in. Authentication completes only through the callback. */
+  login(appName: string, params?: Record<string, string>): Promise<void> {
+    return this.startLogin("login", appName, params);
+  }
+
+  signup(appName: string, params?: Record<string, string>): Promise<void> {
+    return this.startLogin("signup", appName, params);
+  }
+
+  /** Starts a fresh hosted sign-in where the email link was opened.
+   * On web, stop app startup after this resolves: the browser is navigating away.
+   * On native, keep listening for handleRedirect(). This never signs in directly.
+   */
+  loginWithEmailLink(token: string): Promise<void> {
+    return this.startLogin("login", "", undefined, token);
+  }
+
+  protected abstract startLogin(
+    flow: "login" | "signup", appName: string, params?: Record<string, string>, emailToken?: string,
   ): Promise<void>;
 
   async isAuthenticated(): Promise<boolean> {
@@ -113,38 +123,20 @@ export abstract class TokenAuth implements RoolAuth {
     return () => this.listeners.delete(listener);
   }
 
-  async verify(token: string): Promise<boolean> {
-    let response: Response;
-    try {
-      response = await this.fetchAuth("/verify-and-signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, ...await this.verificationParams() }),
-      });
-    } catch (error) {
-      console.error("[RoolAuth] verify network error:", error);
-      return false;
+  protected async emailLoginUrl(token: string, params: Record<string, string>): Promise<string> {
+    const response = await this.fetchAuth("/email/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, ...params }),
+    });
+    const data = await response.json() as { continuation_url?: string; message?: string };
+    if (!response.ok) throw new Error(data.message || "Could not start email sign-in. Open the email link again.");
+    const target = new URL(data.continuation_url!);
+    if (target.origin !== new URL(this.authBaseUrl).origin || target.pathname !== "/login/email"
+      || target.username || target.password || target.search || !/^#[A-Za-z0-9_-]{43}$/.test(target.hash)) {
+      throw new Error("Invalid email sign-in destination.");
     }
-    if (!response.ok) return false;
-
-    const data = await readTokenResponse(response);
-    if (!data) return false;
-    if (data.status === "second_factor_required" && typeof data.continuation_url === "string") {
-      const target = new URL(data.continuation_url);
-      if (target.origin !== new URL(this.authBaseUrl).origin || target.pathname !== "/login/2fa") return false;
-      await this.continueVerification(target.toString());
-      return true; // The link was accepted; auth state changes only after the second step.
-    }
-    if (typeof data.redirect_uri === "string") return this.finishVerificationRedirect(data.redirect_uri);
-    if (!this.acceptTokenResponse(data)) return false;
-    this.clearTransientState();
-    this.emitAuthState(true);
-    return true;
+    return target.toString();
   }
-
-  protected async verificationParams(): Promise<Record<string, string>> { return {}; }
-  protected async continueVerification(url: string): Promise<void> { window.location.assign(url); }
-  protected async finishVerificationRedirect(_url: string): Promise<boolean> { return false; }
 
   async setPassword(password: string): Promise<void> {
     const tokens = await this.getTokens();
@@ -159,18 +151,11 @@ export abstract class TokenAuth implements RoolAuth {
       },
       body: JSON.stringify({ password }),
     });
-    const data = (await response.json().catch(() => null)) as
-      (AuthTokenResponse & { error?: string }) | null;
-    if (!response.ok) {
-      throw new Error(data?.error ?? `set-password failed: ${response.status}`);
-    }
-
-    const hasRefreshToken = typeof data?.refresh_token === "string";
-    const accepted =
-      data &&
-      hasRefreshToken &&
-      this.acceptTokenResponse(data, { roolToken: tokens.roolToken });
-    if (!accepted) await this.logout();
+    const data = (await response.json()) as { error?: string; message?: string };
+    if (!response.ok) throw new Error(data.message ?? data.error ?? `set-password failed: ${response.status}`);
+    // Password changes invalidate the Firebase session. Re-enter hosted login,
+    // including 2FA, rather than attaching old proof to replacement credentials.
+    await this.logout();
   }
 
   async requestEmailChange(newEmail: string): Promise<void> {
