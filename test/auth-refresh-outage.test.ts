@@ -146,6 +146,45 @@ test("a 401 on an authenticated request fires onAuthInvalidated", async () => {
   assert.equal(invalidated, 1);
 });
 
+test("a 401 on a request whose token was refreshed in flight does not fire onAuthInvalidated", async () => {
+  let invalidated = 0;
+  let accessToken = "stale";
+  const client = new RoolClient({
+    apiUrl: "https://api.example",
+    fetch: fetchStub(() => {
+      accessToken = "fresh";
+      return new Response("unauthorized", { status: 401 });
+    }),
+    getTokens: async () => ({ accessToken, roolToken: "rool" }),
+    onAuthInvalidated: () => {
+      invalidated += 1;
+    },
+  });
+
+  await assert.rejects(client.getSession());
+  assert.equal(invalidated, 0);
+});
+
+test("a 401 whose token refresh fails surfaces the 401, not the refresh error", async () => {
+  let invalidated = 0;
+  let calls = 0;
+  const refreshError = new RoolAuthUnavailableError();
+  const client = new RoolClient({
+    apiUrl: "https://api.example",
+    fetch: fetchStub(() => new Response("unauthorized", { status: 401 })),
+    getTokens: async () => {
+      if (calls++ > 0) throw refreshError;
+      return { accessToken: "token", roolToken: "rool" };
+    },
+    onAuthInvalidated: () => {
+      invalidated += 1;
+    },
+  });
+
+  await assert.rejects(client.getSession(), (error) => error !== refreshError);
+  assert.equal(invalidated, 0);
+});
+
 test("a 401 on an unauthenticated request does not fire onAuthInvalidated", async () => {
   let invalidated = 0;
   const client = new RoolClient({

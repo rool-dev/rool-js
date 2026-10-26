@@ -419,10 +419,14 @@ export class RoolClient {
         !bodyIsReplayable ||
         retry >= ROUTE_CHANGE_MAX_RETRIES
       ) {
-        // A 401 only signals invalidated credentials when we actually sent
-        // some; an unauthenticated request says nothing about the session.
+        // A request can outlive its token (refreshed in flight or expired
+        // across a sleep), so only a 401 on the current token means the
+        // session is gone. A failed refresh here leaves that unknown.
         if (response.status === 401 && tokens?.accessToken) {
-          void this.onAuthInvalidated?.();
+          const current = await this.getTokens().catch(() => undefined);
+          if (current?.accessToken === tokens.accessToken) {
+            void this.onAuthInvalidated?.();
+          }
         }
         return response;
       }
