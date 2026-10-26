@@ -54,12 +54,12 @@ export class BrowserAuth extends TokenAuth {
     this.storeState(state);
     const target = { ...params, redirect_uri: callback.toString(), state, app_name: appName };
     try {
-      const url = emailToken !== undefined
-        ? await this.emailLoginUrl(emailToken, target)
-        : `${new URL(`/${flow}`, new URL(this.authBaseUrl).origin)}?${new URLSearchParams(target)}`;
-      // A newer attempt or logout can win while the handoff POST is in flight.
-      if (this.readState() !== state) return;
-      window.location.href = url;
+      const url = new URL(`/${flow}`, new URL(this.authBaseUrl).origin);
+      url.search = new URLSearchParams(target).toString();
+      // Old app-domain email links still enter here. Only the hosted page reads
+      // the credential, which stays out of HTTP URLs and referrers.
+      if (emailToken !== undefined) url.hash = new URLSearchParams({ verify: emailToken }).toString();
+      window.location.href = url.toString();
     } catch (error) {
       if (this.readState() === state) this.clearState();
       throw error;

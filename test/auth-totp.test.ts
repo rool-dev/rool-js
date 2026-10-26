@@ -12,7 +12,6 @@ class Storage {
 }
 
 const authUrl = "https://rool.dev/auth";
-const continuation = `https://rool.dev/login/email#${"a".repeat(43)}`;
 const session = { id_token: "verified-id", refresh_token: "refresh", rool_token: "proof", expires_in: 3600 };
 let location: URL;
 
@@ -24,95 +23,70 @@ beforeEach(() => {
   });
 });
 
-test("email links only start hosted login, a new web instance accepts the final callback", async () => {
-  let body: Record<string, string> = {};
-  const auth = new BrowserAuth({ authUrl, fetch: async (url, init) => {
-    assert.equal(String(url), `${authUrl}/email/start`);
-    body = JSON.parse(String(init?.body));
-    return Response.json({ continuation_url: continuation });
-  } });
+test("legacy app email links open hosted login directly, a new web instance accepts the final callback", async () => {
+  const auth = new BrowserAuth({ authUrl, fetch: async () => { throw new Error("No email handoff request"); } });
   const events: boolean[] = [];
   auth.onAuthStateChanged(value => events.push(value));
   await auth.loginWithEmailLink("email-link");
-  assert.equal(location.href, continuation);
-  assert.equal(body.token, "email-link");
-  assert.equal(body.redirect_uri, "https://rool.app/join-team/invite?account=team");
-  assert.ok(body.state);
+  const login = new URL(location.href);
+  assert.equal(login.origin + login.pathname, "https://rool.dev/login");
+  assert.equal(new URLSearchParams(login.hash.slice(1)).get("verify"), "email-link");
+  assert.equal(login.searchParams.get("redirect_uri"), "https://rool.app/join-team/invite?account=team");
+  assert.equal(login.search.includes("email-link"), false);
   assert.equal(await auth.isAuthenticated(), false);
   assert.deepEqual(events, []);
 
-  // Website completes email verification and optional TOTP before returning.
-  location.href = body.redirect_uri;
-  location.hash = new URLSearchParams({ ...session, expires_in: "3600", state: body.state }).toString();
+  location.href = login.searchParams.get("redirect_uri")!;
+  location.hash = new URLSearchParams({ ...session, expires_in: "3600", state: login.searchParams.get("state")! }).toString();
   const returned = new BrowserAuth({ authUrl });
   assert.equal(await returned.initialize(), true);
   assert.deepEqual(await returned.getTokens(), { accessToken: session.id_token, roolToken: session.rool_token });
 });
 
-test("native email login uses the same fresh PKCE and code callback with or without TOTP", async () => {
-  let body: Record<string, string> = {};
+test("native email uses ordinary authorization with fresh PKCE and a credential fragment", async () => {
   const opened: string[] = [];
-  const fetch: typeof globalThis.fetch = async (url, init) => {
-    const data = JSON.parse(String(init?.body));
-    if (String(url).endsWith("/email/start")) {
-      body = data;
-      return Response.json({ continuation_url: continuation });
-    }
-    assert.equal(String(url), `${authUrl}/token`);
-    assert.equal(createHash("sha256").update(data.code_verifier).digest("base64url"), body.code_challenge);
-    return Response.json(session);
+  let challenge = "";
+  const config = {
+    authUrl, redirectUri: "rooliosauth://auth/callback", openExternal: (url: string) => { opened.push(url); },
+    fetch: async (url: string | URL | Request, init?: RequestInit) => {
+      assert.equal(String(url), `${authUrl}/token`);
+      const data = JSON.parse(String(init?.body));
+      assert.equal(createHash("sha256").update(data.code_verifier).digest("base64url"), challenge);
+      return Response.json(session);
+    },
   };
-  const config = { authUrl, redirectUri: "rooliosauth://auth/callback", openExternal: (url: string) => { opened.push(url); }, fetch };
   const auth = new NativeAuth(config);
   await auth.loginWithEmailLink("email-link");
-  assert.deepEqual(opened, [continuation]);
+  const login = new URL(opened[0]);
+  assert.equal(login.origin + login.pathname, `${authUrl}/authorize`);
+  assert.equal(new URLSearchParams(login.hash.slice(1)).get("verify"), "email-link");
+  assert.equal(login.search.includes("email-link"), false);
+  assert.equal(login.searchParams.get("code_challenge_method"), "S256");
+  challenge = login.searchParams.get("code_challenge")!;
   assert.equal(await auth.isAuthenticated(), false);
-  assert.equal(body.code_challenge_method, "S256");
   const restarted = new NativeAuth(config);
-  assert.equal(await restarted.handleRedirect(`${body.redirect_uri}?code=verified-code&state=${body.state}`), true);
+  assert.equal(await restarted.handleRedirect(`${config.redirectUri}?code=verified-code&state=${login.searchParams.get("state")}`), true);
   assert.equal((await restarted.getTokens())?.roolToken, "proof");
 });
 
-test("a handoff cannot send the browser to another origin, page or credential-bearing URL", async () => {
-  const original = location.href;
-  for (const continuation_url of [
-    "https://evil.test/login/email#" + "a".repeat(43),
-    "https://rool.dev/login/2fa#" + "a".repeat(43),
-    "https://user@rool.dev/login/email#" + "a".repeat(43),
-    continuation.replace("#", "?token=secret#"),
-    "https://rool.dev/login/email#short",
-  ]) {
-    const auth = new BrowserAuth({ authUrl, fetch: async () => Response.json({ continuation_url }) });
-    await assert.rejects(auth.loginWithEmailLink("email-link"));
-    assert.equal(location.href, original);
-    assert.equal(await auth.isAuthenticated(), false);
-  }
-});
-
-test("handoff failure is visible and does not install response tokens", async () => {
-  const auth = new BrowserAuth({ authUrl, fetch: async () => Response.json({ message: "Try again shortly" }, { status: 503 }) });
-  await assert.rejects(auth.loginWithEmailLink("email-link"), /Try again shortly/);
-  const bad = new BrowserAuth({ authUrl, fetch: async () => Response.json(session) });
-  await assert.rejects(bad.loginWithEmailLink("email-link"));
-  assert.equal(await bad.isAuthenticated(), false);
-});
-
-test("native handoff cancellation prevents a late response from reopening the browser", async () => {
-  let finish!: (response: Response) => void;
-  let requested!: () => void;
-  const started = new Promise<void>(resolve => { requested = resolve; });
+test("native cancellation while preparing PKCE does not reopen the browser", async () => {
   const opened: string[] = [];
-  const auth = new NativeAuth({
-    authUrl, redirectUri: "rooliosauth://auth/callback", openExternal: url => { opened.push(url); },
-    fetch: () => { requested(); return new Promise(resolve => { finish = resolve; }); },
-  });
+  const auth = new NativeAuth({ authUrl, redirectUri: "rooliosauth://auth/callback", openExternal: url => { opened.push(url); } });
   const login = auth.loginWithEmailLink("email-link");
-  await started;
   auth.cancelLogin();
-  finish(Response.json({ continuation_url: continuation }));
   await login;
   assert.deepEqual(opened, []);
   assert.equal(await auth.isAuthenticated(), false);
+});
+
+test("a newer native login wins while an earlier email attempt is being prepared", async () => {
+  const opened: string[] = [];
+  const auth = new NativeAuth({ authUrl, redirectUri: "rooliosauth://auth/callback", openExternal: url => { opened.push(url); } });
+  const email = auth.loginWithEmailLink("email-link");
+  const newer = auth.login("Rool");
+  await Promise.all([email, newer]);
+  assert.equal(opened.length, 1);
+  assert.equal(new URL(opened[0]).hash, "");
 });
 
 test("required attempt storage failures reject before opening a browser", async () => {
@@ -120,24 +94,18 @@ test("required attempt storage failures reject before opening a browser", async 
     sessionStorage: { setItem() { throw new Error("Storage blocked"); } },
     localStorage: { setItem() { throw new Error("Storage blocked"); }, getItem() { return null; }, removeItem() {} },
   });
-  const browser = new BrowserAuth({ authUrl, fetch: async () => { throw new Error("Should not fetch"); } });
+  const browser = new BrowserAuth({ authUrl });
   await assert.rejects(browser.loginWithEmailLink("email-link"), /Storage blocked/);
   const native = new NativeAuth({ authUrl, redirectUri: "rooliosauth://auth/callback", openExternal: () => { throw new Error("Should not open"); } });
   await assert.rejects(native.login("Rool"), /storage is required/);
 });
 
-test("a late email handoff cannot replace a newer login or reopen after logout", async () => {
-  let finish!: (response: Response) => void;
-  const auth = new BrowserAuth({ authUrl, fetch: () => new Promise(resolve => { finish = resolve; }) });
-  const email = auth.loginWithEmailLink("email-link");
-  await auth.login("Rool");
-  const newer = location.href;
-  finish(Response.json({ continuation_url: continuation }));
-  await email;
-  assert.equal(location.href, newer);
-  const second = auth.loginWithEmailLink("email-link");
-  await auth.logout();
-  finish(Response.json({ continuation_url: continuation }));
-  await second;
-  assert.equal(location.href, newer);
+test("failure to open hosted login is visible and invalidates the native attempt", async () => {
+  let attempted!: URL;
+  const auth = new NativeAuth({ authUrl, redirectUri: "rooliosauth://auth/callback", openExternal: url => {
+    attempted = new URL(url);
+    throw new Error("Browser unavailable");
+  } });
+  await assert.rejects(auth.loginWithEmailLink("email-link"), /Browser unavailable/);
+  assert.equal(await auth.handleRedirect(`rooliosauth://auth/callback?code=x&state=${attempted.searchParams.get("state")}`), false);
 });

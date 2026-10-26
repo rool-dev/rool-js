@@ -123,21 +123,6 @@ export abstract class TokenAuth implements RoolAuth {
     return () => this.listeners.delete(listener);
   }
 
-  protected async emailLoginUrl(token: string, params: Record<string, string>): Promise<string> {
-    const response = await this.fetchAuth("/email/start", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, ...params }),
-    });
-    const data = await response.json() as { continuation_url?: string; message?: string };
-    if (!response.ok) throw new Error(data.message || "Could not start email sign-in. Open the email link again.");
-    const target = new URL(data.continuation_url!);
-    if (target.origin !== new URL(this.authBaseUrl).origin || target.pathname !== "/login/email"
-      || target.username || target.password || target.search || !/^#[A-Za-z0-9_-]{43}$/.test(target.hash)) {
-      throw new Error("Invalid email sign-in destination.");
-    }
-    return target.toString();
-  }
-
   async setPassword(password: string): Promise<void> {
     const tokens = await this.getTokens();
     if (!tokens) throw new Error("Not authenticated");

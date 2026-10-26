@@ -191,13 +191,11 @@ test("email sign-in wins over an in-flight browser exchange", async () => {
   let release!: () => void;
   const paused = new Promise<void>((resolve) => { release = resolve; });
   const { provider, opened, authStates } = makeProvider(async (url) => {
-    const browser = url.endsWith("/token");
-    if (browser) await paused;
+    assert.equal(url, `${AUTH_URL}/token`);
+    await paused;
     return {
       ok: true, status: 200,
-      json: async () => browser
-        ? { id_token: "browser-user", refresh_token: "refresh", expires_in: 3600 }
-        : { continuation_url: `https://rool.dev/login/email#${"a".repeat(43)}` },
+      json: async () => ({ id_token: "browser-user", refresh_token: "refresh", expires_in: 3600 }),
     };
   });
   await provider.login("Rool");
@@ -210,20 +208,14 @@ test("email sign-in wins over an in-flight browser exchange", async () => {
   assert.deepEqual(authStates, []);
 });
 
-test("starting email verification invalidates the browser before email responds", async () => {
-  let release!: () => void;
-  const paused = new Promise<void>((resolve) => { release = resolve; });
-  const { provider, opened } = makeProvider(async (url) => {
-    assert.equal(url, `${AUTH_URL}/email/start`);
-    await paused;
-    return { ok: true, status: 200, json: async () => ({ continuation_url: `https://rool.dev/login/email#${"a".repeat(43)}` }) };
-  });
+test("starting email login invalidates the previous attempt before opening the browser", async () => {
+  const { provider, opened } = makeProvider(async () => { throw new Error("Should not exchange an old code"); });
   await provider.login("Rool");
   const state = new URL(opened[0]).searchParams.get("state");
-  const verifying = provider.loginWithEmailLink("email-link");
+  const starting = provider.loginWithEmailLink("email-link");
   assert.equal(await provider.handleRedirect(`${REDIRECT_URI}?code=late&state=${state}`), false);
-  release();
-  await verifying;
+  await starting;
+  assert.equal(new URLSearchParams(new URL(opened[1]).hash.slice(1)).get("verify"), "email-link");
   assert.equal(await provider.isAuthenticated(), false);
 });
 

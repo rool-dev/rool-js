@@ -103,11 +103,13 @@ export class NativeAuth extends TokenAuth {
         flow, redirect_uri: this.redirectUri, state, code_challenge: challenge, code_challenge_method: "S256",
         ...(params?.rvid && { rvid: params.rvid }), ...(params?.invite && { invite: params.invite }),
       };
-      const url = emailToken !== undefined
-        ? await this.emailLoginUrl(emailToken, target)
-        : `${this.authBaseUrl}/authorize?${new URLSearchParams(target)}`;
+      const url = new URL(`${this.authBaseUrl}/authorize`);
+      url.search = new URLSearchParams(target).toString();
+      // The HTTP redirect to /login preserves this fragment. The website then
+      // submits the email proof with the fresh request_id created by /authorize.
+      if (emailToken !== undefined) url.hash = new URLSearchParams({ verify: emailToken }).toString();
       if (this.readString(this.stateKey) !== state) return;
-      await this.openExternal(url);
+      await this.openExternal(url.toString());
     } catch (error) {
       if (this.readString(this.stateKey) === state) this.clearTransientState();
       throw error;
