@@ -101,6 +101,7 @@ export class NativeAuth extends TokenAuth {
       const challenge = base64Url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
       const target = {
         flow, redirect_uri: this.redirectUri, state, code_challenge: challenge, code_challenge_method: "S256",
+        email_link_version: "2",
         ...(params?.rvid && { rvid: params.rvid }), ...(params?.invite && { invite: params.invite }),
       };
       const url = new URL(`${this.authBaseUrl}/authorize`);

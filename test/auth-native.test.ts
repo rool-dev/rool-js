@@ -65,10 +65,12 @@ test("login and signup use hosted auth and preserve invite metadata", async () =
   const login = new URL(opened[0]);
   assert.equal(login.searchParams.get("provider"), null);
   assert.equal(login.searchParams.get("flow"), "login");
+  assert.equal(login.searchParams.get("email_link_version"), "2");
   assert.equal(login.searchParams.get("code_challenge_method"), "S256");
   await provider.signup("Rool", { invite: "team-invite-token", rvid: "visit-id" });
   const signup = new URL(opened[1]);
   assert.equal(signup.searchParams.get("flow"), "signup");
+  assert.equal(signup.searchParams.get("email_link_version"), "2");
   assert.equal(signup.searchParams.get("invite"), "team-invite-token");
   assert.equal(signup.searchParams.get("rvid"), "visit-id");
 });
@@ -216,6 +218,7 @@ test("starting email login invalidates the previous attempt before opening the b
   assert.equal(await provider.handleRedirect(`${REDIRECT_URI}?code=late&state=${state}`), false);
   await starting;
   assert.equal(new URLSearchParams(new URL(opened[1]).hash.slice(1)).get("verify"), "email-link");
+  assert.equal(new URL(opened[1]).searchParams.get("email_link_version"), "2");
   assert.equal(await provider.isAuthenticated(), false);
 });
 
