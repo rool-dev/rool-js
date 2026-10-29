@@ -13,7 +13,7 @@ const machine = client.machine(created.id);
 
 ## Lifecycle
 
-Machine settings currently contain the name and are replaced as a whole. A machine also has a globally unique hostname used for a variety of public facing features. Set it with `machine.setHostname("research-notes")`. Hostnames contain 1 to 30 lowercase letters, numbers, or hyphens, cannot start or end with a hyphen, and cannot use a reserved name. Machine summaries include the resulting external WebDAV endpoint as `webDavUrl`.
+Machine settings currently contain the name and are replaced as a whole. A machine also has a globally unique hostname used for a variety of public facing features. Set it with `machine.setHostname("research-notes")`. Hostnames contain 1 to 30 lowercase letters, numbers, or hyphens, cannot start or end with a hyphen, and cannot use a reserved name. Machine summaries include the resulting external [WebDAV endpoint](/files/#connect-an-external-webdav-client) as `webDavUrl`.
 
 `duplicate()` copies the machine's current files and conversations into an independent machine owned only by the person making the copy. Sharing does not carry over. The copy goes to the account that pays for the person's work on the original, unless `accountId` says otherwise, and the person must be an admin of that account (`account_admin_required`): a team's member copying its machine names their home account. On a team the copy takes the original's `type` unless one is given.
 

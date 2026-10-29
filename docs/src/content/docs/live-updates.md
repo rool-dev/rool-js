@@ -17,6 +17,7 @@ Live updates tell a client that something changed. They are not a second copy of
 | `machines_changed`        | `client.listMachines()` or the named machine                                                               |
 | `machine_members_changed` | `machine.members.list()`                                                                                   |
 | `mcp_connections_changed` | `machine.mcpConnections.list()`                                                                            |
+| `webdav_credentials_changed` | `machine.webdavCredentials.list()`                                                                      |
 | `conversation_changed`    | the named conversation                                                                                     |
 
 An `account_changed` for an account the user has left, or that was deleted, makes `getAccount()` fail with `account_not_found`: drop that account.
@@ -38,4 +39,4 @@ unsubscribe();
 
 User events do not carry file changes. `machine.files.watch()` maintains a file metadata tree from changes made by any client, agent, or program in the VM.
 
-`machine.mcpConnections.watch()` maintains the connection collection, including OAuth authorization state. `conversation.watch()` refreshes saved turns and follows the current run for live output. Use the lower-level event subscription only when maintaining your own state model.
+`machine.webdavCredentials.watch()` keeps [WebDAV credential metadata](/files/#connect-an-external-webdav-client) current, without passwords. `machine.mcpConnections.watch()` maintains the connection collection, including OAuth authorization state. `conversation.watch()` refreshes saved turns and follows the current run for live output. Use the lower-level event subscription only when maintaining your own state model.

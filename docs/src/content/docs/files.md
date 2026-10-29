@@ -25,6 +25,33 @@ await machine.files.write("/rool-drive/plan.md", nextPlan, {
 
 The write fails if the file changed after `stat()`. `ifNoneMatch: "*"` provides the corresponding create-only write. Reads also support byte ranges and cache preconditions. For batches, `readMultiple()` and `deleteMultiple()` keep a separate result for each path.
 
+## Connect an external WebDAV client
+
+Use `machine.webdavCredentials` to connect a file manager or another WebDAV app to the machine's hostname URL. This endpoint exposes `/rool-drive` at `/`, not `/space`.
+
+```typescript
+const credential = await machine.webdavCredentials.create({ name: "My laptop" });
+// Configure the WebDAV app with credential.url,
+// credential.username, and credential.password (HTTP Basic authentication).
+```
+
+The password is returned only by `create()` and cannot be retrieved later. Keep it out of logs. `list()` returns active credential metadata without passwords; `revoke(credential.id)` disconnects that credential.
+
+These credentials do not authenticate SDK or API requests. `machine.files` uses your existing sign-in through `/v2/machines/:id/dav`, where both `/rool-drive` and `/space` are available.
+
+Creating or using a credential requires owner, admin, or editor access. Credentials belong to the member who creates them. Owners and admins can list and revoke everyone's credentials; other members can only list and revoke their own.
+
+For a settings screen, watch the list instead of polling:
+
+```typescript
+const stopWatching = machine.webdavCredentials.watch((view) => {
+  renderCredentials(view.credentials, view.loading, view.error);
+});
+
+// When the screen closes
+stopWatching();
+```
+
 ## Keep a file tree current
 
 Call `watch()` once to populate `files.tree` and keep its metadata current:

@@ -10,6 +10,7 @@ export type RoolUserEvent =
   | { type: "machines_changed"; machineId: string; timestamp: number }
   | { type: "machine_members_changed"; machineId: string; timestamp: number }
   | { type: "mcp_connections_changed"; machineId: string; timestamp: number }
+  | { type: "webdav_credentials_changed"; machineId: string; timestamp: number }
   | {
       type: "conversation_changed";
       machineId: string;
@@ -231,7 +232,8 @@ function parseSyncEvent(value: unknown): RoolUserEvent | null {
   if (
     (value.type === "machines_changed" ||
       value.type === "machine_members_changed" ||
-      value.type === "mcp_connections_changed") &&
+      value.type === "mcp_connections_changed" ||
+      value.type === "webdav_credentials_changed") &&
     typeof value.machineId === "string"
   ) {
     return {

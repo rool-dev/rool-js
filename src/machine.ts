@@ -5,6 +5,7 @@ import {
 } from "./search.js";
 import { createMachineAgents, type MachineAgents } from "./agents.js";
 import type { RoolClientEvent } from "./events.js";
+import { WatchedList } from "./watched-list.js";
 import {
   createMachineFiles,
   type MachineFiles,
@@ -18,6 +19,9 @@ import {
   type MachineStructuredRequestOptions,
 } from "./structured.js";
 import type {
+  CreateWebdavCredential,
+  CreatedWebdavCredential,
+  WebdavCredential,
   CreateMachineInvite,
   CreateMcpConnection,
   CreatedMachineInvite,
@@ -107,6 +111,21 @@ export interface MachineMembersApi {
   remove(userId: string): Promise<void>;
 }
 
+export interface MachineWebdavCredentialsView {
+  readonly credentials: readonly WebdavCredential[];
+  readonly loading: boolean;
+  readonly error: unknown;
+}
+
+export type MachineWebdavCredentialsListener = (view: MachineWebdavCredentialsView) => void;
+
+export interface MachineWebdavCredentialsApi {
+  list(): Promise<WebdavCredential[]>;
+  watch(listener: MachineWebdavCredentialsListener): () => void;
+  create(credential: CreateWebdavCredential): Promise<CreatedWebdavCredential>;
+  revoke(credentialId: string): Promise<void>;
+}
+
 export interface MachineInvitesApi {
   list(): Promise<MachineInvite[]>;
   create(invite: CreateMachineInvite): Promise<CreatedMachineInvite>;
@@ -168,6 +187,7 @@ export class RoolMachine {
   readonly checkpoints: MachineCheckpointsApi;
   readonly members: MachineMembersApi;
   readonly invites: MachineInvitesApi;
+  readonly webdavCredentials: MachineWebdavCredentialsApi;
   readonly mcpProviders: MachineMcpProvidersApi;
   readonly mcpConnections: MachineMcpConnectionsApi;
 
@@ -193,6 +213,7 @@ export class RoolMachine {
     this.checkpoints = new MachineCheckpointsClient(this.path, transport);
     this.members = new MachineMembersClient(this.path, transport);
     this.invites = new MachineInvitesClient(this.path, transport);
+    this.webdavCredentials = new MachineWebdavCredentialsClient(this.id, this.path, transport);
     this.mcpProviders = new MachineMcpProvidersClient(this.path, transport);
     this.mcpConnections = new MachineMcpConnectionsClient(
       this.id,
@@ -487,27 +508,21 @@ class MachineMcpProvidersClient implements MachineMcpProvidersApi {
   }
 }
 
-const MCP_CONNECTION_WATCH_RETRY_MAX_MS = 5_000;
-
 class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
   private readonly path: string;
-  private readonly listeners = new Set<MachineMcpConnectionsListener>();
-  private connections: McpConnection[] = [];
-  private loading = true;
-  private error: unknown = null;
-  private watchController: AbortController | null = null;
-  private unsubscribeEvents: (() => void) | null = null;
-  private syncRequested = false;
-  private syncLoop: Promise<void> | null = null;
-  private retryTimer: ReturnType<typeof setTimeout> | null = null;
-  private retryMs = 250;
+  private readonly watched: WatchedList<McpConnection>;
 
   constructor(
-    private readonly machineId: string,
+    machineId: string,
     machinePath: string,
     private readonly transport: RoolMachineTransport,
   ) {
     this.path = `${machinePath}/mcp-connections`;
+    this.watched = new WatchedList(
+      (signal) => this.load(signal),
+      (listener) => transport.subscribeEvents(listener),
+      (event) => event.type === "mcp_connections_changed" && event.machineId === machineId,
+    );
   }
 
   list(): Promise<McpConnection[]> {
@@ -515,14 +530,7 @@ class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
   }
 
   watch(listener: MachineMcpConnectionsListener): () => void {
-    this.listeners.add(listener);
-    if (!this.watchController) this.startWatching();
-    listener(this.view());
-
-    return () => {
-      this.listeners.delete(listener);
-      if (this.listeners.size === 0) this.stopWatching();
-    };
+    return this.watched.watch(({ items, loading, error }) => listener({ connections: items, loading, error }));
   }
 
   get(connectionId: string): Promise<McpConnection> {
@@ -578,113 +586,61 @@ class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
     return result.connections;
   }
 
-  private startWatching(): void {
-    const controller = new AbortController();
-    this.watchController = controller;
-    this.loading = true;
-    this.error = null;
-    this.retryMs = 250;
-    this.unsubscribeEvents = this.transport.subscribeEvents((event) => {
-      const matchesMachine =
-        event.type === "mcp_connections_changed" &&
-        event.machineId === this.machineId;
-      if (event.type === "session" || matchesMachine) this.requestSync();
-    });
-    this.requestSync();
-  }
-
-  private stopWatching(): void {
-    this.watchController?.abort();
-    this.watchController = null;
-    this.unsubscribeEvents?.();
-    this.unsubscribeEvents = null;
-    this.syncRequested = false;
-    if (this.retryTimer) clearTimeout(this.retryTimer);
-    this.retryTimer = null;
-  }
-
-  private requestSync(): void {
-    const controller = this.watchController;
-    if (!controller || controller.signal.aborted) return;
-    this.syncRequested = true;
-    if (this.retryTimer) clearTimeout(this.retryTimer);
-    this.retryTimer = null;
-    if (this.syncLoop) return;
-
-    // Events from one account report arrive together. Start on the next
-    // microtask so they result in one fetch.
-    const loop = Promise.resolve().then(() => this.runSyncLoop(controller));
-    this.syncLoop = loop;
-    const finished = () => {
-      if (this.syncLoop === loop) this.syncLoop = null;
-      const current = this.watchController;
-      if (current && this.syncRequested && !current.signal.aborted) {
-        this.requestSync();
-      }
-    };
-    void loop.then(finished, finished);
-  }
-
-  private async runSyncLoop(controller: AbortController): Promise<void> {
-    while (
-      this.watchController === controller &&
-      !controller.signal.aborted &&
-      this.syncRequested
-    ) {
-      this.syncRequested = false;
-      let connections: McpConnection[];
-      try {
-        connections = await this.load(controller.signal);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        if (this.syncRequested) continue;
-        this.loading = false;
-        this.error = error;
-        this.scheduleRetry(controller);
-        this.emit();
-        return;
-      }
-
-      if (controller.signal.aborted) return;
-      // An event arrived while the request was open, so its response may
-      // already be stale. Fetch once more without publishing it.
-      if (this.syncRequested) continue;
-      this.connections = connections;
-      this.loading = false;
-      this.error = null;
-      this.retryMs = 250;
-      this.emit();
-    }
-  }
-
-  private scheduleRetry(controller: AbortController): void {
-    if (this.retryTimer || this.watchController !== controller) return;
-    const delay = this.retryMs;
-    this.retryMs = Math.min(
-      this.retryMs * 2,
-      MCP_CONNECTION_WATCH_RETRY_MAX_MS,
-    );
-    this.retryTimer = setTimeout(() => {
-      this.retryTimer = null;
-      this.requestSync();
-    }, delay);
-  }
-
-  private view(): MachineMcpConnectionsView {
-    return {
-      connections: [...this.connections],
-      loading: this.loading,
-      error: this.error,
-    };
-  }
-
-  private emit(): void {
-    const view = this.view();
-    for (const listener of this.listeners) listener(view);
-  }
-
   private connectionPath(connectionId: string): string {
     return `${this.path}/${encodeURIComponent(connectionId)}`;
+  }
+}
+
+class MachineWebdavCredentialsClient implements MachineWebdavCredentialsApi {
+  private readonly watched: WatchedList<WebdavCredential>;
+
+  constructor(
+    machineId: string,
+    private readonly machinePath: string,
+    private readonly transport: RoolMachineTransport,
+  ) {
+    this.watched = new WatchedList(
+      (signal) => this.load(signal),
+      (listener) => transport.subscribeEvents(listener),
+      (event) => (event.type === "webdav_credentials_changed" || event.type === "machine_members_changed" || event.type === "machines_changed") && event.machineId === machineId,
+    );
+  }
+
+  list(): Promise<WebdavCredential[]> {
+    return this.load();
+  }
+
+  watch(listener: MachineWebdavCredentialsListener): () => void {
+    return this.watched.watch(({ items, loading, error }) => listener({ credentials: items, loading, error }));
+  }
+
+  private async load(signal?: AbortSignal): Promise<WebdavCredential[]> {
+    const { credentials } = await this.transport.requestJson<{ credentials: WebdavCredential[] }>(
+      `${this.machinePath}/webdav-credentials`, { signal },
+    );
+    return credentials;
+  }
+
+  async create(credential: CreateWebdavCredential): Promise<CreatedWebdavCredential> {
+    const generation = this.watched.generation;
+    const created = await this.transport.requestJson<CreatedWebdavCredential>(`${this.machinePath}/webdav-credentials`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credential),
+    });
+    // The caller alone receives the secret, never the watch cache or listeners.
+    const { password, ...metadata } = created;
+    this.watched.update(generation, (items) => [metadata, ...items.filter((item) => item.id !== metadata.id)]);
+    return created;
+  }
+
+  async revoke(credentialId: string): Promise<void> {
+    const generation = this.watched.generation;
+    await this.transport.request(
+      `${this.machinePath}/webdav-credentials/${encodeURIComponent(credentialId)}`,
+      { method: "DELETE" },
+    );
+    this.watched.update(generation, (items) => items.filter((item) => item.id !== credentialId));
   }
 }
 

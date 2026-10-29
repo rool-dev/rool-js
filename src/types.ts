@@ -253,6 +253,24 @@ export interface MachineSummary {
   state: MachineLifecycleState;
 }
 
+export interface WebdavCredential {
+  id: string;
+  userId: string;
+  name: string;
+  url: string;
+  username: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface CreateWebdavCredential {
+  name: string;
+}
+
+export interface CreatedWebdavCredential extends WebdavCredential {
+  password: string;
+}
+
 export interface MachineSettings {
   name: string;
 }

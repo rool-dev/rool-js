@@ -72,6 +72,9 @@ export type {
 export type { MachineExecEvent } from "./exec.js";
 export type {
   MachineCheckpointsApi,
+  MachineWebdavCredentialsApi,
+  MachineWebdavCredentialsListener,
+  MachineWebdavCredentialsView,
   MachineExecOptions,
   MachineExecResult,
   MachineInvitesApi,
@@ -113,6 +116,9 @@ export type {
   UsagePricing,
   ClientCompatibility,
   CreateAccountInvite,
+  CreateWebdavCredential,
+  CreatedWebdavCredential,
+  WebdavCredential,
   CreateCustomMcpConnection,
   CreatedAccountInvite,
   CreateMachineInvite,
