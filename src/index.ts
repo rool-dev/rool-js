@@ -7,6 +7,7 @@ export { NativeAuth } from "./auth-native.js";
 export type { NativeAuthConfig } from "./auth-native.js";
 export { RoolProblem } from "./problem.js";
 export { RoolAccountApi } from "./account.js";
+export type { EmailAccessApi, EmailAccessListener, EmailAccessView } from "./email-access.js";
 export type { AccountInvitesApi, AccountMembersApi } from "./account.js";
 export { RoolFileError } from "./files.js";
 export type {
@@ -187,6 +188,7 @@ export type {
   RoolUser,
   UserAccount,
   UserAppData,
+  EmailAccessAddress,
   UserProfile,
 } from "./types.js";
 

@@ -12,6 +12,7 @@ Live updates tell a client that something changed. They are not a second copy of
 | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `account_changed`         | `client.getAccount(event.accountId)`                                                                       |
 | `profile_changed`         | `client.getProfile()` and `client.getUser()`                                                               |
+| `email_access_changed`    | `client.emailAccess.list()`                                                                               |
 | `user_app_data_changed`   | `client.getUserAppData()`                                                                                  |
 | `providers_changed`       | `account(event.accountId).getProviders()`, and `machine.getModels()` for each open machine of that account |
 | `machines_changed`        | `client.listMachines()` or the named machine                                                               |
@@ -36,6 +37,8 @@ unsubscribe();
 ```
 
 ## Higher-level watchers
+
+`client.emailAccess.watch()` keeps the user's [extra email addresses](/client-and-account/#email-access) current, including confirmation state. It fetches them separately from the session and refreshes them on `email_access_changed` and session resets.
 
 User events do not carry file changes. `machine.files.watch()` maintains a file metadata tree from changes made by any client, agent, or program in the VM.
 

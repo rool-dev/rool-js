@@ -116,6 +116,19 @@ async function main(): Promise<void> {
     "account_not_found",
   );
 
+  console.log("Reading email access and checking validation...");
+  await expectProblem(
+    () => unauthenticatedClient.emailAccess.list(),
+    401,
+    "authentication_required",
+  );
+  assert(Array.isArray(await client.emailAccess.list()));
+  await expectProblem(
+    () => client.emailAccess.requestConfirmation("not-an-email"),
+    400,
+    "invalid_email_access_address",
+  );
+
   const profile = await client.getProfile();
   assert.deepEqual(Object.keys(profile).sort(), ["marketingOptIn", "name"]);
   originalProfile = profile;

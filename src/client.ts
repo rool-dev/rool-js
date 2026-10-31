@@ -6,6 +6,7 @@ import type {
   MachineFileWriteBody,
 } from "./files.js";
 import { RoolAccountApi } from "./account.js";
+import { EmailAccessClient, type EmailAccessApi } from "./email-access.js";
 import { RoolMachine } from "./machine.js";
 import { throwProblemResponse } from "./problem.js";
 import type {
@@ -59,6 +60,7 @@ export class RoolClient {
   private readonly identity: RoolClientConfig["client"];
   private readonly machines = new Map<string, RoolMachine>();
   readonly events: RoolEvents;
+  readonly emailAccess: EmailAccessApi;
 
   constructor(config: RoolClientConfig = {}) {
     this.apiUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/+$/, "");
@@ -91,6 +93,11 @@ export class RoolClient {
         );
       },
       getSession: () => this.getSession(),
+    });
+    this.emailAccess = new EmailAccessClient({
+      request: (path, init) => this.request(path, init),
+      requestJson: <T>(path: string, init?: RequestInit) => this.requestJson<T>(path, init),
+      subscribeEvents: (listener) => this.events.subscribe(listener),
     });
   }
 

@@ -5,6 +5,7 @@ import type { RoolSession } from "./types.js";
 export type RoolUserEvent =
   | { type: "account_changed"; accountId: string; timestamp: number }
   | { type: "profile_changed"; timestamp: number }
+  | { type: "email_access_changed"; timestamp: number }
   | { type: "user_app_data_changed"; timestamp: number }
   | { type: "providers_changed"; accountId: string; timestamp: number }
   | { type: "machines_changed"; machineId: string; timestamp: number }
@@ -225,6 +226,7 @@ function parseSyncEvent(value: unknown): RoolUserEvent | null {
   }
   if (
     value.type === "profile_changed" ||
+    value.type === "email_access_changed" ||
     value.type === "user_app_data_changed"
   ) {
     return { type: value.type, timestamp: value.timestamp };

@@ -75,6 +75,14 @@ export interface UserAccount {
   subscription: AccountSubscription | null;
 }
 
+export interface EmailAccessAddress {
+  id: string;
+  email: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  expiresAt: string | null;
+}
+
 export interface UserProfile {
   name: string | null;
   marketingOptIn: boolean;

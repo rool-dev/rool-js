@@ -2,7 +2,7 @@
 title: Client and account
 ---
 
-`RoolClient` is the entry point for user, account and machine operations. It adds authentication to each request, but it does not cache any of it.
+`RoolClient` is the entry point for user, account and machine operations. It adds authentication to each request. Read methods return snapshots; watchers keep their own views current.
 
 ## Authentication
 
@@ -36,7 +36,7 @@ The optional `client` configuration identifies your app and version in requests.
 
 The signed-in person is a user. What pays, and on which plan, is an account. Every user has a home account, created when they signed up, and may be a member of other accounts. An account's balance is in US dollars (`balanceUsd`) and in credits (`balanceCredits`), the unit Rool.app shows.
 
-## Load user and account state
+### Load user and account state
 
 Use `getSession()` for an initial load. It returns the user, their accounts (home account first), profile, app data, machine list, and server compatibility in one response. The narrower methods are useful when refreshing one part later:
 
@@ -53,7 +53,18 @@ These methods return snapshots. Use [live updates](/live-updates/) to learn when
 
 The client also contains top-level helpers for greetings, Speechmatics tokens, invites, and vouchers. Machine-specific work starts with `client.machine(machineId)`.
 
-## Teams
+### Email access
+
+You can prompt machines over email using your Rool account. `client.emailAccess` manages additional email addresses you can use for this. Each address must be verified through an emailed confirmation link before use. This does not change your sign-in email.
+
+- `list()` returns the extra addresses, including pending ones. They are not included in `getSession()`.
+- `requestConfirmation(email)` sends a confirmation link and returns its `EmailAccessAddress`. Calling it again for a pending address replaces the previous link; an already-confirmed address is returned without sending another email.
+- `remove(addressId)` removes a pending or confirmed extra address.
+- `watch(listener)` reports `{ addresses, loading, error }` and keeps the list current. It returns a function to unsubscribe.
+
+Each address has `id`, `email`, `createdAt`, `confirmedAt`, and `expiresAt`. Dates are ISO strings. `confirmedAt` is null until confirmed; `expiresAt` is the confirmation link's expiry and becomes null on confirmation.
+
+### Teams
 
 A team is an account people share. `createTeam(name)` starts one on the Team plan, with the user as its only admin. Teams follow the same country rule as web sales: `getPlans().market.teams` says whether one can be started and funded from where the user is, and `createTeam()` and `topUp()` fail with `team_not_available` otherwise, so hide "Start a team" when it is false. A team has no balance of its own to start with and pays for what its members do on its machines.
 
