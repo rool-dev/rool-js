@@ -9,7 +9,7 @@ title: Client and account
 Authentication is separate from the client, so choose the helper that fits the app:
 
 - `NodeAuth` opens a browser and keeps credentials it can refresh in a local file. Import it from `@rool-dev/sdk/node`.
-- `BrowserAuth` redirects to Rool and processes the return URL in `initialize()`. It keeps credentials in browser storage.
+- `BrowserAuth` redirects to Rool and processes the return URL in `initialize()`. It keeps credentials in browser storage. Sign-in returns to the current page unless `redirectUri` supplies a fixed callback; the app then routes on from there.
 - `NativeAuth` opens the same hosted sign-in with a supplied `openExternal` function. Pass deep-link returns to `handleRedirect()`; the app redeems a one-time code using its saved PKCE verifier.
 
 Call `initialize()` before making protected requests. Pass the auth helper's `getTokens` to `RoolClient`, and normally pass `logout` as `onAuthInvalidated`. The client asks for tokens before every request, which lets the helper refresh them when needed. Apps with their own authentication can instead provide `getTokens` or `getAccessToken` directly.

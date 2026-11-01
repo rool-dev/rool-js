@@ -146,6 +146,20 @@ test("caller parameters cannot overwrite the SDK callback or state", async () =>
   assert.notEqual(url.searchParams.get("state"), "foreign");
 });
 
+test("a configured redirect URI replaces the current page for every sign-in entry", async () => {
+  let calls = 0;
+  const auth = new BrowserAuth({
+    authUrl: "https://rool.dev/auth",
+    redirectUri: () => `https://app.example/auth/callback?call=${++calls}`,
+  });
+  await auth.login("Rool", { redirect_uri: "https://evil.test" });
+  assert.equal(new URL(location.href).searchParams.get("redirect_uri"), "https://app.example/auth/callback?call=1");
+  await auth.signup("Rool");
+  assert.equal(new URL(location.href).searchParams.get("redirect_uri"), "https://app.example/auth/callback?call=2");
+  await auth.loginWithEmailLink("email-token");
+  assert.equal(new URL(location.href).searchParams.get("redirect_uri"), "https://app.example/auth/callback?call=3");
+});
+
 test("browser signup uses the hosted signup page", async () => {
   const auth = new BrowserAuth({ authUrl: "https://rool.dev/auth" });
   await auth.signup("Test App");

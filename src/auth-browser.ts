@@ -1,8 +1,18 @@
 import { TokenAuth, type TokenAuthConfig } from "./auth-base.js";
 
-export type BrowserAuthConfig = TokenAuthConfig;
+export interface BrowserAuthConfig extends TokenAuthConfig {
+  /** Where hosted sign-in returns, read as each sign-in starts. Defaults to the current page. */
+  redirectUri?: () => string;
+}
 
 export class BrowserAuth extends TokenAuth {
+  private readonly redirectUri?: () => string;
+
+  constructor(config: BrowserAuthConfig = {}) {
+    super(config);
+    this.redirectUri = config.redirectUri;
+  }
+
   async initialize(): Promise<boolean> {
     this.processCallback();
     return this.isAuthenticated();
@@ -48,11 +58,9 @@ export class BrowserAuth extends TokenAuth {
   protected async startLogin(
     flow: "login" | "signup", appName: string, params?: Record<string, string>, emailToken?: string,
   ): Promise<void> {
-    const callback = new URL(window.location.origin + window.location.pathname + window.location.search);
-    callback.searchParams.delete("verify");
     const state = randomState();
     this.storeState(state);
-    const target = { ...params, redirect_uri: callback.toString(), state, app_name: appName };
+    const target = { ...params, redirect_uri: this.callbackUrl(), state, app_name: appName };
     try {
       const url = new URL(`/${flow}`, new URL(this.authBaseUrl).origin);
       url.search = new URLSearchParams(target).toString();
@@ -64,6 +72,13 @@ export class BrowserAuth extends TokenAuth {
       if (this.readState() === state) this.clearState();
       throw error;
     }
+  }
+
+  private callbackUrl(): string {
+    if (this.redirectUri) return this.redirectUri();
+    const page = new URL(window.location.origin + window.location.pathname + window.location.search);
+    page.searchParams.delete("verify");
+    return page.toString();
   }
 
   protected clearTransientState(): void {
