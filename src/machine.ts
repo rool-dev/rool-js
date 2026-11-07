@@ -313,14 +313,17 @@ export class RoolMachine {
     });
   }
 
-  /** Change a team machine's type, as an admin of the machine or of its team.
-   *  It boots with the new type next time; a running machine is stopped. */
-  setType(type: string): Promise<MachineSummary> {
-    return this.transport.requestJson(`${this.path}/type`, {
+  /** Change a team machine's type, as an admin of its paying account.
+   *  It boots with the new type next time; a running machine is stopped.
+   *  Returns a summary for machine members, or nothing for non-member admins. */
+  async setType(type: string): Promise<MachineSummary | void> {
+    const response = await this.transport.request(`${this.path}/type`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type }),
     });
+    if (response.status === 204) return;
+    return response.json();
   }
 
   /** Move the machine to another account, as an admin of both. */
