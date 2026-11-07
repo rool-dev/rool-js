@@ -5,6 +5,7 @@ import type {
   MachineFileUploadProgress,
   MachineFileWriteBody,
 } from "./files.js";
+import { AclClient, type RoolAcl, type RoolAclApi } from "./acl.js";
 import { RoolAccountApi } from "./account.js";
 import { EmailAccessClient, type EmailAccessApi } from "./email-access.js";
 import { RoolMachine } from "./machine.js";
@@ -60,6 +61,7 @@ export class RoolClient {
   private readonly identity: RoolClientConfig["client"];
   private readonly machines = new Map<string, RoolMachine>();
   readonly events: RoolEvents;
+  readonly acl: RoolAclApi;
   readonly emailAccess: EmailAccessApi;
 
   constructor(config: RoolClientConfig = {}) {
@@ -94,11 +96,20 @@ export class RoolClient {
       },
       getSession: () => this.getSession(),
     });
+    this.acl = new AclClient({
+      load: signal => this.requestJson("/v2/acl", { signal }),
+      subscribeEvents: listener => this.events.subscribe(listener),
+    });
     this.emailAccess = new EmailAccessClient({
       request: (path, init) => this.request(path, init),
       requestJson: <T>(path: string, init?: RequestInit) => this.requestJson<T>(path, init),
       subscribeEvents: (listener) => this.events.subscribe(listener),
     });
+  }
+
+  /** The caller's advertised permissions. Operations still check their constraints. */
+  getAcl(): Promise<RoolAcl> {
+    return this.acl.get();
   }
 
   getSession(): Promise<RoolSession> {

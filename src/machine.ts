@@ -5,7 +5,7 @@ import {
 } from "./search.js";
 import { createMachineAgents, type MachineAgents } from "./agents.js";
 import type { RoolClientEvent } from "./events.js";
-import { WatchedList } from "./watched-list.js";
+import { WatchedValue } from "./watched-value.js";
 import {
   createMachineFiles,
   type MachineFiles,
@@ -510,7 +510,7 @@ class MachineMcpProvidersClient implements MachineMcpProvidersApi {
 
 class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
   private readonly path: string;
-  private readonly watched: WatchedList<McpConnection>;
+  private readonly watched: WatchedValue<McpConnection[]>;
 
   constructor(
     machineId: string,
@@ -518,10 +518,11 @@ class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
     private readonly transport: RoolMachineTransport,
   ) {
     this.path = `${machinePath}/mcp-connections`;
-    this.watched = new WatchedList(
+    this.watched = new WatchedValue(
       (signal) => this.load(signal),
       (listener) => transport.subscribeEvents(listener),
       (event) => event.type === "mcp_connections_changed" && event.machineId === machineId,
+      () => [],
     );
   }
 
@@ -530,7 +531,7 @@ class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
   }
 
   watch(listener: MachineMcpConnectionsListener): () => void {
-    return this.watched.watch(({ items, loading, error }) => listener({ connections: items, loading, error }));
+    return this.watched.watch(({ value, loading, error }) => listener({ connections: [...value], loading, error }));
   }
 
   get(connectionId: string): Promise<McpConnection> {
@@ -592,17 +593,18 @@ class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
 }
 
 class MachineWebdavCredentialsClient implements MachineWebdavCredentialsApi {
-  private readonly watched: WatchedList<WebdavCredential>;
+  private readonly watched: WatchedValue<WebdavCredential[]>;
 
   constructor(
     machineId: string,
     private readonly machinePath: string,
     private readonly transport: RoolMachineTransport,
   ) {
-    this.watched = new WatchedList(
+    this.watched = new WatchedValue(
       (signal) => this.load(signal),
       (listener) => transport.subscribeEvents(listener),
       (event) => (event.type === "webdav_credentials_changed" || event.type === "machine_members_changed" || event.type === "machines_changed") && event.machineId === machineId,
+      () => [],
     );
   }
 
@@ -611,7 +613,7 @@ class MachineWebdavCredentialsClient implements MachineWebdavCredentialsApi {
   }
 
   watch(listener: MachineWebdavCredentialsListener): () => void {
-    return this.watched.watch(({ items, loading, error }) => listener({ credentials: items, loading, error }));
+    return this.watched.watch(({ value, loading, error }) => listener({ credentials: [...value], loading, error }));
   }
 
   private async load(signal?: AbortSignal): Promise<WebdavCredential[]> {

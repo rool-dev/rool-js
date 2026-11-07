@@ -1,6 +1,6 @@
 import type { RoolClientEvent } from "./events.js";
 import type { EmailAccessAddress } from "./types.js";
-import { WatchedList } from "./watched-list.js";
+import { WatchedValue } from "./watched-value.js";
 
 export interface EmailAccessView {
   readonly addresses: readonly EmailAccessAddress[];
@@ -24,13 +24,14 @@ interface EmailAccessTransport {
 }
 
 export class EmailAccessClient implements EmailAccessApi {
-  private readonly watched: WatchedList<EmailAccessAddress>;
+  private readonly watched: WatchedValue<EmailAccessAddress[]>;
 
   constructor(private readonly transport: EmailAccessTransport) {
-    this.watched = new WatchedList(
+    this.watched = new WatchedValue(
       (signal) => this.load(signal),
       (listener) => transport.subscribeEvents(listener),
       (event) => event.type === "email_access_changed",
+      () => [],
     );
   }
 
@@ -39,7 +40,7 @@ export class EmailAccessClient implements EmailAccessApi {
   }
 
   watch(listener: EmailAccessListener): () => void {
-    return this.watched.watch(({ items, loading, error }) => listener({ addresses: items, loading, error }));
+    return this.watched.watch(({ value, loading, error }) => listener({ addresses: [...value], loading, error }));
   }
 
   private async load(signal?: AbortSignal): Promise<EmailAccessAddress[]> {

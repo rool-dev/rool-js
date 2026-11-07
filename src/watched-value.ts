@@ -1,16 +1,16 @@
 import type { RoolClientEvent } from "./events.js";
 import { RoolProblem } from "./problem.js";
 
-interface ListView<T> {
-  readonly items: readonly T[];
+interface ValueView<T> {
+  readonly value: T;
   readonly loading: boolean;
   readonly error: unknown;
 }
 
-/** One list fetch loop shared by watchers, refreshed through the client's event poll. */
-export class WatchedList<T> {
-  private readonly listeners = new Set<(view: ListView<T>) => void>();
-  private items: T[] = [];
+/** One fetch loop shared by watchers, refreshed through the client's event poll. */
+export class WatchedValue<T> {
+  private readonly listeners = new Set<(view: ValueView<T>) => void>();
+  private value: T;
   private loading = true;
   private error: unknown = null;
   private controller: AbortController | null = null;
@@ -22,12 +22,16 @@ export class WatchedList<T> {
   private revision = 0;
 
   constructor(
-    private readonly load: (signal: AbortSignal) => Promise<T[]>,
+    private readonly load: (signal: AbortSignal) => Promise<T>,
     private readonly subscribeEvents: (listener: (event: RoolClientEvent) => void) => () => void,
     private readonly matchesEvent: (event: RoolClientEvent) => boolean,
-  ) {}
+    private readonly empty: () => T,
+    private readonly keepPreviousValue = true,
+  ) {
+    this.value = empty();
+  }
 
-  watch(listener: (view: ListView<T>) => void): () => void {
+  watch(listener: (view: ValueView<T>) => void): () => void {
     this.listeners.add(listener);
     if (!this.controller) this.start();
     listener(this.view());
@@ -40,9 +44,9 @@ export class WatchedList<T> {
   get generation(): number { return this.revision; }
 
   /** Apply a successful local mutation without letting an older fetch undo it. */
-  update(generation: number, change: (items: T[]) => T[]): void {
+  update(generation: number, change: (value: T) => T): void {
     if (!this.controller || generation !== this.revision) return;
-    this.items = change(this.items);
+    this.value = change(this.value);
     this.requestSync();
     this.emit();
   }
@@ -54,7 +58,14 @@ export class WatchedList<T> {
     this.error = null;
     this.retryMs = 250;
     this.unsubscribeEvents = this.subscribeEvents((event) => {
-      if (event.type === "session" || this.matchesEvent(event)) this.requestSync();
+      if (event.type !== "session" && !this.matchesEvent(event)) return;
+      if (!this.keepPreviousValue) {
+        this.value = this.empty();
+        this.loading = true;
+        this.error = null;
+        this.emit();
+      }
+      this.requestSync();
     });
     this.requestSync();
   }
@@ -65,7 +76,7 @@ export class WatchedList<T> {
     this.controller = null;
     this.unsubscribeEvents?.();
     this.unsubscribeEvents = null;
-    this.items = [];
+    this.value = this.empty();
     this.error = null;
     this.syncRequested = false;
     if (this.retryTimer) clearTimeout(this.retryTimer);
@@ -93,13 +104,13 @@ export class WatchedList<T> {
   private async runSyncLoop(controller: AbortController): Promise<void> {
     while (this.controller === controller && !controller.signal.aborted && this.syncRequested) {
       this.syncRequested = false;
-      let items: T[];
+      let value: T;
       try {
-        items = await this.load(controller.signal);
+        value = await this.load(controller.signal);
       } catch (error) {
         if (controller.signal.aborted) return;
         if (this.syncRequested) continue;
-        if (error instanceof RoolProblem && [401, 403, 404].includes(error.status)) this.items = [];
+        if (!this.keepPreviousValue || (error instanceof RoolProblem && [401, 403, 404].includes(error.status))) this.value = this.empty();
         this.loading = false;
         this.error = error;
         this.scheduleRetry(controller);
@@ -109,7 +120,7 @@ export class WatchedList<T> {
       if (controller.signal.aborted) return;
       // A change during the fetch means its response may already be stale.
       if (this.syncRequested) continue;
-      this.items = items;
+      this.value = value;
       this.loading = false;
       this.error = null;
       this.retryMs = 250;
@@ -127,8 +138,8 @@ export class WatchedList<T> {
     }, delay);
   }
 
-  private view(): ListView<T> {
-    return { items: [...this.items], loading: this.loading, error: this.error };
+  private view(): ValueView<T> {
+    return { value: this.value, loading: this.loading, error: this.error };
   }
 
   private emit(): void {

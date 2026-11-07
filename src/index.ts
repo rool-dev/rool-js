@@ -1,4 +1,5 @@
 export { RoolClient, roolSdkVersion } from "./client.js";
+export type { RoolAcl, RoolAclApi, RoolAclView, GlobalAction, AccountAction, MachineAction } from "./acl.js";
 export { EmailChangeError, RoolAuthUnavailableError } from "./auth-base.js";
 export type { EmailChangeErrorCode } from "./auth-base.js";
 export { BrowserAuth } from "./auth-browser.js";
