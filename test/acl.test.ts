@@ -34,7 +34,7 @@ function fixture() {
   };
 }
 
-test("getAcl and acl.get pass through the authenticated route without caching", async () => {
+test("acl.get passes through the authenticated route without caching", async () => {
   let calls = 0;
   const data = { ...answer(), future: true };
   const client = new RoolClient({
@@ -47,7 +47,7 @@ test("getAcl and acl.get pass through the authenticated route without caching", 
       return Response.json(data);
     },
   });
-  assert.deepEqual(await client.getAcl(), data);
+  assert.deepEqual(await client.acl.get(), data);
   assert.deepEqual(await client.acl.get(), data);
   assert.equal(calls, 2);
 });

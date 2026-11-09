@@ -53,6 +53,12 @@ These methods return snapshots. Use [live updates](/live-updates/) to learn when
 
 The client also contains top-level helpers for greetings, Speechmatics tokens, invites, and vouchers. Machine-specific work starts with `client.machine(machineId)`.
 
+### Permissions
+
+`client.acl.get()` returns action-to-boolean maps at `actions`, `accounts[id].actions`, and `machines[id].actions`, including denied actions as `false`. These actions describe permissions the server enforces in general. The server authorizes every request, but depending on the route, action and backend state, permission alone does not guarantee success.
+
+`client.acl.watch(listener)` keeps a `{ acl, loading, error }` view current. While permissions are unknown, invalidated, or failed to load, `acl` is `null`. Call the returned unsubscribe function when the signed-in user changes.
+
 ### Email access
 
 You can prompt machines over email using your Rool account. `client.emailAccess` manages additional email addresses you can use for this. Each address must be verified through an emailed confirmation link before use. This does not change your sign-in email.
