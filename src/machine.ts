@@ -3,7 +3,17 @@ import {
   type MachineSearchOptions,
   type MachineSearchPage,
 } from "./search.js";
-import { createMachineAgents, type MachineAgents } from "./agents.js";
+import {
+  MachineConversations,
+  type ConversationRequestOptions,
+  type MachineConversation,
+  type MachineConversationCreateOptions,
+  type MachineConversationPromptOptions,
+  type MachineConversationSummary,
+} from "./conversations.js";
+
+export type MachinePromptOptions = MachineConversationCreateOptions &
+  Omit<MachineConversationPromptOptions, "replaceTurnId">;
 import type { RoolClientEvent } from "./events.js";
 import { WatchedValue } from "./watched-value.js";
 import {
@@ -179,7 +189,7 @@ export interface RoolMachineTransport {
 
 export class RoolMachine {
   readonly files: MachineFiles;
-  readonly agents: MachineAgents;
+  private readonly conversations: MachineConversations;
   readonly metadata: MachineMetadataApi;
   readonly collections: MachineCollectionsApi;
   readonly objects: MachineObjectsApi;
@@ -201,7 +211,7 @@ export class RoolMachine {
 
     this.path = `/v2/machines/${encodeURIComponent(id)}`;
     this.files = createMachineFiles(id, transport.send);
-    this.agents = createMachineAgents(id, this.path, transport);
+    this.conversations = new MachineConversations(id, this.path, transport);
     const structured = createMachineStructuredApis(
       this.files,
       () => this.files.isWatching,
@@ -220,6 +230,35 @@ export class RoolMachine {
       this.path,
       transport,
     );
+  }
+
+  /** A cached handle only; no request or server-side creation. */
+  conversation(id: string): MachineConversation {
+    return this.conversations.conversation(id);
+  }
+
+  createConversation(
+    options?: MachineConversationCreateOptions,
+  ): Promise<MachineConversation> {
+    return this.conversations.createConversation(options);
+  }
+
+  listConversations(
+    options?: ConversationRequestOptions,
+  ): Promise<MachineConversationSummary[]> {
+    return this.conversations.listConversations(options);
+  }
+
+  /** Create a persistent conversation (private by default) and return once its prompt is accepted.
+   *  Use explicit creation when you need instructions before the first prompt or cleanup on failure.
+   */
+  async prompt(
+    text: string,
+    options: MachinePromptOptions = {},
+  ): Promise<MachineConversation> {
+    const conversation = await this.createConversation(options);
+    await conversation.prompt(text, options);
+    return conversation;
   }
 
   search(options: MachineSearchOptions): Promise<MachineSearchPage> {

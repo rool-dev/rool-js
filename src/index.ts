@@ -12,11 +12,7 @@ export type { EmailAccessApi, EmailAccessListener, EmailAccessView } from "./ema
 export type { AccountInvitesApi, AccountMembersApi } from "./account.js";
 export { RoolFileError } from "./files.js";
 export type {
-  AgentRequestOptions,
-  MachineAgent,
-  MachineAgentCreateInput,
-  MachineAgentDefinition,
-  MachineAgents,
+  ConversationRequestOptions,
   MachineAssistantFinish,
   MachineConversation,
   MachineConversationCancelOptions,
@@ -35,7 +31,7 @@ export type {
   MachineConversationVisibility,
   MachinePromptEffort,
   MachineRunEvent,
-} from "./agents.js";
+} from "./conversations.js";
 export { isRoolObjectPath } from "./structured.js";
 export type {
   RoolAccountEvent,
@@ -87,6 +83,7 @@ export type {
   MachineMembersApi,
   MachineMetadata,
   MachineMetadataApi,
+  MachinePromptOptions,
   MachineSettingsApi,
   RoolMachine,
 } from "./machine.js";

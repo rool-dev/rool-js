@@ -1,5 +1,5 @@
 /**
- * Local integration test for SDK agents, conversations, and run streaming.
+ * Local integration test for SDK machine conversations and run streaming.
  */
 
 import assert from "node:assert/strict";
@@ -20,7 +20,7 @@ import {
 } from "./harness.js";
 
 const proxiedFetch = createProxiedFetch();
-const normalConversationId = `sdk-agent-${Date.now()}`;
+const normalConversationId = `sdk-conversation-${Date.now()}`;
 const cancelledConversationId = `sdk-cancel-${Date.now()}`;
 let runPosts = 0;
 let runStreams = 0;
@@ -34,7 +34,7 @@ const observingFetch: typeof fetch = async (input, init) => {
   const url = new URL(
     typeof input === "string" || input instanceof URL ? input : input.url,
   );
-  const isRun = /\/agents\/[^/]+\/conversations\/[^/]+\/run$/.test(
+  const isRun = /\/machines\/[^/]+\/conversations\/[^/]+\/run$/.test(
     url.pathname,
   );
   const response = await proxiedFetch(input, init);
@@ -107,37 +107,14 @@ async function main(): Promise<void> {
   assert(defaultModel);
   const lightest = { model: defaultModel.id, effort: defaultModel.efforts[0].id };
   const created = machineCleanup.track(
-    await client.createMachine({ name: `SDK agent routes ${Date.now()}` }),
+    await client.createMachine({ name: `SDK conversation routes ${Date.now()}` }),
   );
   const machine = client.machine(created.id);
 
-  console.log("Reading the stock agent without watching files...");
   assert.equal(machine.files.isWatching, false);
-  const stock = await machine.agents.get("rool");
-  assert(stock);
-  assert.deepEqual(stock.definition, { system: "" });
-  assert.equal(
-    (await machine.agents.list()).some((agent) => agent.id === "rool"),
-    true,
-  );
-
-  console.log("Creating and replacing a custom agent through item PUT...");
-  const customId = `custom-${Date.now()}`;
-  const custom = await machine.agents.create(customId, {
-    system: "Answer every request in one short sentence.",
-  });
-  assert.deepEqual(custom.definition, {
-    system: "Answer every request in one short sentence.",
-  });
-  const replaced = await custom.replace({
-    system: "Give direct and brief answers.",
-  });
-  assert.deepEqual(replaced.definition, {
-    system: "Give direct and brief answers.",
-  });
 
   console.log("Creating and replacing conversation metadata...");
-  const explicit = await replaced.createConversation({
+  const explicit = await machine.createConversation({
     id: `explicit-${Date.now()}`,
     name: "Explicit conversation",
     visibility: "private",
@@ -162,7 +139,7 @@ async function main(): Promise<void> {
   assert.equal((await explicit.get())?.visibility, "shared");
   assert.equal(await explicit.getInstructions(), customInstructions);
   assert.equal(await explicit.replaceInstructions(""), "");
-  const listedConversation = (await replaced.listConversations()).find(
+  const listedConversation = (await machine.listConversations()).find(
     (conversation) => conversation.id === explicit.id,
   );
   assert(listedConversation);
@@ -174,7 +151,8 @@ async function main(): Promise<void> {
 
   console.log("Starting a detached prompt and following its run stream...");
   const events: MachineRunEvent[] = [];
-  const normal = stock.conversation(normalConversationId);
+  const normal = machine.conversation(normalConversationId);
+  assert.equal(normal.machineId, machine.id);
   const completed = await promptAndFollow(
     normal,
     "Without using tools, say hello in one sentence.",
@@ -218,7 +196,7 @@ async function main(): Promise<void> {
   assert(contentText(toolResult.content.content).includes(toolMarker));
 
   console.log("Settling structured output as one JSON content part...");
-  const structured = await replaced.createConversation({
+  const structured = await machine.createConversation({
     id: `structured-${Date.now()}`,
     visibility: "private",
   });
@@ -242,7 +220,7 @@ async function main(): Promise<void> {
   assert.deepEqual(structuredPart.value, { answer: 7 });
 
   console.log("Watching one conversation through catch-up and live output...");
-  const watched = await stock.createConversation({
+  const watched = await machine.createConversation({
     id: `watched-${Date.now()}`,
     visibility: "private",
   });
@@ -356,7 +334,7 @@ async function main(): Promise<void> {
   );
 
   console.log("Cancelling a followed run through DELETE on its fixed path...");
-  const cancelling = stock.conversation(cancelledConversationId);
+  const cancelling = machine.conversation(cancelledConversationId);
   const cancelledEvents: MachineRunEvent[] = [];
   await cancelling.prompt(
     "Without using tools, write a detailed 2,000 word essay about ocean currents.",
@@ -364,7 +342,7 @@ async function main(): Promise<void> {
   );
   assert.equal((await cancelling.get())?.isRunning, true);
   assert.equal(
-    (await stock.listConversations()).find(
+    (await machine.listConversations()).find(
       (conversation) => conversation.id === cancelledConversationId,
     )?.isRunning,
     true,
@@ -392,7 +370,7 @@ async function main(): Promise<void> {
   assert(cancelledEvents.some((event) => event.type === "cancelled"));
   assert.equal((await cancelling.get())?.isRunning, false);
   assert.equal(
-    (await stock.listConversations()).find(
+    (await machine.listConversations()).find(
       (conversation) => conversation.id === cancelledConversationId,
     )?.isRunning,
     false,
@@ -403,14 +381,12 @@ async function main(): Promise<void> {
   assert.equal(await explicit.get(), undefined);
   await watched.delete();
   await structured.delete();
-  await replaced.delete();
-  assert.equal(await machine.agents.get(customId), undefined);
 
   assert.equal(runPosts, 12);
   assert.equal(runStreams, 10);
   assert.equal(runDeletes, 2);
 
-  console.log("\n✅ SDK agent route smoke tests passed.");
+  console.log("\n✅ SDK conversation route smoke tests passed.");
 }
 
 runSmokeTest(main, () => machineCleanup.cleanup());

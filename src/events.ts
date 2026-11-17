@@ -16,7 +16,6 @@ export type RoolUserEvent =
   | {
       type: "conversation_changed";
       machineId: string;
-      agentId: string;
       conversationId: string;
       timestamp: number;
     };
@@ -249,13 +248,12 @@ function parseSyncEvent(value: unknown): RoolUserEvent | null {
   if (
     value.type === "conversation_changed" &&
     typeof value.machineId === "string" &&
-    typeof value.agentId === "string" &&
+    value.agentId === "rool" &&
     typeof value.conversationId === "string"
   ) {
     return {
       type: value.type,
       machineId: value.machineId,
-      agentId: value.agentId,
       conversationId: value.conversationId,
       timestamp: value.timestamp,
     };
