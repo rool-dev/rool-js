@@ -69,6 +69,13 @@ test("empty polls and network retries do not refresh the session", async () => {
           {
             type: "conversation_changed",
             machineId: "machine-1",
+            agentId: "custom",
+            conversationId: "conversation-1",
+            timestamp: 7,
+          },
+          {
+            type: "conversation_changed",
+            machineId: "machine-1",
             agentId: "rool",
             conversationId: "conversation-1",
             timestamp: 7,
@@ -123,7 +130,6 @@ test("empty polls and network retries do not refresh the session", async () => {
     {
       type: "conversation_changed",
       machineId: "machine-1",
-      agentId: "rool",
       conversationId: "conversation-1",
       timestamp: 7,
     },

@@ -47,13 +47,6 @@ export interface MachineConversationTurn {
   aside?: boolean;
 }
 
-export interface MachineAgentDefinition {
-  /** Instructions added after Rool's built-in machine context. */
-  system: string;
-}
-
-export type MachineAgentCreateInput = MachineAgentDefinition;
-
 export interface MachineConversationMetadataInput {
   name?: string;
   visibility: MachineConversationVisibility;
@@ -80,17 +73,17 @@ export type MachineRunEvent =
   | { type: "cancelled" }
   | { type: "error"; code: string; detail: string };
 
-export interface AgentRequestOptions {
+export interface ConversationRequestOptions {
   signal?: AbortSignal;
 }
 
-export interface MachineConversationCreateOptions extends AgentRequestOptions {
+export interface MachineConversationCreateOptions extends ConversationRequestOptions {
   id?: string;
   name?: string;
   visibility?: MachineConversationVisibility;
 }
 
-export interface MachineConversationPromptOptions extends AgentRequestOptions {
+export interface MachineConversationPromptOptions extends ConversationRequestOptions {
   /** A model id from `machine.getModels()`; the catalog's default when omitted. */
   model?: string;
   /** One of `model`'s effort ids, so it needs `model`; its default effort when omitted. */
@@ -103,13 +96,13 @@ export interface MachineConversationPromptOptions extends AgentRequestOptions {
   appInstructions?: string;
 }
 
-export interface MachineConversationFollowOptions extends AgentRequestOptions {
+export interface MachineConversationFollowOptions extends ConversationRequestOptions {
   onEvent?: (event: MachineRunEvent) => void;
   /** Fail the stream when no data arrives for this long. Default 30s. */
   stallTimeoutMs?: number;
 }
 
-export type MachineConversationCancelOptions = AgentRequestOptions;
+export type MachineConversationCancelOptions = ConversationRequestOptions;
 
 export interface MachineConversationView {
   readonly turns: readonly MachineConversationTurn[];
@@ -125,22 +118,22 @@ export type MachineConversationListener = (
 
 export interface MachineConversation {
   readonly id: string;
-  readonly agent: MachineAgent;
+  readonly machineId: string;
   get(
-    options?: AgentRequestOptions,
+    options?: ConversationRequestOptions,
   ): Promise<MachineConversationState | undefined>;
-  listTurns(options?: AgentRequestOptions): Promise<MachineConversationTurn[]>;
+  listTurns(options?: ConversationRequestOptions): Promise<MachineConversationTurn[]>;
   watch(listener: MachineConversationListener): () => void;
   replace(
     metadata: MachineConversationMetadataInput,
-    options?: AgentRequestOptions,
+    options?: ConversationRequestOptions,
   ): Promise<MachineConversationMetadata>;
   /** Return conversation-specific instructions; an empty string means none. */
-  getInstructions(options?: AgentRequestOptions): Promise<string>;
+  getInstructions(options?: ConversationRequestOptions): Promise<string>;
   /** Replace conversation-specific instructions; pass an empty string to clear. */
   replaceInstructions(
     instructions: string,
-    options?: AgentRequestOptions,
+    options?: ConversationRequestOptions,
   ): Promise<string>;
   prompt(
     text: string,
@@ -148,41 +141,11 @@ export interface MachineConversation {
   ): Promise<void>;
   follow(options?: MachineConversationFollowOptions): Promise<boolean>;
   cancel(options?: MachineConversationCancelOptions): Promise<boolean>;
-  rename(name: string | null, options?: AgentRequestOptions): Promise<void>;
-  delete(options?: AgentRequestOptions): Promise<void>;
+  rename(name: string | null, options?: ConversationRequestOptions): Promise<void>;
+  delete(options?: ConversationRequestOptions): Promise<void>;
 }
 
-export interface MachineAgent {
-  readonly id: string;
-  readonly definition: MachineAgentDefinition;
-  conversation(id: string): MachineConversation;
-  createConversation(
-    options?: MachineConversationCreateOptions,
-  ): Promise<MachineConversation>;
-  listConversations(
-    options?: AgentRequestOptions,
-  ): Promise<MachineConversationSummary[]>;
-  replace(
-    definition: MachineAgentDefinition,
-    options?: AgentRequestOptions,
-  ): Promise<MachineAgent>;
-  delete(options?: AgentRequestOptions): Promise<void>;
-}
-
-export interface MachineAgents {
-  list(options?: AgentRequestOptions): Promise<MachineAgent[]>;
-  get(
-    id: string,
-    options?: AgentRequestOptions,
-  ): Promise<MachineAgent | undefined>;
-  create(
-    id: string,
-    definition: MachineAgentDefinition,
-    options?: AgentRequestOptions,
-  ): Promise<MachineAgent>;
-}
-
-interface AgentTransport {
+interface ConversationTransport {
   request(
     path: string,
     init?: RequestInit,
@@ -211,72 +174,30 @@ const WATCH_RETRY_MAX_MS = 5_000;
 // is dead even when the socket never errors (sleep, network switch).
 const RUN_STALL_MS = 30_000;
 
-class MachineAgentState implements MachineAgents {
-  private readonly agents = new Map<string, AgentClient>();
+export class MachineConversations {
+  private readonly conversations = new Map<string, ConversationClient>();
 
   constructor(
     readonly machineId: string,
     private readonly machinePath: string,
-    private readonly transport: AgentTransport,
+    private readonly transport: ConversationTransport,
   ) {}
 
-  async list(options: AgentRequestOptions = {}): Promise<MachineAgent[]> {
-    const { agents } = await this.transport.requestJson<{ agents: string[] }>(
-      `${this.machinePath}/agents`,
-      { signal: options.signal },
-    );
-    return Promise.all(
-      agents.map(async (id) => {
-        const agent = await this.get(id, options);
-        if (!agent) throw new Error(`Listed agent ${id} is unavailable`);
-        return agent;
-      }),
-    );
-  }
-
-  async get(
-    id: string,
-    options: AgentRequestOptions = {},
-  ): Promise<MachineAgent | undefined> {
-    validateId(id, "agentId");
-    const response = await this.transport.request(
-      this.agentPath(id),
-      { signal: options.signal },
-      true,
-    );
-    if (response.status === 404) return undefined;
-    if (!response.ok) await throwProblemResponse(response);
-    return this.agent(id, (await response.json()) as MachineAgentDefinition);
-  }
-
-  async create(
-    id: string,
-    definition: MachineAgentDefinition,
-    options: AgentRequestOptions = {},
-  ): Promise<MachineAgent> {
-    validateId(id, "agentId");
-    validateDefinition(definition);
-    const written = await this.transport.requestJson<MachineAgentDefinition>(
-      this.agentPath(id),
-      jsonRequest("PUT", definition, options.signal),
-    );
-    return this.agent(id, written);
-  }
-
-  conversation(agent: AgentClient, id: string): MachineConversation {
+  conversation(id: string): MachineConversation {
     validateId(id, "conversationId");
-    return agent.cachedConversation(
-      id,
-      () => new ConversationClient(agent, id, this),
-    );
+    let conversation = this.conversations.get(id);
+    if (!conversation) {
+      conversation = new ConversationClient(this.machineId, id, this);
+      this.conversations.set(id, conversation);
+    }
+    return conversation;
   }
 
   async createConversation(
-    agent: AgentClient,
     options: MachineConversationCreateOptions = {},
   ): Promise<MachineConversation> {
     const id = options.id ?? randomId();
-    const conversation = this.conversation(agent, id);
+    const conversation = this.conversation(id);
     await conversation.replace(
       {
         ...(options.name ? { name: options.name } : {}),
@@ -288,11 +209,10 @@ class MachineAgentState implements MachineAgents {
   }
 
   async listConversations(
-    agent: AgentClient,
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<MachineConversationSummary[]> {
     const collection = await this.transport.requestJson<ConversationCollection>(
-      `${this.agentPath(agent.id)}/conversations`,
+      `${this.machinePath}/conversations`,
       { signal: options.signal },
     );
     return Object.entries(collection.conversations).map(([id, metadata]) => ({
@@ -301,38 +221,12 @@ class MachineAgentState implements MachineAgents {
     }));
   }
 
-  async replaceAgent(
-    agent: AgentClient,
-    definition: MachineAgentDefinition,
-    options: AgentRequestOptions = {},
-  ): Promise<MachineAgent> {
-    validateDefinition(definition);
-    const written = await this.transport.requestJson<MachineAgentDefinition>(
-      this.agentPath(agent.id),
-      jsonRequest("PUT", definition, options.signal),
-    );
-    agent.updateDefinition(written);
-    return agent;
-  }
-
-  async deleteAgent(
-    agent: AgentClient,
-    options: AgentRequestOptions = {},
-  ): Promise<void> {
-    await this.transport.request(this.agentPath(agent.id), {
-      method: "DELETE",
-      signal: options.signal,
-    });
-    this.agents.delete(agent.id);
-  }
-
   async getConversation(
-    agentId: string,
     conversationId: string,
-    options: AgentRequestOptions,
+    options: ConversationRequestOptions,
   ): Promise<MachineConversationState | undefined> {
     const response = await this.transport.request(
-      this.conversationPath(agentId, conversationId),
+      this.conversationPath(conversationId),
       { signal: options.signal },
       true,
     );
@@ -340,7 +234,6 @@ class MachineAgentState implements MachineAgents {
     if (!response.ok) await throwProblemResponse(response);
     const metadata = (await response.json()) as MachineConversationMetadata;
     const update = await this.readTurnUpdate(
-      agentId,
       conversationId,
       undefined,
       options.signal,
@@ -349,13 +242,11 @@ class MachineAgentState implements MachineAgents {
   }
 
   async listTurns(
-    agentId: string,
     conversationId: string,
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<MachineConversationTurn[]> {
     return (
       await this.readTurnUpdate(
-        agentId,
         conversationId,
         undefined,
         options.signal,
@@ -364,14 +255,13 @@ class MachineAgentState implements MachineAgents {
   }
 
   async readTurnUpdate(
-    agentId: string,
     conversationId: string,
     after: string | undefined,
     signal: AbortSignal | undefined,
   ): Promise<TurnUpdate> {
     const query = after ? `?${new URLSearchParams({ after }).toString()}` : "";
     return this.transport.requestJson<TurnUpdate>(
-      `${this.conversationPath(agentId, conversationId)}/turns${query}`,
+      `${this.conversationPath(conversationId)}/turns${query}`,
       { signal },
     );
   }
@@ -381,58 +271,53 @@ class MachineAgentState implements MachineAgents {
   }
 
   replaceConversation(
-    agentId: string,
     conversationId: string,
     metadata: MachineConversationMetadataInput,
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<MachineConversationMetadata> {
     validateMetadata(metadata);
     return this.transport.requestJson(
-      this.conversationPath(agentId, conversationId),
+      this.conversationPath(conversationId),
       jsonRequest("PUT", metadata, options.signal),
     );
   }
 
   async getConversationInstructions(
-    agentId: string,
     conversationId: string,
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<string> {
     const result = await this.transport.requestJson<ConversationInstructions>(
-      `${this.conversationPath(agentId, conversationId)}/instructions`,
+      `${this.conversationPath(conversationId)}/instructions`,
       { signal: options.signal },
     );
     return result.instructions;
   }
 
   async replaceConversationInstructions(
-    agentId: string,
     conversationId: string,
     instructions: string,
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<string> {
     validateInstructions(instructions);
     const result = await this.transport.requestJson<ConversationInstructions>(
-      `${this.conversationPath(agentId, conversationId)}/instructions`,
+      `${this.conversationPath(conversationId)}/instructions`,
       jsonRequest("PUT", { instructions }, options.signal),
     );
     return result.instructions;
   }
 
   async deleteConversation(
-    agent: AgentClient,
     conversationId: string,
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<void> {
     await this.transport.request(
-      this.conversationPath(agent.id, conversationId),
+      this.conversationPath(conversationId),
       { method: "DELETE", signal: options.signal },
     );
-    agent.forgetConversation(conversationId);
+    this.conversations.delete(conversationId);
   }
 
   async prompt(
-    agentId: string,
     conversationId: string,
     text: string,
     options: MachineConversationPromptOptions,
@@ -462,7 +347,7 @@ class MachineAgentState implements MachineAgents {
         ? { appInstructions: options.appInstructions }
         : {}),
     };
-    const runPath = `${this.conversationPath(agentId, conversationId)}/run`;
+    const runPath = `${this.conversationPath(conversationId)}/run`;
     await this.transport.request(
       runPath,
       jsonRequest("POST", input, options.signal),
@@ -470,11 +355,10 @@ class MachineAgentState implements MachineAgents {
   }
 
   async follow(
-    agentId: string,
     conversationId: string,
     options: MachineConversationFollowOptions = {},
   ): Promise<boolean> {
-    const runPath = `${this.conversationPath(agentId, conversationId)}/run`;
+    const runPath = `${this.conversationPath(conversationId)}/run`;
     const response = await this.transport.request(
       runPath,
       {
@@ -492,12 +376,11 @@ class MachineAgentState implements MachineAgents {
   }
 
   async cancel(
-    agentId: string,
     conversationId: string,
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<boolean> {
     const response = await this.transport.request(
-      `${this.conversationPath(agentId, conversationId)}/run`,
+      `${this.conversationPath(conversationId)}/run`,
       { method: "DELETE", signal: options.signal },
       true,
     );
@@ -541,87 +424,8 @@ class MachineAgentState implements MachineAgents {
     }
   }
 
-  private agent(id: string, definition: MachineAgentDefinition): AgentClient {
-    let agent = this.agents.get(id);
-    if (!agent) {
-      agent = new AgentClient(id, definition, this);
-      this.agents.set(id, agent);
-    } else {
-      agent.updateDefinition(definition);
-    }
-    return agent;
-  }
-
-  private agentPath(agentId: string): string {
-    return `${this.machinePath}/agents/${encodeURIComponent(agentId)}`;
-  }
-
-  private conversationPath(agentId: string, conversationId: string): string {
-    return `${this.agentPath(agentId)}/conversations/${encodeURIComponent(conversationId)}`;
-  }
-}
-
-class AgentClient implements MachineAgent {
-  private currentDefinition: MachineAgentDefinition;
-  private readonly conversations = new Map<string, ConversationClient>();
-
-  constructor(
-    readonly id: string,
-    definition: MachineAgentDefinition,
-    private readonly state: MachineAgentState,
-  ) {
-    this.currentDefinition = definition;
-  }
-
-  get definition(): MachineAgentDefinition {
-    return { ...this.currentDefinition };
-  }
-
-  conversation(id: string): MachineConversation {
-    return this.state.conversation(this, id);
-  }
-
-  createConversation(
-    options?: MachineConversationCreateOptions,
-  ): Promise<MachineConversation> {
-    return this.state.createConversation(this, options);
-  }
-
-  listConversations(
-    options?: AgentRequestOptions,
-  ): Promise<MachineConversationSummary[]> {
-    return this.state.listConversations(this, options);
-  }
-
-  replace(
-    definition: MachineAgentDefinition,
-    options?: AgentRequestOptions,
-  ): Promise<MachineAgent> {
-    return this.state.replaceAgent(this, definition, options);
-  }
-
-  delete(options?: AgentRequestOptions): Promise<void> {
-    return this.state.deleteAgent(this, options);
-  }
-
-  updateDefinition(definition: MachineAgentDefinition): void {
-    this.currentDefinition = definition;
-  }
-
-  cachedConversation(
-    id: string,
-    create: () => ConversationClient,
-  ): ConversationClient {
-    let conversation = this.conversations.get(id);
-    if (!conversation) {
-      conversation = create();
-      this.conversations.set(id, conversation);
-    }
-    return conversation;
-  }
-
-  forgetConversation(id: string): void {
-    this.conversations.delete(id);
+  private conversationPath(conversationId: string): string {
+    return `${this.machinePath}/conversations/${encodeURIComponent(conversationId)}`;
   }
 }
 
@@ -643,21 +447,21 @@ class ConversationClient implements MachineConversation {
   private followRetryMs = 250;
 
   constructor(
-    readonly agent: AgentClient,
+    readonly machineId: string,
     readonly id: string,
-    private readonly state: MachineAgentState,
+    private readonly state: MachineConversations,
   ) {}
 
   get(
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<MachineConversationState | undefined> {
-    return this.state.getConversation(this.agent.id, this.id, options);
+    return this.state.getConversation(this.id, options);
   }
 
   listTurns(
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<MachineConversationTurn[]> {
-    return this.state.listTurns(this.agent.id, this.id, options);
+    return this.state.listTurns(this.id, options);
   }
 
   watch(listener: MachineConversationListener): () => void {
@@ -673,19 +477,17 @@ class ConversationClient implements MachineConversation {
 
   replace(
     metadata: MachineConversationMetadataInput,
-    options?: AgentRequestOptions,
+    options?: ConversationRequestOptions,
   ): Promise<MachineConversationMetadata> {
     return this.state.replaceConversation(
-      this.agent.id,
       this.id,
       metadata,
       options,
     );
   }
 
-  getInstructions(options?: AgentRequestOptions): Promise<string> {
+  getInstructions(options?: ConversationRequestOptions): Promise<string> {
     return this.state.getConversationInstructions(
-      this.agent.id,
       this.id,
       options,
     );
@@ -693,10 +495,9 @@ class ConversationClient implements MachineConversation {
 
   replaceInstructions(
     instructions: string,
-    options?: AgentRequestOptions,
+    options?: ConversationRequestOptions,
   ): Promise<string> {
     return this.state.replaceConversationInstructions(
-      this.agent.id,
       this.id,
       instructions,
       options,
@@ -708,19 +509,19 @@ class ConversationClient implements MachineConversation {
     options: MachineConversationPromptOptions = {},
   ): Promise<void> {
     try {
-      await this.state.prompt(this.agent.id, this.id, text, options);
+      await this.state.prompt(this.id, text, options);
     } finally {
       this.requestSync();
     }
   }
 
   follow(options?: MachineConversationFollowOptions): Promise<boolean> {
-    return this.state.follow(this.agent.id, this.id, options);
+    return this.state.follow(this.id, options);
   }
 
   async cancel(options?: MachineConversationCancelOptions): Promise<boolean> {
     try {
-      return await this.state.cancel(this.agent.id, this.id, options);
+      return await this.state.cancel(this.id, options);
     } finally {
       this.requestSync();
     }
@@ -728,7 +529,7 @@ class ConversationClient implements MachineConversation {
 
   async rename(
     name: string | null,
-    options: AgentRequestOptions = {},
+    options: ConversationRequestOptions = {},
   ): Promise<void> {
     const current = await this.get(options);
     if (!current) throw new Error(`Conversation ${this.id} is unavailable`);
@@ -741,8 +542,8 @@ class ConversationClient implements MachineConversation {
     );
   }
 
-  delete(options?: AgentRequestOptions): Promise<void> {
-    return this.state.deleteConversation(this.agent, this.id, options);
+  delete(options?: ConversationRequestOptions): Promise<void> {
+    return this.state.deleteConversation(this.id, options);
   }
 
   private startWatching(): void {
@@ -751,8 +552,7 @@ class ConversationClient implements MachineConversation {
     this.unsubscribeEvents = this.state.subscribeEvents((event) => {
       const matchesConversation =
         event.type === "conversation_changed" &&
-        event.machineId === this.state.machineId &&
-        event.agentId === this.agent.id &&
+        event.machineId === this.machineId &&
         event.conversationId === this.id;
       if (event.type === "session" || matchesConversation) {
         if (!this.followTask || event.type === "session") this.requestSync();
@@ -803,7 +603,6 @@ class ConversationClient implements MachineConversation {
       try {
         const after = this.turns.at(-1)?.id;
         const update = await this.state.readTurnUpdate(
-          this.agent.id,
           this.id,
           after,
           controller.signal,
@@ -864,7 +663,7 @@ class ConversationClient implements MachineConversation {
   private async runFollow(controller: AbortController): Promise<void> {
     let streamFailed: Error | null = null;
     try {
-      await this.state.follow(this.agent.id, this.id, {
+      await this.state.follow(this.id, {
         signal: controller.signal,
         onEvent: (event) => {
           if (event.type === "output.delta") {
@@ -915,14 +714,6 @@ class ConversationClient implements MachineConversation {
   }
 }
 
-export function createMachineAgents(
-  machineId: string,
-  machinePath: string,
-  transport: AgentTransport,
-): MachineAgents {
-  return new MachineAgentState(machineId, machinePath, transport);
-}
-
 function parseRunEvent(line: string): MachineRunEvent | undefined {
   const value: unknown = JSON.parse(line);
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -948,12 +739,6 @@ function parseRunEvent(line: string): MachineRunEvent | undefined {
     return event as MachineRunEvent;
   }
   return undefined;
-}
-
-function validateDefinition(definition: MachineAgentDefinition): void {
-  if (!definition || typeof definition.system !== "string") {
-    throw new Error("Agent system instructions must be a string");
-  }
 }
 
 function validateMetadata(metadata: MachineConversationMetadataInput): void {

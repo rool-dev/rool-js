@@ -30,8 +30,8 @@ const smokeTests = [
     file: "machine-structured-state.test.ts",
   },
   {
-    name: "stock-agent prompting",
-    file: "machine-agent-routes.test.ts",
+    name: "machine prompting",
+    file: "machine-conversation-routes.test.ts",
   },
   {
     name: "machine filesystem namespace routes",

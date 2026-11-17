@@ -14,10 +14,7 @@ test("prompt starts a detached run and follow reads its current stream", async (
       const method = init?.method ?? "GET";
       requests.push({ method, path: url.pathname });
 
-      if (url.pathname.endsWith("/agents/rool")) {
-        return Response.json({ system: "" });
-      }
-      if (!url.pathname.endsWith("/conversations/chat/run")) {
+      if (url.pathname !== "/v2/machines/machine/conversations/chat/run") {
         throw new Error(`Unexpected request: ${method} ${url.pathname}`);
       }
       if (method === "POST") return new Response(null, { status: 202 });
@@ -55,19 +52,16 @@ test("prompt starts a detached run and follow reads its current stream", async (
     },
   });
 
-  const agent = await client.machine("machine").agents.get("rool");
-  assert(agent);
-  const conversation = agent.conversation("chat");
+  const conversation = client.machine("machine").conversation("chat");
 
   await conversation.prompt("Say hello");
 
   assert.deepEqual(
     requests.map(({ method, path }) => ({ method, path })),
     [
-      { method: "GET", path: "/v2/machines/machine/agents/rool" },
       {
         method: "POST",
-        path: "/v2/machines/machine/agents/rool/conversations/chat/run",
+        path: "/v2/machines/machine/conversations/chat/run",
       },
     ],
   );
@@ -101,7 +95,7 @@ test("prompt starts a detached run and follow reads its current stream", async (
     { type: "completed", finish: "stop" },
   ]);
   assert.equal(await conversation.follow(), false);
-  assert.equal(requests.filter(({ method }) => method === "GET").length, 3);
+  assert.equal(requests.filter(({ method }) => method === "GET").length, 2);
 });
 
 test("watch catches up, follows the current run, and settles saved turns", async () => {
@@ -127,9 +121,6 @@ test("watch catches up, follows the current run, and settles saved turns", async
       const url = new URL(
         typeof input === "string" || input instanceof URL ? input : input.url,
       );
-      if (url.pathname.endsWith("/agents/rool")) {
-        return Response.json({ system: "" });
-      }
       if (url.pathname === "/v2/session") {
         return Response.json({ syncToken: "token" });
       }
@@ -190,9 +181,7 @@ test("watch catches up, follows the current run, and settles saved turns", async
     },
   });
 
-  const agent = await client.machine("machine").agents.get("rool");
-  assert(agent);
-  const conversation = agent.conversation("chat");
+  const conversation = client.machine("machine").conversation("chat");
   let sawOutput = false;
   let finish = () => {};
   const settled = new Promise<void>((resolve) => {
@@ -237,17 +226,13 @@ test("watch catches up, follows the current run, and settles saved turns", async
 test("conversation instructions round-trip through their own resource", async () => {
   let savedInstructions = "";
   const instructionsPath =
-    "/v2/machines/machine/agents/rool/conversations/chat/instructions";
+    "/v2/machines/machine/conversations/chat/instructions";
   const client = new RoolClient({
     apiUrl: "https://api.example.test",
     fetch: async (input, init) => {
       const url = new URL(
         typeof input === "string" || input instanceof URL ? input : input.url,
       );
-      if (url.pathname.endsWith("/agents/rool")) {
-        return Response.json({ system: "" });
-      }
-
       assert.equal(url.pathname, instructionsPath);
       const method = init?.method ?? "GET";
       if (method === "PUT") {
@@ -262,9 +247,7 @@ test("conversation instructions round-trip through their own resource", async ()
     },
   });
 
-  const agent = await client.machine("machine").agents.get("rool");
-  assert(agent);
-  const conversation = agent.conversation("chat");
+  const conversation = client.machine("machine").conversation("chat");
 
   assert.equal(await conversation.getInstructions(), "");
   assert.equal(
@@ -283,12 +266,9 @@ test("prompt sends run options", async () => {
       const url = new URL(
         typeof input === "string" || input instanceof URL ? input : input.url,
       );
-      if (url.pathname.endsWith("/agents/rool")) {
-        return Response.json({ system: "" });
-      }
       if (
         init?.method !== "POST" ||
-        !url.pathname.endsWith("/conversations/chat/run")
+        url.pathname !== "/v2/machines/machine/conversations/chat/run"
       ) {
         throw new Error(
           `Unexpected request: ${init?.method ?? "GET"} ${url.pathname}`,
@@ -299,9 +279,7 @@ test("prompt sends run options", async () => {
     },
   });
 
-  const agent = await client.machine("machine").agents.get("rool");
-  assert(agent);
-  await agent.conversation("chat").prompt("Count the records", {
+  await client.machine("machine").conversation("chat").prompt("Count the records", {
     model: "rool-1",
     effort: "standard",
     readOnly: true,
@@ -334,17 +312,12 @@ test("prompt rejects an effort without its model", async () => {
       const url = new URL(
         typeof input === "string" || input instanceof URL ? input : input.url,
       );
-      if (url.pathname.endsWith("/agents/rool")) {
-        return Response.json({ system: "" });
-      }
       throw new Error(`Unexpected request: ${url.pathname}`);
     },
   });
 
-  const agent = await client.machine("machine").agents.get("rool");
-  assert(agent);
   await assert.rejects(
-    agent.conversation("chat").prompt("Count the records", {
+    client.machine("machine").conversation("chat").prompt("Count the records", {
       effort: "standard",
     }),
     /effort requires a model/,
@@ -358,10 +331,7 @@ test("follow fails when the run stream stalls", async () => {
       const url = new URL(
         typeof input === "string" || input instanceof URL ? input : input.url,
       );
-      if (url.pathname.endsWith("/agents/rool")) {
-        return Response.json({ system: "" });
-      }
-      if (!url.pathname.endsWith("/conversations/chat/run")) {
+      if (url.pathname !== "/v2/machines/machine/conversations/chat/run") {
         throw new Error(`Unexpected request: GET ${url.pathname}`);
       }
       const body = new ReadableStream<Uint8Array>({
@@ -380,11 +350,9 @@ test("follow fails when the run stream stalls", async () => {
     },
   });
 
-  const agent = await client.machine("machine").agents.get("rool");
-  assert(agent);
   const events: MachineRunEvent[] = [];
   await assert.rejects(
-    agent.conversation("chat").follow({
+    client.machine("machine").conversation("chat").follow({
       onEvent: (event) => events.push(event),
       stallTimeoutMs: 50,
     }),
