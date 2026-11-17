@@ -35,8 +35,8 @@ export default defineConfig({
             { label: "Machine images", link: "/machine-images/" },
             { label: "Files", link: "/files/" },
             {
-              label: "Agents and conversations",
-              link: "/agents-and-conversations/",
+              label: "Conversations",
+              link: "/conversations/",
             },
             { label: "Structured data", link: "/structured-data/" },
             { label: "Live updates", link: "/live-updates/" },

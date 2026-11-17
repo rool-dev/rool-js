@@ -2,7 +2,7 @@
 title: Rool SDK
 ---
 
-<p><code>v5.3.1</code></p>
+<p><code>v5.6.0</code></p>
 
 <p align="center" class="sdk-brand"><a href="https://rool.dev"><img class="sdk-brand-logo" src="/sdk-assets/rool-logo.svg" alt="Rool logo" width="44" height="44"><picture><source media="(prefers-color-scheme: dark)" srcset="/sdk-assets/rool-wordmark-dark.svg"><img class="sdk-brand-wordmark" src="/sdk-assets/rool-wordmark.svg" alt="Rool" width="128"></picture></a></p>
 
@@ -10,7 +10,7 @@ title: Rool SDK
 
 The official TypeScript SDK for building apps and automations with [Rool Machines](https://rool.dev).
 
-A Rool Machine is a persistent cloud VM with snapshots, files, and embedded AI agents. The SDK provides one typed interface for authentication, machine management, file access, agent conversations, and live updates.
+A Rool Machine is a cloud VM with snapshots, files, and built-in AI. The SDK provides one typed interface for authentication, machine management, file access, conversations, and live updates.
 
 ## Installation
 
@@ -44,7 +44,7 @@ The package also includes:
 
 ## Put a machine to work
 
-This example creates a machine, gives an agent a job, uploads a receipt, and asks the agent to file it. The file API writes to the machine's WebDAV storage, so the agent and the app see the same files.
+This example creates a machine, gives a conversation instructions, uploads a receipt, and asks Rool to file it. The file API writes to the machine's WebDAV storage, so Rool and the app see the same files.
 
 ```typescript
 import { readFile } from "node:fs/promises";
@@ -52,15 +52,14 @@ import { readFile } from "node:fs/promises";
 const created = await client.createMachine({ name: "Receipts" });
 const machine = client.machine(created.id);
 
-const agent = await machine.agents.create("receipt-filer", {
-  system:
-    "File receipt attachments under /rool-drive/receipts. " +
-    "Choose useful subfolders based on the receipt's contents.",
-});
-const conversation = await agent.createConversation({
+const conversation = await machine.createConversation({
   name: "Receipt inbox",
   visibility: "private",
 });
+await conversation.replaceInstructions(
+  "File receipt attachments under /rool-drive/receipts. " +
+    "Choose useful subfolders based on the receipt's contents.",
+);
 
 const receiptPath = "/rool-drive/receipts/unsorted/receipt.pdf";
 await machine.files.write(receiptPath, await readFile("./receipt.pdf"), {
@@ -82,6 +81,8 @@ await conversation.follow({
 
 Prompting is asynchronous: `prompt()` returns when Rool accepts the work, while the agent keeps running on the machine. An app can follow the current run, leave, and reconnect later. UI clients can instead watch a conversation and receive a current view as its saved turns and live output change.
 
+For a quick task without custom instructions, `const conversation = await machine.prompt("Summarize the files in /rool-drive.")` creates a private conversation and starts its first run. Use `machine.conversation(id)` to get a handle to an existing conversation later.
+
 ## Run a Linux command
 
 Owners and admins can execute Bash commands directly, without an agent:
@@ -98,7 +99,7 @@ if (result.exitCode !== 0) console.error(result.stderr);
 
 Each call starts a fresh shell as your machine user, with its home as the initial directory. `exec()` collects the output and returns it when the command finishes; `execStream()` gives it as it is produced. A nonzero exit code is returned in the result; API failures throw `RoolProblem`. See [command execution](https://docs.rool.dev/machines-and-sharing/#run-linux-commands) for live output, standard input, timeouts, and cancellation.
 
-## Give agents data your app understands
+## Give AI data your app understands
 
 A machine can hold records as well as documents. A collection defines the fields in each record, and Rool rejects writes that do not match. For example, an app can keep an index alongside the receipt files:
 
@@ -120,19 +121,19 @@ await machine.objects.create("/space/receipts/cafe.json", {
 });
 ```
 
-The record is also a normal JSON file at `/space/receipts/cafe.json`. The app can work with it through `machine.objects`, while agents and programs inside the machine can use normal file tools. Changes from either side enter the same watched file tree.
+The record is also a normal JSON file at `/space/receipts/cafe.json`. The app can work with it through `machine.objects`, while the agent and programs inside the machine can use normal file tools. Changes from either side enter the same watched file tree.
 
 Collections can power task lists, catalogues, contact records, or a memory view with links between people, projects, and notes. The app gets predictable fields for its UI without hiding the data from the agent.
 
 ## What the SDK handles
 
-- **Machines:** create, configure, duplicate, checkpoint, share, and delete persistent VMs.
+- **Machines:** create, configure, duplicate, checkpoint, share, and delete VMs.
 - **Files:** upload, stream, move, and watch files under `/space` and `/rool-drive`.
-- **Agents:** define agents, keep conversation history, attach machine files, stream runs, and request structured output.
+- **Conversations:** set instructions, keep history, attach machine files, stream runs, and request structured output.
 - **Live state:** learn when account data changes, keep a file tree current, and stream conversation updates.
-- **Shared app data:** define records that apps, agents, and programs inside the machine can all read and edit.
+- **Shared app data:** define records that apps, the agent, and programs inside the machine can all read and edit.
 
-Long-running work belongs to the machine rather than the client connection. File changes made by the app, a user, or an agent enter the same synchronized file tree, while account events tell the app when to fetch fresh account or machine data.
+Long-running work belongs to the machine rather than the client connection. File changes made by the app, a user, or the agent enter the same synchronized file tree, while account events tell the app when to fetch fresh account or machine data.
 
 The package exports its public TypeScript types, so editor autocomplete shows the detailed options and results. See [docs.rool.dev](https://docs.rool.dev/) for the published documentation.
 

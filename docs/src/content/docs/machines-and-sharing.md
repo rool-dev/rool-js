@@ -2,7 +2,7 @@
 title: Machines and sharing
 ---
 
-A machine handle groups everything that belongs to one persistent VM: settings, files, agents, structured data, checkpoints, and sharing.
+A machine handle groups everything that belongs to one VM: settings, files, conversations, structured data, checkpoints, and sharing.
 
 ```typescript
 const created = await client.createMachine({ name: "Research" });
@@ -184,7 +184,7 @@ The four machine roles are deliberately simple:
 
 - **owner** — full control, including deletion
 - **admin** — can edit the machine and manage its members and invites
-- **editor** — can change files and run agents
+- **editor** — can change files and prompt the agent
 - **viewer** — can read shared machine data
 
 Owners and admins create either a shareable link or an email invite with `machine.invites.create()`. An invite chooses the new member's role and can limit its lifetime or number of uses. Keep the returned `url`; listed invites intentionally do not reveal it again.
@@ -208,7 +208,7 @@ const page = await machine.search({
 for (const result of page.results) {
   console.log(result.type, result.title, result.snippet);
   if (result.type === "conversations") {
-    console.log(result.agentId, result.conversationId, result.turnId);
+    console.log(result.conversationId, result.turnId);
   } else {
     console.log(result.path);
   }
