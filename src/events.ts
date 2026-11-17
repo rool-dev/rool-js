@@ -248,7 +248,6 @@ function parseSyncEvent(value: unknown): RoolUserEvent | null {
   if (
     value.type === "conversation_changed" &&
     typeof value.machineId === "string" &&
-    value.agentId === "rool" &&
     typeof value.conversationId === "string"
   ) {
     return {

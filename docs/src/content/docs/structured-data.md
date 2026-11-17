@@ -2,7 +2,7 @@
 title: Structured data
 ---
 
-Structured data gives an app predictable records without hiding them from the machine. Each record is also a normal JSON file, so agents and programs can read or edit the same data with file tools.
+Structured data gives an app predictable records without hiding them from the machine. Each record is also a normal JSON file, so the agent and programs can read or edit the same data with file tools.
 
 The layout is fixed:
 

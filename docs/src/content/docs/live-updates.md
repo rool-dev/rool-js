@@ -21,6 +21,8 @@ Live updates tell a client that something changed. They are not a second copy of
 | `webdav_credentials_changed` | `machine.webdavCredentials.list()`                                                                      |
 | `conversation_changed`    | the named conversation                                                                                     |
 
+A `conversation_changed` identifies the conversation by `machineId` and `conversationId`. Refresh it with `client.machine(event.machineId).conversation(event.conversationId).get()`.
+
 An `account_changed` for an account the user has left, or that was deleted, makes `getAccount()` fail with `account_not_found`: drop that account.
 
 Treat a new `session` event as a full reset of user and account state. It can also arrive later if Rool can no longer continue from the previous event.
@@ -40,6 +42,6 @@ unsubscribe();
 
 `client.emailAccess.watch()` keeps the user's [extra email addresses](/client-and-account/#email-access) current, including confirmation state. It fetches them separately from the session and refreshes them on `email_access_changed` and session resets.
 
-User events do not carry file changes. `machine.files.watch()` maintains a file metadata tree from changes made by any client, agent, or program in the VM.
+User events do not carry file changes. `machine.files.watch()` maintains a file metadata tree from changes made by clients, the agent, or programs in the VM.
 
 `machine.webdavCredentials.watch()` keeps [WebDAV credential metadata](/files/#connect-an-external-webdav-client) current, without passwords. `machine.mcpConnections.watch()` maintains the connection collection, including OAuth authorization state. `conversation.watch()` refreshes saved turns and follows the current run for live output. Use the lower-level event subscription only when maintaining your own state model.

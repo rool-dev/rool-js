@@ -19,7 +19,6 @@ interface SearchResultBase {
 export type MachineSearchResult =
   | (SearchResultBase & {
       type: "conversations";
-      agentId: string;
       conversationId: string;
       turnId?: string;
     })

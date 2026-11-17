@@ -2,7 +2,7 @@
 title: Files
 ---
 
-Every machine exposes the same files to the SDK, agents, and programs running inside the VM. Paths use one of two roots:
+Every machine exposes the same files to the SDK, the agent, and programs running inside the VM. Paths use one of two roots:
 
 - `/rool-drive` is the normal document and file tree. It allows nested folders and arbitrary file contents.
 - `/space` holds [structured data](/structured-data/). Its collection, schema, and JSON record layout is enforced, so prefer the structured APIs when working there.
@@ -13,7 +13,7 @@ Every machine exposes the same files to the SDK, agents, and programs running in
 
 File metadata includes its kind, ETag, dates, content type and size where applicable, and the current access rules. For disk usage against the plan, use [`machine.getStorage()`](/machines-and-sharing/).
 
-ETags prevent accidental overwrites when more than one user or agent can edit a file:
+ETags prevent accidental overwrites when users, apps, or the agent edit the same file:
 
 ```typescript
 const current = await machine.files.stat("/rool-drive/plan.md");
@@ -64,6 +64,6 @@ const unsubscribe = machine.files.tree.subscribe(({ changed, deleted }) => {
 });
 ```
 
-The tree contains metadata, not file bodies. Use `tree.get()` or `tree.list()` for fast synchronous views, then `read()` when content is needed. Changes made through the SDK, by an agent, or inside the VM all arrive through the same watch.
+The tree contains metadata, not file bodies. Use `tree.get()` or `tree.list()` for fast synchronous views, then `read()` when content is needed. Changes made through the SDK, by the agent, or inside the VM all arrive through the same watch.
 
 The watch retries temporary failures in the background; `watchError` exposes the current failure. Call `unwatch()` when the machine is no longer active. See [live updates](/live-updates/) for how file watches differ from account events.
