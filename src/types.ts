@@ -411,6 +411,8 @@ export type McpConnectionAuthenticationSummary =
   | {
       type: "oauth";
       authorized: boolean;
+      /** Matches the startAuthorization result; shared by connections from one consent. */
+      authorizationId?: string;
       clientId?: boolean;
       clientSecret?: boolean;
     };
@@ -440,6 +442,8 @@ export interface CreateCustomMcpConnection {
 export type CreateMcpConnection = CreateCustomMcpConnection;
 
 export interface McpAuthorization {
+  /** Opaque identifier unique to this OAuth start, not the OAuth state. */
+  authorizationId: string;
   authorizationUrl: string;
   expiresAt: string;
 }

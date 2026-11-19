@@ -41,6 +41,7 @@ for (const [name, providers] of [
 test("provider authorization encodes IDs and does not create a connection first", async () => {
   const requests: Array<{ path: string; method: string; body: unknown }> = [];
   const authorization: McpAuthorization = {
+    authorizationId: "auth-id",
     authorizationUrl: "https://example.test/authorize",
     expiresAt: "2026-09-02T13:42:44.165Z",
   };

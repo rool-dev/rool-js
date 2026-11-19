@@ -40,6 +40,7 @@ test("machine MCP connections use the connection routes", async () => {
       }
       if (url.pathname.endsWith("/authorization") && method === "POST") {
         return Response.json({
+          authorizationId: "auth-id",
           authorizationUrl: "https://notion.example/authorize",
           expiresAt: "2026-09-02T13:42:44.165Z",
         });
@@ -68,6 +69,7 @@ test("machine MCP connections use the connection routes", async () => {
     connection,
   );
   assert.deepEqual(await connections.startAuthorization("connection/id"), {
+    authorizationId: "auth-id",
     authorizationUrl: "https://notion.example/authorize",
     expiresAt: "2026-09-02T13:42:44.165Z",
   });

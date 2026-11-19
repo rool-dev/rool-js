@@ -120,7 +120,7 @@ async function connectProvider(providerId: string) {
 
 Each provider has `id`, `name`, `description`, and `logoUrl`. The description explains which services it connects. Providers are currently staff-only during preview, so other users receive an empty list.
 
-Authorization returns a consent URL and `expiresAt`. No connection exists yet: after consent, the backend creates the connections allowed by the granted permissions. Use `machine.mcpConnections.watch()` to receive the updated list. Do not call `mcpConnections.create()` first or wait for a particular connection ID.
+After authorization consent, the backend creates the connections allowed by the granted permissions. Each one has the same `authentication.authorizationId`: the `authorizationId` returned by that start call.
 
 ### Connect a custom server
 
@@ -144,7 +144,11 @@ The optional `description` is limited to 160 characters after whitespace is coll
 
 Supply the full HTTPS endpoint as `url` when creating a connection. Returned connections expose only `hostname` (for example, `mcp.notion.com`), never the full endpoint. The deprecated response field `url` also contains only that hostname.
 
-Watch the collection while showing connection state. The watcher loads it immediately, refreshes it after OAuth completion and other changes, and handles account-session resets. It coalesces changes that arrive together, so do not poll `get()` while authorization is open.
+### Watch for OAuth completion
+
+Whether you start OAuth for a provider or an existing connection, save the `authorizationId` returned alongside `authorizationUrl` and `expiresAt`. In the watched list, look for an OAuth connection with `authentication.authorized` set to `true` and a matching `authentication.authorizationId`. Starting again returns a new ID, so a previous consent won't match.
+
+The watcher loads the list immediately and refreshes it after OAuth completion and other changes. There is no need to poll `get()`.
 
 ```typescript
 const stopWatching = machine.mcpConnections.watch((view) => {
@@ -155,7 +159,7 @@ const stopWatching = machine.mcpConnections.watch((view) => {
 stopWatching();
 ```
 
-Stored header values, OAuth client secrets, and tokens are never returned; summaries contain only header names and authorization state. Use `replaceAuthentication()`, `clearAuthorization()`, or `remove()` to manage an existing connection.
+Connection summaries expose header names or OAuth authorization details, never stored header values, client secrets, or tokens. Use `replaceAuthentication()`, `clearAuthorization()`, or `remove()` to manage an existing connection.
 
 ## Members and invites
 
