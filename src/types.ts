@@ -248,6 +248,10 @@ export interface MachineSummary {
   inboundEmailAddress: string;
   nextInboundEmailAddress?: string;
   meta: MachineMeta;
+  /** The machine's own theme; null without one. */
+  theme: MachineTheme | null;
+  /** The machine's own icon, a data URI of a WebP, PNG or JPEG picture; null without one. */
+  icon: string | null;
   role: MachineRole;
   ownerId: string;
   /** The account that pays for the machine. */
@@ -486,6 +490,9 @@ export interface AccountMachine {
   createdAt: string;
   updatedAt: string;
   state: MachineLifecycleState;
+  /** The machine's own theme and icon; null without one. */
+  theme: MachineTheme | null;
+  icon: string | null;
   /** The machine image it runs; null on the stock system. */
   machineImage: MachineImageRef | null;
 }
@@ -758,6 +765,9 @@ export interface MachineImageRevision extends MachineImageSettings {
   createdBy: string | null;
   recipe: MachineImageStep[];
   files: MachineImageFile[];
+  /** What its machines show where they have none of their own. */
+  theme: MachineTheme | null;
+  icon: string | null;
 }
 
 export interface MachineImageSubmission {
@@ -789,7 +799,14 @@ export interface HubMachineImage extends MachineImageSettings {
 export interface HubMachineImageDetail extends HubMachineImage {
   recipe: MachineImageStep[];
   files: MachineImageFile[];
+  /** What its machines show where they have none of their own. */
+  theme: MachineTheme | null;
+  icon: string | null;
 }
+
+/** A theme. Its shape is the client's own: the server stores any JSON object
+ *  of at most 16 KiB and reads nothing in it. */
+export type MachineTheme = Record<string, unknown>;
 
 /** The machine image a machine runs, and the revision: its own after a save,
  *  the machine image's default otherwise. */
@@ -797,6 +814,10 @@ export interface MachineImageRef {
   id: string;
   name: string;
   revision: number;
+  /** What that revision carries, which the machine shows where it has none
+   *  of its own: `summary.theme ?? summary.machineImage?.theme`. */
+  theme: MachineTheme | null;
+  icon: string | null;
 }
 
 /** What `setDefaultRevision()` changed. */
@@ -810,7 +831,7 @@ export interface MachineImageDefaultChange {
 /** What a machine runs, and whether that is changing. */
 export interface MachineImageState {
   /** null on the stock system. */
-  machineImage: (MachineImageRef & { defaultRevision: number }) | null;
+  machineImage: { id: string; name: string; revision: number; defaultRevision: number } | null;
   editing: boolean;
   /** A save or a switch is building; the machine restarts when it is done. */
   changing: boolean;

@@ -71,6 +71,19 @@ await machine.machineImage.saveAs({ name: "Data", description: "R and the tidyve
 
 `save()` and `saveAs()` resolve once the save is asked for. The machine restarts on the new revision when it is built; if the build fails it stays in edit mode and `error` says why. The new revision runs on this machine only, until `setDefaultRevision()` moves the others.
 
+### The default theme and icon
+
+A machine image can carry a theme and an icon, as files under `/etc/rool`: `theme.json`, and `icon.webp`, `icon.png` or `icon.jpg`. A save from a machine with a theme or icon of its own puts them there. A revision's `theme` and `icon` hold what its files carry, and a machine's summary gives those of the revision it runs under `machineImage`. The machine's own win:
+
+```ts
+for (const summary of await client.listMachines()) {
+  const theme = summary.theme ?? summary.machineImage?.theme;
+  const icon = summary.icon ?? summary.machineImage?.icon;
+}
+```
+
+`machine.settings.setTheme(null)` and `setIcon(null)` return a machine to its machine image's.
+
 ## The Rool Hub
 
 The Hub lists machine images that accounts have published. Taking one makes a copy in your account, which is yours from then on: nothing changes it but your account.

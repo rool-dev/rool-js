@@ -197,3 +197,23 @@ test("the client hands out one handle per account", () => {
   assert.equal(client.account("acc"), client.account("acc"));
   assert.notEqual(client.account("acc"), client.account("other"));
 });
+
+test("a machine's theme, icon and instructions are each written on their own", async () => {
+  const { client, requests } = recordingClient((path, method) => {
+    if (path.endsWith("/theme")) return { theme: { mode: "dark" } };
+    if (path.endsWith("/icon")) return { icon: null };
+    return { instructions: method === "GET" ? "Be brief." : "Answer in Danish." };
+  });
+  const settings = client.machine("m/1").settings;
+  assert.deepEqual(await settings.setTheme({ mode: "dark" }), { mode: "dark" });
+  assert.equal(await settings.setIcon(null), null);
+  assert.equal(await settings.getInstructions(), "Be brief.");
+  assert.equal(await settings.setInstructions("Answer in Danish."), "Answer in Danish.");
+  const base = "/v2/machines/m%2F1";
+  assert.deepEqual(requests, [
+    { path: `${base}/theme`, method: "PUT", body: { theme: { mode: "dark" } } },
+    { path: `${base}/icon`, method: "PUT", body: { icon: null } },
+    { path: `${base}/instructions`, method: "GET", body: undefined },
+    { path: `${base}/instructions`, method: "PUT", body: { instructions: "Answer in Danish." } },
+  ]);
+});

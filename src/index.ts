@@ -217,6 +217,7 @@ export type {
   MachineImageState,
   MachineImageStep,
   MachineImageSubmission,
+  MachineTheme,
 } from "./types.js";
 
 export type {

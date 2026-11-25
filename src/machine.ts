@@ -34,6 +34,7 @@ import type {
   MachineMemberRoleConfiguration,
   MachineMeta,
   MachineSettings,
+  MachineTheme,
   MachineResources,
   MachineStorage,
   MachineSummary,
@@ -52,6 +53,15 @@ import {
 export interface MachineSettingsApi {
   get(): Promise<MachineSettings>;
   replace(settings: MachineSettings): Promise<MachineSettings>;
+  /** A JSON object of at most 16 KiB; null returns it to its machine image's, or the app's. */
+  setTheme(theme: MachineTheme | null): Promise<MachineTheme | null>;
+  /** The machine's icon, a data URI of a WebP, PNG or JPEG picture of at most
+   *  64 KiB; null returns it to its machine image's, or none. */
+  setIcon(icon: string | null): Promise<string | null>;
+  /** The machine's custom instructions; "" without any. */
+  getInstructions(): Promise<string>;
+  /** At most 10,000 characters; "" clears them. */
+  setInstructions(instructions: string): Promise<string>;
 }
 
 export interface MachineExecOptions {
@@ -379,6 +389,31 @@ class MachineSettingsClient implements MachineSettingsApi {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
+    });
+  }
+
+  async setTheme(theme: MachineTheme | null): Promise<MachineTheme | null> {
+    return (await this.put<{ theme: MachineTheme | null }>("theme", { theme })).theme;
+  }
+
+  async setIcon(icon: string | null): Promise<string | null> {
+    return (await this.put<{ icon: string | null }>("icon", { icon })).icon;
+  }
+
+  async getInstructions(): Promise<string> {
+    const { instructions } = await this.transport.requestJson<{ instructions: string }>(`${this.machinePath}/instructions`);
+    return instructions;
+  }
+
+  async setInstructions(instructions: string): Promise<string> {
+    return (await this.put<{ instructions: string }>("instructions", { instructions })).instructions;
+  }
+
+  private put<T>(what: string, body: unknown): Promise<T> {
+    return this.transport.requestJson(`${this.machinePath}/${what}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
   }
 }

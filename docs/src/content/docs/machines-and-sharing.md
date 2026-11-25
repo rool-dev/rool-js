@@ -36,6 +36,23 @@ if (replacedCheckpointId)
 
 Deleting a machine requires its owner, or an admin of the account that pays for it, and stops any file watch held by that handle. An account's admins can also make any member the owner, with `members.replaceRole(userId, { role: "owner" })`, and put themselves on any of its machines.
 
+## Theme, icon and instructions
+
+A machine has a theme, an icon and custom instructions of its own. The theme and icon are in every machine summary; each is written on its own:
+
+```ts
+const machine = client.machine(machineId);
+
+await machine.settings.setTheme(theme); // null clears it
+await machine.settings.setIcon(iconDataUri); // a WebP, PNG or JPEG data URI; null clears it
+await machine.settings.setInstructions("Answer in Danish.");
+console.log(await machine.settings.getInstructions());
+```
+
+A theme's shape is yours: the server stores any JSON object of at most 16 KiB and reads nothing in it, so validate a theme before applying one. An icon that is not a small raster picture is refused with `invalid_machine_branding`. Programs in the machine can read all three under `/etc/rool`.
+
+The same values are still in `machine.metadata`, as the keys `theme`, `image` and `spaceCustomPrompt.text`, for clients written before these calls. Prefer the calls above: `metadata.set()` reads the whole document and writes it back, so it can undo a change someone else made at the same moment.
+
 ## Power and resources
 
 A machine starts when something needs it and stops on its own when idle. `machine.stop()` shuts it down now, after saving its state. Owners, admins and editors can stop a machine. The next request that needs the machine starts it again. A request that is running in the machine when it stops, whether through `stop()`, a restore or going idle, fails with the problem code `machine_stopped` and can be retried.
