@@ -1,7 +1,17 @@
 export { RoolClient, roolSdkVersion } from "./client.js";
-export type { RoolAcl, RoolAclApi, RoolAclView, GlobalAction, AccountAction, MachineAction } from "./acl.js";
+export type { RoolAcl, RoolAclApi, RoolAclView } from "./acl.js";
 export { EmailChangeError, RoolAuthUnavailableError } from "./auth-base.js";
 export type { EmailChangeErrorCode } from "./auth-base.js";
+export type {
+  ApiTokensView,
+  ApiTokensListener,
+  AccountApiTokensApi,
+  ApiToken,
+  ApiTokenGrant,
+  CreateApiToken,
+  CreatedApiToken,
+} from "./api-tokens.js";
+export type { GrantableAction } from "./account.js";
 export { BrowserAuth } from "./auth-browser.js";
 export type { BrowserAuthConfig } from "./auth-browser.js";
 export { NativeAuth } from "./auth-native.js";
@@ -82,9 +92,6 @@ export type {
 export type { MachineExecEvent } from "./exec.js";
 export type {
   MachineCheckpointsApi,
-  MachineWebdavCredentialsApi,
-  MachineWebdavCredentialsListener,
-  MachineWebdavCredentialsView,
   MachineExecOptions,
   MachineExecResult,
   MachineInvitesApi,
@@ -127,9 +134,6 @@ export type {
   UsagePricing,
   ClientCompatibility,
   CreateAccountInvite,
-  CreateWebdavCredential,
-  CreatedWebdavCredential,
-  WebdavCredential,
   CreateCustomMcpConnection,
   CreatedAccountInvite,
   CreateMachineInvite,

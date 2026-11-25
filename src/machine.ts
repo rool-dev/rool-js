@@ -29,9 +29,6 @@ import {
   type MachineStructuredRequestOptions,
 } from "./structured.js";
 import type {
-  CreateWebdavCredential,
-  CreatedWebdavCredential,
-  WebdavCredential,
   CreateMachineInvite,
   CreateMcpConnection,
   CreatedMachineInvite,
@@ -135,21 +132,6 @@ export interface MachineMembersApi {
   remove(userId: string): Promise<void>;
 }
 
-export interface MachineWebdavCredentialsView {
-  readonly credentials: readonly WebdavCredential[];
-  readonly loading: boolean;
-  readonly error: unknown;
-}
-
-export type MachineWebdavCredentialsListener = (view: MachineWebdavCredentialsView) => void;
-
-export interface MachineWebdavCredentialsApi {
-  list(): Promise<WebdavCredential[]>;
-  watch(listener: MachineWebdavCredentialsListener): () => void;
-  create(credential: CreateWebdavCredential): Promise<CreatedWebdavCredential>;
-  revoke(credentialId: string): Promise<void>;
-}
-
 export interface MachineInvitesApi {
   list(): Promise<MachineInvite[]>;
   create(invite: CreateMachineInvite): Promise<CreatedMachineInvite>;
@@ -211,7 +193,6 @@ export class RoolMachine {
   readonly checkpoints: MachineCheckpointsApi;
   readonly members: MachineMembersApi;
   readonly invites: MachineInvitesApi;
-  readonly webdavCredentials: MachineWebdavCredentialsApi;
   readonly mcpProviders: MachineMcpProvidersApi;
   readonly mcpConnections: MachineMcpConnectionsApi;
   readonly machineImage: MachineImageSelectionApi;
@@ -238,7 +219,6 @@ export class RoolMachine {
     this.checkpoints = new MachineCheckpointsClient(this.path, transport);
     this.members = new MachineMembersClient(this.path, transport);
     this.invites = new MachineInvitesClient(this.path, transport);
-    this.webdavCredentials = new MachineWebdavCredentialsClient(this.id, this.path, transport);
     this.mcpProviders = new MachineMcpProvidersClient(this.path, transport);
     this.machineImage = new MachineImageSelectionClient(this.id, this.path, transport);
     this.mcpConnections = new MachineMcpConnectionsClient(
@@ -672,60 +652,6 @@ class MachineMcpConnectionsClient implements MachineMcpConnectionsApi {
 
   private connectionPath(connectionId: string): string {
     return `${this.path}/${encodeURIComponent(connectionId)}`;
-  }
-}
-
-class MachineWebdavCredentialsClient implements MachineWebdavCredentialsApi {
-  private readonly watched: WatchedValue<WebdavCredential[]>;
-
-  constructor(
-    machineId: string,
-    private readonly machinePath: string,
-    private readonly transport: RoolMachineTransport,
-  ) {
-    this.watched = new WatchedValue(
-      (signal) => this.load(signal),
-      (listener) => transport.subscribeEvents(listener),
-      (event) => (event.type === "webdav_credentials_changed" || event.type === "machine_members_changed" || event.type === "machines_changed") && event.machineId === machineId,
-      () => [],
-    );
-  }
-
-  list(): Promise<WebdavCredential[]> {
-    return this.load();
-  }
-
-  watch(listener: MachineWebdavCredentialsListener): () => void {
-    return this.watched.watch(({ value, loading, error }) => listener({ credentials: [...value], loading, error }));
-  }
-
-  private async load(signal?: AbortSignal): Promise<WebdavCredential[]> {
-    const { credentials } = await this.transport.requestJson<{ credentials: WebdavCredential[] }>(
-      `${this.machinePath}/webdav-credentials`, { signal },
-    );
-    return credentials;
-  }
-
-  async create(credential: CreateWebdavCredential): Promise<CreatedWebdavCredential> {
-    const generation = this.watched.generation;
-    const created = await this.transport.requestJson<CreatedWebdavCredential>(`${this.machinePath}/webdav-credentials`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(credential),
-    });
-    // The caller alone receives the secret, never the watch cache or listeners.
-    const { password, ...metadata } = created;
-    this.watched.update(generation, (items) => [metadata, ...items.filter((item) => item.id !== metadata.id)]);
-    return created;
-  }
-
-  async revoke(credentialId: string): Promise<void> {
-    const generation = this.watched.generation;
-    await this.transport.request(
-      `${this.machinePath}/webdav-credentials/${encodeURIComponent(credentialId)}`,
-      { method: "DELETE" },
-    );
-    this.watched.update(generation, (items) => items.filter((item) => item.id !== credentialId));
   }
 }
 

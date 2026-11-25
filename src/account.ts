@@ -1,3 +1,4 @@
+import { AccountApiTokensClient, type AccountApiTokensApi } from "./api-tokens.js";
 import type {
   AccountInvite,
   AccountMachine,
@@ -15,6 +16,11 @@ import {
   type AccountMachineImagesApi,
 } from "./machine-images.js";
 import type { RoolTransport, RoolWatchingTransport } from "./transport.js";
+
+export interface GrantableAction {
+  id: string;
+  description: string;
+}
 
 export interface AccountMembersApi {
   list(): Promise<AccountMember[]>;
@@ -48,6 +54,7 @@ export class RoolAccountApi {
   readonly members: AccountMembersApi;
   readonly invites: AccountInvitesApi;
   readonly machineImages: AccountMachineImagesApi;
+  readonly apiTokens: AccountApiTokensApi;
   private readonly path: string;
 
   constructor(
@@ -59,6 +66,13 @@ export class RoolAccountApi {
     this.members = new AccountMembersClient(this.path, transport);
     this.invites = new AccountInvitesClient(this.path, transport);
     this.machineImages = new AccountMachineImagesClient(id, this.path, transport);
+    this.apiTokens = new AccountApiTokensClient(this.id, this.path, transport);
+  }
+
+  async getGrantableActions(options: { machineId?: string } = {}): Promise<GrantableAction[]> {
+    const query = options.machineId === undefined ? "" : `?${new URLSearchParams({ machineId: options.machineId })}`;
+    const { actions } = await this.transport.requestJson<{ actions: GrantableAction[] }>(`${this.path}/grantable-actions${query}`);
+    return actions;
   }
 
   get(): Promise<RoolAccount> {

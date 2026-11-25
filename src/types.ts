@@ -244,7 +244,6 @@ export interface MachineSummary {
   id: string;
   name: string;
   hostname: string;
-  webDavUrl: string;
   inboundEmailAddress: string;
   nextInboundEmailAddress?: string;
   meta: MachineMeta;
@@ -268,24 +267,6 @@ export interface MachineSummary {
   state: MachineLifecycleState;
   /** The machine image it runs; null on the stock system. */
   machineImage: MachineImageRef | null;
-}
-
-export interface WebdavCredential {
-  id: string;
-  userId: string;
-  name: string;
-  url: string;
-  username: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-}
-
-export interface CreateWebdavCredential {
-  name: string;
-}
-
-export interface CreatedWebdavCredential extends WebdavCredential {
-  password: string;
 }
 
 export interface MachineSettings {
@@ -676,6 +657,8 @@ export interface RoolClientIdentity {
 
 export interface RoolClientConfig {
   apiUrl?: string;
+  /** Account API token, sent as Bearer authentication without a user session. */
+  apiToken?: string;
   /** Supply access and Rool tokens from an auth client. */
   getTokens?: () =>
     | RoolRequestTokens

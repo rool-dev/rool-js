@@ -80,10 +80,14 @@ export class RoolClient {
     this.identity = config.client;
     this.onAuthInvalidated = config.onAuthInvalidated;
 
-    if (config.getTokens && config.getAccessToken) {
-      throw new Error("getTokens and getAccessToken cannot be used together");
+    if ([config.apiToken !== undefined, !!config.getTokens, !!config.getAccessToken].filter(Boolean).length > 1) {
+      throw new Error("apiToken, getTokens and getAccessToken cannot be used together");
     }
-    if (config.getTokens) {
+    if (config.apiToken !== undefined) {
+      if (!config.apiToken.trim()) throw new Error("apiToken must not be empty");
+      const accessToken = config.apiToken;
+      this.getTokens = async () => ({ accessToken, roolToken: "" });
+    } else if (config.getTokens) {
       this.getTokens = async () => (await config.getTokens!()) ?? undefined;
     } else if (config.getAccessToken) {
       this.getTokens = async () => {

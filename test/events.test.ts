@@ -45,7 +45,6 @@ test("empty polls and network retries do not refresh the session", async () => {
       return Response.json({
         syncToken: "token-2",
         events: [
-          { type: "webdav_credentials_changed", machineId: "machine-1", timestamp: 1 },
           { type: "account_changed", accountId: "account-1", timestamp: 1 },
           { type: "profile_changed", timestamp: 2 },
           { type: "email_access_changed", timestamp: 2 },
@@ -85,7 +84,7 @@ test("empty polls and network retries do not refresh the session", async () => {
   const complete = new Promise<void>((resolve) => {
     const unsubscribe = events.subscribe((event) => {
       received.push(event);
-      if (received.length === 11) {
+      if (received.length === 10) {
         unsubscribe();
         resolve();
       }
@@ -102,7 +101,6 @@ test("empty polls and network retries do not refresh the session", async () => {
   ]);
   assert.deepEqual(received, [
     { type: "session", session: initialSession },
-    { type: "webdav_credentials_changed", machineId: "machine-1", timestamp: 1 },
     { type: "account_changed", accountId: "account-1", timestamp: 1 },
     { type: "profile_changed", timestamp: 2 },
     { type: "email_access_changed", timestamp: 2 },

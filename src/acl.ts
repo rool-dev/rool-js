@@ -40,64 +40,7 @@ export class AclClient implements RoolAclApi {
 /** Permissions to attempt an operation, not a promise that its constraints are met. */
 export interface RoolAcl {
   version: 1;
-  actions: Record<GlobalAction, boolean>;
-  accounts: Record<string, { actions: Record<AccountAction, boolean> }>;
-  machines: Record<string, { actions: Record<MachineAction, boolean> }>;
+  actions: Record<string, boolean>;
+  accounts: Record<string, { actions: Record<string, boolean> }>;
+  machines: Record<string, { actions: Record<string, boolean> }>;
 }
-
-export type GlobalAction = "accounts.create";
-
-export type AccountAction =
-  | "account.read"
-  | "account.settings.write"
-  | "account.delete"
-  | "account.leave"
-  | "account.members.read"
-  | "account.members.write"
-  | "account.members.remove"
-  | "account.members.limit"
-  | "account.invites"
-  | "account.machines.list"
-  | "account.machines.create"
-  | "account.machines.receive"
-  | "account.billing.write"
-  | "account.providers.read"
-  | "account.providers.write"
-  | "account.machineImages.write"
-  | "account.personalPlan.start";
-
-export type MachineAction =
-  | "machine.read"
-  | "machine.files.read"
-  | "machine.files.write"
-  | "machine.meta.write"
-  | "machine.agents.read"
-  | "machine.agents.write"
-  | "machine.ai.run"
-  | "machine.schedule.run"
-  | "machine.connections.use"
-  | "machine.exec"
-  | "machine.fetch"
-  | "machine.stop"
-  | "machine.settings.write"
-  | "machine.hostname.write"
-  | "machine.type.write"
-  | "machine.copy"
-  | "machine.move"
-  | "machine.delete"
-  | "machine.image.edit"
-  | "machine.leave"
-  | "machine.members.read"
-  | "machine.members.write"
-  | "machine.owner.write"
-  | "machine.members.remove"
-  | "machine.pendingMembers.read"
-  | "machine.invites"
-  | "machine.checkpoints.read"
-  | "machine.checkpoints.restore"
-  | "machine.connections.read"
-  | "machine.connections.write"
-  | "machine.webdavCredentials.read"
-  | "machine.webdavCredentials.create"
-  | "machine.webdavCredentials.revokeOwn"
-  | "machine.webdavCredentials.manageAll";

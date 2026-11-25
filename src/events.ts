@@ -4,6 +4,7 @@ import type { RoolSession } from "./types.js";
 
 export type RoolUserEvent =
   | { type: "acl_changed"; timestamp: number }
+  | { type: "api_tokens_changed"; accountId: string; timestamp: number }
   | { type: "account_changed"; accountId: string; timestamp: number }
   | { type: "profile_changed"; timestamp: number }
   | { type: "email_access_changed"; timestamp: number }
@@ -12,7 +13,6 @@ export type RoolUserEvent =
   | { type: "machines_changed"; machineId: string; timestamp: number }
   | { type: "machine_members_changed"; machineId: string; timestamp: number }
   | { type: "mcp_connections_changed"; machineId: string; timestamp: number }
-  | { type: "webdav_credentials_changed"; machineId: string; timestamp: number }
   | {
       type: "conversation_changed";
       machineId: string;
@@ -215,7 +215,7 @@ function parseSyncEvent(value: unknown): RoolUserEvent | null {
     throw new Error("Invalid event");
   }
   if (
-    (value.type === "account_changed" || value.type === "providers_changed") &&
+    (value.type === "account_changed" || value.type === "providers_changed" || value.type === "api_tokens_changed") &&
     typeof value.accountId === "string"
   ) {
     return {
@@ -235,8 +235,7 @@ function parseSyncEvent(value: unknown): RoolUserEvent | null {
   if (
     (value.type === "machines_changed" ||
       value.type === "machine_members_changed" ||
-      value.type === "mcp_connections_changed" ||
-      value.type === "webdav_credentials_changed") &&
+      value.type === "mcp_connections_changed") &&
     typeof value.machineId === "string"
   ) {
     return {
