@@ -11,6 +11,7 @@ import type {
   MachineImageState,
   MachineImageSubmission,
 } from "./types.js";
+import { fetchMachineImageArchive, type MachineImageArchive } from "./machine-image-files.js";
 import { WatchedValue } from "./watched-value.js";
 
 export interface AccountMachineImagesView {
@@ -98,6 +99,13 @@ export class RoolMachineImageApi {
     return this.transport.requestJson(`${this.path}/revisions/${revision}`);
   }
 
+  /** The contents of a revision's files, fetched all at once. */
+  files(revision: number): Promise<MachineImageArchive> {
+    return fetchMachineImageArchive(() =>
+      this.transport.request(`${this.path}/revisions/${revision}/files`),
+    );
+  }
+
   /** `machine_image_name_taken` for a name the account already uses. */
   update(settings: Partial<MachineImageSettings>): Promise<MachineImage> {
     return this.transport.requestJson(
@@ -146,6 +154,8 @@ export interface HubMachineImagesApi {
   list(): Promise<HubMachineImage[]>;
   /** `machine_image_not_listed` for an id the Hub does not list. */
   get(machineImageId: string): Promise<HubMachineImageDetail>;
+  /** The contents of a listed machine image's files, fetched all at once. */
+  files(machineImageId: string): Promise<MachineImageArchive>;
 }
 
 export interface RoolHubApi {
@@ -165,6 +175,14 @@ export class HubMachineImagesClient implements HubMachineImagesApi {
   get(machineImageId: string): Promise<HubMachineImageDetail> {
     return this.transport.requestJson(
       `/v2/hub/machine-images/${encodeURIComponent(machineImageId)}`,
+    );
+  }
+
+  files(machineImageId: string): Promise<MachineImageArchive> {
+    return fetchMachineImageArchive(() =>
+      this.transport.request(
+        `/v2/hub/machine-images/${encodeURIComponent(machineImageId)}/files`,
+      ),
     );
   }
 }

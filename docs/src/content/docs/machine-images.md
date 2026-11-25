@@ -26,6 +26,17 @@ await image.setDefaultRevision(2);
 await image.delete();
 ```
 
+A revision lists its files with their sizes. To show what is in them, open its archive:
+
+```ts
+const files = await image.files(2);
+console.log(files.paths); // ["/etc/hosts", "/etc/rool/theme.json"]
+console.log(await files.text("/etc/hosts"));
+const picture = await files.read("/etc/rool/icon.webp"); // bytes
+```
+
+`files()` downloads a revision's files as the one compressed archive they are stored in, at most 16 MiB, and keeps it compressed. A file is unpacked when you read it, so keep the result while showing files, and read only what you show. A browser keeps the download and asks the server each time whether it still holds, so opening the same files again costs one small request. A revision without files gives no paths. `client.hub.machineImages.files(id)` does the same for a listed machine image.
+
 `setDefaultRevision()` restarts every machine whose system it changes and reports how many. Rolling back is setting an older revision. `delete()` is refused with `machine_image_in_use` while machines run the machine image.
 
 ## The machine image a machine runs

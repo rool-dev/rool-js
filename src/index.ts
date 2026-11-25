@@ -9,6 +9,7 @@ export type { NativeAuthConfig } from "./auth-native.js";
 export { RoolProblem } from "./problem.js";
 export { RoolAccountApi } from "./account.js";
 export { RoolMachineImageApi } from "./machine-images.js";
+export type { MachineImageArchive } from "./machine-image-files.js";
 export type {
   AccountMachineImagesApi,
   AccountMachineImagesListener,
