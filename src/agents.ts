@@ -99,6 +99,8 @@ export interface MachineConversationPromptOptions extends AgentRequestOptions {
   attachments?: readonly MachineFilePath[];
   responseSchema?: Record<string, unknown>;
   replaceTurnId?: string;
+  /** Your app's instructions for this prompt only; at most 16,000 characters. */
+  appInstructions?: string;
 }
 
 export interface MachineConversationFollowOptions extends AgentRequestOptions {
@@ -455,6 +457,9 @@ class MachineAgentState implements MachineAgents {
         : {}),
       ...(options.replaceTurnId
         ? { replaceTurnId: options.replaceTurnId }
+        : {}),
+      ...(options.appInstructions
+        ? { appInstructions: options.appInstructions }
         : {}),
     };
     const runPath = `${this.conversationPath(agentId, conversationId)}/run`;

@@ -6,6 +6,22 @@ An agent is a reusable set of instructions on one machine. A conversation is its
 
 Custom `system` instructions are added to Rool's built-in machine context; they do not need to explain how to access the machine. An agent definition can be replaced later without changing its existing conversations. Conversation-specific instructions are available when one thread needs extra context without changing the agent.
 
+## Three kinds of instructions
+
+Besides an agent's own `system` text, the agent sees three sets of instructions, each under its own heading:
+
+- **Your app's**, sent with each prompt as `appInstructions`: how your app shows an answer, or what the user has open. They hold for that prompt's run only, so a prompt from another client is not answered under your app's rules.
+- **The machine's**, set with `machine.settings.setInstructions()`: what the user wants of every conversation on the machine, whichever app or channel starts it.
+- **The conversation's**, set with `conversation.replaceInstructions()`: what the user wants of this one thread.
+
+```typescript
+await conversation.prompt("Summarize the report", {
+  appInstructions: "Answers are shown as Markdown. Link files as rool-machine: URLs.",
+});
+```
+
+Keep them apart. Text your app writes for itself does not belong in the conversation's instructions, where the user would see it as their own and other clients would inherit it.
+
 ## Conversations
 
 A conversation is **private** to its creator by default. A **shared** conversation is visible to the machine's members. Names and visibility can be changed without changing its turns.

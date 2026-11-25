@@ -56,6 +56,25 @@ async function main(): Promise<void> {
   assert.deepEqual(await machine.settings.replace(renamed), renamed);
   assert.deepEqual(await machine.settings.get(), renamed);
 
+  console.log("Setting the theme, icon and instructions...");
+  const theme = { mode: "dark" };
+  const icon = "data:image/png;base64,iVBORw0KGgo=";
+  assert.deepEqual(await machine.settings.setTheme(theme), theme);
+  assert.equal(await machine.settings.setIcon(icon), icon);
+  assert.equal(await machine.settings.setInstructions("Be brief."), "Be brief.");
+  assert.equal(await machine.settings.getInstructions(), "Be brief.");
+  const branded = (await client.listMachines()).find((m) => m.id === created.id);
+  assert.deepEqual(branded?.theme, theme);
+  assert.equal(branded?.icon, icon);
+  await expectProblem(
+    () => machine.settings.setIcon("https://example.test/icon.png"),
+    400,
+    "invalid_machine_branding",
+  );
+  assert.equal(await machine.settings.setTheme(null), null);
+  assert.equal(await machine.settings.setIcon(null), null);
+  assert.equal(await machine.settings.setInstructions(""), "");
+
   console.log("Setting the machine hostname...");
   const hostname = `sdk-${Date.now()}`;
   const withHostname = await machine.setHostname(hostname);

@@ -310,6 +310,7 @@ test("prompt sends run options", async () => {
       properties: { count: { type: "integer" } },
       required: ["count"],
     },
+    appInstructions: "Show files as widgets.",
   });
 
   assert.deepEqual(runInput, {
@@ -322,6 +323,7 @@ test("prompt sends run options", async () => {
       properties: { count: { type: "integer" } },
       required: ["count"],
     },
+    appInstructions: "Show files as widgets.",
   });
 });
 

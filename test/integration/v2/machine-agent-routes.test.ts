@@ -262,6 +262,7 @@ async function main(): Promise<void> {
   });
   await watched.prompt("Without using tools, say watched in one sentence.", {
     ...lightest,
+    appInstructions: "Answers are shown as plain text.",
   });
   let watchTimeout: ReturnType<typeof setTimeout> | undefined;
   try {
