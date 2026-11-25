@@ -7,9 +7,15 @@ import type {
 } from "./files.js";
 import { AclClient, type RoolAclApi } from "./acl.js";
 import { RoolAccountApi } from "./account.js";
+import {
+  HubMachineImagesClient,
+  RoolMachineImageApi,
+  type RoolHubApi,
+} from "./machine-images.js";
 import { EmailAccessClient, type EmailAccessApi } from "./email-access.js";
 import { RoolMachine } from "./machine.js";
 import { throwProblemResponse } from "./problem.js";
+import type { RoolTransport } from "./transport.js";
 import type {
   AccountInvitePreview,
   AccountInviteRedemption,
@@ -63,6 +69,8 @@ export class RoolClient {
   readonly events: RoolEvents;
   readonly acl: RoolAclApi;
   readonly emailAccess: EmailAccessApi;
+  /** The Rool Hub: what accounts have published for others to copy. */
+  readonly hub: RoolHubApi;
 
   constructor(config: RoolClientConfig = {}) {
     this.apiUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/+$/, "");
@@ -96,6 +104,7 @@ export class RoolClient {
       },
       getSession: () => this.getSession(),
     });
+    this.hub = { machineImages: new HubMachineImagesClient(this.transport()) };
     this.acl = new AclClient({
       load: signal => this.requestJson("/v2/acl", { signal }),
       subscribeEvents: listener => this.events.subscribe(listener),
@@ -140,11 +149,20 @@ export class RoolClient {
 
   /** An account the user is on the roster of: its members, invites and machines. */
   account(accountId: string): RoolAccountApi {
-    return new RoolAccountApi(accountId, {
+    return new RoolAccountApi(accountId, this.transport());
+  }
+
+  /** A machine image of an account; `account(id).machineImages` lists them. */
+  machineImage(machineImageId: string): RoolMachineImageApi {
+    return new RoolMachineImageApi(machineImageId, this.transport());
+  }
+
+  private transport(): RoolTransport {
+    return {
       request: (path, init) => this.request(path, init),
       requestJson: <T>(path: string, init?: RequestInit) =>
         this.requestJson<T>(path, init),
-    });
+    };
   }
 
   /** Starts deletion of the signed-in user and the accounts only they belong to. */

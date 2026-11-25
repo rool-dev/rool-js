@@ -49,6 +49,7 @@ const smokeTests = [
     name: "machine stop and resources",
     file: "machine-power-routes.test.ts",
   },
+  { name: "machine images", file: "machine-image-routes.test.ts" },
 ];
 
 for (const smokeTest of smokeTests) {

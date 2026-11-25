@@ -8,6 +8,15 @@ export { NativeAuth } from "./auth-native.js";
 export type { NativeAuthConfig } from "./auth-native.js";
 export { RoolProblem } from "./problem.js";
 export { RoolAccountApi } from "./account.js";
+export { RoolMachineImageApi } from "./machine-images.js";
+export type {
+  AccountMachineImagesApi,
+  HubMachineImagesApi,
+  MachineImageSelectionApi,
+  MachineImageStateListener,
+  MachineImageStateView,
+  RoolHubApi,
+} from "./machine-images.js";
 export type { EmailAccessApi, EmailAccessListener, EmailAccessView } from "./email-access.js";
 export type { AccountInvitesApi, AccountMembersApi } from "./account.js";
 export { RoolFileError } from "./files.js";
@@ -191,6 +200,21 @@ export type {
   UserAppData,
   EmailAccessAddress,
   UserProfile,
+  CopiedMachineImage,
+  HubMachineImage,
+  HubMachineImageDetail,
+  MachineImage,
+  MachineImageCopyUpdate,
+  MachineImageDefaultChange,
+  MachineImageFile,
+  MachineImageRef,
+  MachineImageReviewState,
+  MachineImageRevision,
+  MachineImageRevisionSummary,
+  MachineImageSettings,
+  MachineImageState,
+  MachineImageStep,
+  MachineImageSubmission,
 } from "./types.js";
 
 export type {

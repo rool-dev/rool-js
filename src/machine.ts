@@ -44,6 +44,10 @@ import type {
   PendingMachineMember,
 } from "./types.js";
 import { readExecStream, type MachineExecEvent } from "./exec.js";
+import {
+  MachineImageSelectionClient,
+  type MachineImageSelectionApi,
+} from "./machine-images.js";
 
 export interface MachineSettingsApi {
   get(): Promise<MachineSettings>;
@@ -190,6 +194,7 @@ export class RoolMachine {
   readonly webdavCredentials: MachineWebdavCredentialsApi;
   readonly mcpProviders: MachineMcpProvidersApi;
   readonly mcpConnections: MachineMcpConnectionsApi;
+  readonly machineImage: MachineImageSelectionApi;
 
   private readonly path: string;
 
@@ -215,6 +220,7 @@ export class RoolMachine {
     this.invites = new MachineInvitesClient(this.path, transport);
     this.webdavCredentials = new MachineWebdavCredentialsClient(this.id, this.path, transport);
     this.mcpProviders = new MachineMcpProvidersClient(this.path, transport);
+    this.machineImage = new MachineImageSelectionClient(this.id, this.path, transport);
     this.mcpConnections = new MachineMcpConnectionsClient(
       this.id,
       this.path,

@@ -32,6 +32,7 @@ export default defineConfig({
               label: "Machines and sharing",
               link: "/machines-and-sharing/",
             },
+            { label: "Machine images", link: "/machine-images/" },
             { label: "Files", link: "/files/" },
             {
               label: "Agents and conversations",

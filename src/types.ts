@@ -180,6 +180,9 @@ export interface PlanDefinition {
   };
   customHostname: boolean;
   mcp: boolean;
+  /** Whether machines the account pays for can edit machine images. Running
+   *  one, and copying one from the Rool Hub, need no plan. */
+  machineImages: boolean;
 }
 
 /** A top-up in the caller's market. */
@@ -259,6 +262,8 @@ export interface MachineSummary {
   updatedAt: string;
   memberCount: number;
   state: MachineLifecycleState;
+  /** The machine image it runs; null on the stock system. */
+  machineImage: MachineImageRef | null;
 }
 
 export interface WebdavCredential {
@@ -290,6 +295,8 @@ export interface MachineCreation extends MachineSettings {
   /** An account the user is on the roster of; by default their home account
    *  (a duplicate goes where its original's work is paid from). */
   accountId?: string | null;
+  /** A machine image of the paying account to boot on; the stock system by default. */
+  machineImageId?: string | null;
 }
 
 export interface MachineCheckpoint {
@@ -479,6 +486,8 @@ export interface AccountMachine {
   createdAt: string;
   updatedAt: string;
   state: MachineLifecycleState;
+  /** The machine image it runs; null on the stock system. */
+  machineImage: MachineImageRef | null;
 }
 
 /** A machine a team invite puts its taker on when they accept. */
@@ -684,4 +693,129 @@ export interface RoolProblemDetails {
   status: number;
   code: string;
   detail: string;
+}
+
+/** A step of a machine image's recipe: a shell command run as root. */
+export interface MachineImageStep {
+  run: string;
+}
+
+/** A file a machine image puts over its steps; a symlink has `link`. */
+export interface MachineImageFile {
+  path: string;
+  size: number;
+  mode: number;
+  link?: string;
+}
+
+export interface MachineImageSettings {
+  name: string;
+  /** What the machine image is for. */
+  description: string;
+}
+
+export type MachineImageReviewState = "pending" | "approved" | "rejected";
+
+export interface MachineImageRevisionSummary {
+  revision: number;
+  stepCount: number;
+  fileCount: number;
+  /** The revision it was edited from. */
+  parentRevision: number | null;
+  createdAt: string;
+  createdBy: string | null;
+  /** Machines running it. */
+  machines: number;
+  /** On a copy from the Rool Hub: the revision of `copiedFromId` it holds. */
+  copiedFromRevision: number | null;
+  /** Its latest submission to the Hub; `note` says why one was rejected. */
+  review: { state: MachineImageReviewState; note: string | null } | null;
+}
+
+/** A machine image of an account: a recipe of steps over the stock system
+ *  and files over those, kept as numbered revisions. */
+export interface MachineImage extends MachineImageSettings {
+  id: string;
+  /** The revision machines follow. */
+  defaultRevision: number;
+  /** The Hub machine image this is a copy of, while that exists. */
+  copiedFromId: string | null;
+  /** The revision that one lists now; newer than every `copiedFromRevision`
+   *  here when `updateCopy()` has something to add. */
+  copiedFromPublishedRevision: number | null;
+  /** The revision the Hub lists; null when not listed. */
+  publishedRevision: number | null;
+  /** Newest first. */
+  revisions: MachineImageRevisionSummary[];
+}
+
+export interface MachineImageRevision extends MachineImageSettings {
+  machineImageId: string;
+  revision: number;
+  defaultRevision: number;
+  parentRevision: number | null;
+  createdAt: string;
+  createdBy: string | null;
+  recipe: MachineImageStep[];
+  files: MachineImageFile[];
+}
+
+export interface MachineImageSubmission {
+  id: string;
+  revision: number;
+}
+
+export interface CopiedMachineImage {
+  id: string;
+  name: string;
+}
+
+export interface MachineImageCopyUpdate {
+  /** The copy's new revision. */
+  revision: number;
+  /** The Hub revision it holds. */
+  copiedFromRevision: number;
+}
+
+/** A machine image the Rool Hub lists, as reviewed. */
+export interface HubMachineImage extends MachineImageSettings {
+  id: string;
+  revision: number;
+  stepCount: number;
+  fileCount: number;
+  publishedAt: string;
+}
+
+export interface HubMachineImageDetail extends HubMachineImage {
+  recipe: MachineImageStep[];
+  files: MachineImageFile[];
+}
+
+/** The machine image a machine runs, and the revision: its own after a save,
+ *  the machine image's default otherwise. */
+export interface MachineImageRef {
+  id: string;
+  name: string;
+  revision: number;
+}
+
+/** What `setDefaultRevision()` changed. */
+export interface MachineImageDefaultChange {
+  /** The default revision before. */
+  previous: number;
+  /** Machines restarted onto the new one. */
+  restarted: number;
+}
+
+/** What a machine runs, and whether that is changing. */
+export interface MachineImageState {
+  /** null on the stock system. */
+  machineImage: (MachineImageRef & { defaultRevision: number }) | null;
+  editing: boolean;
+  /** A save or a switch is building; the machine restarts when it is done. */
+  changing: boolean;
+  /** Why the last change failed. */
+  error: string | null;
+  /** Why the revision failed to build at boot, leaving the machine on the stock system. */
+  bootFailure: string | null;
 }

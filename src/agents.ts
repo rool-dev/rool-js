@@ -1,6 +1,7 @@
 import type { RoolClientEvent } from "./events.js";
 import type { MachineFilePath } from "./files.js";
 import { throwProblemResponse } from "./problem.js";
+import { jsonRequest } from "./transport.js";
 
 /** @deprecated Effort ids come from `machine.getModels()`. */
 export type MachinePromptEffort = string;
@@ -982,18 +983,6 @@ function validateId(value: string, label: string): void {
   );
 }
 
-function jsonRequest(
-  method: "POST" | "PUT",
-  body: unknown,
-  signal?: AbortSignal,
-): RequestInit {
-  return {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal,
-  };
-}
 
 function randomId(): string {
   return globalThis.crypto.randomUUID();

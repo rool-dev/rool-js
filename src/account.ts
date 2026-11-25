@@ -10,11 +10,11 @@ import type {
   Providers,
   RoolAccount,
 } from "./types.js";
-
-export interface AccountTransport {
-  request(path: string, init?: RequestInit): Promise<Response>;
-  requestJson<T>(path: string, init?: RequestInit): Promise<T>;
-}
+import {
+  AccountMachineImagesClient,
+  type AccountMachineImagesApi,
+} from "./machine-images.js";
+import type { RoolTransport } from "./transport.js";
 
 export interface AccountMembersApi {
   list(): Promise<AccountMember[]>;
@@ -47,16 +47,18 @@ export interface AccountInvitesApi {
 export class RoolAccountApi {
   readonly members: AccountMembersApi;
   readonly invites: AccountInvitesApi;
+  readonly machineImages: AccountMachineImagesApi;
   private readonly path: string;
 
   constructor(
     readonly id: string,
-    private readonly transport: AccountTransport,
+    private readonly transport: RoolTransport,
   ) {
     if (!id) throw new Error("accountId is required");
     this.path = `/v2/accounts/${encodeURIComponent(id)}`;
     this.members = new AccountMembersClient(this.path, transport);
     this.invites = new AccountInvitesClient(this.path, transport);
+    this.machineImages = new AccountMachineImagesClient(this.path, transport);
   }
 
   get(): Promise<RoolAccount> {
@@ -150,7 +152,7 @@ export class RoolAccountApi {
 class AccountMembersClient implements AccountMembersApi {
   constructor(
     private readonly accountPath: string,
-    private readonly transport: AccountTransport,
+    private readonly transport: RoolTransport,
   ) {}
 
   async list(): Promise<AccountMember[]> {
@@ -200,7 +202,7 @@ class AccountMembersClient implements AccountMembersApi {
 class AccountInvitesClient implements AccountInvitesApi {
   constructor(
     private readonly accountPath: string,
-    private readonly transport: AccountTransport,
+    private readonly transport: RoolTransport,
   ) {}
 
   async list(): Promise<AccountInvite[]> {

@@ -1,0 +1,90 @@
+---
+title: Machine images
+---
+
+A machine image decides the system a machine runs: its installed software and system files, not its data. It is a recipe of shell steps run as root over the stock Rool system, with files put over the result, kept as numbered revisions. Machine images belong to an account, and a machine follows the default revision of the one it runs.
+
+Revisions are made on a machine, not through the SDK. A machine in edit mode records steps and files, and its agent or shell saves them with `rool-machine-image`. The SDK lists and administers machine images, moves machines between them, and works with the Rool Hub.
+
+## An account's machine images
+
+```ts
+const account = client.account(accountId);
+
+for (const image of await account.machineImages.list()) {
+  console.log(image.name, image.defaultRevision, image.revisions[0].stepCount);
+}
+
+const image = client.machineImage(machineImageId);
+console.log((await image.get()).description);
+const revision = await image.getRevision(2);
+console.log(revision.recipe, revision.files);
+
+await image.update({ description: "R and the tidyverse." });
+await image.setDefaultRevision(2);
+await image.delete();
+```
+
+`setDefaultRevision()` restarts every machine whose system it changes and reports how many. Rolling back is setting an older revision. `delete()` is refused with `machine_image_in_use` while machines run the machine image.
+
+## The machine image a machine runs
+
+```ts
+const machine = client.machine(machineId);
+
+await machine.machineImage.use(machineImageId); // null for the stock system
+const state = await machine.machineImage.get();
+console.log(state.machineImage?.name, state.machineImage?.revision, state.changing, state.error);
+```
+
+Every machine in `client.listMachines()` and `account.listMachines()` carries `machineImage`, with the id, name and revision it runs, so an overview needs no call per machine. It is null on the stock system.
+
+`use()` resolves once the change is asked for; the machine restarts when the revision is built. `watch()` reports the state now and each time it changes:
+
+```ts
+const stop = machine.machineImage.watch(({ state }) => {
+  if (!state) return; // not loaded yet
+  if (state.changing) console.log("building");
+  else if (state.error) console.error(state.error);
+  else console.log("running", state.machineImage?.name ?? "the stock system");
+});
+// later
+stop();
+```
+
+A new machine can start on a machine image with `createMachine({ name, machineImageId })`.
+
+`startEditing()` puts the machine in edit mode and `discardEdits()` leaves it without saving. Both restart the machine. Only the owner of a machine with no other members can enter edit mode, and the plan that pays for the machine must include it: see `machineImages` on the plans of `getPlans()`.
+
+## The Rool Hub
+
+The Hub lists machine images that accounts have published. Taking one makes a copy in your account, which is yours from then on: nothing changes it but your account.
+
+```ts
+const listed = await client.hub.machineImages.list();
+const detail = await client.hub.machineImages.get(listed[0].id);
+console.log(detail.recipe, detail.files);
+
+const copy = await account.machineImages.copyFromHub(detail.id);
+await machine.machineImage.use(copy.id);
+```
+
+When the machine image a copy was made from publishes a newer revision, the copy's `copiedFromPublishedRevision` is higher than the `copiedFromRevision` of its revisions. `updateCopy()` adds that revision to the copy. The default revision stays, so machines move when you set it:
+
+```ts
+const { revision } = await client.machineImage(copy.id).updateCopy();
+await client.machineImage(copy.id).setDefaultRevision(revision);
+```
+
+Changes made to the copy itself are not merged into the new revision.
+
+### Publish to the Hub
+
+```ts
+const image = client.machineImage(machineImageId);
+await image.submit(); // the default revision, or submit(3)
+```
+
+Rool reviews each submitted revision. Each revision in `account.machineImages.list()` carries its `review`: `pending`, `approved`, or `rejected` with a note saying why. An approved revision is listed under the name and description the machine image had when it was submitted, and anyone can read its recipe and files, so keep secrets out of a revision you submit.
+
+One submission waits at a time. `unlist()` takes the machine image off the Hub and withdraws a waiting submission; copies already made stay.
