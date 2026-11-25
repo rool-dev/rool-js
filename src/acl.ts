@@ -63,6 +63,7 @@ export type AccountAction =
   | "account.billing.write"
   | "account.providers.read"
   | "account.providers.write"
+  | "account.machineImages.write"
   | "account.personalPlan.start";
 
 export type MachineAction =
@@ -84,6 +85,7 @@ export type MachineAction =
   | "machine.copy"
   | "machine.move"
   | "machine.delete"
+  | "machine.image.edit"
   | "machine.leave"
   | "machine.members.read"
   | "machine.members.write"

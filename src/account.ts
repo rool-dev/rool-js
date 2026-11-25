@@ -14,7 +14,7 @@ import {
   AccountMachineImagesClient,
   type AccountMachineImagesApi,
 } from "./machine-images.js";
-import type { RoolTransport } from "./transport.js";
+import type { RoolTransport, RoolWatchingTransport } from "./transport.js";
 
 export interface AccountMembersApi {
   list(): Promise<AccountMember[]>;
@@ -52,13 +52,13 @@ export class RoolAccountApi {
 
   constructor(
     readonly id: string,
-    private readonly transport: RoolTransport,
+    private readonly transport: RoolWatchingTransport,
   ) {
     if (!id) throw new Error("accountId is required");
     this.path = `/v2/accounts/${encodeURIComponent(id)}`;
     this.members = new AccountMembersClient(this.path, transport);
     this.invites = new AccountInvitesClient(this.path, transport);
-    this.machineImages = new AccountMachineImagesClient(this.path, transport);
+    this.machineImages = new AccountMachineImagesClient(id, this.path, transport);
   }
 
   get(): Promise<RoolAccount> {

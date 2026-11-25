@@ -1,5 +1,4 @@
-import type { RoolClientEvent } from "./events.js";
-import { jsonRequest, type RoolTransport } from "./transport.js";
+import { jsonRequest, type RoolTransport, type RoolWatchingTransport } from "./transport.js";
 import type {
   CopiedMachineImage,
   HubMachineImage,
@@ -14,8 +13,21 @@ import type {
 } from "./types.js";
 import { WatchedValue } from "./watched-value.js";
 
+export interface AccountMachineImagesView {
+  readonly machineImages: readonly MachineImage[];
+  readonly loading: boolean;
+  readonly error: unknown;
+}
+
+export type AccountMachineImagesListener = (
+  view: AccountMachineImagesView,
+) => void;
+
 export interface AccountMachineImagesApi {
   list(): Promise<MachineImage[]>;
+  /** The list now and whenever it changes: a save, a rename, a new default
+   *  revision, a review. */
+  watch(listener: AccountMachineImagesListener): () => void;
   /** A name the account already uses gets a number after it;
    *  `machine_image_not_listed` for an id the Hub does not list. */
   copyFromHub(hubMachineImageId: string): Promise<CopiedMachineImage>;
@@ -23,19 +35,31 @@ export interface AccountMachineImagesApi {
 
 export class AccountMachineImagesClient implements AccountMachineImagesApi {
   private readonly path: string;
+  private readonly watched: WatchedValue<MachineImage[]>;
 
   constructor(
+    accountId: string,
     accountPath: string,
-    private readonly transport: RoolTransport,
+    private readonly transport: RoolWatchingTransport,
   ) {
     this.path = `${accountPath}/machine-images`;
+    this.watched = new WatchedValue(
+      (signal) => this.load(signal),
+      (listener) => transport.subscribeEvents(listener),
+      (event) =>
+        event.type === "account_changed" && event.accountId === accountId,
+      () => [],
+    );
   }
 
-  async list(): Promise<MachineImage[]> {
-    const { machineImages } = await this.transport.requestJson<{
-      machineImages: MachineImage[];
-    }>(this.path);
-    return machineImages;
+  list(): Promise<MachineImage[]> {
+    return this.load();
+  }
+
+  watch(listener: AccountMachineImagesListener): () => void {
+    return this.watched.watch(({ value, loading, error }) =>
+      listener({ machineImages: [...value], loading, error }),
+    );
   }
 
   copyFromHub(hubMachineImageId: string): Promise<CopiedMachineImage> {
@@ -44,10 +68,17 @@ export class AccountMachineImagesClient implements AccountMachineImagesApi {
       jsonRequest("POST", { from: hubMachineImageId }),
     );
   }
+
+  private async load(signal?: AbortSignal): Promise<MachineImage[]> {
+    const { machineImages } = await this.transport.requestJson<{
+      machineImages: MachineImage[];
+    }>(this.path, { signal });
+    return machineImages;
+  }
 }
 
 /** One machine image of an account. New revisions are saved from a machine in
- *  edit mode, not here. */
+ *  edit mode: `machine(id).machineImage.save()`. */
 export class RoolMachineImageApi {
   private readonly path: string;
 
@@ -154,9 +185,14 @@ export interface MachineImageSelectionApi {
   /** null for the stock system. Resolves once asked; the machine restarts
    *  when the revision is built, so `watch()` for `changing` and `error`. */
   use(machineImageId: string | null): Promise<void>;
-  /** Restarts the machine. Only for the owner of a machine with no other
-   *  members; `machine_image_not_available` off a plan with `machineImages`. */
+  /** Restarts the machine. Refused when `MachineImageState.editRefusal` is
+   *  set; `machine_image_not_available` for `plan`. */
   startEditing(): Promise<void>;
+  /** Saves the edit as the machine image's next revision. Resolves once
+   *  asked, like `use()`; `machine_image_not_saved` when it cannot be. */
+  save(): Promise<void>;
+  /** Saves the edit as a new machine image; the only save on the stock system. */
+  saveAs(settings: MachineImageSettings): Promise<void>;
   /** Leaves edit mode without saving and restarts the machine. */
   discardEdits(): Promise<void>;
 }
@@ -168,9 +204,7 @@ export class MachineImageSelectionClient implements MachineImageSelectionApi {
   constructor(
     machineId: string,
     machinePath: string,
-    private readonly transport: RoolTransport & {
-      subscribeEvents(listener: (event: RoolClientEvent) => void): () => void;
-    },
+    private readonly transport: RoolWatchingTransport,
   ) {
     this.path = `${machinePath}/machine-image`;
     this.watched = new WatchedValue<MachineImageState | null>(
@@ -201,6 +235,17 @@ export class MachineImageSelectionClient implements MachineImageSelectionApi {
 
   async startEditing(): Promise<void> {
     await this.transport.request(`${this.path}/edit`, { method: "POST" });
+  }
+
+  async save(): Promise<void> {
+    await this.transport.request(`${this.path}/save`, jsonRequest("POST", {}));
+  }
+
+  async saveAs({ name, description }: MachineImageSettings): Promise<void> {
+    await this.transport.request(
+      `${this.path}/save`,
+      jsonRequest("POST", { name, description }),
+    );
   }
 
   async discardEdits(): Promise<void> {

@@ -66,6 +66,7 @@ export class RoolClient {
   private readonly onAuthInvalidated: RoolClientConfig["onAuthInvalidated"];
   private readonly identity: RoolClientConfig["client"];
   private readonly machines = new Map<string, RoolMachine>();
+  private readonly accounts = new Map<string, RoolAccountApi>();
   readonly events: RoolEvents;
   readonly acl: RoolAclApi;
   readonly emailAccess: EmailAccessApi;
@@ -149,7 +150,15 @@ export class RoolClient {
 
   /** An account the user is on the roster of: its members, invites and machines. */
   account(accountId: string): RoolAccountApi {
-    return new RoolAccountApi(accountId, this.transport());
+    let account = this.accounts.get(accountId);
+    if (account) return account;
+
+    account = new RoolAccountApi(accountId, {
+      ...this.transport(),
+      subscribeEvents: (listener) => this.events.subscribe(listener),
+    });
+    this.accounts.set(accountId, account);
+    return account;
   }
 
   /** A machine image of an account; `account(id).machineImages` lists them. */

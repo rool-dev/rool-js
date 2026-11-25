@@ -818,4 +818,8 @@ export interface MachineImageState {
   error: string | null;
   /** Why the revision failed to build at boot, leaving the machine on the stock system. */
   bootFailure: string | null;
+  /** Why the caller cannot start editing here; null when they can. `plan`: the
+   *  plan that pays for the machine does not include it. `other_members`: only
+   *  a machine with no other members can. The server may add reasons. */
+  editRefusal: "permission" | "plan" | "other_members" | (string & {}) | null;
 }

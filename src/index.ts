@@ -11,6 +11,8 @@ export { RoolAccountApi } from "./account.js";
 export { RoolMachineImageApi } from "./machine-images.js";
 export type {
   AccountMachineImagesApi,
+  AccountMachineImagesListener,
+  AccountMachineImagesView,
   HubMachineImagesApi,
   MachineImageSelectionApi,
   MachineImageStateListener,

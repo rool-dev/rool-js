@@ -4,13 +4,14 @@ title: Machine images
 
 A machine image decides the system a machine runs: its installed software and system files, not its data. It is a recipe of shell steps run as root over the stock Rool system, with files put over the result, kept as numbered revisions. Machine images belong to an account, and a machine follows the default revision of the one it runs.
 
-Revisions are made on a machine, not through the SDK. A machine in edit mode records steps and files, and its agent or shell saves them with `rool-machine-image`. The SDK lists and administers machine images, moves machines between them, and works with the Rool Hub.
+Revisions are made on a machine. In edit mode it records steps and files, run by its agent or in its shell with `rool-machine-image`, and a save turns them into a revision. The SDK starts and saves an edit, lists and administers machine images, moves machines between them, and works with the Rool Hub.
 
 ## An account's machine images
 
 ```ts
 const account = client.account(accountId);
 
+// account.machineImages.watch(({ machineImages }) => ...) keeps a list current.
 for (const image of await account.machineImages.list()) {
   console.log(image.name, image.defaultRevision, image.revisions[0].stepCount);
 }
@@ -54,7 +55,21 @@ stop();
 
 A new machine can start on a machine image with `createMachine({ name, machineImageId })`.
 
-`startEditing()` puts the machine in edit mode and `discardEdits()` leaves it without saving. Both restart the machine. Only the owner of a machine with no other members can enter edit mode, and the plan that pays for the machine must include it: see `machineImages` on the plans of `getPlans()`.
+### Edit and save
+
+```ts
+const { editRefusal } = await machine.machineImage.get();
+if (editRefusal === null) await machine.machineImage.startEditing();
+
+// The agent or a shell records steps and files. Then one of:
+await machine.machineImage.save(); // the machine image's next revision
+// or
+await machine.machineImage.saveAs({ name: "Data", description: "R and the tidyverse." }); // a new machine image
+```
+
+`startEditing()` restarts the machine into edit mode and `discardEdits()` leaves it without saving. `editRefusal` says why the caller cannot start: `permission`, `plan` when the plan that pays for the machine does not include editing, or `other_members`, since only a machine with no other members can be edited. Treat a value you do not know as a refusal: the server may add reasons. Ask `editRefusal` rather than the `machine.image.edit` action of `client.acl`, which covers the permission alone. A machine on the stock system has no machine image to add to, so its first save is `saveAs()`.
+
+`save()` and `saveAs()` resolve once the save is asked for. The machine restarts on the new revision when it is built; if the build fails it stays in edit mode and `error` says why. The new revision runs on this machine only, until `setDefaultRevision()` moves the others.
 
 ## The Rool Hub
 

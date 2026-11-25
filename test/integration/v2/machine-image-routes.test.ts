@@ -60,13 +60,17 @@ async function main(): Promise<void> {
     await client.createMachine({ name: `SDK machine image ${Date.now()}` }),
   );
   assert.equal(created.machineImage, null);
-  assert.deepEqual(await client.machine(created.id).machineImage.get(), {
+  const { editRefusal, ...state } = await client
+    .machine(created.id)
+    .machineImage.get();
+  assert.deepEqual(state, {
     machineImage: null,
     editing: false,
     changing: false,
     error: null,
     bootFailure: null,
   });
+  assert([null, "plan"].includes(editRefusal));
 
   console.log("\n✅ SDK machine image smoke tests passed.");
 }

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  RoolAccountApi,
   RoolClient,
+  type AccountMachineImagesView,
   type MachineImageStateView,
   type RoolClientEvent,
   type HubMachineImage,
@@ -91,7 +93,7 @@ test("the Hub lists machine images and shows one", async () => {
 
 test("a machine reads and changes the machine image it runs", async () => {
   const state: MachineImageState = {
-    machineImage: { id: "img", name: "Data", revision: 2, defaultRevision: 2 }, editing: false, changing: true, error: null, bootFailure: null,
+    machineImage: { id: "img", name: "Data", revision: 2, defaultRevision: 2 }, editing: false, changing: true, error: null, bootFailure: null, editRefusal: null,
   };
   const { client, requests } = recordingClient((_path, method) => (method === "GET" ? state : { message: "ok" }));
   const api = client.machine("m/1").machineImage;
@@ -99,6 +101,8 @@ test("a machine reads and changes the machine image it runs", async () => {
   await api.use("img");
   await api.use(null);
   await api.startEditing();
+  await api.save();
+  await api.saveAs({ name: "Data", description: "For data work." });
   await api.discardEdits();
   const base = "/v2/machines/m%2F1/machine-image";
   assert.deepEqual(requests, [
@@ -106,13 +110,15 @@ test("a machine reads and changes the machine image it runs", async () => {
     { path: base, method: "PUT", body: { machineImageId: "img" } },
     { path: base, method: "PUT", body: { machineImageId: null } },
     { path: `${base}/edit`, method: "POST", body: undefined },
+    { path: `${base}/save`, method: "POST", body: {} },
+    { path: `${base}/save`, method: "POST", body: { name: "Data", description: "For data work." } },
     { path: `${base}/discard`, method: "POST", body: undefined },
   ]);
 });
 
 test("a machine image watch re-reads on its machine's changes and stops when asked", async () => {
   const events = new Set<(event: RoolClientEvent) => void>();
-  let state: MachineImageState = { machineImage: null, editing: false, changing: true, error: null, bootFailure: null };
+  let state: MachineImageState = { machineImage: null, editing: false, changing: true, error: null, bootFailure: null, editRefusal: "plan" };
   let requests = 0;
   const machine = new RoolMachine("m1", {
     send: async () => { throw new Error("Unexpected send"); },
@@ -146,4 +152,48 @@ test("a machine image watch re-reads on its machine's changes and stops when ask
 
   stop();
   assert.equal(events.size, 0);
+});
+
+test("an account's machine image watch re-reads on that account's changes and is shared", async () => {
+  const events = new Set<(event: RoolClientEvent) => void>();
+  let saved: MachineImage[] = [];
+  let requests = 0;
+  const account = new RoolAccountApi("acc", {
+    request: async () => new Response(null, { status: 204 }),
+    requestJson: async <T>(path: string): Promise<T> => {
+      assert.equal(path, "/v2/accounts/acc/machine-images");
+      requests++;
+      return { machineImages: saved } as T;
+    },
+    subscribeEvents: (listener) => { events.add(listener); return () => { events.delete(listener); }; },
+  });
+  const emit = (accountId: string) => { for (const listener of events) listener({ type: "account_changed", accountId, timestamp: Date.now() }); };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+  const views: AccountMachineImagesView[] = [];
+  const stop = account.machineImages.watch((view) => views.push(view));
+  const stopOther = account.machineImages.watch(() => {});
+  assert.deepEqual(views[0], { machineImages: [], loading: true, error: null });
+  await settle();
+  assert.equal(requests, 1);
+
+  emit("other");
+  await settle();
+  assert.equal(requests, 1);
+
+  saved = [machineImage];
+  emit("acc");
+  await settle();
+  assert.equal(requests, 2);
+  assert.deepEqual(views.at(-1), { machineImages: [machineImage], loading: false, error: null });
+
+  stop();
+  stopOther();
+  assert.equal(events.size, 0);
+});
+
+test("the client hands out one handle per account", () => {
+  const client = new RoolClient({ apiUrl: "https://api.example.test" });
+  assert.equal(client.account("acc"), client.account("acc"));
+  assert.notEqual(client.account("acc"), client.account("other"));
 });
