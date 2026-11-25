@@ -28,6 +28,11 @@ async function main(): Promise<void> {
   console.log("An account lists its machine images...");
   const home = (await client.getAccounts()).find((account) => account.home);
   assert(home);
+  const publisher = await client.account(home.id).machineImages.getPublisher();
+  if (publisher) {
+    assert.equal(typeof publisher.handle, "string");
+    assert.equal(typeof publisher.approved, "boolean");
+  }
   for (const image of await client.account(home.id).machineImages.list()) {
     assert.deepEqual(await client.machineImage(image.id).get(), image);
     assert(image.revisions.some((r) => r.revision === image.defaultRevision));
@@ -40,7 +45,16 @@ async function main(): Promise<void> {
 
   console.log("The Hub lists machine images and shows one...");
   const listed = await client.hub.machineImages.list();
-  for (const image of listed) assertIsoDate(image.publishedAt);
+  for (const image of listed) {
+    assertIsoDate(image.publishedAt);
+    assert.equal((await client.hub.machineImages.getBySlug(image.publisher.handle, image.slug)).id, image.id);
+    const icon = await fetch(client.hub.machineImages.iconUrl(image.id));
+    assert.equal(icon.status, image.hasIcon ? 200 : 404);
+  }
+  assert.deepEqual(
+    await createTestClient(null).hub.machineImages.list(),
+    listed,
+  );
   if (listed[0]) {
     const { recipe, files, ...summary } = await client.hub.machineImages.get(
       listed[0].id,

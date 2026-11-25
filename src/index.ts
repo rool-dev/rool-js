@@ -206,6 +206,8 @@ export type {
   CopiedMachineImage,
   HubMachineImage,
   HubMachineImageDetail,
+  HubPublisher,
+  HubPublisherSettings,
   MachineImage,
   MachineImageCopyUpdate,
   MachineImageDefaultChange,
@@ -218,6 +220,7 @@ export type {
   MachineImageState,
   MachineImageStep,
   MachineImageSubmission,
+  MachineImageSubmit,
   MachineTheme,
 } from "./types.js";
 

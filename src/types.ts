@@ -752,6 +752,9 @@ export interface MachineImage extends MachineImageSettings {
   copiedFromPublishedRevision: number | null;
   /** The revision the Hub lists; null when not listed. */
   publishedRevision: number | null;
+  /** Its name in the Hub, after its publisher's handle; null before its first
+   *  submission, fixed from then on. */
+  slug: string | null;
   /** Newest first. */
   revisions: MachineImageRevisionSummary[];
 }
@@ -768,6 +771,36 @@ export interface MachineImageRevision extends MachineImageSettings {
   /** What its machines show where they have none of their own. */
   theme: MachineTheme | null;
   icon: string | null;
+}
+
+/** What a submission settles. */
+export interface MachineImageSubmit {
+  /** The default revision when left out. */
+  revision?: number;
+  /** What the account publishes as, unique across Rool. Required until the
+   *  account has one; fixed once a submission is approved. */
+  handle?: string;
+  /** Shown with the machine image. Required until the account has one, and
+   *  may change with any submission. */
+  publisherName?: string;
+  /** Made from the machine image's name when left out. */
+  slug?: string;
+}
+
+/** What an account publishes to the Hub as. */
+export interface HubPublisherSettings {
+  handle: string;
+  name: string;
+  /** Until a submission is approved the handle is only held, and given back
+   *  when nothing waits for review. */
+  approved: boolean;
+}
+
+export interface HubPublisher {
+  handle: string;
+  name: string;
+  /** When the account was made. */
+  since: string;
 }
 
 export interface MachineImageSubmission {
@@ -793,7 +826,17 @@ export interface HubMachineImage extends MachineImageSettings {
   revision: number;
   stepCount: number;
   fileCount: number;
+  /** Its address in the Hub is `publisher.handle`/`slug`. */
+  slug: string;
+  publisher: HubPublisher;
+  /** Published by Rool. */
+  official: boolean;
+  hasIcon: boolean;
   publishedAt: string;
+  /** Other accounts with a copy. */
+  copies: number;
+  /** Machines running those copies. */
+  machines: number;
 }
 
 export interface HubMachineImageDetail extends HubMachineImage {

@@ -105,7 +105,9 @@ export class RoolClient {
       },
       getSession: () => this.getSession(),
     });
-    this.hub = { machineImages: new HubMachineImagesClient(this.transport()) };
+    this.hub = {
+      machineImages: new HubMachineImagesClient(this.apiUrl, this.transport()),
+    };
     this.acl = new AclClient({
       load: signal => this.requestJson("/v2/acl", { signal }),
       subscribeEvents: listener => this.events.subscribe(listener),

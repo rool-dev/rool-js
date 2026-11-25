@@ -3,6 +3,7 @@ import type {
   CopiedMachineImage,
   HubMachineImage,
   HubMachineImageDetail,
+  HubPublisherSettings,
   MachineImage,
   MachineImageCopyUpdate,
   MachineImageDefaultChange,
@@ -10,6 +11,7 @@ import type {
   MachineImageSettings,
   MachineImageState,
   MachineImageSubmission,
+  MachineImageSubmit,
 } from "./types.js";
 import { fetchMachineImageArchive, type MachineImageArchive } from "./machine-image-files.js";
 import { WatchedValue } from "./watched-value.js";
@@ -32,6 +34,8 @@ export interface AccountMachineImagesApi {
   /** A name the account already uses gets a number after it;
    *  `machine_image_not_listed` for an id the Hub does not list. */
   copyFromHub(hubMachineImageId: string): Promise<CopiedMachineImage>;
+  /** What the account publishes to the Hub as; null while it has no handle. */
+  getPublisher(): Promise<HubPublisherSettings | null>;
 }
 
 export class AccountMachineImagesClient implements AccountMachineImagesApi {
@@ -40,7 +44,7 @@ export class AccountMachineImagesClient implements AccountMachineImagesApi {
 
   constructor(
     accountId: string,
-    accountPath: string,
+    private readonly accountPath: string,
     private readonly transport: RoolWatchingTransport,
   ) {
     this.path = `${accountPath}/machine-images`;
@@ -68,6 +72,13 @@ export class AccountMachineImagesClient implements AccountMachineImagesApi {
       this.path,
       jsonRequest("POST", { from: hubMachineImageId }),
     );
+  }
+
+  async getPublisher(): Promise<HubPublisherSettings | null> {
+    const { publisher } = await this.transport.requestJson<{
+      publisher: HubPublisherSettings | null;
+    }>(`${this.accountPath}/publisher`);
+    return publisher;
   }
 
   private async load(signal?: AbortSignal): Promise<MachineImage[]> {
@@ -128,11 +139,15 @@ export class RoolMachineImageApi {
   }
 
   /** Puts a revision, by default the default one, up for review for the Hub;
-   *  `machine_image_submitted` while another waits. */
-  submit(revision?: number): Promise<MachineImageSubmission> {
+   *  `machine_image_submitted` while another waits. An account's first
+   *  submission needs a handle and a publisher name:
+   *  `machine_image_handle_required`, `machine_image_publisher_required`, and
+   *  `machine_image_handle_unavailable` or `machine_image_slug_unavailable`
+   *  for a name that cannot be had. */
+  submit(options: MachineImageSubmit = {}): Promise<MachineImageSubmission> {
     return this.transport.requestJson(
       `${this.path}/submissions`,
-      jsonRequest("POST", revision === undefined ? {} : { revision }),
+      jsonRequest("POST", options),
     );
   }
 
@@ -154,7 +169,12 @@ export interface HubMachineImagesApi {
   list(): Promise<HubMachineImage[]>;
   /** `machine_image_not_listed` for an id the Hub does not list. */
   get(machineImageId: string): Promise<HubMachineImageDetail>;
-  /** The contents of a listed machine image's files, fetched all at once. */
+  /** By its address in the Hub. */
+  getBySlug(handle: string, slug: string): Promise<HubMachineImageDetail>;
+  /** Where its icon is served, without signing in; 404 unless `hasIcon`. */
+  iconUrl(machineImageId: string): string;
+  /** The contents of a listed machine image's files, fetched all at once.
+   *  Needs a signed-in user, which the rest of the Hub does not. */
   files(machineImageId: string): Promise<MachineImageArchive>;
 }
 
@@ -163,7 +183,10 @@ export interface RoolHubApi {
 }
 
 export class HubMachineImagesClient implements HubMachineImagesApi {
-  constructor(private readonly transport: RoolTransport) {}
+  constructor(
+    private readonly apiUrl: string,
+    private readonly transport: RoolTransport,
+  ) {}
 
   async list(): Promise<HubMachineImage[]> {
     const { machineImages } = await this.transport.requestJson<{
@@ -176,6 +199,16 @@ export class HubMachineImagesClient implements HubMachineImagesApi {
     return this.transport.requestJson(
       `/v2/hub/machine-images/${encodeURIComponent(machineImageId)}`,
     );
+  }
+
+  getBySlug(handle: string, slug: string): Promise<HubMachineImageDetail> {
+    return this.transport.requestJson(
+      `/v2/hub/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}`,
+    );
+  }
+
+  iconUrl(machineImageId: string): string {
+    return `${this.apiUrl}/v2/hub/machine-images/${encodeURIComponent(machineImageId)}/icon`;
   }
 
   files(machineImageId: string): Promise<MachineImageArchive> {

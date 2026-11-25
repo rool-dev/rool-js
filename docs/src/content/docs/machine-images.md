@@ -97,7 +97,7 @@ for (const summary of await client.listMachines()) {
 
 ## The Rool Hub
 
-The Hub lists machine images that accounts have published. Taking one makes a copy in your account, which is yours from then on: nothing changes it but your account.
+The Hub lists machine images that accounts have published. Taking one makes a copy in your account, which is yours from then on: nothing changes it but your account. The Hub can be read without signing in, apart from the contents of files.
 
 ```ts
 const listed = await client.hub.machineImages.list();
@@ -107,6 +107,8 @@ console.log(detail.recipe, detail.files);
 const copy = await account.machineImages.copyFromHub(detail.id);
 await machine.machineImage.use(copy.id);
 ```
+
+A listed machine image has the address `publisher.handle`/`slug`, which `getBySlug(handle, slug)` reads. `publisher` also has the name it publishes under and `since`, when its account was made; `official` marks Rool's own. `copies` counts the other accounts that took it, `machines` the machines running their copies. Use `iconUrl(id)` in an `<img>` when `hasIcon` is set.
 
 When the machine image a copy was made from publishes a newer revision, the copy's `copiedFromPublishedRevision` is higher than the `copiedFromRevision` of its revisions. `updateCopy()` adds that revision to the copy. The default revision stays, so machines move when you set it:
 
@@ -121,8 +123,12 @@ Changes made to the copy itself are not merged into the new revision.
 
 ```ts
 const image = client.machineImage(machineImageId);
-await image.submit(); // the default revision, or submit(3)
+await image.submit({ handle: "crafts", publisherName: "The Crafts" });
+
+await image.submit({ revision: 3 }); // the default revision when left out
 ```
+
+An account's first submission needs a `handle` and a `publisherName`; `account.machineImages.getPublisher()` says what it has. A handle is 3 to 30 lower-case letters, digits and hyphens, and unique across Rool; some names are reserved. It is held while a submission waits, given back when the first is rejected or withdrawn, and fixed once one is approved. The publisher name can change with any submission, and is listed as reviewed. A machine image's `slug` is fixed by its first submission, made from its name unless you pass one.
 
 Rool reviews each submitted revision. Each revision in `account.machineImages.list()` carries its `review`: `pending`, `approved`, or `rejected` with a note saying why. An approved revision is listed under the name and description the machine image had when it was submitted, and anyone can read its recipe and files, so keep secrets out of a revision you submit.
 

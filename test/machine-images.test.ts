@@ -29,7 +29,7 @@ function recordingClient(reply: (path: string, method: string) => unknown) {
 
 const machineImage: MachineImage = {
   id: "img/1", name: "Data", description: "For data work.", defaultRevision: 1,
-  copiedFromId: "hub1", copiedFromPublishedRevision: 2, publishedRevision: null,
+  copiedFromId: "hub1", copiedFromPublishedRevision: 2, publishedRevision: null, slug: null,
   revisions: [{
     revision: 1, stepCount: 2, fileCount: 0, parentRevision: null, createdAt: "2026-11-25T10:00:00.000Z", createdBy: "user",
     machines: 1, copiedFromRevision: 1, review: null,
@@ -48,6 +48,16 @@ test("an account lists its machine images and copies one from the Hub", async ()
   ]);
 });
 
+test("an account says what it publishes to the Hub as", async () => {
+  let publisher: unknown = null;
+  const { client, requests } = recordingClient(() => ({ publisher }));
+  const { machineImages } = client.account("acc/1");
+  assert.equal(await machineImages.getPublisher(), null);
+  publisher = { handle: "crafts", name: "The Crafts", approved: false };
+  assert.deepEqual(await machineImages.getPublisher(), publisher);
+  assert.equal(requests[0].path, "/v2/accounts/acc%2F1/publisher");
+});
+
 test("a machine image is changed, published and updated through its own paths", async () => {
   const { client, requests } = recordingClient((path, method) => {
     if (method === "DELETE") return undefined;
@@ -62,7 +72,8 @@ test("a machine image is changed, published and updated through its own paths", 
   assert.equal((await image.update({ name: "Renamed" })).id, machineImage.id);
   assert.deepEqual(await image.setDefaultRevision(2), { previous: 1, restarted: 3 });
   assert.deepEqual(await image.submit(), { id: "sub", revision: 2 });
-  await image.submit(2);
+  await image.submit({ revision: 2 });
+  await image.submit({ handle: "crafts", publisherName: "The Crafts", slug: "data" });
   assert.deepEqual(await image.updateCopy(), { revision: 3, copiedFromRevision: 2 });
   await image.unlist();
   await image.delete();
@@ -74,6 +85,7 @@ test("a machine image is changed, published and updated through its own paths", 
     { path: `${base}/default-revision`, method: "PUT", body: { revision: 2 } },
     { path: `${base}/submissions`, method: "POST", body: {} },
     { path: `${base}/submissions`, method: "POST", body: { revision: 2 } },
+    { path: `${base}/submissions`, method: "POST", body: { handle: "crafts", publisherName: "The Crafts", slug: "data" } },
     { path: `${base}/copy-update`, method: "POST", body: undefined },
     { path: `${base}/listing`, method: "DELETE", body: undefined },
     { path: base, method: "DELETE", body: undefined },
@@ -82,13 +94,18 @@ test("a machine image is changed, published and updated through its own paths", 
 });
 
 test("the Hub lists machine images and shows one", async () => {
-  const listed: HubMachineImage = { id: "hub/1", name: "Data", description: "For data work.", revision: 2, stepCount: 1, fileCount: 0, publishedAt: "2026-11-25T10:00:00.000Z" };
+  const listed: HubMachineImage = { id: "hub/1", name: "Data", description: "For data work.", revision: 2, stepCount: 1, fileCount: 0, publishedAt: "2026-11-25T10:00:00.000Z",
+    slug: "data", publisher: { handle: "crafts", name: "The Crafts", since: "2026-01-01T00:00:00.000Z" }, official: false, hasIcon: true, copies: 3, machines: 5 };
   const { client, requests } = recordingClient((path) =>
     path === "/v2/hub/machine-images" ? { machineImages: [listed] } : { ...listed, recipe: [{ run: "apt-get install -y r-base" }], files: [] });
   assert.equal(client.hub, client.hub);
   assert.deepEqual(await client.hub.machineImages.list(), [listed]);
   assert.deepEqual((await client.hub.machineImages.get("hub/1")).recipe, [{ run: "apt-get install -y r-base" }]);
   assert.deepEqual(requests.map((r) => r.path), ["/v2/hub/machine-images", "/v2/hub/machine-images/hub%2F1"]);
+  await client.hub.machineImages.getBySlug("crafts", "data");
+  assert.equal(requests.at(-1)?.path, "/v2/hub/crafts/data");
+  assert.equal(client.hub.machineImages.iconUrl("hub/1"), "https://api.example.test/v2/hub/machine-images/hub%2F1/icon");
+  assert.equal(requests.length, 3);
 });
 
 test("a machine reads and changes the machine image it runs", async () => {
