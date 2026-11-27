@@ -45,6 +45,14 @@ test("local grant discovery and cross-client token watcher", { timeout: 30_000 }
     await tokenClient.account(accountId).get();
     await until(() => !!view?.tokens.some(token => token.id === id && token.lastUsedAt !== null));
     await assert.rejects(() => tokenClient.account(accountId).getGrantableActions(), { status: 403 });
+    const renamed = await writer.account(accountId).apiTokens.get(id);
+    await writer.account(accountId).apiTokens.update(id, { grants: [], revision: renamed.revision });
+    await until(() => !!view?.tokens.some(token => token.id === id && token.grants.length === 0));
+    await assert.rejects(() => tokenClient.account(accountId).get(), { status: 403 });
+    await assert.rejects(() => writer.account(accountId).apiTokens.update(id!, { grants: [], revision: renamed.revision }), { status: 409 });
+    const current = await writer.account(accountId).apiTokens.get(id);
+    await writer.account(accountId).apiTokens.update(id, { grants: created.grants, revision: current.revision });
+    await tokenClient.account(accountId).get();
     await writer.account(accountId).apiTokens.revoke(id);
     await until(() => !!view && !view.loading && !view.tokens.some(token => token.id === id));
     for (const snapshot of snapshots) for (const token of snapshot.tokens) {

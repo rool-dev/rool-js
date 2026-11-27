@@ -13,6 +13,13 @@ export interface ApiToken {
   createdAt: string;
   lastUsedAt: string | null;
   grants: ApiTokenGrant[];
+  revision: string;
+}
+
+export interface UpdateApiToken {
+  name?: string;
+  grants?: ApiTokenGrant[];
+  revision: string;
 }
 
 export interface CreateApiToken {
@@ -38,6 +45,7 @@ export interface AccountApiTokensApi {
   list(): Promise<ApiToken[]>;
   get(tokenId: string): Promise<ApiToken>;
   create(input: CreateApiToken): Promise<CreatedApiToken>;
+  update(tokenId: string, input: UpdateApiToken): Promise<void>;
   rename(tokenId: string, name: string): Promise<void>;
   revoke(tokenId: string): Promise<void>;
 }
@@ -84,11 +92,19 @@ export class AccountApiTokensClient implements AccountApiTokensApi {
     });
   }
 
-  async rename(tokenId: string, name: string): Promise<void> {
+  rename(tokenId: string, name: string): Promise<void> {
+    return this.patch(tokenId, { name });
+  }
+
+  update(tokenId: string, input: UpdateApiToken): Promise<void> {
+    return this.patch(tokenId, input);
+  }
+
+  private async patch(tokenId: string, input: { name?: string; grants?: ApiTokenGrant[]; revision?: string }): Promise<void> {
     await this.transport.request(this.tokenPath(tokenId), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(input),
     });
   }
 

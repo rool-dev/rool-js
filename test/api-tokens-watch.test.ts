@@ -10,7 +10,7 @@ test("token watches share loads, scope events, clear stale permissions and unsub
   let loads = 0;
   let subscriptions = 0;
   let failure: Error | undefined;
-  const tokens: ApiToken[] = [{ id: "token", name: "CI", createdByUserId: null, createdAt: "now", lastUsedAt: null, grants: [] }];
+  const tokens: ApiToken[] = [{ id: "token", name: "CI", createdByUserId: null, createdAt: "now", lastUsedAt: null, grants: [], revision: "revision" }];
   const api = new RoolAccountApi("account", {
     request: async () => new Response(null, { status: 204 }),
     requestJson: async <T>() => {

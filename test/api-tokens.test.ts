@@ -8,6 +8,7 @@ const token: ApiToken = {
   createdByUserId: null,
   createdAt: "2026-06-01T00:00:00.000Z",
   lastUsedAt: null,
+  revision: "revision",
   grants: [{ machineId: "machine", actions: ["machine.exec"] }],
 };
 
@@ -35,6 +36,7 @@ test("account API tokens use collection and item routes without caching secrets"
   assert.deepEqual(await api.list(), [token]);
   assert.deepEqual(await api.get("token/one"), token);
   assert.equal(await api.rename("token/one", "New name"), undefined);
+  assert.equal(await api.update("token/one", { grants: [], revision: token.revision }), undefined);
   assert.equal(await api.revoke("token/one"), undefined);
   const path = "https://api.example/v2/accounts/account%2Fone/api-tokens";
   assert.deepEqual(calls, [
@@ -42,12 +44,13 @@ test("account API tokens use collection and item routes without caching secrets"
     { url: path, method: "GET", body: null },
     { url: `${path}/token%2Fone`, method: "GET", body: null },
     { url: `${path}/token%2Fone`, method: "PATCH", body: { name: "New name" } },
+    { url: `${path}/token%2Fone`, method: "PATCH", body: { grants: [], revision: token.revision } },
     { url: `${path}/token%2Fone`, method: "DELETE", body: null },
   ]);
   assert.throws(() => api.get(""), /tokenId/);
   await assert.rejects(api.rename("", "name"), /tokenId/);
   await assert.rejects(api.revoke(""), /tokenId/);
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
 });
 
 test("token management preserves server problems on every operation", async () => {

@@ -9,6 +9,7 @@ export type {
   ApiToken,
   ApiTokenGrant,
   CreateApiToken,
+  UpdateApiToken,
   CreatedApiToken,
 } from "./api-tokens.js";
 export type { GrantableAction } from "./account.js";
